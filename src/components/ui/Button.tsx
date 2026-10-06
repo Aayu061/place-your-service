@@ -1,8 +1,9 @@
 import React from 'react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
+  isIconOnly?: boolean;
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -12,6 +13,7 @@ export const Button: React.FC<ButtonProps> = ({
   children,
   variant = 'primary',
   size = 'md',
+  isIconOnly = false,
   isLoading = false,
   leftIcon,
   rightIcon,
@@ -21,11 +23,13 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const variantClass = `btn-${variant}`;
   const sizeClass = size !== 'md' ? `btn-${size}` : '';
+  const iconOnlyClass = isIconOnly ? 'btn-icon' : '';
 
   return (
     <button
-      className={`btn ${variantClass} ${sizeClass} ${className}`.trim()}
+      className={`btn ${variantClass} ${sizeClass} ${iconOnlyClass} ${className}`.trim()}
       disabled={disabled || isLoading}
+      aria-busy={isLoading}
       {...props}
     >
       {isLoading ? (
@@ -44,7 +48,7 @@ export const Button: React.FC<ButtonProps> = ({
       ) : (
         leftIcon
       )}
-      <span>{children}</span>
+      {children && <span>{children}</span>}
       {!isLoading && rightIcon}
     </button>
   );

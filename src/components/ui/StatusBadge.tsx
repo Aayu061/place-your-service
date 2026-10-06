@@ -8,7 +8,7 @@ export interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = '' }) => {
-  let variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'amc' = 'neutral';
+  let variant: 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'amc' = 'neutral';
   let dotColor = 'var(--color-neutral-400)';
 
   switch (status) {
@@ -27,8 +27,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
       break;
     case 'CANCELLED':
     case 'EXPIRED':
-      variant = 'danger';
-      dotColor = 'var(--color-danger-solid)';
+      variant = 'error';
+      dotColor = 'var(--color-error-solid)';
       break;
     case 'SCHEDULED':
     case 'ASSIGNED':
@@ -46,7 +46,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
   }
 
   return (
-    <span className={`badge badge-${variant} ${className}`.trim()}>
+    <span
+      className={`badge badge-${variant} ${className}`.trim()}
+      data-status={status}
+    >
       <span
         className="status-dot"
         style={{ backgroundColor: dotColor }}

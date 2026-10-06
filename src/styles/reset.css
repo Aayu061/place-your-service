@@ -1,5 +1,6 @@
 /**
- * Place Your Service — Modern CSS Reset
+ * Place Your Service (PYS) — Global CSS Reset & Accessibility Base
+ * Conforms to Section 6 of Phase 1 specification.
  */
 
 *,
@@ -17,16 +18,35 @@ html {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100%;
   font-family: var(--font-sans);
   background-color: var(--bg-app);
   color: var(--text-primary);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
+  overflow-x: hidden;
 }
 
+/* Accessible focus visible indicators across all interactive elements */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* User selection */
+::selection {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+/* Media normalization */
 img,
 picture,
 video,
@@ -36,18 +56,25 @@ svg {
   max-width: 100%;
 }
 
+/* Form element font inheritance */
 input,
 button,
 textarea,
 select {
   font: inherit;
   color: inherit;
+  letter-spacing: inherit;
 }
 
 button {
   cursor: pointer;
   background: none;
   border: none;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 a {
@@ -64,4 +91,30 @@ table {
   border-collapse: collapse;
   border-spacing: 0;
   width: 100%;
+}
+
+/* Modern Clean Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
+
+@supports (scrollbar-color: auto) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-neutral-300) transparent;
+  }
 }

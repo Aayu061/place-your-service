@@ -2,11 +2,18 @@ import React from 'react';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
+  variant?: 'default' | 'interactive' | 'elevated';
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', ...props }) => {
+export const Card: React.FC<CardProps> = ({
+  children,
+  variant = 'default',
+  className = '',
+  ...props
+}) => {
+  const variantClass = variant !== 'default' ? `card-${variant}` : '';
   return (
-    <div className={`card ${className}`.trim()} {...props}>
+    <div className={`card ${variantClass} ${className}`.trim()} {...props}>
       {children}
     </div>
   );
@@ -21,6 +28,34 @@ export const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
     <div className={`card-header ${className}`.trim()} {...props}>
       {children}
     </div>
+  );
+};
+
+export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
+  children,
+  className = '',
+  ...props
+}) => {
+  return (
+    <h3 className={`card-title ${className}`.trim()} {...props}>
+      {children}
+    </h3>
+  );
+};
+
+export const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({
+  children,
+  className = '',
+  ...props
+}) => {
+  return (
+    <p
+      className={`text-caption ${className}`.trim()}
+      style={{ marginTop: '2px', color: 'var(--text-muted)' }}
+      {...props}
+    >
+      {children}
+    </p>
   );
 };
 

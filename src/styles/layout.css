@@ -1,14 +1,21 @@
 /**
- * Place Your Service — Layout and Shell Utilities
+ * Place Your Service (PYS) — Application Shell Layout & Utilities
+ * Responsive architecture for Desktop, Laptop, Tablet, and Mobile.
  */
 
-/* Shell structure */
+/* --------------------------------------------------
+ * Application Shell Root
+ * -------------------------------------------------- */
 .app-shell {
   display: flex;
   min-height: 100vh;
   background-color: var(--bg-app);
+  position: relative;
 }
 
+/* --------------------------------------------------
+ * Sidebar Architecture
+ * -------------------------------------------------- */
 .sidebar {
   width: var(--sidebar-width);
   background-color: var(--bg-sidebar);
@@ -16,21 +23,64 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width var(--duration-hover) var(--ease-standard);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  transition: width var(--duration-drawer) var(--ease-standard);
+  border-right: 1px solid var(--bg-sidebar-border);
+  z-index: var(--z-header);
+  height: 100vh;
+  position: sticky;
+  top: 0;
 }
 
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+/* Mobile Off-Canvas Sidebar */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: var(--z-drawer-backdrop);
+}
+
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-drawer);
+    transform: translateX(-100%);
+    transition: transform var(--duration-drawer) var(--ease-standard);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.visible {
+    display: block;
+  }
+}
+
+/* --------------------------------------------------
+ * Main Content Structure
+ * -------------------------------------------------- */
 .main-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 100vh;
 }
 
 .top-bar {
   height: var(--header-height);
   background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,39 +93,71 @@
 .content-container {
   flex: 1;
   padding: var(--space-8);
-  max-width: 1440px;
+  max-width: var(--max-content-width);
   width: 100%;
   margin: 0 auto;
 }
 
-/* Utilities */
+/* --------------------------------------------------
+ * Flexbox Utilities
+ * -------------------------------------------------- */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-1 { flex: 1 1 0%; }
 .items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
 .justify-between { justify-content: space-between; }
 .justify-center { justify-content: center; }
+.justify-start { justify-content: flex-start; }
+.justify-end { justify-content: flex-end; }
+
 .gap-1 { gap: var(--space-1); }
 .gap-2 { gap: var(--space-2); }
 .gap-3 { gap: var(--space-3); }
 .gap-4 { gap: var(--space-4); }
+.gap-5 { gap: var(--space-5); }
 .gap-6 { gap: var(--space-6); }
 .gap-8 { gap: var(--space-8); }
 
+/* --------------------------------------------------
+ * Grid Utilities
+ * -------------------------------------------------- */
 .grid { display: grid; }
 .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
-/* Responsive adjustments */
-@media (max-width: 1024px) {
+/* --------------------------------------------------
+ * Responsive Media Queries
+ * -------------------------------------------------- */
+@media (max-width: 1200px) {
   .grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 768px) {
-  .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; }
-  .grid-cols-4, .grid-cols-3, .grid-cols-2 { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
+  .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content-container { padding: var(--space-6); }
+}
+
+@media (min-width: 768px) {
+  .search-container-desktop {
+    display: block !important;
+  }
+  .user-name-desktop {
+    display: block !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid-cols-4,
+  .grid-cols-3,
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+  .top-bar { padding: 0 var(--space-4); }
   .content-container { padding: var(--space-4); }
 }
