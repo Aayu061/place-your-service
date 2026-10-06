@@ -1,0 +1,175 @@
+/**
+ * Place Your Service — Design Tokens
+ * Source of truth for color palette, typography, elevation, spacing, and transitions.
+ * Conforms to DOCS/DESIGN.md.
+ */
+
+:root {
+  /* --------------------------------------------------
+   * Brand & Primary Colors (Clean, Professional Air-Conditioning & Service Hue)
+   * -------------------------------------------------- */
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-200: #bae6fd;
+  --color-primary-300: #7dd3fc;
+  --color-primary-400: #38bdf8;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7; /* Primary Brand */
+  --color-primary-700: #0369a1;
+  --color-primary-800: #075985;
+  --color-primary-900: #0c4a6e;
+
+  /* --------------------------------------------------
+   * Neutral Palette (Slate)
+   * -------------------------------------------------- */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  /* --------------------------------------------------
+   * Semantic Status Colors (Auditable & Accessible)
+   * -------------------------------------------------- */
+  /* Success: Completed, Active, Paid */
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  --color-success-text: #065f46;
+  --color-success-solid: #10b981;
+
+  /* Warning: Pending, Expiring Soon, Due */
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #92400e;
+  --color-warning-solid: #f59e0b;
+
+  /* Danger / Urgent: Overdue, Cancelled, Emergency */
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #991b1b;
+  --color-danger-solid: #ef4444;
+
+  /* Info / In-Progress: Scheduled, Assigned, In-Progress */
+  --color-info-bg: #f0fdf4;
+  --color-info-border: #bbf7d0;
+  --color-info-text: #166534;
+  --color-info-solid: #22c55e;
+
+  /* Purple: AMC Contracts, Preventive Maintenance */
+  --color-amc-bg: #faf5ff;
+  --color-amc-border: #e9d5ff;
+  --color-amc-text: #6b21a8;
+  --color-amc-solid: #a855f7;
+
+  /* --------------------------------------------------
+   * Semantic Surface & Element Tokens
+   * -------------------------------------------------- */
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-subtle: #f1f5f9;
+  --bg-sidebar: #0f172a;
+  --bg-sidebar-hover: #1e293b;
+  --bg-sidebar-active: #0284c7;
+
+  --border-subtle: #e2e8f0;
+  --border-moderate: #cbd5e1;
+  --border-strong: #94a3b8;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-inverse: #ffffff;
+
+  /* --------------------------------------------------
+   * Typography Scale
+   * -------------------------------------------------- */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, monospace;
+
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* --------------------------------------------------
+   * Spacing System (8pt baseline)
+   * -------------------------------------------------- */
+  --space-0-5: 0.125rem;  /* 2px */
+  --space-1: 0.25rem;     /* 4px */
+  --space-2: 0.5rem;      /* 8px */
+  --space-3: 0.75rem;     /* 12px */
+  --space-4: 1rem;        /* 16px */
+  --space-5: 1.25rem;     /* 20px */
+  --space-6: 1.5rem;      /* 24px */
+  --space-8: 2rem;        /* 32px */
+  --space-10: 2.5rem;     /* 40px */
+  --space-12: 3rem;       /* 48px */
+  --space-16: 4rem;       /* 64px */
+
+  /* --------------------------------------------------
+   * Radii
+   * -------------------------------------------------- */
+  --radius-xs: 0.25rem;   /* 4px */
+  --radius-sm: 0.375rem;  /* 6px */
+  --radius-md: 0.5rem;    /* 8px */
+  --radius-lg: 0.75rem;   /* 12px */
+  --radius-xl: 1rem;      /* 16px */
+  --radius-full: 9999px;
+
+  /* --------------------------------------------------
+   * Elevation / Shadows (Controlled & Crisp)
+   * -------------------------------------------------- */
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
+
+  /* --------------------------------------------------
+   * Centralized Motion System (DESIGN.md section 11)
+   * -------------------------------------------------- */
+  --duration-hover: 150ms;
+  --duration-page: 240ms;
+  --duration-modal: 260ms;
+  --duration-toast: 200ms;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+
+  /* --------------------------------------------------
+   * Z-Index Scale
+   * -------------------------------------------------- */
+  --z-base: 0;
+  --z-sticky: 100;
+  --z-header: 200;
+  --z-drawer: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-toast: 600;
+  --z-tooltip: 700;
+
+  /* --------------------------------------------------
+   * Layout Sizing
+   * -------------------------------------------------- */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
+  --header-height: 64px;
+}

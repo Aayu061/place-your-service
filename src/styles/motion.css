@@ -1,0 +1,116 @@
+/**
+ * Place Your Service — Centralized Motion System
+ * Conforms to DOCS/DESIGN.md & accessibility standards.
+ */
+
+/* Transitions */
+.transition-hover {
+  transition: all var(--duration-hover) var(--ease-standard);
+}
+
+.transition-base {
+  transition: all var(--duration-page) var(--ease-standard);
+}
+
+.transition-transform {
+  transition: transform var(--duration-hover) var(--ease-standard);
+}
+
+.transition-colors {
+  transition: background-color var(--duration-hover) var(--ease-standard),
+              border-color var(--duration-hover) var(--ease-standard),
+              color var(--duration-hover) var(--ease-standard);
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleInFade {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-page) var(--ease-decelerate) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUpFade var(--duration-page) var(--ease-decelerate) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleInFade var(--duration-modal) var(--ease-decelerate) forwards;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulseSubtle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* --------------------------------------------------
+ * Accessibility: Respect prefers-reduced-motion
+ * (DOCS/DESIGN.md Section 17 & TRD.md Section 17)
+ * -------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
