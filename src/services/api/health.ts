@@ -11,13 +11,13 @@ export const healthApi = {
    * Fetches the backend liveness health status.
    */
   async getHealth(): Promise<HealthResponse> {
-    return apiClient.get<HealthResponse>('/api/v1/health');
+    return apiClient.get<HealthResponse>('/health');
   },
 
   /**
    * Fetches the backend readiness status (verifies database connectivity).
    */
   async getReadiness(): Promise<HealthResponse> {
-    return apiClient.get<HealthResponse>('/api/v1/health/ready');
+    return apiClient.get<HealthResponse>('/health/ready');
   },
 };

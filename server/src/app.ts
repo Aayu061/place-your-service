@@ -57,6 +57,11 @@ export function createApp(): Express {
     max: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+      // Health check and readiness endpoints must never be blocked by API rate limiting
+      const cleanPath = req.originalUrl.split('?')[0].replace(/\/+$/, '');
+      return cleanPath === '/api/v1/health' || cleanPath === '/api/v1/health/ready' || cleanPath === '/health';
+    },
     message: {
       success: false,
       error: {

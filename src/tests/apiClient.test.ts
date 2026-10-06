@@ -121,4 +121,45 @@ describe('Frontend API Client Foundation', () => {
     expect(health.status).toBe('healthy');
     expect(health.service).toBe('place-your-service-api');
   });
+
+  it('normalizes production baseUrl (with /api/v1) and avoids duplicate /api/v1 paths', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ success: true, data: { status: 'healthy' } }),
+    });
+
+    const prodClient = new ApiClient('https://api.pys-service.com/api/v1');
+
+    // Case 1: Caller passes '/health'
+    await prodClient.get('/health');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.pys-service.com/api/v1/health',
+      expect.anything()
+    );
+
+    // Case 2: Caller passes '/api/v1/health'
+    await prodClient.get('/api/v1/health');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.pys-service.com/api/v1/health',
+      expect.anything()
+    );
+  });
+
+  it('normalizes development root baseUrl and prefixes /api/v1 automatically', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ success: true, data: { status: 'healthy' } }),
+    });
+
+    const devClient = new ApiClient('http://localhost:5000');
+
+    // Caller passes '/health'
+    await devClient.get('/health');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://localhost:5000/api/v1/health',
+      expect.anything()
+    );
+  });
 });

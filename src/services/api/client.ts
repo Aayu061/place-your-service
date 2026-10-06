@@ -46,7 +46,15 @@ export class ApiClient {
   }
 
   private buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+    // Normalize path to prevent duplicate /api/v1 segments when baseUrl includes /api/v1
+    if (this.baseUrl.endsWith('/api/v1') && cleanPath.startsWith('/api/v1/')) {
+      cleanPath = cleanPath.slice(7);
+    } else if (!this.baseUrl.endsWith('/api/v1') && !cleanPath.startsWith('/api/v1/') && cleanPath !== '/api/v1') {
+      cleanPath = `/api/v1${cleanPath}`;
+    }
+
     const url = new URL(`${this.baseUrl}${cleanPath}`);
 
     if (params) {
