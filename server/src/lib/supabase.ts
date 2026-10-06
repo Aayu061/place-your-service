@@ -41,18 +41,17 @@ export async function checkSupabaseConnection(): Promise<{
   const start = Date.now();
   try {
     const client = getSupabaseClient();
-    // Query a lightweight health ping (or count on profiles)
-    const { error } = await client.from('profiles').select('id', { count: 'exact', head: true });
+    // Query a lightweight health ping (or count on profiles) with limit 1
+    const { error } = await client.from('profiles').select('id').limit(1);
     const latencyMs = Date.now() - start;
 
     if (error && error.code !== 'PGRST116') {
-      // In case table does not exist yet prior to migration, error will indicate connectivity to PostgREST
-      // We can inspect error: if it's connection error or PostgREST error
-      logger.warn('Supabase ping returned error response', { error: error.message, code: error.code });
+      // Log sanitized error message and code to assist operational diagnostics
+      logger.warn('Supabase ping returned error response', { error: error.message || error.code, code: error.code });
       return {
         connected: false,
         latencyMs,
-        error: error.message,
+        error: error.message || error.code || 'Database ping error',
       };
     }
 

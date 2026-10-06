@@ -35,7 +35,7 @@ export class HealthService {
       database: {
         connected: dbStatus.connected,
         latencyMs: dbStatus.latencyMs,
-        ...(dbStatus.error ? { error: 'Database connection check failed' } : {}),
+        ...(dbStatus.connected ? {} : { error: 'Database connection check failed' }),
       },
     };
   }
