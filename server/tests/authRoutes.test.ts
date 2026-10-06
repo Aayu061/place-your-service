@@ -191,11 +191,21 @@ describe('Auth Routes API (/api/v1/auth)', () => {
                 data: [],
                 error: null,
               }),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
               insert: vi.fn().mockResolvedValue({ error: null }),
             };
           }
           if (table === 'profiles') {
             return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
               insert: vi.fn().mockResolvedValue({ error: null }),
             };
           }

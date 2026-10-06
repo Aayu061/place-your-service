@@ -10,14 +10,14 @@ export function errorHandlerMiddleware(
   res: Response,
   _next: NextFunction
 ): void {
-  const isAppError = err instanceof AppError;
-  const statusCode = isAppError ? err.statusCode : 500;
-  const code = isAppError ? err.code : 'INTERNAL_SERVER_ERROR';
-  const message =
-    isAppError || env.NODE_ENV !== 'production'
-      ? err.message
-      : 'An unexpected internal server error occurred';
-  const details = isAppError ? err.details : undefined;
+  const isAppError =
+    err instanceof AppError ||
+    (typeof err === 'object' && err !== null && 'statusCode' in err);
+  const statusCode = isAppError ? (err as AppError).statusCode : 500;
+  const code = isAppError ? (err as AppError).code : 'INTERNAL_SERVER_ERROR';
+  const message = err.message || 'An unexpected internal server error occurred';
+  const details = isAppError ? (err as AppError).details : undefined;
+
 
   // Log error
   logger.error(`Error processing request: ${err.message}`, {

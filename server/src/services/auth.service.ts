@@ -79,6 +79,8 @@ export class AuthService {
     }
 
     // Provision user in Supabase Auth via admin API
+    let newUserId: string;
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: payload.email,
       password: payload.password,
@@ -86,40 +88,90 @@ export class AuthService {
       user_metadata: { full_name: payload.fullName },
     });
 
-    if (authError || !authData.user) {
-      logger.error('Failed to provision auth user in Supabase', { error: authError?.message });
-      throw new BadRequestError(authError?.message || 'Failed to create user in authentication provider');
+    if (authError || !authData?.user) {
+      // Check if user already exists in auth.users
+      const { data: listData } = await supabase.auth.admin.listUsers();
+      const existingUser = listData?.users?.find(
+        (u) => u.email?.toLowerCase() === payload.email.toLowerCase()
+      );
+
+      if (existingUser) {
+        newUserId = existingUser.id;
+        // Update password and metadata for existing user
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(existingUser.id, {
+          password: payload.password,
+          email_confirm: true,
+          user_metadata: { full_name: payload.fullName },
+        });
+
+        if (updateErr) {
+          logger.error('Failed to update credentials on existing auth user', { error: updateErr.message });
+          throw new BadRequestError(`Failed to update existing user: ${updateErr.message}`);
+        }
+      } else {
+        logger.error('Failed to provision auth user in Supabase', { error: authError?.message });
+        throw new BadRequestError(authError?.message || 'Failed to create user in authentication provider');
+      }
+    } else {
+      newUserId = authData.user.id;
     }
 
-    const newUserId = authData.user.id;
+    // Upsert profiles record
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', newUserId)
+      .maybeSingle();
 
-    // Create profiles record
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: newUserId,
-      full_name: payload.fullName,
-      email: payload.email,
-      phone: payload.phone || null,
-    });
+    if (!existingProfile) {
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: newUserId,
+        full_name: payload.fullName,
+        email: payload.email,
+        phone: payload.phone || null,
+      });
 
-    if (profileError) {
-      logger.error('Failed to insert profiles record during bootstrap', { error: profileError.message });
-      // Rollback auth user
-      await supabase.auth.admin.deleteUser(newUserId);
-      throw new BadRequestError(`Failed to save admin profile: ${profileError.message}`);
+      if (profileError) {
+        logger.error('Failed to insert profiles record during bootstrap', { error: profileError.message });
+        throw new BadRequestError(`Failed to save admin profile: ${profileError.message}`);
+      }
+    } else {
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: payload.fullName,
+          email: payload.email,
+          phone: payload.phone || null,
+        })
+        .eq('id', newUserId);
     }
 
-    // Create staff record with role 'ADMIN'
-    const { error: staffError } = await supabase.from('staff').insert({
-      profile_id: newUserId,
-      role: 'ADMIN',
-      is_active: true,
-    });
+    // Upsert staff record with role 'ADMIN'
+    const { data: existingStaff } = await supabase
+      .from('staff')
+      .select('id, role')
+      .eq('profile_id', newUserId)
+      .maybeSingle();
 
-    if (staffError) {
-      logger.error('Failed to insert staff record during bootstrap', { error: staffError.message });
-      await supabase.from('profiles').delete().eq('id', newUserId);
-      await supabase.auth.admin.deleteUser(newUserId);
-      throw new BadRequestError(`Failed to assign admin role: ${staffError.message}`);
+    if (!existingStaff) {
+      const { error: staffError } = await supabase.from('staff').insert({
+        profile_id: newUserId,
+        role: 'ADMIN',
+        is_active: true,
+      });
+
+      if (staffError) {
+        logger.error('Failed to insert staff record during bootstrap', { error: staffError.message });
+        throw new BadRequestError(`Failed to assign admin role: ${staffError.message}`);
+      }
+    } else {
+      await supabase
+        .from('staff')
+        .update({
+          role: 'ADMIN',
+          is_active: true,
+        })
+        .eq('id', existingStaff.id);
     }
 
     // Log security audit record
@@ -131,6 +183,7 @@ export class AuthService {
       details: { email: payload.email, fullName: payload.fullName },
       ipAddress,
     });
+
 
     logger.info('Singleton Admin account provisioned successfully', { email: payload.email, userId: newUserId });
 
