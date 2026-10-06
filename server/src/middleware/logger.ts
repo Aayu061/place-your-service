@@ -18,6 +18,12 @@ export function requestLoggerMiddleware(req: Request, res: Response, next: NextF
       userAgent: req.headers['user-agent'] || 'unknown',
     };
 
+    // Suppress successful liveness health checks to prevent log flooding in production
+    const isLivenessPing = originalUrl === '/api/v1/health' || originalUrl === '/health';
+    if (isLivenessPing && statusCode < 400) {
+      return;
+    }
+
     if (statusCode >= 500) {
       logger.error(`HTTP ${method} ${originalUrl} failed with status ${statusCode}`, logMeta);
     } else if (statusCode >= 400) {
