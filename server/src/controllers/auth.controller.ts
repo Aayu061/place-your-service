@@ -22,6 +22,16 @@ export class AuthController {
     }
   }
 
+  public async login(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await authService.login(req.body, req.ip);
+      sendSuccess(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+
   public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (req.user) {
