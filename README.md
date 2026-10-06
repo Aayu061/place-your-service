@@ -13,13 +13,42 @@
 
 ---
 
-## 2. Current Application Scope (Locked)
+## 2. Locked Deployment Architecture
+
+```text
+                    PLACE YOUR SERVICE
+                           │
+                    ┌──────┴──────┐
+                    │             │
+                 VERCEL         RENDER
+                FRONTEND      BACKEND API
+             (React / Vite)  (Node / Express)
+                    │             │
+                    └──────┬──────┘
+                           │
+                        SUPABASE
+                           │
+                ┌──────────┴──────────┐
+                │                     │
+             PostgreSQL            Storage
+```
+
+### Architectural Responsibilities
+
+- **VERCEL:** React 19 + TypeScript + Vite frontend. Manages UI, UX, motion system, and API consumption.
+- **RENDER:** Node.js + TypeScript + Express backend API. Authoritative business logic, validation, authentication, authorization, service state machine enforcement, and secure database operations.
+- **SUPABASE:** PostgreSQL relational database, Row Level Security (RLS), Supabase Storage for attachments/photos, and user identity persistence.
+- **GITHUB:** Source control and automated deployment pipelines.
+
+---
+
+## 3. Current Application Scope (Locked)
 
 The application is strictly designed for internal operational management.
 
 ### Active Application Roles
 1. **Admin**
-   - Fixed / singleton administrative account.
+   - Fixed / singleton administrative account (enforced via database constraint).
    - Complete system visibility and operational control.
    - Creates, configures, and manages Staff members.
 2. **Staff**
@@ -40,17 +69,28 @@ To maintain focused execution on the core service platform, the following applic
 
 ---
 
-## 3. Current Development Phase
+## 4. Current Development Phase
 
-- **Current Phase:** `Phase 1 — Design System + Application Shell`
+- **Current Phase:** `Phase 2 — Backend Foundation + Render + Supabase`
 - **Status:** **Completed & Verified**
-- **Next Phase:** `Phase 2 — Backend Foundation + Render + Supabase`
+- **Next Phase:** `Phase 3 — Admin + Staff Authentication & Authorization`
 
-Phase 1 delivers the complete visual and structural foundation: centralized Vanilla CSS design tokens, typography hierarchy, responsive role-aware application shell (Sidebar, TopBar, Main Content), structural operational dashboard, reusable UI primitives (Buttons, Inputs, Selects, Cards, Badges, StatusBadges, Tabs, Tables, Modals, Drawers, Dropdowns, Tooltips, Toasts), and an accessible motion system respecting `prefers-reduced-motion`.
+Phase 2 establishes the production-quality backend platform:
+1. Self-contained TypeScript Express backend under `/server` ready for Render deployment.
+2. Centralized server-side Supabase client with protected service-role key handling.
+3. Database migration foundation (`/supabase/migrations/`) defining all relational schemas, UUIDs, check constraints, foreign keys, and Row Level Security (RLS) policies.
+4. Admin singleton enforcement at both the application and database level.
+5. Typed authentication (`requireAuth`) and role authorization (`requireRole`) middleware.
+6. Centralized request validation using Zod.
+7. Structured, secret-redacted logging with UUID request correlation IDs (`X-Request-Id`).
+8. HTTP security headers (Helmet), configurable CORS, and rate limiting.
+9. Health endpoints: `GET /api/v1/health` (liveness) and `GET /api/v1/health/ready` (readiness with database verification).
+10. Frontend API client (`src/services/api/`) consuming `VITE_API_BASE_URL` with typed error normalization.
+11. Full test coverage across both frontend (26 tests) and backend (21 tests).
 
 ---
 
-## 4. Documentation Source of Truth
+## 5. Documentation Source of Truth
 
 All requirements, architectural standards, business algorithms, and compliance rules are documented in `/DOCS`:
 
@@ -64,18 +104,7 @@ All requirements, architectural standards, business algorithms, and compliance r
 | [`DOCS/PRIVACY.md`](./DOCS/PRIVACY.md) | Data Protection, Access Control & Privacy by Design |
 | [`DOCS/POLICY.md`](./DOCS/POLICY.md) | Operational Security Controls & Change Management |
 | [`DOCS/MEMORY.md`](./DOCS/MEMORY.md) | Compact Reference for AI Coding Sessions |
-
----
-
-## 5. Technology Stack
-
-- **Frontend Core:** React 19, TypeScript (Strict Mode)
-- **Build Tooling:** Vite 6
-- **Styling Architecture:** Modern Vanilla CSS with CSS Custom Properties (Design Tokens), zero runtime CSS overhead, accessible semantic HTML
-- **Icons:** Lucide React
-- **Backend Foundation:** Supabase (`@supabase/supabase-js`, PostgreSQL, Row-Level Security, Supabase Auth)
-- **Testing:** Vitest
-- **Code Quality:** ESLint Flat Config, TypeScript ESLint
+| [`DOCS/API.md`](./DOCS/API.md) | Backend API Specification (v1) |
 
 ---
 
@@ -83,93 +112,134 @@ All requirements, architectural standards, business algorithms, and compliance r
 
 ```text
 PYS/
-├── DOCS/                        # Project source of truth (8 Markdown specifications)
+├── DOCS/                        # Project source of truth (Markdown specifications)
 ├── public/                      # Static assets and favicon
-├── src/
-│   ├── assets/                  # Images, branding assets
-│   ├── components/
-│   │   ├── feedback/            # EmptyState, ErrorBoundary
-│   │   └── ui/                  # Reusable Button, Card, Badge, StatusBadge, Skeleton
-│   ├── config/                  # Safe typed environment configuration (env.ts)
-│   ├── domain/                  # Business domain models, state machines & AMC algorithms
-│   │   ├── types.ts             # Core TypeScript contracts (Customer, AC, AMC, Service, etc.)
-│   │   ├── stateMachines.ts     # Service lifecycle validation (RULES.md §11)
-│   │   └── amcCalculator.ts     # Calendar-aware AMC visit schedule generation (RULES.md §7)
+├── render.yaml                  # Render Blueprint deployment specification
+├── server/                      # Node.js + TypeScript + Express Backend API
+│   ├── src/
+│   │   ├── config/              # Typed environment validation (env.ts)
+│   │   ├── controllers/         # HTTP controllers (health.controller.ts)
+│   │   ├── lib/                 # Backend Supabase client singleton (supabase.ts)
+│   │   ├── middleware/          # auth, role, validate, logger, requestId, errorHandler
+│   │   ├── routes/              # Versioned API routes (/api/v1/health)
+│   │   ├── services/            # Domain service logic (health.service.ts)
+│   │   ├── types/               # Server types & Express Request augmentation
+│   │   ├── utils/               # Structured logger, AppError hierarchy, API responses
+│   │   ├── validators/          # Zod request validation schemas
+│   │   ├── app.ts               # Express application configuration
+│   │   └── server.ts            # Server entrypoint with graceful shutdown
+│   ├── tests/                   # Backend Vitest & Supertest test suite
+│   ├── .env.example             # Backend environment template
+│   ├── package.json             # Server dependencies & scripts
+│   └── tsconfig.json            # Backend TypeScript configuration
+├── src/                         # Frontend React 19 + TypeScript + Vite Application
+│   ├── components/              # UI components, layout, and feedback
+│   ├── config/                  # Safe frontend environment configuration
+│   ├── domain/                  # Domain contracts, state machines, and AMC calculator
 │   ├── layouts/                 # AppShell, Sidebar, TopBar
-│   ├── pages/                   # Application views (PhaseZeroOverview.tsx)
-│   ├── services/                # Supabase client singleton & connection diagnostics
-│   ├── styles/                  # Modular CSS design tokens, reset, typography, motion, layout
-│   │   ├── tokens.css           # Color palette, spacing, typography scale, radii, motion tokens
-│   │   ├── reset.css            # Modern CSS reset
-│   │   ├── typography.css       # Heading hierarchy & text utilities
-│   │   ├── motion.css           # Centralized motion classes & prefers-reduced-motion overrides
-│   │   ├── layout.css           # App shell layout & responsive grid/flex
-│   │   ├── components.css       # Button, Card, Badge, Form input styles
-│   │   └── index.css            # Master stylesheet
-│   ├── tests/                   # Automated unit tests for domain logic & security
-│   ├── utils/                   # Formatters for currency, dates, and labels
-│   ├── App.tsx                  # Root application component
-│   └── main.tsx                 # DOM entry point
-├── .env.example                 # Environment variable template
-├── .gitignore                   # Excludes secrets, node_modules, and build artifacts
-├── eslint.config.js             # ESLint configuration
-├── package.json                 # Project dependencies & scripts
-├── tsconfig.json                # TypeScript project configuration
-├── vite.config.ts               # Vite configuration with @ path alias
+│   ├── pages/                   # Application views (DashboardShell, etc.)
+│   ├── services/
+│   │   ├── api/                 # Centralized HTTP API client (Vercel -> Render)
+│   │   └── supabase.ts          # Public client Supabase connection
+│   ├── styles/                  # Modular Vanilla CSS design tokens & components
+│   └── tests/                   # Frontend Vitest test suite
+├── supabase/                    # Supabase Database Migrations & Seeds
+│   ├── migrations/              # 20261007000000_foundation_schema.sql
+│   └── seed/                    # Master configuration templates (seed.sql)
+├── .env.example                 # Frontend environment template
+├── .gitignore                   # Excludes secrets, node_modules, and build outputs
+├── package.json                 # Root project scripts & workspace commands
 └── README.md                    # Project documentation
 ```
 
 ---
 
-## 7. Getting Started
+## 7. Local Development Setup
 
 ### Prerequisites
 - **Node.js:** v20.0.0 or higher (v24+ recommended)
 - **npm:** v10.0.0 or higher
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Aayu061/place-your-service.git
-   cd place-your-service
-   ```
+### 1. Installation
+Install dependencies for both frontend and backend:
+```bash
+# Install frontend dependencies
+npm install
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+# Install backend dependencies
+npm --prefix server install
+```
 
-3. Set up environment configuration:
-   ```bash
-   cp .env.example .env
-   ```
+### 2. Environment Configuration
+Set up environment files from templates:
 
-### Available Scripts
+**Frontend Configuration (`.env` in root):**
+```bash
+cp .env.example .env
+```
+Contains:
+```env
+VITE_APP_NAME="Place Your Service"
+VITE_APP_ENV=development
+VITE_APP_VERSION=0.1.0
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key-placeholder
+VITE_API_BASE_URL=http://localhost:5000
+```
+
+**Backend Configuration (`server/.env`):**
+```bash
+cp server/.env.example server/.env
+```
+Contains:
+```env
+PORT=5000
+NODE_ENV=development
+CORS_ORIGIN=http://localhost:5173
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-placeholder
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
+```
+
+### 3. Running Locally
+
+**Terminal 1 (Frontend):**
+```bash
+npm run dev
+# Vite runs at http://localhost:5173 (or configured port)
+```
+
+**Terminal 2 (Backend API):**
+```bash
+npm run server:dev
+# Express API runs at http://localhost:5000
+```
+
+---
+
+## 8. Available Scripts
 
 | Command | Action |
 | :--- | :--- |
-| `npm run dev` | Starts Vite local development server on `http://localhost:3000` |
-| `npm run build` | Compiles TypeScript and builds production bundle to `dist/` |
-| `npm run preview` | Previews the production build locally |
-| `npm run lint` | Runs ESLint across all TypeScript source files |
-| `npm run typecheck` | Validates TypeScript types across the entire project |
-| `npm test` | Runs the Vitest test suite |
+| `npm run dev` | Runs Vite frontend development server |
+| `npm run build` | Builds production frontend bundle to `dist/` |
+| `npm run lint` | Lints frontend codebase |
+| `npm run typecheck` | Validates frontend TypeScript types |
+| `npm test` | Runs frontend Vitest test suite (26 tests) |
+| `npm run server:dev` | Runs backend API server in watch mode with `tsx` |
+| `npm run server:build` | Compiles backend TypeScript to `server/dist/` |
+| `npm run server:start` | Runs compiled backend production server |
+| `npm run server:test` | Runs backend Vitest & Supertest suite (21 tests) |
+| `npm run server:typecheck` | Validates backend TypeScript types |
+| `npm run test:all` | Executes full test suite across both frontend and backend (47 tests) |
 
 ---
 
-## 8. Security & Environment Policy
+## 9. Security Policy
 
-- **No Secrets in Source Control:** `.env` is strictly ignored by Git. Never commit actual secret keys or API credentials.
-- **Client Key Restriction:** Only the Supabase anonymous public key (`VITE_SUPABASE_ANON_KEY`) may be consumed by the frontend. The Supabase `service_role` key must **never** be included in frontend code.
-- **RLS Boundary:** Row-Level Security in PostgreSQL is the final security boundary for all database tables.
-
----
-
-## 9. Development Workflow & Git Rules
-
-- Every development phase must be validated with:
-  1. `npm run lint`
-  2. `npm run typecheck`
-  3. `npm test`
-  4. `npm run build`
-- Every completed phase must be committed with a conventional commit message and pushed to the remote GitHub repository.
+1. **No Secrets in Source Control:** `.env` and `server/.env` are strictly excluded in `.gitignore`. Never commit service keys or database credentials.
+2. **Service Role Protection:** `SUPABASE_SERVICE_ROLE_KEY` belongs exclusively to the Render backend and must **never** be exposed in client code, browser headers, or Vite environment variables.
+3. **Server-Side Authorization:** Roles are enforced authoritatively on the backend using `requireRole`. Client-submitted role claims are never trusted.
+4. **Admin Singleton:** Guaranteed by the database index `idx_staff_singleton_admin` and backend validation.
+5. **Sanitized Logging:** All backend logs redact sensitive keys (`password`, `token`, `secret`, `service_role_key`).

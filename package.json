@@ -9,7 +9,14 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server:dev": "npm --prefix server run dev",
+    "server:build": "npm --prefix server run build",
+    "server:start": "npm --prefix server run start",
+    "server:test": "npm --prefix server run test",
+    "server:typecheck": "npm --prefix server run typecheck",
+    "server:lint": "npm --prefix server run lint",
+    "test:all": "npm test && npm run server:test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

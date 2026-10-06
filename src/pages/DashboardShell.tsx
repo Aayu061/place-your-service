@@ -13,7 +13,9 @@ import {
   Calendar,
   Send,
   Sliders,
+  Activity,
 } from 'lucide-react';
+import { healthApi, HealthResponse } from '@/services/api';
 import { UserRole } from '@/domain/types';
 import { Card, CardHeader, CardTitle, CardBody, CardFooter } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +58,35 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
 
   // Table pagination state
   const [tablePage, setTablePage] = useState(1);
+
+  // Phase 2 Backend API Health Verification
+  const [apiHealth, setApiHealth] = useState<HealthResponse | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [apiHealthChecked, setApiHealthChecked] = useState(false);
+
+  const handleCheckApiHealth = async () => {
+    setIsCheckingHealth(true);
+    try {
+      const data = await healthApi.getHealth();
+      setApiHealth(data);
+      setApiHealthChecked(true);
+      showToast({
+        type: 'success',
+        title: 'Backend API Connected',
+        message: `${data.service} is reachable (${data.environment})`,
+      });
+    } catch {
+      setApiHealth(null);
+      setApiHealthChecked(true);
+      showToast({
+        type: 'warning',
+        title: 'API Status: Disconnected',
+        message: 'Ensure the Render/Node backend server is running.',
+      });
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -117,7 +148,21 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          {apiHealthChecked && (
+            <Badge variant={apiHealth?.status === 'healthy' ? 'success' : 'error'}>
+              API: {apiHealth ? `${apiHealth.status.toUpperCase()} (${apiHealth.environment})` : 'OFFLINE'}
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            isLoading={isCheckingHealth}
+            leftIcon={<Activity size={14} />}
+            onClick={handleCheckApiHealth}
+          >
+            {apiHealthChecked ? 'Re-verify API' : 'Verify Backend API'}
+          </Button>
           <span className="badge badge-neutral" style={{ fontSize: '11px' }}>
             Current View: {currentRole}
           </span>
