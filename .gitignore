@@ -24,6 +24,8 @@ dist-ssr
 *.cert
 service-account*.json
 credentials.json
+*pass*.txt
+DATABSE pass.txt
 
 # Editor & OS directories
 .vscode/*
