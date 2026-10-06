@@ -3,8 +3,12 @@ import { AppShell } from '@/layouts/AppShell';
 import { DashboardShell } from '@/pages/DashboardShell';
 import { ModuleShellPlaceholder } from '@/pages/ModuleShellPlaceholder';
 import { PhaseZeroOverview } from '@/pages/PhaseZeroOverview';
+import { StaffManagement } from '@/pages/StaffManagement';
+import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
+import { AuthProvider } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 const MODULE_DEFINITIONS: Record<
   string,
@@ -19,7 +23,7 @@ const MODULE_DEFINITIONS: Record<
   customers: {
     name: 'Customers & Sites',
     category: 'OPERATIONS',
-    phase: 'Phase 3 — Customer & Site Management',
+    phase: 'Phase 4 — Customer & Site Management',
     description:
       'Manage temporary and permanent customer accounts, branch sites, and locations with zero duplicate records.',
     features: [
@@ -146,19 +150,6 @@ const MODULE_DEFINITIONS: Record<
       'Before / after state capture for critical operational changes',
     ],
   },
-  staff: {
-    name: 'Staff Management',
-    category: 'ADMIN AREA',
-    phase: 'Phase 2 / Phase 4 — Staff Onboarding & Auth',
-    description:
-      'Administrative provisioning of operational staff accounts with activation/deactivation controls.',
-    features: [
-      'Admin provision of operational staff credentials',
-      'Staff activation and deactivation toggles',
-      'Audit log attribution for staff actions',
-      'Singleton Admin security protections',
-    ],
-  },
   settings: {
     name: 'System Settings',
     category: 'ADMIN AREA',
@@ -174,49 +165,104 @@ const MODULE_DEFINITIONS: Record<
   },
 };
 
+const AuthenticatedApp: React.FC = () => {
+  const { user, isLoading } = useAuth();
+
+  // 1. Session Restoration / Loading State (Eliminates Auth Flicker)
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--bg-canvas)',
+          gap: 'var(--space-4)',
+        }}
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          className="animate-spin"
+          style={{
+            width: '36px',
+            height: '36px',
+            border: '3px solid var(--color-brand)',
+            borderRightColor: 'transparent',
+            borderRadius: '50%',
+          }}
+          aria-hidden="true"
+        />
+        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', fontWeight: 500 }}>
+          Restoring secure authenticated session...
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated State -> Render Secure Login View
+  if (!user) {
+    return <Login />;
+  }
+
+  // 3. Authenticated State -> Render AppShell with Server-Verified Role
+  return (
+    <AppShell role={user.role}>
+      {({ currentRole, activeItem, onNavigate }) => {
+        if (activeItem === 'dashboard') {
+          return (
+            <DashboardShell
+              currentRole={currentRole}
+              onNavigate={onNavigate}
+            />
+          );
+        }
+
+        // Dedicated Phase 3 Staff Management (Admin Only)
+        if (activeItem === 'staff') {
+          return <StaffManagement />;
+        }
+
+        if (activeItem === 'phase-zero-review') {
+          return <PhaseZeroOverview currentRole={currentRole} />;
+        }
+
+        const moduleDef = MODULE_DEFINITIONS[activeItem];
+        if (moduleDef) {
+          return (
+            <ModuleShellPlaceholder
+              moduleId={activeItem}
+              moduleName={moduleDef.name}
+              category={moduleDef.category}
+              plannedPhase={moduleDef.phase}
+              description={moduleDef.description}
+              plannedFeatures={moduleDef.features}
+              onBackToDashboard={() => onNavigate('dashboard')}
+            />
+          );
+        }
+
+        // Fallback to Dashboard
+        return (
+          <DashboardShell
+            currentRole={currentRole}
+            onNavigate={onNavigate}
+          />
+        );
+      }}
+    </AppShell>
+  );
+};
+
 export const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AppShell>
-          {({ currentRole, activeItem, onNavigate }) => {
-            if (activeItem === 'dashboard') {
-              return (
-                <DashboardShell
-                  currentRole={currentRole}
-                  onNavigate={onNavigate}
-                />
-              );
-            }
-
-            if (activeItem === 'phase-zero-review') {
-              return <PhaseZeroOverview currentRole={currentRole} />;
-            }
-
-            const moduleDef = MODULE_DEFINITIONS[activeItem];
-            if (moduleDef) {
-              return (
-                <ModuleShellPlaceholder
-                  moduleId={activeItem}
-                  moduleName={moduleDef.name}
-                  category={moduleDef.category}
-                  plannedPhase={moduleDef.phase}
-                  description={moduleDef.description}
-                  plannedFeatures={moduleDef.features}
-                  onBackToDashboard={() => onNavigate('dashboard')}
-                />
-              );
-            }
-
-            // Fallback to Dashboard
-            return (
-              <DashboardShell
-                currentRole={currentRole}
-                onNavigate={onNavigate}
-              />
-            );
-          }}
-        </AppShell>
+        <AuthProvider>
+          <AuthenticatedApp />
+        </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
   );

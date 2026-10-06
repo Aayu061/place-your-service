@@ -379,3 +379,16 @@ A complete core workflow must work:
 `Admin → Staff → Customer → Site → AC → AMC → Schedule → Technician → Service → Report → Parts → Payment → Completion → Dashboard → Audit`
 
 All critical steps must persist and calculate correctly in the backend.
+
+---
+
+## Phase 3 Status — Admin & Staff Authentication & Authorization (COMPLETE)
+
+- **Authentication Architecture:** Vercel Frontend → Supabase Auth (Identity/JWT) → Render Express API (`requireAuth`) → PostgreSQL RLS.
+- **Roles:** Strictly two application roles: `ADMIN` and `STAFF`. Customers and Technicians are business entities, not login users.
+- **Admin Account:** Enforced singleton via database constraint (`idx_staff_singleton_admin`). Bootstrap endpoint provisions initial Admin only when 0 admins exist (409 Conflict otherwise). Deactivation of Admin is forbidden.
+- **Staff Account Management:** Full Admin management suite (`GET /api/v1/staff`, `POST /api/v1/staff`, `PATCH /api/v1/staff/:id`, `PATCH /api/v1/staff/:id/status`). Inactive staff are rejected by backend authorization (HTTP 403) and denied operational UI access.
+- **Frontend UX:** Branded Login page with accessible form, error alerts, zero-flicker session restoration (`isLoading`), centralized `AuthContext`, and Admin `StaffManagement` workspace.
+- **Audit Logging:** Auditable operational events recorded in `activity_logs` (`ADMIN_BOOTSTRAP`, `STAFF_CREATED`, `STAFF_ACTIVATED`, `STAFF_DEACTIVATED`, `USER_LOGOUT`) with strict credential redaction.
+- **Verification:** 78/78 tests passing (37 frontend + 41 backend). Zero lint warnings. Production builds clean.
+

@@ -5,6 +5,7 @@ import { TopBar } from './TopBar';
 import { UserRole } from '@/domain/types';
 
 interface AppShellProps {
+  role?: UserRole;
   children: (props: {
     currentRole: UserRole;
     activeItem: string;
@@ -12,11 +13,12 @@ interface AppShellProps {
   }) => React.ReactNode;
 }
 
-export const AppShell: React.FC<AppShellProps> = ({ children }) => {
-  const [currentRole, setCurrentRole] = useState<UserRole>('ADMIN');
+export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
   const [activeItem, setActiveItem] = useState<string>('dashboard');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
+
+  const currentRole: UserRole = role || 'ADMIN';
 
   // Compute active item title
   const getActiveItemTitle = () => {
@@ -43,7 +45,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <div className="main-wrapper">
         <TopBar
           currentRole={currentRole}
-          onRoleChange={setCurrentRole}
           activeItemTitle={getActiveItemTitle()}
           onOpenMobileSidebar={() => setIsMobileOpen(true)}
           onSearchClick={() => {

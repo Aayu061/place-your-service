@@ -4,18 +4,17 @@ import {
   Search,
   Bell,
   UserCircle2,
-  CheckCircle2,
   Shield,
   LogOut,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Dropdown, DropdownItem, DropdownDivider, DropdownHeader } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
+import { useAuth } from '@/hooks/useAuth';
 
 interface TopBarProps {
   currentRole: UserRole;
-  onRoleChange: (role: UserRole) => void;
+  onRoleChange?: (role: UserRole) => void;
   activeItemTitle: string;
   onOpenMobileSidebar: () => void;
   onSearchClick?: () => void;
@@ -23,11 +22,15 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   currentRole,
-  onRoleChange,
   activeItemTitle,
   onOpenMobileSidebar,
   onSearchClick,
 }) => {
+  const { user, logout } = useAuth();
+
+  const displayName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin User' : 'Staff Member');
+  const displayEmail = user?.email || 'authenticated-session@pys.internal';
+
   return (
     <header className="top-bar">
       {/* Left: Mobile Menu Trigger & Breadcrumbs */}
@@ -162,10 +165,10 @@ export const TopBar: React.FC<TopBarProps> = ({
               <UserCircle2 size={20} style={{ color: 'var(--color-brand)' }} />
               <div style={{ textAlign: 'left', lineHeight: 1.1, display: 'none' }} className="user-name-desktop">
                 <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
-                  {currentRole === 'ADMIN' ? 'Admin User' : 'Staff Member'}
+                  {displayName}
                 </div>
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                  {currentRole === 'ADMIN' ? 'Singleton Account' : 'Operations'}
+                  {currentRole === 'ADMIN' ? 'Singleton Administrator' : 'Operations Staff'}
                 </div>
               </div>
             </button>
@@ -174,39 +177,23 @@ export const TopBar: React.FC<TopBarProps> = ({
           <DropdownHeader>Active Session</DropdownHeader>
           <div style={{ padding: 'var(--space-2) var(--space-3)' }}>
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
-              {currentRole === 'ADMIN' ? 'Admin (Administrator)' : 'Operational Staff'}
+              {displayName}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              auth-session@placeyourservice.internal
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+              {displayEmail}
             </div>
           </div>
           <DropdownDivider />
 
-          <DropdownHeader>Role Simulation</DropdownHeader>
-          <DropdownItem
-            icon={<SlidersHorizontal size={14} />}
-            onClick={() => onRoleChange('ADMIN')}
-          >
-            <span>Switch to Admin View</span>
-            {currentRole === 'ADMIN' && <CheckCircle2 size={13} style={{ marginLeft: 'auto', color: 'var(--color-brand)' }} />}
-          </DropdownItem>
-          <DropdownItem
-            icon={<SlidersHorizontal size={14} />}
-            onClick={() => onRoleChange('STAFF')}
-          >
-            <span>Switch to Staff View</span>
-            {currentRole === 'STAFF' && <CheckCircle2 size={13} style={{ marginLeft: 'auto', color: 'var(--color-brand)' }} />}
-          </DropdownItem>
-
-          <DropdownDivider />
           <DropdownItem
             icon={<LogOut size={14} />}
-            onClick={() => alert('Authentication system connects in subsequent backend phase.')}
+            onClick={() => logout()}
           >
-            Sign Out (Shell)
+            Sign Out
           </DropdownItem>
         </Dropdown>
       </div>
     </header>
   );
 };
+

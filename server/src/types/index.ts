@@ -52,3 +52,29 @@ export interface HealthCheckData {
     error?: string;
   };
 }
+
+export interface StaffMember {
+  id: string;
+  profileId: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface UserProfileResponse {
+  userId: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  profileId: string;
+  staffId?: string;
+  isActive: boolean;
+  phone?: string | null;
+  avatarUrl?: string | null;
+}
+

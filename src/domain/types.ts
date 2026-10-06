@@ -14,8 +14,10 @@ export interface UserProfile {
   fullName: string;
   role: UserRole;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface StaffMember {
@@ -23,12 +25,14 @@ export interface StaffMember {
   profileId: string;
   fullName: string;
   email: string;
-  phone: string;
+  phone?: string | null;
+  role?: UserRole;
   isActive: boolean;
-  permissions: string[];
+  avatarUrl?: string | null;
   createdAt: string;
-  createdBy: string;
+  updatedAt?: string;
 }
+
 
 /* --------------------------------------------------
  * 2. Customer & Site Management
