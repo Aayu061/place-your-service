@@ -6,6 +6,7 @@ import customerRouter from './customer.routes.js';
 import siteRouter from './site.routes.js';
 import assetRouter from './asset.routes.js';
 import serviceRequestRouter from './serviceRequest.routes.js';
+import technicianRouter from './technician.routes.js';
 
 const apiV1Router = Router();
 
@@ -25,6 +26,9 @@ apiV1Router.use('/assets', assetRouter);
 
 // Phase 6 Service Request Management Routes
 apiV1Router.use('/service-requests', serviceRequestRouter);
+
+// Phase 7 Technician Management Routes
+apiV1Router.use('/technicians', technicianRouter);
 
 export default apiV1Router;
 

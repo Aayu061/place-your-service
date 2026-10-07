@@ -6,6 +6,7 @@ import { PhaseZeroOverview } from '@/pages/PhaseZeroOverview';
 import { StaffManagement } from '@/pages/StaffManagement';
 import { CustomerManagement } from '@/pages/CustomerManagement';
 import { ServiceRequestManagement } from '@/pages/ServiceRequestManagement';
+import { TechnicianManagement } from '@/pages/TechnicianManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -235,6 +236,11 @@ const AuthenticatedApp: React.FC = () => {
         // Dedicated Phase 6 Service Request Management (Admin & Staff)
         if (activeItem === 'service-requests') {
           return <ServiceRequestManagement onNavigate={onNavigate} />;
+        }
+
+        // Dedicated Phase 7 Technician Management (Admin & Staff)
+        if (activeItem === 'technicians') {
+          return <TechnicianManagement onNavigate={onNavigate} />;
         }
 
         if (activeItem === 'phase-zero-review') {

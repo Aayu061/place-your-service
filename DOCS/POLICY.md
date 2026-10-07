@@ -236,3 +236,12 @@ A release should not be considered production-ready if:
 - inventory/payment calculations are unreliable
 - status transitions are unrestricted
 - auditability is missing for critical actions
+
+---
+
+## 20. Technician Operational Resource Policy
+
+- **No User Credentials Policy:** Technicians are operational workers and never system users. Technicians must not be granted application accounts, credentials, or login access.
+- **Deactivation Safety Policy:** Technicians cannot be deactivated if they have active assignments (`TECHNICIAN_HAS_ACTIVE_ASSIGNMENTS`). Operations must reassign or close active work first.
+- **Historical Preservation Policy:** Technician records must not be hard-deleted. Administrative deactivation preserves foreign-key integrity for historical service assignments, reports, and audit trails.
+

@@ -476,3 +476,36 @@ All critical steps must persist and calculate correctly in the backend.
   - Contextual Quick-Create actions from Customer Detail drawer.
 - **Audit Logging:** Systematically logs `SERVICE_REQUEST_CREATED`, `SERVICE_REQUEST_UPDATED`, `SERVICE_REQUEST_STATUS_CHANGED`, and `SERVICE_REQUEST_CANCELLED` to `activity_logs`.
 - **Verification:** 160/160 tests passing (60 frontend + 100 backend). 0 lint errors, 0 lint warnings, 0 TypeScript errors. Production builds clean. Render and Vercel verified.
+
+---
+
+## Phase 7 Status — Technician Management (COMPLETE)
+
+- **Core Architectural Principle:** Technicians are operational resources, **NOT** application login users. Zero passwords, zero Supabase Auth accounts, zero technician login/JWT/portal. Only `ADMIN` and `STAFF` manage technicians. Inactive staff accounts are strictly forbidden (403).
+- **Domain Model:** `technicians` (`id` UUID, `technician_code` VARCHAR, `name` VARCHAR, `phone` VARCHAR, `email` VARCHAR NULL, `specializations` / `skills` TEXT[], `service_areas` TEXT[], `status` VARCHAR, `is_active` BOOLEAN, `working_days` TEXT[], `working_hours` JSONB, `availability` JSONB, `joined_date` DATE, `notes` TEXT NULL, `created_by` UUID NULL, `updated_by` UUID NULL, `created_at` TIMESTAMPTZ, `updated_at` TIMESTAMPTZ).
+- **Status & Lifecycle Separation:**
+  - Administrative lifecycle: `is_active` (`true` / `false`). Inactive technicians cannot be marked `AVAILABLE` or `BUSY`.
+  - Operational status: `AVAILABLE`, `BUSY`, `ON_LEAVE`, `OFF_DUTY`, `INACTIVE`.
+- **Workload Tracking:** Derived dynamically from real operational records in `service_assignments` (`activeAssignmentsCount`). Never fabricated or manually entered.
+- **Skills & Service Areas:** Structured arrays with case-insensitive normalization and deduplication. Backward compatible aliases (`specializations` / `skills`, `service_areas` / `serviceArea`).
+- **Structured Availability:** Weekly schedule with day-by-day active flags and start/end time validation (`start < end`).
+- **Duplicate Protection:** Collision-safe `TECH-XXXX` code generator; duplicate phone/email detection returning 409 Conflict.
+- **Deactivation Safety:** Guarded deactivation checking active assigned requests in `service_assignments`; returns 409 Conflict (`TECHNICIAN_HAS_ACTIVE_ASSIGNMENTS`) if active work exists.
+- **Backend APIs:**
+  - `GET /api/v1/technicians` (search by code/name/phone/email/skills/areas, filter by status/skills/areas/active, pagination)
+  - `GET /api/v1/technicians/:id` (detailed technician record with workload derivation)
+  - `POST /api/v1/technicians` (collision-safe creation with default availability)
+  - `PATCH /api/v1/technicians/:id` (safe partial update)
+  - `PATCH /api/v1/technicians/:id/status` (operational status transition)
+  - `PATCH /api/v1/technicians/:id/lifecycle` (administrative active/inactive toggle with assignment safety)
+  - Guarded by `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
+- **Frontend Workspace:**
+  - `TechnicianManagement.tsx` mounted in `AppShell` operational navigation (`activeItem === 'technicians'`).
+  - Search and filter bar (Search query, Operational Status, Skill filter, Service Area filter, Active status toggle).
+  - Responsive table with semantic status badges (`AVAILABLE` green, `BUSY` blue, `ON_LEAVE` amber, `OFF_DUTY` neutral, `INACTIVE` red).
+  - Detail Drawer showing Profile, Contact, Skills tags, Service Areas tags, Weekly Availability Schedule, Operational Capacity, Employment, Notes, and quick action buttons.
+  - Add/Edit Technician modal with controlled skill and service area tag selectors, employment joining date, and interactive weekly working hours editor.
+  - Status Change modal and Deactivation safety modal with active conflict feedback.
+- **Audit Logging:** Logs `TECHNICIAN_CREATED`, `TECHNICIAN_UPDATED`, `TECHNICIAN_STATUS_CHANGED`, `TECHNICIAN_ACTIVATED`, `TECHNICIAN_DEACTIVATED`, `TECHNICIAN_SKILLS_UPDATED`, and `TECHNICIAN_SERVICE_AREAS_UPDATED` in `activity_logs`.
+- **Verification:** 193/193 tests passing (68 frontend + 125 backend). 0 lint errors, 0 lint warnings, 0 TypeScript errors. Frontend and backend production builds clean. Render and Vercel verified.
+

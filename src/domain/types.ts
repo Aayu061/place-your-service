@@ -142,21 +142,58 @@ export interface AcAsset {
 /* --------------------------------------------------
  * 4. Technicians (Managed Operational Resources)
  * -------------------------------------------------- */
-export type TechnicianStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
+export type TechnicianStatus =
+  | 'AVAILABLE'
+  | 'BUSY'
+  | 'ON_LEAVE'
+  | 'OFF_DUTY'
+  | 'INACTIVE'
+  | 'ACTIVE'; // Compatibility alias
+
+export type WeekDay =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export interface TechnicianWorkingHours {
+  start: string;
+  end: string;
+}
+
+export interface TechnicianAvailability {
+  workingDays: WeekDay[];
+  workingHours: TechnicianWorkingHours;
+  notes?: string;
+}
 
 export interface Technician {
   id: string;
-  technicianCode: string; // TECH-001
+  technicianCode: string; // TECH-0001
   name: string;
   phone: string;
-  email?: string;
-  skills: string[];
-  serviceArea: string;
+  email?: string | null;
+  specializations: string[];
+  skills: string[]; // Compatibility alias
+  serviceAreas: string[];
+  serviceArea?: string; // Compatibility alias
   status: TechnicianStatus;
-  currentWorkload: number; // Active assignment count
-  joiningDate: string;
-  notes?: string;
+  isActive: boolean;
+  maxDailyWorkload: number;
+  currentWorkload: number; // Derived active assignment count
+  joiningDate?: string | null;
+  notes?: string | null;
+  workingDays?: WeekDay[];
+  workingHours?: TechnicianWorkingHours;
+  availability?: TechnicianAvailability;
+  activeAssignmentsCount?: number;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 /* --------------------------------------------------

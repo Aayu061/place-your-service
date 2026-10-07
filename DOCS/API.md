@@ -575,5 +575,104 @@ All Service Request endpoints require `requireAuth` + `requireRole('ADMIN', 'STA
   - Non-destructive: sets `status = 'CANCELLED'`, records `cancellation_reason`, `cancelled_at`, `cancelled_by`.
 - **Response:** `200 OK` with cancelled request entity. Audits `SERVICE_REQUEST_CANCELLED`.
 
+---
+
+## 12. Technician Management API (`/api/v1/technicians`)
+
+All routes require authentication (`requireAuth`) and operational roles (`ADMIN` or `STAFF`). Inactive staff members receive `403 Forbidden`. Technicians themselves are operational resources and **have no login access or authentication endpoints**.
+
+### 12.1 List Technicians
+- **Method:** `GET`
+- **Route:** `/api/v1/technicians`
+- **Query Parameters:**
+  - `search`: string (case-insensitive substring match on technician code, name, phone, email, skills, service areas)
+  - `status`: `ALL` | `AVAILABLE` | `BUSY` | `ON_LEAVE` | `OFF_DUTY` | `INACTIVE`
+  - `skill`: string (optional filter by exact skill)
+  - `serviceArea`: string (optional filter by service area)
+  - `isActive`: boolean (`true` | `false`)
+  - `page`: integer (default: 1)
+  - `pageSize`: integer (default: 20, max: 100)
+- **Response:** `200 OK` with paginated technician array including derived workload count (`activeAssignmentsCount`) and pagination metadata.
+
+### 12.2 Get Single Technician
+- **Method:** `GET`
+- **Route:** `/api/v1/technicians/:id`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with full technician profile, skills, service areas, availability schedule, and derived active workload count.
+- **Error:** `404 Not Found` if technician ID does not exist.
+
+### 12.3 Create Technician
+- **Method:** `POST`
+- **Route:** `/api/v1/technicians`
+- **Request Body:**
+  ```json
+  {
+    "name": "Rahul Sharma",
+    "phone": "+91 98200 12345",
+    "email": "rahul.sharma@example.com",
+    "skills": ["Split AC", "Cassette AC", "VRF"],
+    "serviceAreas": ["Panvel", "Navi Mumbai", "Kharghar"],
+    "joinedDate": "2025-06-12",
+    "notes": "Senior commercial AC technician",
+    "availability": [
+      { "day": "Monday", "isActive": true, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Tuesday", "isActive": true, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Wednesday", "isActive": true, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Thursday", "isActive": true, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Friday", "isActive": true, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Saturday", "isActive": false, "startTime": "09:00", "endTime": "18:00" },
+      { "day": "Sunday", "isActive": false, "startTime": "09:00", "endTime": "18:00" }
+    ]
+  }
+  ```
+- **Invariants:**
+  1. Collision-safe `TECH-XXXX` code assigned server-side.
+  2. Duplicate check on phone and email (returns 409 Conflict if matching technician exists).
+  3. Default operational status is `AVAILABLE` and `isActive` is `true`.
+  4. Availability start time must precede end time (`start < end`).
+- **Response:** `201 Created` with created technician entity. Audits `TECHNICIAN_CREATED`.
+
+### 12.4 Update Technician
+- **Method:** `PATCH`
+- **Route:** `/api/v1/technicians/:id`
+- **Params:** `id` (UUID)
+- **Request Body:** Partial update fields (`name`, `phone`, `email`, `skills`, `serviceAreas`, `joinedDate`, `notes`, `availability`).
+- **Invariants:**
+  - Duplicate conflict check if phone or email is changed.
+  - Strict schedule validation if availability is updated.
+- **Response:** `200 OK` with updated technician entity. Audits `TECHNICIAN_UPDATED`, plus `TECHNICIAN_SKILLS_UPDATED` or `TECHNICIAN_SERVICE_AREAS_UPDATED` when relevant.
+
+### 12.5 Update Operational Status
+- **Method:** `PATCH`
+- **Route:** `/api/v1/technicians/:id/status`
+- **Params:** `id` (UUID)
+- **Request Body:**
+  ```json
+  {
+    "status": "ON_LEAVE",
+    "reason": "Family vacation"
+  }
+  ```
+- **Invariants:**
+  - Inactive technician cannot be set to `AVAILABLE` or `BUSY` (returns 400).
+- **Response:** `200 OK` with updated technician entity. Audits `TECHNICIAN_STATUS_CHANGED`.
+
+### 12.6 Update Administrative Lifecycle (Activate / Deactivate)
+- **Method:** `PATCH`
+- **Route:** `/api/v1/technicians/:id/lifecycle`
+- **Params:** `id` (UUID)
+- **Request Body:**
+  ```json
+  {
+    "isActive": false,
+    "reason": "Contract ended"
+  }
+  ```
+- **Invariants:**
+  - Deactivation safety check: verifies whether technician has active assignments in `service_assignments`. If active assignments exist, deactivation is blocked and returns `409 Conflict` (`TECHNICIAN_HAS_ACTIVE_ASSIGNMENTS`).
+  - When deactivated, operational status is atomically updated to `INACTIVE`.
+- **Response:** `200 OK` with updated technician entity. Audits `TECHNICIAN_ACTIVATED` or `TECHNICIAN_DEACTIVATED`.
+
+
 
 

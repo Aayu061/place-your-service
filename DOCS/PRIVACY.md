@@ -201,3 +201,12 @@ Avoid exposing private data in:
 - analytics payloads
 
 Use masked or limited display for sensitive information when full visibility is unnecessary.
+
+---
+
+## 16. Technician Data Protection
+
+- **Operational Resource Status:** Technicians are operational resources and not login users. They are never provisioned with authentication accounts, passwords, or public credentials.
+- **Contact Confidentiality:** Technician personal contact details (phone number, email address) are strictly internal operational data accessible only to authenticated `ADMIN` and `STAFF` roles.
+- **Log Sanitization:** Server logs and audit payloads must never record personal information unnecessarily.
+

@@ -406,3 +406,109 @@ export interface ServiceRequestListQuery {
   pageSize?: number;
 }
 
+// ----------------------------------------------------
+// Phase 7: Technician Management Types
+// ----------------------------------------------------
+
+export type TechnicianOperationalStatus =
+  | 'AVAILABLE'
+  | 'BUSY'
+  | 'ON_LEAVE'
+  | 'OFF_DUTY'
+  | 'INACTIVE';
+
+export type WeekDay =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export interface TechnicianWorkingHours {
+  start: string;
+  end: string;
+}
+
+export interface TechnicianAvailability {
+  workingDays: WeekDay[];
+  workingHours: TechnicianWorkingHours;
+  notes?: string;
+}
+
+export interface TechnicianResponse {
+  id: string;
+  technicianCode: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  specializations: string[];
+  skills: string[]; // Compatibility alias for specializations
+  serviceAreas: string[];
+  serviceArea?: string; // Compatibility alias
+  status: TechnicianOperationalStatus;
+  isActive: boolean;
+  maxDailyWorkload: number;
+  currentWorkload: number;
+  joiningDate: string | null;
+  notes: string | null;
+  workingDays?: WeekDay[];
+  workingHours?: TechnicianWorkingHours;
+  availability?: TechnicianAvailability;
+  activeAssignmentsCount?: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTechnicianPayload {
+  name: string;
+  phone: string;
+  email?: string | null;
+  specializations?: string[];
+  skills?: string[];
+  serviceAreas?: string[];
+  status?: TechnicianOperationalStatus;
+  maxDailyWorkload?: number;
+  joiningDate?: string | null;
+  notes?: string | null;
+  workingDays?: WeekDay[];
+  workingHours?: TechnicianWorkingHours;
+  availability?: TechnicianAvailability;
+}
+
+export interface UpdateTechnicianPayload {
+  name?: string;
+  phone?: string;
+  email?: string | null;
+  specializations?: string[];
+  skills?: string[];
+  serviceAreas?: string[];
+  status?: TechnicianOperationalStatus;
+  maxDailyWorkload?: number;
+  joiningDate?: string | null;
+  notes?: string | null;
+  workingDays?: WeekDay[];
+  workingHours?: TechnicianWorkingHours;
+  availability?: TechnicianAvailability;
+}
+
+export interface UpdateTechnicianStatusPayload {
+  status?: TechnicianOperationalStatus;
+  isActive?: boolean;
+  reason?: string;
+}
+
+export interface TechnicianListQuery {
+  search?: string;
+  status?: 'ALL' | TechnicianOperationalStatus;
+  isActive?: boolean | 'ALL';
+  skill?: string;
+  serviceArea?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+

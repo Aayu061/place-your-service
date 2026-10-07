@@ -190,8 +190,26 @@ Rules:
 - unavailable technicians are excluded.
 - conflicting assignments are excluded or heavily penalized.
 - Staff can override the recommendation.
-- Manual override must be logged.
 - Assignment must not silently change because a recommendation later changes.
+
+### 9.1 Technician Management & Deactivation Protection (Phase 7)
+
+- **Operational Resources Only:** Technicians are operational resources and not login users. They have no login credentials, passwords, or Supabase Auth roles.
+- **Administrative Lifecycle vs Operational Status:**
+  - `is_active` controls administrative employment lifecycle.
+  - Operational statuses are `AVAILABLE`, `BUSY`, `ON_LEAVE`, `OFF_DUTY`, `INACTIVE`.
+  - Inactive technicians cannot be set to operational statuses `AVAILABLE` or `BUSY`.
+- **Deactivation Protection:**
+  - Deactivating a technician (`isActive = false`) requires checking active records in `service_assignments`.
+  - If a technician has active assigned work, deactivation is blocked with `409 Conflict` (`TECHNICIAN_HAS_ACTIVE_ASSIGNMENTS`).
+  - Active assignments must first be resolved or reassigned before deactivation.
+- **Derived Workload:**
+  - Workload cannot be manually entered or fabricated. It is computed dynamically from active operational records in `service_assignments`.
+- **Availability Schedule Validation:**
+  - Weekly working hours must satisfy `startTime < endTime`.
+- **Duplicate Protection:**
+  - Collision-safe `TECH-XXXX` code generation.
+  - Duplicate phone and email checks prevent duplicate technician records with `409 Conflict`.
 
 ---
 
