@@ -216,9 +216,9 @@ By business rule and database constraint (`idx_staff_singleton_admin`), exactly 
 - `/api/v1/auth` (Phase 3: Admin & Staff Authentication — IMPLEMENTED)
 - `/api/v1/staff` (Phase 3: Staff Management — IMPLEMENTED)
 - `/api/v1/customers` (Phase 4: Customer Management — IMPLEMENTED)
-- `/api/v1/assets` (Phase 5: AC Asset Register — UPCOMING)
-- `/api/v1/technicians` (Phase 6: Technician Management & Recommendation — UPCOMING)
-- `/api/v1/services` (Phase 7: Service Requests & Schedules — UPCOMING)
+- `/api/v1/customers/:customerId/sites`, `/api/v1/assets` (Phase 5: Site + AC Asset Management — IMPLEMENTED)
+- `/api/v1/service-requests` (Phase 6: Service Request Management — IMPLEMENTED)
+- `/api/v1/technicians` (Phase 7: Technician Management & Recommendation — UPCOMING)
 - `/api/v1/amc` (Phase 8: AMC Contracts & Generation — UPCOMING)
 - `/api/v1/inventory` (Phase 9: Parts & Inventory Ledger — UPCOMING)
 - `/api/v1/payments` (Phase 10: Payments & Financial Records — UPCOMING)
@@ -484,5 +484,96 @@ All Asset endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
 - **Route:** `/api/v1/assets/:id/status`
 - **Request Body:** `{ "isActive": false }`
 - **Response:** `200 OK` with updated asset entity. Non-destructive deactivation. Audits `ASSET_STATUS_CHANGED`.
+
+---
+
+## 11. Service Request Endpoints (Phase 6)
+
+All Service Request endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`. Inactive staff accounts are rejected with `403 Forbidden`.
+
+### 11.1 List Service Requests
+- **Method:** `GET`
+- **Route:** `/api/v1/service-requests`
+- **Query Parameters:**
+  - `search`: string (searches `request_number`, `description`, `notes`, customer name/phone)
+  - `status`: `ALL` | `REQUESTED` | `PENDING` | `SCHEDULED` | `ASSIGNED` | `IN_PROGRESS` | `RESOLVED` | `COMPLETED` | `CANCELLED` | `ON_HOLD` | etc.
+  - `priority`: `ALL` | `LOW` | `MEDIUM` | `HIGH` | `URGENT` | `EMERGENCY`
+  - `requestType`: `ALL` | `BREAKDOWN` | `GENERAL_SERVICE` | `INSTALLATION` | `INSPECTION` | `REPAIR` | `PREVENTIVE_MAINTENANCE` | `OTHER`
+  - `customerId`: UUID (optional)
+  - `siteId`: UUID (optional)
+  - `assetId`: UUID (optional)
+  - `page`: integer (default: 1)
+  - `pageSize`: integer (default: 20, max: 100)
+- **Response:** `200 OK` with paginated requests array and metadata (`total`, `page`, `pageSize`, `totalPages`).
+
+### 11.2 Get Single Service Request
+- **Method:** `GET`
+- **Route:** `/api/v1/service-requests/:id`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with full service request entity, joining customer details (`name`, `customerCode`, `phone`), site details (`siteName`, `address`), and AC asset details (`assetTag`, `brand`, `modelNumber`).
+- **Error:** `404 Not Found` if request ID does not exist.
+
+### 11.3 Create Service Request
+- **Method:** `POST`
+- **Route:** `/api/v1/service-requests`
+- **Request Body:**
+  ```json
+  {
+    "customerId": "11111111-1111-1111-1111-111111111111",
+    "siteId": "22222222-2222-2222-2222-222222222222",
+    "assetId": "55555555-5555-5555-5555-555555555555",
+    "requestType": "BREAKDOWN",
+    "priority": "HIGH",
+    "description": "AC unit not cooling in conference room",
+    "preferredDate": "2026-10-08",
+    "notes": "Urgent cooling required for board meeting"
+  }
+  ```
+- **Relational Integrity Invariants:**
+  1. Customer exists, is active (404/400 otherwise).
+  2. Site exists, is active, and belongs to Customer (`SITE_CUSTOMER_MISMATCH` 400).
+  3. AC Asset (if provided) exists, is active, and belongs to Site (`ASSET_SITE_MISMATCH` 400).
+  4. Unique collision-resistant request number generated server-side (`SR-YYYY-XXXXXX`).
+  5. Initial status strictly set to `REQUESTED`.
+- **Response:** `201 Created` with created service request entity. Audits `SERVICE_REQUEST_CREATED`.
+
+### 11.4 Update Service Request Details
+- **Method:** `PATCH`
+- **Route:** `/api/v1/service-requests/:id`
+- **Params:** `id` (UUID)
+- **Request Body:** Partial update fields (`requestType`, `priority`, `description`, `preferredDate`, `notes`, `siteId`, `assetId`).
+- **Guards:** Cannot modify requests in terminal state (`CANCELLED` or `CLOSED`) -> 400. Re-validates customer/site/asset integrity if relationships are updated.
+- **Response:** `200 OK` with updated service request entity. Audits `SERVICE_REQUEST_UPDATED`.
+
+### 11.5 Transition Status
+- **Method:** `POST`
+- **Route:** `/api/v1/service-requests/:id/status`
+- **Params:** `id` (UUID)
+- **Request Body:**
+  ```json
+  {
+    "status": "PENDING",
+    "reason": "Staff assigned to review premises"
+  }
+  ```
+- **State Machine Rules:** Strictly enforces `ALLOWED_SERVICE_TRANSITIONS`. Invalid transitions (e.g. `REQUESTED -> COMPLETED`) rejected with `409 Conflict`. Idempotent if already in target state. Terminal states cannot transition.
+- **Response:** `200 OK` with updated request entity. Audits `SERVICE_REQUEST_STATUS_CHANGED`.
+
+### 11.6 Cancel Service Request
+- **Method:** `POST`
+- **Route:** `/api/v1/service-requests/:id/cancel`
+- **Params:** `id` (UUID)
+- **Request Body:**
+  ```json
+  {
+    "reason": "Customer cancelled request"
+  }
+  ```
+- **Invariants:**
+  - Idempotent: if already cancelled, returns current state with 200 without duplicate side effects or audit duplication.
+  - Cannot cancel if already `COMPLETED` or `CLOSED` (400).
+  - Non-destructive: sets `status = 'CANCELLED'`, records `cancellation_reason`, `cancelled_at`, `cancelled_by`.
+- **Response:** `200 OK` with cancelled request entity. Audits `SERVICE_REQUEST_CANCELLED`.
+
 
 

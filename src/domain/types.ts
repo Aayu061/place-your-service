@@ -191,7 +191,11 @@ export type ServiceType =
   | 'REPAIR'
   | 'EMERGENCY'
   | 'INSTALLATION'
-  | 'PREVENTIVE_MAINTENANCE';
+  | 'GENERAL_SERVICE'
+  | 'INSPECTION'
+  | 'PREVENTIVE_MAINTENANCE'
+  | 'UNPLANNED_OTHER'
+  | 'OTHER';
 
 export type ServiceStatus =
   | 'REQUESTED'
@@ -208,22 +212,42 @@ export type ServiceStatus =
   | 'ON_HOLD'
   | 'REVISIT_REQUIRED';
 
-export type ServicePriority = 'EMERGENCY' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type ServicePriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'EMERGENCY';
 
 export interface ServiceRequest {
   id: string;
-  requestCode: string; // SR-2026-001
+  requestNumber: string; // SR-2026-000001
+  requestCode?: string; // Compatibility alias
   customerId: string;
   siteId: string;
-  acAssetId?: string;
-  serviceType: ServiceType;
+  assetId?: string | null;
+  acAssetId?: string; // Compatibility alias
+  requestType: ServiceType;
+  serviceType?: ServiceType; // Compatibility alias
   priority: ServicePriority;
   status: ServiceStatus;
-  issueDescription: string;
-  requestedDate: string;
-  assignedTechnicianId?: string;
+  description: string;
+  issueDescription?: string; // Compatibility alias
+  reportedDate?: string;
+  preferredDate?: string | null;
+  requestedDate?: string; // Compatibility alias
+  notes?: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  siteName?: string | null;
+  siteAddress?: string | null;
+  assetTag?: string | null;
+  assetBrand?: string | null;
+  assetModel?: string | null;
+  assignedTechnicianId?: string;
 }
 
 export interface ServiceSchedule {

@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  FileText,
   Layers,
   Wrench,
   Receipt,
@@ -80,7 +79,7 @@ interface CustomerListMeta {
   totalPages: number;
 }
 
-export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = () => {
+export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
 
   // List states
@@ -1694,6 +1693,16 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                {onNavigate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onNavigate('service-requests')}
+                    leftIcon={<Wrench size={13} />}
+                  >
+                    + Service Request
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1905,7 +1914,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FileText size={14} style={{ color: 'var(--color-brand)' }} />
+                        <Wrench size={14} style={{ color: 'var(--color-brand)' }} />
                         <span>Service Requests & Work Orders</span>
                       </div>
                       <Badge variant="neutral">Planned in Phase 6</Badge>

@@ -295,3 +295,114 @@ export interface AcAssetListQuery {
   pageSize?: number;
 }
 
+/* --------------------------------------------------
+ * Service Request Management Types (Phase 6)
+ * -------------------------------------------------- */
+
+export type ServiceRequestType =
+  | 'BREAKDOWN'
+  | 'COMPLAINT'
+  | 'REPAIR'
+  | 'EMERGENCY'
+  | 'INSTALLATION'
+  | 'GENERAL_SERVICE'
+  | 'INSPECTION'
+  | 'PREVENTIVE_MAINTENANCE'
+  | 'UNPLANNED_OTHER'
+  | 'OTHER';
+
+export type ServiceRequestPriority =
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH'
+  | 'URGENT'
+  | 'EMERGENCY';
+
+export type ServiceRequestStatus =
+  | 'REQUESTED'
+  | 'PENDING'
+  | 'SCHEDULED'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'AWAITING_PARTS'
+  | 'ON_HOLD'
+  | 'REVISIT_REQUIRED'
+  | 'RESOLVED'
+  | 'COMPLETED'
+  | 'PAYMENT'
+  | 'CLOSED'
+  | 'CANCELLED';
+
+export interface ServiceRequestResponse {
+  id: string;
+  requestNumber: string;
+  customerId: string;
+  siteId: string;
+  assetId: string | null;
+  requestType: ServiceRequestType;
+  priority: ServiceRequestPriority;
+  description: string;
+  reportedDate: string;
+  preferredDate: string | null;
+  status: ServiceRequestStatus;
+  notes: string | null;
+  cancellationReason: string | null;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Relational details
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  siteName?: string | null;
+  siteAddress?: string | null;
+  assetTag?: string | null;
+  assetBrand?: string | null;
+  assetModel?: string | null;
+}
+
+export interface CreateServiceRequestPayload {
+  customerId: string;
+  siteId: string;
+  assetId?: string | null;
+  requestType: ServiceRequestType;
+  priority?: ServiceRequestPriority;
+  description: string;
+  preferredDate?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateServiceRequestPayload {
+  requestType?: ServiceRequestType;
+  priority?: ServiceRequestPriority;
+  description?: string;
+  preferredDate?: string | null;
+  notes?: string | null;
+  siteId?: string;
+  assetId?: string | null;
+}
+
+export interface UpdateServiceRequestStatusPayload {
+  status: ServiceRequestStatus;
+  reason?: string;
+}
+
+export interface CancelServiceRequestPayload {
+  reason?: string;
+}
+
+export interface ServiceRequestListQuery {
+  search?: string;
+  status?: 'ALL' | ServiceRequestStatus;
+  priority?: 'ALL' | ServiceRequestPriority;
+  requestType?: 'ALL' | ServiceRequestType;
+  customerId?: string;
+  siteId?: string;
+  assetId?: string;
+  page?: number;
+  pageSize?: number;
+}
+

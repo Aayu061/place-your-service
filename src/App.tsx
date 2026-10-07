@@ -5,6 +5,7 @@ import { ModuleShellPlaceholder } from '@/pages/ModuleShellPlaceholder';
 import { PhaseZeroOverview } from '@/pages/PhaseZeroOverview';
 import { StaffManagement } from '@/pages/StaffManagement';
 import { CustomerManagement } from '@/pages/CustomerManagement';
+import { ServiceRequestManagement } from '@/pages/ServiceRequestManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -229,6 +230,11 @@ const AuthenticatedApp: React.FC = () => {
         // Dedicated Phase 4 Customer Management (Admin & Staff)
         if (activeItem === 'customers') {
           return <CustomerManagement onNavigate={onNavigate} />;
+        }
+
+        // Dedicated Phase 6 Service Request Management (Admin & Staff)
+        if (activeItem === 'service-requests') {
+          return <ServiceRequestManagement onNavigate={onNavigate} />;
         }
 
         if (activeItem === 'phase-zero-review') {
