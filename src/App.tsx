@@ -7,6 +7,7 @@ import { StaffManagement } from '@/pages/StaffManagement';
 import { CustomerManagement } from '@/pages/CustomerManagement';
 import { ServiceRequestManagement } from '@/pages/ServiceRequestManagement';
 import { TechnicianManagement } from '@/pages/TechnicianManagement';
+import { AmcManagement } from '@/pages/AmcManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -241,6 +242,11 @@ const AuthenticatedApp: React.FC = () => {
         // Dedicated Phase 7 Technician Management (Admin & Staff)
         if (activeItem === 'technicians') {
           return <TechnicianManagement onNavigate={onNavigate} />;
+        }
+
+        // Dedicated Phase 8 AMC & Preventive Maintenance (Admin & Staff)
+        if (activeItem === 'amc') {
+          return <AmcManagement onNavigate={onNavigate} />;
         }
 
         if (activeItem === 'phase-zero-review') {

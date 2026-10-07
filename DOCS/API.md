@@ -673,6 +673,155 @@ All routes require authentication (`requireAuth`) and operational roles (`ADMIN`
   - When deactivated, operational status is atomically updated to `INACTIVE`.
 - **Response:** `200 OK` with updated technician entity. Audits `TECHNICIAN_ACTIVATED` or `TECHNICIAN_DEACTIVATED`.
 
+---
+
+## 13. AMC Contracts & Preventive Maintenance API (`/api/v1/amc-contracts`)
+
+All routes require authentication (`requireAuth`) and operational roles (`ADMIN` or `STAFF`). Inactive staff members receive `403 Forbidden`. Technicians and customers have no access to AMC commercial endpoints.
+
+### 13.1 List AMC Contracts
+- **Method:** `GET`
+- **Route:** `/api/v1/amc-contracts`
+- **Query Parameters:**
+  - `search`: string (case-insensitive substring match on contract number, customer name, plan name)
+  - `status`: `ALL` | `DRAFT` | `ACTIVE` | `EXPIRING_SOON` | `EXPIRED` | `CANCELLED` | `RENEWED`
+  - `frequency`: `ALL` | `MONTHLY` | `QUARTERLY` | `HALF_YEARLY` | `YEARLY`
+  - `customerId`: UUID (optional filter by customer)
+  - `planId`: UUID (optional filter by plan template)
+  - `page`: integer (default: 1)
+  - `pageSize`: integer (default: 20, max: 100)
+- **Response:** `200 OK` with paginated contracts array, joined customer/plan metadata, covered unit counts, visit completion counts, and pagination metadata (`total`, `page`, `pageSize`, `totalPages`).
+
+### 13.2 AMC Operational Metrics
+- **Method:** `GET`
+- **Route:** `/api/v1/amc-contracts/metrics`
+- **Response:** `200 OK` with real database-calculated metrics:
+  ```json
+  {
+    "success": true,
+    "metrics": {
+      "totalContracts": 14,
+      "activeContracts": 10,
+      "expiringSoon": 2,
+      "expiredContracts": 2,
+      "totalCoveredAssets": 42,
+      "pmDueCount": 6,
+      "pmOverdueCount": 1
+    }
+  }
+  ```
+
+### 13.3 List Active AMC Plans
+- **Method:** `GET`
+- **Route:** `/api/v1/amc-contracts/plans`
+- **Response:** `200 OK` with active reusable commercial plan templates (`PLAN-BASIC`, `PLAN-COMPREHENSIVE`, `PLAN-SEMI-ANNUAL`, `PLAN-ANNUAL`).
+
+### 13.4 Get Single AMC Contract
+- **Method:** `GET`
+- **Route:** `/api/v1/amc-contracts/:id`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with contract entity, customer details, plan details, and array of covered AC assets.
+- **Error:** `404 Not Found` if contract ID does not exist.
+
+### 13.5 Create AMC Contract
+- **Method:** `POST`
+- **Route:** `/api/v1/amc-contracts`
+- **Request Body:**
+  ```json
+  {
+    "customerId": "11111111-1111-1111-1111-111111111111",
+    "planId": "33333333-3333-3333-3333-333333333333",
+    "startDate": "2026-01-01",
+    "endDate": "2026-12-31",
+    "frequency": "QUARTERLY",
+    "totalAmount": 24000,
+    "totalVisits": 4,
+    "coveredAssetIds": ["55555555-5555-5555-5555-555555555555"],
+    "notes": "Standard annual corporate contract"
+  }
+  ```
+- **Invariants & Validations:**
+  1. Customer must exist and be active (`CUSTOMER_INACTIVE` / `CUSTOMER_NOT_FOUND`).
+  2. Plan (if provided) must exist and be active.
+  3. Start date must be valid and `startDate < endDate`. Inverted date ranges rejected (`INVALID_CONTRACT_DATES` 400).
+  4. Covered assets must belong to the customer through their site hierarchy (`ASSET_CUSTOMER_MISMATCH` 400).
+  5. Active contract overlap prevention: Cannot cover an asset with overlapping active contracts (`CONTRACT_OVERLAP` 409).
+  6. Server generates collision-safe sequential contract number `AMC-YYYY-XXXX`.
+  7. Status set to `ACTIVE` (or `EXPIRING_SOON` if within 30-day window).
+- **Response:** `201 Created` with created contract entity. Audits `AMC_CREATED`.
+
+### 13.6 Update AMC Contract Details
+- **Method:** `PATCH`
+- **Route:** `/api/v1/amc-contracts/:id`
+- **Params:** `id` (UUID)
+- **Request Body:** Partial update fields (`startDate`, `endDate`, `frequency`, `totalAmount`, `totalVisits`, `notes`).
+- **Guards:** Cannot modify cancelled contracts (400). Re-validates `startDate < endDate`.
+- **Response:** `200 OK` with updated contract entity. Audits `AMC_UPDATED`.
+
+### 13.7 Transition Contract Status
+- **Method:** `PATCH`
+- **Route:** `/api/v1/amc-contracts/:id/status`
+- **Params:** `id` (UUID)
+- **Request Body:** `{ "status": "ACTIVE" | "EXPIRED" | "CANCELLED" | "RENEWED" }`
+- **Response:** `200 OK` with updated status. Audits `AMC_STATUS_CHANGED`.
+
+### 13.8 Non-Destructive Cancellation
+- **Method:** `POST`
+- **Route:** `/api/v1/amc-contracts/:id/cancel`
+- **Params:** `id` (UUID)
+- **Request Body:** `{ "reason": "Customer premises closure" }`
+- **Invariants:**
+  - Idempotent: returns 200 if already cancelled.
+  - Non-destructive: sets `status = 'CANCELLED'`, records `cancellation_reason`, `cancelled_at`, `cancelled_by`.
+  - Future unfulfilled PM schedules are soft-cancelled (`status = 'CANCELLED'`). Completed work preserved.
+- **Response:** `200 OK` with cancelled contract entity. Audits `AMC_CANCELLED`.
+
+### 13.9 Historical Renewal
+- **Method:** `POST`
+- **Route:** `/api/v1/amc-contracts/:id/renew`
+- **Params:** `id` (UUID)
+- **Request Body:** Renewal payload (`startDate`, `endDate`, `frequency`, `totalAmount`, `totalVisits`, `notes`).
+- **Invariants:**
+  - Preserves original contract by transitioning it to `RENEWED`.
+  - Creates new linked contract with `previous_contract_id` pointing to the prior contract.
+  - Copies covered equipment to the new agreement.
+- **Response:** `201 Created` with new contract entity. Audits `AMC_RENEWED`.
+
+### 13.10 Generate Preventive Maintenance Obligations
+- **Method:** `POST`
+- **Route:** `/api/v1/amc-contracts/:id/generate-pm`
+- **Params:** `id` (UUID)
+- **Invariants:**
+  - Contract must be `ACTIVE` (or `EXPIRING_SOON`). Expired or cancelled contracts cannot generate PM (400).
+  - Pure date calculation using UTC calendar boundary safety (`calculateScheduleDatesUtc`).
+  - Contract Boundary: All generated dates strictly satisfy `scheduledDate >= startDate AND scheduledDate <= endDate`.
+  - Idempotent: Repeated invocations do not duplicate schedules; database unique constraint `uq_amc_asset_schedule (amc_id, asset_id, scheduled_date)` prevents duplicates.
+- **Response:** `200 OK` with generation report:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "contractId": "...",
+      "contractNumber": "AMC-2026-0001",
+      "generatedCount": 4,
+      "existingCount": 8,
+      "skippedCount": 0,
+      "dateRange": { "startDate": "2026-01-01", "endDate": "2026-12-31" },
+      "generatedDates": ["2026-01-01", "2026-04-01", "2026-07-01", "2026-10-01"]
+    }
+  }
+  ```
+  Audits `AMC_PM_GENERATED`.
+
+### 13.11 Covered Assets Management
+- `GET /api/v1/amc-contracts/:id/assets`: Returns all AC assets covered under contract with site/brand metadata.
+- `POST /api/v1/amc-contracts/:id/assets`: Adds additional covered assets (`{ "assetIds": [...] }`). Validates customer ownership and overlap. Audits `AMC_ASSET_ADDED`.
+- `DELETE /api/v1/amc-contracts/:id/assets/:assetId`: Removes asset coverage. Soft-cancels pending unfulfilled PM obligations for that unit. Audits `AMC_ASSET_REMOVED`.
+
+### 13.12 PM Schedules Inspection
+- `GET /api/v1/amc-contracts/:id/schedules`: Returns list of all generated PM obligations with schedule number (`PM-YYYY-XXXXXX`), asset tag, site name, scheduled date, visit number, and status (`PLANNED`, `DUE`, `OVERDUE`, `COMPLETED`, `CANCELLED`).
+
+
 
 
 

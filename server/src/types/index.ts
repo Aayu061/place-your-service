@@ -511,4 +511,190 @@ export interface TechnicianListQuery {
   pageSize?: number;
 }
 
+/* --------------------------------------------------
+ * AMC Contracts & Preventive Maintenance Types (Phase 8)
+ * -------------------------------------------------- */
+
+export type AmcFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY';
+
+export type AmcStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'EXPIRING_SOON'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'RENEWED';
+
+export type ServiceScheduleStatus =
+  | 'SCHEDULED'
+  | 'PLANNED'
+  | 'DUE'
+  | 'OVERDUE'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'COMPLETED'
+  | 'SKIPPED'
+  | 'CANCELLED';
+
+export interface AmcPlanResponse {
+  id: string;
+  planCode: string;
+  name: string;
+  description: string | null;
+  defaultFrequency: AmcFrequency;
+  defaultVisitsPerYear: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AmcCoveredAssetResponse {
+  id: string;
+  amcId: string;
+  assetId: string;
+  assetTag: string;
+  siteId: string;
+  siteName: string | null;
+  brand: string;
+  modelNumber: string | null;
+  serialNumber: string | null;
+  acType: AcType;
+  capacityTons: number | null;
+  roomLocation: string | null;
+  floorLocation: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface ServiceScheduleResponse {
+  id: string;
+  scheduleNumber: string;
+  amcId: string | null;
+  assetId: string;
+  assetTag?: string | null;
+  brand?: string | null;
+  modelNumber?: string | null;
+  siteName?: string | null;
+  roomLocation?: string | null;
+  scheduledDate: string;
+  visitNumber: number | null;
+  status: ServiceScheduleStatus;
+  isSystemGenerated: boolean;
+  notes: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AmcContractResponse {
+  id: string;
+  contractNumber: string;
+  customerId: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  planId: string | null;
+  planName?: string | null;
+  planCode?: string | null;
+  startDate: string;
+  endDate: string;
+  frequency: AmcFrequency;
+  totalAmount: number;
+  totalVisits: number;
+  status: AmcStatus;
+  notes: string | null;
+  cancellationReason: string | null;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  previousContractId: string | null;
+  coveredAssetsCount: number;
+  coveredAssets?: AmcCoveredAssetResponse[];
+  schedulesCount: number;
+  completedVisitsCount: number;
+  remainingVisitsCount: number;
+  nextPmDate: string | null;
+  isExpiringSoon: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAmcContractPayload {
+  customerId: string;
+  planId?: string | null;
+  startDate: string;
+  endDate: string;
+  frequency: AmcFrequency;
+  totalAmount: number;
+  totalVisits: number;
+  coveredAssetIds?: string[];
+  status?: AmcStatus;
+  notes?: string | null;
+}
+
+export interface UpdateAmcContractPayload {
+  planId?: string | null;
+  startDate?: string;
+  endDate?: string;
+  frequency?: AmcFrequency;
+  totalAmount?: number;
+  totalVisits?: number;
+  notes?: string | null;
+}
+
+export interface UpdateAmcStatusPayload {
+  status: AmcStatus;
+  reason?: string;
+}
+
+export interface CancelAmcContractPayload {
+  reason: string;
+}
+
+export interface AddAmcAssetsPayload {
+  assetIds: string[];
+}
+
+export interface GeneratePmPayload {
+  assetIds?: string[];
+}
+
+export interface PmGenerationResult {
+  contractId: string;
+  contractNumber: string;
+  generatedCount: number;
+  existingCount: number;
+  skippedCount: number;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  generatedDates: string[];
+  schedules: ServiceScheduleResponse[];
+}
+
+export interface AmcContractListQuery {
+  search?: string;
+  status?: 'ALL' | AmcStatus;
+  frequency?: 'ALL' | AmcFrequency;
+  planId?: string;
+  customerId?: string;
+  isExpiringSoon?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AmcDashboardMetrics {
+  activeContracts: number;
+  expiringSoonContracts: number;
+  expiredContracts: number;
+  coveredAssetsCount: number;
+  upcomingPmCount: number;
+  overduePmCount: number;
+}
+
+
 

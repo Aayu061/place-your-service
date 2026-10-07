@@ -98,41 +98,48 @@ Contract date rule:
 
 `end_date >= start_date`
 
-AMC status can be derived from dates and cancellation state.
+AMC status is derived from contract dates, lifecycle state, and cancellation state (`DRAFT`, `ACTIVE`, `EXPIRING_SOON`, `EXPIRED`, `CANCELLED`, `RENEWED`).
+
+### 6.1 Contract Overlap & Asset Coverage Rules
+- An AC asset cannot be covered by multiple overlapping active AMC contracts for the same customer (`start_date <= new_end AND end_date >= new_start`). Overlapping attempts must be rejected with structured `409 Conflict` (`CONTRACT_OVERLAP` / `ASSET_ALREADY_COVERED`).
+- Every covered AC asset must belong to the customer through its site hierarchy (`asset -> site -> customer`). Foreign assets must be rejected with `400 Bad Request` (`ASSET_CUSTOMER_MISMATCH`).
+- An AC asset cannot be attached more than once to the same contract; enforced by `uq_amc_asset (amc_id, asset_id)`.
+
+### 6.2 Non-Destructive Cancellation & Historical Renewal Rules
+- Cancellation requires a mandatory reason and records `cancellation_reason`, `cancelled_at`, and `cancelled_by`.
+- Cancellation soft-cancels pending future obligations while strictly preserving completed maintenance history. Contracts are never hard-deleted.
+- Renewal preserves the expired/completing contract as `RENEWED` and creates a new linked contract (`previous_contract_id`) covering the subsequent commercial period.
 
 ---
 
-## 7. AMC Schedule Algorithm
+## 7. AMC Schedule Algorithm (Preventive Maintenance Generation)
 
 ### Input
-
+- contract ID
 - start date
 - end date
 - frequency
-- selected AC assets
+- covered AC assets
 
-### Frequency interval
-
+### Frequency Intervals & UTC Calendar Math
 ```text
-MONTHLY       = 1 month
-QUARTERLY     = 3 months
-HALF_YEARLY   = 6 months
-YEARLY        = 12 months
+MONTHLY       = +1 calendar month
+QUARTERLY     = +3 calendar months
+HALF_YEARLY   = +6 calendar months
+YEARLY        = +12 calendar months
 ```
 
-### Algorithm
-
-1. Validate contract.
-2. Establish first schedule date.
-3. Generate next date using calendar-aware month arithmetic.
-4. Stop after the contract end date.
-5. For each asset, check whether an equivalent schedule already exists.
-6. Insert only missing schedules.
-7. Mark records as generated from AMC.
-8. Record generation activity.
-9. Re-generation must be idempotent.
-
-The system must not create duplicate schedules if the generation action is run twice.
+### Algorithm Invariants
+1. Validate contract is active (`ACTIVE` or `EXPIRING_SOON`). Expired or cancelled contracts cannot generate future PM.
+2. Validate dates: `start_date < end_date`.
+3. Establish first schedule date (start date).
+4. Generate subsequent dates using calendar-aware month arithmetic with month-end boundary clamping (e.g., Jan 31 -> Feb 28/29, leap-year safe).
+5. Strict contract boundary: stop when `next_date > end_date`. No obligation may ever lie outside the contract window.
+6. For each covered asset, compute deterministic identity.
+7. Insert only missing obligations using safe database conflict handling (`ON CONFLICT (amc_id, asset_id, scheduled_date) DO NOTHING`).
+8. Idempotency guaranteed: executing generation multiple times returns zero duplicate rows.
+9. Record audit activity (`AMC_PM_GENERATED`).
+10. Return structured summary: `generatedCount`, `existingCount`, `skippedCount`, `dateRange`.
 
 ---
 

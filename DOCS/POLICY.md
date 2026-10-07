@@ -123,6 +123,16 @@ Refunds and corrections must not silently rewrite the original transaction histo
 
 ---
 
+## 10.1 AMC & Preventive Maintenance Policy
+
+- **Commercial Integrity:** AMC contracts represent formal commercial commitments between the company and customer. Contract amounts, included visits, and valid periods are immutable once activated except through controlled operational edits.
+- **Coverage Rules:** Every covered AC unit must belong to the customer through their physical site hierarchy. A single AC asset must never have multiple active overlapping AMC agreements.
+- **Non-Destructive Cancellation:** AMC contracts must never be deleted. Cancellations require recorded operational reason, timestamp, and actor identity. Unfulfilled future obligations are cancelled, while historical completed maintenance records remain permanently intact.
+- **Renewal Traceability:** Contract renewals do not overwrite prior contract history. The predecessor agreement transitions to `RENEWED` and links to the successor agreement (`previous_contract_id`).
+- **Preventive Maintenance Generation:** Generating PM obligations must be date-aware, contract-bound, and strictly idempotent. Duplicate obligations are forbidden at both application and database engine layers.
+
+---
+
 ## 11. Backup & Recovery Policy
 
 The production database must use an appropriate backup/recovery strategy provided by the hosting architecture.

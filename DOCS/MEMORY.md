@@ -509,3 +509,56 @@ All critical steps must persist and calculate correctly in the backend.
 - **Audit Logging:** Logs `TECHNICIAN_CREATED`, `TECHNICIAN_UPDATED`, `TECHNICIAN_STATUS_CHANGED`, `TECHNICIAN_ACTIVATED`, `TECHNICIAN_DEACTIVATED`, `TECHNICIAN_SKILLS_UPDATED`, and `TECHNICIAN_SERVICE_AREAS_UPDATED` in `activity_logs`.
 - **Verification:** 193/193 tests passing (68 frontend + 125 backend). 0 lint errors, 0 lint warnings, 0 TypeScript errors. Frontend and backend production builds clean. Render and Vercel verified.
 
+---
+
+## Phase 8 Status — AMC & Preventive Maintenance (COMPLETE)
+
+- **Domain Model:**
+  - `amc_plans` (`id` UUID, `plan_code` VARCHAR, `name` VARCHAR, `description` TEXT, `default_frequency` VARCHAR, `default_visits_per_year` INT, `is_active` BOOLEAN, `created_at`, `updated_at`). Seeded standard plans: `PLAN-BASIC`, `PLAN-COMPREHENSIVE`, `PLAN-SEMI-ANNUAL`, `PLAN-ANNUAL`.
+  - `amc_contracts` (`id` UUID, `contract_number` VARCHAR, `customer_id` UUID, `plan_id` UUID NULL, `start_date` DATE, `end_date` DATE, `frequency` VARCHAR, `total_visits` INT, `total_amount` NUMERIC, `status` VARCHAR, `notes` TEXT NULL, `cancellation_reason` TEXT NULL, `cancelled_at` TIMESTAMPTZ NULL, `cancelled_by` UUID NULL, `previous_contract_id` UUID NULL, `created_by` UUID NULL, `updated_by` UUID NULL, `created_at`, `updated_at`).
+  - `amc_assets` (`id` UUID, `amc_id` UUID, `asset_id` UUID, `notes` TEXT NULL, `created_at`). Enforced by unique constraint `uq_amc_asset (amc_id, asset_id)`.
+  - `service_schedules` (`id` UUID, `schedule_number` VARCHAR, `amc_id` UUID, `asset_id` UUID, `site_id` UUID NULL, `scheduled_date` DATE, `visit_number` INT, `status` VARCHAR, `is_system_generated` BOOLEAN, `notes` TEXT NULL, `created_by` UUID NULL, `updated_by` UUID NULL, `created_at`, `updated_at`).
+- **Relational Integrity & Validation:**
+  - Customer exists and is active.
+  - Plan exists and is active (if plan_id specified).
+  - Date Validation: `start_date` < `end_date`. Negative or inverted contract periods rejected (`INVALID_CONTRACT_DATES`).
+  - Covered Asset Ownership: Every covered asset must belong to the customer through `asset -> site -> customer` hierarchy. Foreign assets rejected with 400 (`ASSET_CUSTOMER_MISMATCH`).
+  - Contract Overlap Protection: Active contracts for the same customer cannot cover the same AC asset during overlapping date ranges (`start_date <= new_end AND end_date >= new_start`). Violations return structured 409 Conflict (`ASSET_ALREADY_COVERED` / `CONTRACT_OVERLAP`).
+- **Preventive Maintenance Generation Algorithm:**
+  - Deterministic date step calculation (`calculateScheduleDatesUtc`) using pure UTC arithmetic and safe calendar month boundaries (`addMonthsSafeUtc`, preserving month-end dates e.g. Jan 31 -> Feb 28, Feb 29 on leap years).
+  - Supported Frequencies: `MONTHLY` (+1 mo), `QUARTERLY` (+3 mo), `HALF_YEARLY` (+6 mo), `YEARLY` (+12 mo).
+  - Contract Boundary: All generated PM obligations strictly satisfy `scheduled_date >= start_date AND scheduled_date <= end_date`. Zero obligations generated outside contract range.
+  - Idempotency & Concurrency: Deterministic deduplication in service logic reinforced by PostgreSQL database unique constraint `uq_amc_asset_schedule (amc_id, asset_id, scheduled_date)` on `service_schedules`. Calling PM generation repeatedly produces identical results without duplicates.
+- **Contract Lifecycle & Operations:**
+  - Statuses: `DRAFT`, `ACTIVE`, `EXPIRING_SOON` (end_date - current_date <= 30 days), `EXPIRED`, `CANCELLED`, `RENEWED`.
+  - Non-Destructive Cancellation: Cancellation requires mandatory reason; updates `cancellation_reason`, `cancelled_at`, `cancelled_by`, sets contract to `CANCELLED`, and soft-cancels unfulfilled future schedules while preserving historical completed visits.
+  - Historical Renewal: Renewal links the previous contract (`previous_contract_id`), sets old contract to `RENEWED`, and creates a new contract record with copied equipment for the subsequent period.
+  - Expired/Cancelled contracts are prevented from generating new future PM obligations.
+- **Backend APIs:**
+  - `GET /api/v1/amc-contracts` (search, filters by status/frequency/customer/plan, pagination)
+  - `GET /api/v1/amc-contracts/metrics` (real DB-derived KPI summary: active, expiring soon, expired, covered assets, due PM)
+  - `GET /api/v1/amc-contracts/plans` (reusable active plan templates)
+  - `GET /api/v1/amc-contracts/:id` (contract detail with covered assets and summary)
+  - `POST /api/v1/amc-contracts` (creation with collision-safe `AMC-YYYY-XXXX` number)
+  - `PATCH /api/v1/amc-contracts/:id` (safe updates with date validation)
+  - `PATCH /api/v1/amc-contracts/:id/status` (lifecycle status changes)
+  - `POST /api/v1/amc-contracts/:id/cancel` (controlled non-destructive cancellation)
+  - `POST /api/v1/amc-contracts/:id/renew` (safe historical renewal)
+  - `POST /api/v1/amc-contracts/:id/generate-pm` (idempotent PM schedule calculation)
+  - `GET /api/v1/amc-contracts/:id/assets` (covered equipment listing)
+  - `POST /api/v1/amc-contracts/:id/assets` (add covered assets with ownership checks)
+  - `DELETE /api/v1/amc-contracts/:id/assets/:assetId` (remove asset from coverage, soft-cancelling pending future visits)
+  - `GET /api/v1/amc-contracts/:id/schedules` (view generated PM obligations)
+  - Guarded by `requireAuth` + `requireRole('ADMIN', 'STAFF')`. Inactive staff blocked (403).
+- **Frontend Workspace:**
+  - `AmcManagement.tsx` mounted in `AppShell` operational navigation (`activeItem === 'amc'`).
+  - Real-time KPI Metric Summary Cards (Active Contracts, Expiring Soon, Covered AC Units, Upcoming PM, Overdue PM).
+  - Search by contract number / customer / plan and filter by status and frequency with server-side pagination.
+  - Contract Detail Drawer with Overview, Covered Equipment, and PM Obligations tabs.
+  - PM Schedule tab with "Regenerate / Sync PM" action and due/overdue status display.
+  - Create AMC Modal with cascading customer asset selection and plan template defaults.
+  - Edit, Cancel, Renew, and Add Equipment modals with structured conflict feedback.
+- **Audit Logging:** Systematically records `AMC_CREATED`, `AMC_UPDATED`, `AMC_STATUS_CHANGED`, `AMC_ASSET_ADDED`, `AMC_ASSET_REMOVED`, `AMC_PM_GENERATED`, `AMC_CANCELLED`, and `AMC_RENEWED` in `activity_logs`.
+- **Verification:** 228/228 tests passing (78 frontend + 150 backend). 0 lint errors, 0 lint warnings, 0 TypeScript errors. Frontend and backend production builds clean. Render and Vercel verified.
+
+

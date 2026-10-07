@@ -112,6 +112,7 @@ export type WarrantyStatus =
 export interface AcAsset {
   id: string;
   assetTag: string;
+  assetCode?: string; // Compatibility alias
   internalCode?: string; // Compatibility alias
   qrCodeRef?: string;
   siteId: string;
@@ -200,24 +201,87 @@ export interface Technician {
  * 5. AMC Plans & Contracts
  * -------------------------------------------------- */
 export type AmcFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY';
-export type AmcStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'CANCELLED';
+export type AmcStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'EXPIRING_SOON'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'RENEWED';
+
+export interface AmcPlan {
+  id: string;
+  planCode: string;
+  name: string;
+  planName?: string; // Compatibility alias
+  description?: string | null;
+  defaultFrequency: AmcFrequency;
+  frequency?: AmcFrequency; // Compatibility alias
+  defaultVisitsPerYear: number;
+  totalVisits?: number; // Compatibility alias
+  includedVisits?: number; // Compatibility alias
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AmcCoveredAsset {
+  id: string;
+  amcId: string;
+  assetId: string;
+  assetTag: string;
+  siteId?: string;
+  siteName?: string | null;
+  brand: string;
+  modelNumber?: string | null;
+  serialNumber?: string | null;
+  acType?: AcType;
+  capacityTons?: number | null;
+  roomLocation?: string | null;
+  floorLocation?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  asset?: AcAsset;
+}
 
 export interface AmcContract {
   id: string;
-  contractCode: string; // AMC-2026-001
+  contractNumber: string; // AMC-2026-0001
+  contractCode: string; // Compatibility alias
   customerId: string;
-  planName: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  planId?: string | null;
+  planName?: string | null;
+  planCode?: string | null;
   startDate: string;
   endDate: string;
   frequency: AmcFrequency;
   totalVisits: number;
-  contractAmount: number;
+  includedVisits?: number; // Compatibility alias
+  totalAmount: number;
+  contractAmount: number; // Compatibility alias
   status: AmcStatus;
-  coveredAssetIds: string[];
-  notes?: string;
+  coveredAssetIds?: string[];
+  coveredAssetsCount?: number;
+  coveredAssets?: AmcCoveredAsset[];
+  schedulesCount?: number;
+  completedVisitsCount?: number;
+  remainingVisitsCount?: number;
+  nextPmDate?: string | null;
+  isExpiringSoon?: boolean;
+  notes?: string | null;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  previousContractId?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
 
 /* --------------------------------------------------
  * 6. Service Management (Requests vs Schedules)

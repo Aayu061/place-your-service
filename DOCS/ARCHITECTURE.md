@@ -301,6 +301,7 @@ Examples:
 
 - recording service parts + inventory transaction
 - recording payment + balance update
-- generating schedules + duplicate checks
+- generating PM schedules + idempotent database constraint defense (`uq_amc_asset_schedule`)
+- contract renewal linking and non-destructive cancellation
 
-Use database transactions/functions where necessary.
+Use database transactions, constraints, and deterministic algorithms for guaranteed idempotency.
