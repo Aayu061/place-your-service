@@ -57,5 +57,24 @@ customerRouter.post(
   validate(customerIdParamSchema),
   customerController.convertToPermanent.bind(customerController)
 );
+import { siteController } from '../controllers/site.controller.js';
+import {
+  listCustomerSitesSchema,
+  createSiteSchema,
+} from '../validators/site.validator.js';
+
+// 7. List customer sites
+customerRouter.get(
+  '/:customerId/sites',
+  validate(listCustomerSitesSchema),
+  siteController.listCustomerSites.bind(siteController)
+);
+
+// 8. Create site under customer
+customerRouter.post(
+  '/:customerId/sites',
+  validate(createSiteSchema),
+  siteController.createSite.bind(siteController)
+);
 
 export default customerRouter;

@@ -164,3 +164,134 @@ export interface CustomerListQuery {
   sortOrder?: 'asc' | 'desc';
 }
 
+/* --------------------------------------------------
+ * Customer Site Management Types (Phase 5)
+ * -------------------------------------------------- */
+
+export interface SiteResponse {
+  id: string;
+  customerId: string;
+  siteName: string;
+  address: string;
+  contactPerson: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  assetCount?: number;
+}
+
+export interface CreateSitePayload {
+  siteName: string;
+  address: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isPrimary?: boolean;
+  notes?: string;
+}
+
+export interface UpdateSitePayload {
+  siteName?: string;
+  address?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  isPrimary?: boolean;
+  notes?: string;
+}
+
+export interface SiteListQuery {
+  search?: string;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
+  page?: number;
+  pageSize?: number;
+}
+
+/* --------------------------------------------------
+ * AC Asset Register Types (Phase 5)
+ * -------------------------------------------------- */
+
+export type AcType =
+  | 'SPLIT'
+  | 'WINDOW'
+  | 'CASSETTE'
+  | 'PACKAGE'
+  | 'TOWER'
+  | 'DUCTABLE'
+  | 'VRV_VRF'
+  | 'OTHER';
+
+export type WarrantyStatus =
+  | 'UNDER_WARRANTY'
+  | 'EXPIRED'
+  | 'AMC_COVERED'
+  | 'OUT_OF_WARRANTY';
+
+export interface AcAssetResponse {
+  id: string;
+  assetTag: string;
+  siteId: string;
+  customerId: string;
+  brand: string;
+  modelNumber: string | null;
+  serialNumber: string | null;
+  acType: AcType;
+  capacityTons: number | null;
+  installationDate: string | null;
+  floorLocation: string | null;
+  roomLocation: string | null;
+  refrigerantType: string | null;
+  warrantyStatus: WarrantyStatus;
+  isActive: boolean;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  siteName?: string | null;
+  customerName?: string | null;
+  customerCode?: string | null;
+}
+
+export interface CreateAcAssetPayload {
+  assetTag?: string;
+  brand: string;
+  modelNumber?: string;
+  serialNumber?: string;
+  acType: AcType;
+  capacityTons?: number;
+  installationDate?: string;
+  floorLocation?: string;
+  roomLocation?: string;
+  refrigerantType?: string;
+  warrantyStatus?: WarrantyStatus;
+  notes?: string;
+}
+
+export interface UpdateAcAssetPayload {
+  brand?: string;
+  modelNumber?: string;
+  serialNumber?: string;
+  acType?: AcType;
+  capacityTons?: number;
+  installationDate?: string;
+  floorLocation?: string;
+  roomLocation?: string;
+  refrigerantType?: string;
+  warrantyStatus?: WarrantyStatus;
+  notes?: string;
+}
+
+export interface AcAssetListQuery {
+  search?: string;
+  acType?: 'ALL' | AcType;
+  warrantyStatus?: 'ALL' | WarrantyStatus;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
+  page?: number;
+  pageSize?: number;
+}
+

@@ -74,39 +74,69 @@ export interface CustomerSite {
   customerId: string;
   siteName: string;
   address: string;
-  contactPerson: string;
-  contactPhone: string;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  isPrimary: boolean;
   isActive: boolean;
-  notes?: string;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  assetCount?: number;
 }
 
 /* --------------------------------------------------
  * 3. AC Asset Register
  * -------------------------------------------------- */
-export type AcType = 'SPLIT' | 'WINDOW' | 'CASSETTE' | 'DUCTABLE' | 'TOWER' | 'VRV_VRF';
+export type AcType =
+  | 'SPLIT'
+  | 'WINDOW'
+  | 'CASSETTE'
+  | 'PACKAGE'
+  | 'TOWER'
+  | 'DUCTABLE'
+  | 'VRV_VRF'
+  | 'OTHER';
+
+export type WarrantyStatus =
+  | 'UNDER_WARRANTY'
+  | 'EXPIRED'
+  | 'AMC_COVERED'
+  | 'OUT_OF_WARRANTY';
 
 export interface AcAsset {
   id: string;
-  internalCode: string; // Unique internal asset ID (e.g., AC-1001)
+  assetTag: string;
+  internalCode?: string; // Compatibility alias
   qrCodeRef?: string;
   siteId: string;
-  customerId: string;
+  customerId?: string;
   brand: string;
-  modelNumber: string;
-  serialNumber: string;
+  modelNumber?: string | null;
+  serialNumber?: string | null;
   acType: AcType;
-  tonnageCapacity: number; // e.g., 1.5, 2.0
-  refrigerantType?: string; // e.g., R32, R410A
-  installationDate?: string;
-  locationDetails: string; // Floor, room, or specific position
-  isUnderWarranty: boolean;
+  capacityTons?: number | null;
+  tonnageCapacity?: number; // Compatibility alias
+  refrigerantType?: string | null;
+  installationDate?: string | null;
+  floorLocation?: string | null;
+  roomLocation?: string | null;
+  locationDetails?: string; // Compatibility alias
+  warrantyStatus: WarrantyStatus;
+  isUnderWarranty?: boolean; // Compatibility alias
   warrantyValidUntil?: string;
   isActive: boolean;
-  notes?: string;
+  notes?: string | null;
   createdAt: string;
   updatedAt: string;
+  siteName?: string | null;
+  customerName?: string | null;
+  customerCode?: string | null;
 }
 
 /* --------------------------------------------------

@@ -339,3 +339,150 @@ Customers are domain data entities, NOT application login users.
   - Idempotent: Returns `409 Conflict` with code `ALREADY_PERMANENT` if customer is already PERMANENT.
   - Audits `CUSTOMER_CONVERTED_TO_PERMANENT` in `activity_logs`.
 
+---
+
+## 9. Customer Site Endpoints (Phase 5)
+
+All Site endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
+
+### 9.1 List Customer Sites
+- **Method:** `GET`
+- **Route:** `/api/v1/customers/:customerId/sites`
+- **Params:** `customerId` (UUID)
+- **Query:** `includeInactive` (boolean, optional)
+- **Response:** `200 OK`
+  ```json
+  {
+    "success": true,
+    "data": {
+      "sites": [
+        {
+          "id": "site-uuid",
+          "customerId": "cust-uuid",
+          "siteName": "Head Office",
+          "address": "123 Nariman Point",
+          "city": "Mumbai",
+          "state": "Maharashtra",
+          "postalCode": "400021",
+          "contactPerson": "R. Sharma",
+          "contactPhone": "9876543210",
+          "contactEmail": "facility@mumbai.example",
+          "isPrimary": true,
+          "isActive": true,
+          "assetCount": 5,
+          "createdAt": "2026-10-01T10:00:00.000Z",
+          "updatedAt": "2026-10-01T10:00:00.000Z"
+        }
+      ],
+      "total": 1
+    }
+  }
+  ```
+
+### 9.2 Get Single Site
+- **Method:** `GET`
+- **Route:** `/api/v1/sites/:id`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with site entity including `assetCount`.
+
+### 9.3 Create Customer Site
+- **Method:** `POST`
+- **Route:** `/api/v1/customers/:customerId/sites`
+- **Request Body:**
+  ```json
+  {
+    "siteName": "Navi Mumbai Branch",
+    "address": "Plot 42, Vashi Sector 17",
+    "city": "Navi Mumbai",
+    "state": "Maharashtra",
+    "postalCode": "400703",
+    "contactPerson": "A. Patil",
+    "contactPhone": "9820123456",
+    "contactEmail": "branch@vashi.example",
+    "isPrimary": false,
+    "notes": "Service gate on north wing"
+  }
+  ```
+- **Response:** `201 Created` with created site entity.
+- **Invariants:** If `isPrimary = true`, existing primary sites for this customer are atomically demoted. Audits `SITE_CREATED`.
+
+### 9.4 Update Site
+- **Method:** `PATCH`
+- **Route:** `/api/v1/sites/:id`
+- **Request Body:** Partial update fields (`siteName`, `address`, `city`, `state`, `postalCode`, `contactPerson`, `contactPhone`, `contactEmail`, `isPrimary`, `notes`).
+- **Response:** `200 OK` with updated site entity. Audits `SITE_UPDATED`.
+
+### 9.5 Set Primary Site
+- **Method:** `POST`
+- **Route:** `/api/v1/sites/:id/set-primary`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with updated site entity (`isPrimary = true`).
+- **Invariants:**
+  - Atomic promotion: demotes any existing primary site for this customer first.
+  - Enforced at database level via partial unique index `idx_customer_sites_single_primary`.
+  - Audits `SITE_SET_PRIMARY`.
+
+### 9.6 Update Site Status
+- **Method:** `PATCH`
+- **Route:** `/api/v1/sites/:id/status`
+- **Request Body:** `{ "isActive": false }`
+- **Response:** `200 OK` with updated site entity.
+- **Invariants:** Deactivation is blocked (HTTP 400 `ACTIVE_ASSETS_EXIST`) if the site contains active AC units. Audits `SITE_STATUS_CHANGED`.
+
+---
+
+## 10. AC Asset Endpoints (Phase 5)
+
+All Asset endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
+
+### 10.1 List Site AC Assets
+- **Method:** `GET`
+- **Route:** `/api/v1/sites/:siteId/assets`
+- **Params:** `siteId` (UUID)
+- **Query:** `acType`, `warrantyStatus`, `search`, `includeInactive`
+- **Response:** `200 OK` with `assets` array and `total`.
+
+### 10.2 Get Single AC Asset
+- **Method:** `GET`
+- **Route:** `/api/v1/assets/:id`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with asset entity and site name.
+
+### 10.3 Create AC Asset
+- **Method:** `POST`
+- **Route:** `/api/v1/sites/:siteId/assets`
+- **Params:** `siteId` (UUID)
+- **Request Body:**
+  ```json
+  {
+    "assetTag": "AC-100201",
+    "brand": "Daikin",
+    "modelNumber": "FTKM50",
+    "serialNumber": "DKN-982144",
+    "acType": "SPLIT",
+    "capacityTons": 1.5,
+    "refrigerantType": "R32",
+    "installationDate": "2025-01-15",
+    "floorLocation": "2nd Floor",
+    "roomLocation": "ICU Ward 3",
+    "warrantyStatus": "UNDER_WARRANTY",
+    "notes": "Outdoor unit mounted on east balcony"
+  }
+  ```
+- **Response:** `201 Created` with created AC asset.
+- **Duplicate Protection:** Returns `409 Conflict` if duplicate asset tag or duplicate serial number for brand exists.
+- **Invariants:** Resolves customer ID from site. Collision-resistant `assetTag` generated if omitted (`AC-######`). Audits `ASSET_CREATED`.
+
+### 10.4 Update AC Asset
+- **Method:** `PATCH`
+- **Route:** `/api/v1/assets/:id`
+- **Request Body:** Partial update fields (`brand`, `modelNumber`, `serialNumber`, `acType`, `capacityTons`, `refrigerantType`, `installationDate`, `floorLocation`, `roomLocation`, `warrantyStatus`, `notes`).
+- **Response:** `200 OK` with updated asset entity. Audits `ASSET_UPDATED`.
+
+### 10.5 Update AC Asset Status
+- **Method:** `PATCH`
+- **Route:** `/api/v1/assets/:id/status`
+- **Request Body:** `{ "isActive": false }`
+- **Response:** `200 OK` with updated asset entity. Non-destructive deactivation. Audits `ASSET_STATUS_CHANGED`.
+
+
