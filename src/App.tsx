@@ -4,6 +4,7 @@ import { DashboardShell } from '@/pages/DashboardShell';
 import { ModuleShellPlaceholder } from '@/pages/ModuleShellPlaceholder';
 import { PhaseZeroOverview } from '@/pages/PhaseZeroOverview';
 import { StaffManagement } from '@/pages/StaffManagement';
+import { CustomerManagement } from '@/pages/CustomerManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -223,6 +224,11 @@ const AuthenticatedApp: React.FC = () => {
         // Dedicated Phase 3 Staff Management (Admin Only)
         if (activeItem === 'staff') {
           return <StaffManagement />;
+        }
+
+        // Dedicated Phase 4 Customer Management (Admin & Staff)
+        if (activeItem === 'customers') {
+          return <CustomerManagement onNavigate={onNavigate} />;
         }
 
         if (activeItem === 'phase-zero-review') {

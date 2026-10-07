@@ -43,16 +43,30 @@ export interface Customer {
   id: string;
   customerCode: string; // Human-readable business identifier (e.g., CUST-001)
   name: string;
-  companyName?: string;
-  type: CustomerType;
-  primaryPhone: string;
-  secondaryPhone?: string;
-  email?: string;
-  billingAddress: string;
-  notes?: string;
+  companyName?: string | null;
+  customerType: CustomerType;
+  type?: CustomerType; // Compatibility alias
+  phone: string;
+  primaryPhone?: string; // Compatibility alias
+  alternatePhone?: string | null;
+  secondaryPhone?: string | null; // Compatibility alias
+  email?: string | null;
+  address: string;
+  billingAddress?: string; // Compatibility alias
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  notes?: string | null;
   isActive: boolean;
+  siteName?: string | null;
+  siteContactPerson?: string | null;
+  siteContactPhone?: string | null;
+  sitesCount?: number;
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  primarySite?: CustomerSite | null;
 }
 
 export interface CustomerSite {

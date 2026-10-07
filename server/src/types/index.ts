@@ -78,3 +78,89 @@ export interface UserProfileResponse {
   avatarUrl?: string | null;
 }
 
+/* --------------------------------------------------
+ * Customer Management Types (Phase 4)
+ * -------------------------------------------------- */
+
+export type CustomerType = 'TEMPORARY' | 'PERMANENT';
+
+export interface CustomerSiteSummary {
+  id: string;
+  siteName: string;
+  address: string;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+}
+
+export interface CustomerResponse {
+  id: string;
+  customerCode: string;
+  name: string;
+  companyName: string | null;
+  email: string | null;
+  phone: string;
+  alternatePhone: string | null;
+  address: string;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  customerType: CustomerType;
+  notes: string | null;
+  isActive: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  siteName?: string | null;
+  siteContactPerson?: string | null;
+  siteContactPhone?: string | null;
+  sitesCount?: number;
+  primarySite?: CustomerSiteSummary | null;
+}
+
+export interface CreateCustomerPayload {
+  name: string;
+  customerType?: CustomerType;
+  companyName?: string;
+  email?: string;
+  phone: string;
+  alternatePhone?: string;
+  address: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  notes?: string;
+  siteName?: string;
+  siteContactPerson?: string;
+  siteContactPhone?: string;
+}
+
+export interface UpdateCustomerPayload {
+  name?: string;
+  companyName?: string;
+  email?: string;
+  phone?: string;
+  alternatePhone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  notes?: string;
+  siteName?: string;
+  siteContactPerson?: string;
+  siteContactPhone?: string;
+}
+
+export interface CustomerListQuery {
+  search?: string;
+  type?: 'ALL' | CustomerType;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
+  page?: number;
+  pageSize?: number;
+  sortBy?: 'created_at' | 'name' | 'customer_code';
+  sortOrder?: 'asc' | 'desc';
+}
+

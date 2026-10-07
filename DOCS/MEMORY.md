@@ -390,5 +390,26 @@ All critical steps must persist and calculate correctly in the backend.
 - **Staff Account Management:** Full Admin management suite (`GET /api/v1/staff`, `POST /api/v1/staff`, `PATCH /api/v1/staff/:id`, `PATCH /api/v1/staff/:id/status`). Inactive staff are rejected by backend authorization (HTTP 403) and denied operational UI access.
 - **Frontend UX:** Branded Login page with accessible form, error alerts, zero-flicker session restoration (`isLoading`), centralized `AuthContext`, and Admin `StaffManagement` workspace.
 - **Audit Logging:** Auditable operational events recorded in `activity_logs` (`ADMIN_BOOTSTRAP`, `STAFF_CREATED`, `STAFF_ACTIVATED`, `STAFF_DEACTIVATED`, `USER_LOGOUT`) with strict credential redaction.
-- **Verification:** 78/78 tests passing (37 frontend + 41 backend). Zero lint warnings. Production builds clean.
+- **Verification:** 81/81 tests passing (37 frontend + 44 backend). Zero lint warnings. Production builds clean.
+
+---
+
+## Phase 4 Status — Customer Management (COMPLETE)
+
+- **Domain Model:** Customer entity (`id` UUID, `customer_code`, `name`, `company_name`, `customer_type`, `phone`, `alternate_phone`, `email`, `address`, `city`, `state`, `postal_code`, `notes`, `is_active`, `created_at`, `updated_at`).
+- **Classification:** Strictly `TEMPORARY` and `PERMANENT`.
+- **Conversion Workflow:** `POST /api/v1/customers/:id/convert-to-permanent`. Idempotent in-place update modifying only `customer_type = 'PERMANENT'`. Strict preservation of customer UUID ID, customer code, operational history, notes, site links, and audit trail. Returns 409 Conflict if already permanent.
+- **Duplicate Prevention:** Server-side duplicate detection based on phone number and email. Returns 409 Conflict with structured duplicate metadata if a matching customer already exists.
+- **CRUD Operations:**
+  - `GET /api/v1/customers` (paginated listing, server-side search by name/company/phone/email/code, filter by type and active status)
+  - `GET /api/v1/customers/:id` (detailed customer view including linked sites summary)
+  - `POST /api/v1/customers` (atomic customer creation with primary site record)
+  - `PATCH /api/v1/customers/:id` (safe partial update)
+  - `PATCH /api/v1/customers/:id/status` (safe activation/deactivation toggle, soft-delete preference)
+  - `POST /api/v1/customers/:id/convert-to-permanent` (safe idempotent conversion)
+- **Authorization:** All endpoints guarded by `requireAuth` + `requireRole('ADMIN', 'STAFF')`. No public or customer login access.
+- **Audit Logging:** Audits `CUSTOMER_CREATED`, `CUSTOMER_UPDATED`, `CUSTOMER_STATUS_CHANGED`, and `CUSTOMER_CONVERTED_TO_PERMANENT` in `activity_logs`.
+- **Frontend Workspace:** `CustomerManagement.tsx` component mounted in `AppShell` with search, filter tabs, responsive data table, Add/Edit modals, detail drawer with Phase 5-7 module roadmap indications, conversion confirmation dialogs, and robust loading/error/empty states.
+- **Verification:** 109/109 tests passing (44 frontend + 65 backend). Zero lint errors. Zero TypeScript errors. Frontend and backend production builds clean.
+
 

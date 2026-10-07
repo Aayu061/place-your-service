@@ -211,16 +211,131 @@ By business rule and database constraint (`idx_staff_singleton_admin`), exactly 
 
 ---
 
-## 7. Future Endpoint Organization
+## 7. Endpoint Organization Status
 
-Subsequent phases will mount dedicated routers onto `/api/v1`:
-- `/api/v1/auth` (Phase 3: Admin & Staff Authentication)
-- `/api/v1/customers` (Phase 4: Customer & Site Management)
-- `/api/v1/assets` (Phase 5: AC Asset Register)
-- `/api/v1/technicians` (Phase 6: Technician Management & Recommendation)
-- `/api/v1/services` (Phase 7: Service Requests & Schedules)
-- `/api/v1/amc` (Phase 8: AMC Contracts & Generation)
-- `/api/v1/inventory` (Phase 9: Parts & Inventory Ledger)
-- `/api/v1/payments` (Phase 10: Payments & Financial Records)
-- `/api/v1/notifications` (Phase 13: Operational Notifications)
-- `/api/v1/activity-logs` (Phase 13: Activity & Audit Logs)
+- `/api/v1/auth` (Phase 3: Admin & Staff Authentication — IMPLEMENTED)
+- `/api/v1/staff` (Phase 3: Staff Management — IMPLEMENTED)
+- `/api/v1/customers` (Phase 4: Customer Management — IMPLEMENTED)
+- `/api/v1/assets` (Phase 5: AC Asset Register — UPCOMING)
+- `/api/v1/technicians` (Phase 6: Technician Management & Recommendation — UPCOMING)
+- `/api/v1/services` (Phase 7: Service Requests & Schedules — UPCOMING)
+- `/api/v1/amc` (Phase 8: AMC Contracts & Generation — UPCOMING)
+- `/api/v1/inventory` (Phase 9: Parts & Inventory Ledger — UPCOMING)
+- `/api/v1/payments` (Phase 10: Payments & Financial Records — UPCOMING)
+- `/api/v1/notifications` (Phase 13: Operational Notifications — UPCOMING)
+- `/api/v1/activity-logs` (Phase 13: Activity & Audit Logs — UPCOMING)
+
+---
+
+## 8. Customer Management API (Phase 4)
+
+All Customer endpoints require a valid Supabase JWT and role check:
+`requireAuth` + `requireRole('ADMIN', 'STAFF')`.
+
+Customers are domain data entities, NOT application login users.
+
+### 8.1 List Customers
+- **Method:** `GET`
+- **Route:** `/api/v1/customers`
+- **Query Parameters:**
+  - `page` (number, default: 1)
+  - `pageSize` (number, default: 20, max: 100)
+  - `search` (string, optional: searches name, company, phone, email, customer_code)
+  - `customerType` (`TEMPORARY` | `PERMANENT`, optional)
+  - `isActive` (boolean, optional)
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "customers": [ ... ],
+      "total": 42,
+      "page": 1,
+      "pageSize": 20,
+      "totalPages": 3
+    }
+  }
+  ```
+
+### 8.2 Get Customer by ID
+- **Method:** `GET`
+- **Route:** `/api/v1/customers/:id`
+- **Params:** `id` (UUID)
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "uuid",
+      "customerCode": "CUST-100201",
+      "name": "Metropolitan Hospital",
+      "companyName": "Metro Health Ltd",
+      "customerType": "TEMPORARY",
+      "phone": "9876543210",
+      "alternatePhone": "9876543211",
+      "email": "facility@metro.example",
+      "address": "Sector 5, Salt Lake",
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "postalCode": "700091",
+      "notes": "24x7 emergency backup critical",
+      "isActive": true,
+      "createdAt": "2026-10-01T10:00:00.000Z",
+      "updatedAt": "2026-10-01T10:00:00.000Z",
+      "sites": [ ... ]
+    }
+  }
+  ```
+
+### 8.3 Create Customer
+- **Method:** `POST`
+- **Route:** `/api/v1/customers`
+- **Request Body:**
+  ```json
+  {
+    "name": "Metropolitan Hospital",
+    "companyName": "Metro Health Ltd",
+    "customerType": "TEMPORARY",
+    "phone": "9876543210",
+    "alternatePhone": "9876543211",
+    "email": "facility@metro.example",
+    "address": "Sector 5, Salt Lake",
+    "city": "Kolkata",
+    "state": "West Bengal",
+    "postalCode": "700091",
+    "siteName": "Main Hospital Building",
+    "siteContactPerson": "Dr. Sen",
+    "siteContactPhone": "9876543210",
+    "notes": "24x7 emergency backup critical"
+  }
+  ```
+- **Response:** `201 Created` with created customer entity.
+- **Duplicate Protection:** Returns `409 Conflict` if phone or email matches an existing customer.
+
+### 8.4 Update Customer
+- **Method:** `PATCH`
+- **Route:** `/api/v1/customers/:id`
+- **Request Body:** Partial update fields (`name`, `companyName`, `phone`, `email`, `address`, `city`, `state`, `postalCode`, `notes`).
+- **Response:** `200 OK` with updated customer entity.
+
+### 8.5 Update Customer Status
+- **Method:** `PATCH`
+- **Route:** `/api/v1/customers/:id/status`
+- **Request Body:**
+  ```json
+  {
+    "isActive": false
+  }
+  ```
+- **Response:** `200 OK` with updated customer entity. Preserves referential integrity by avoiding destructive hard deletion.
+
+### 8.6 Convert Customer to PERMANENT
+- **Method:** `POST`
+- **Route:** `/api/v1/customers/:id/convert-to-permanent`
+- **Params:** `id` (UUID)
+- **Response:** `200 OK` with converted customer entity (`customerType = 'PERMANENT'`).
+- **Invariants:**
+  - In-place update preserving customer UUID ID, customer code, operational history, notes, and site relationships.
+  - Idempotent: Returns `409 Conflict` with code `ALREADY_PERMANENT` if customer is already PERMANENT.
+  - Audits `CUSTOMER_CONVERTED_TO_PERMANENT` in `activity_logs`.
+
