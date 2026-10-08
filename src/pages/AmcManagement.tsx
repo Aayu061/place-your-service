@@ -1116,6 +1116,28 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Included Visits</div>
                     <div style={{ fontWeight: 500 }}>{detailContract.totalVisits} Visits</div>
                   </div>
+                  <div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Visit Progress</div>
+                    <div style={{ fontWeight: 600, color: 'var(--color-primary-600)' }}>
+                      {detailContract.completedVisitsCount || 0} / {detailContract.totalVisits} Completed
+                    </div>
+                  </div>
+                  {detailContract.previousContractId && (
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Renewal Relationship</div>
+                      <div style={{ fontWeight: 500, color: 'var(--color-primary-600)', fontSize: 'var(--text-xs)' }}>
+                        Renewed from predecessor AMC agreement (Asset coverage carried forward)
+                      </div>
+                    </div>
+                  )}
+                  {detailContract.status === 'RENEWED' && (
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Renewal Relationship</div>
+                      <div style={{ fontWeight: 500, color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>
+                        Historical predecessor contract (Renewed into active successor agreement)
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {detailContract.notes && (

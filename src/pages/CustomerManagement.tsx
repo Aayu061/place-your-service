@@ -2564,30 +2564,39 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                           gap: 'var(--space-2)',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                            <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--color-brand)' }}>
-                              {asset.assetTag}
-                            </span>
-                            <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>
-                              {asset.brand} {asset.modelNumber ? `• ${asset.modelNumber}` : ''}
-                            </span>
-                            <Badge variant="neutral">{asset.acType}</Badge>
+                        {/* 1. Header: Asset Code, Brand + Model, Type + Capacity & Statuses */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--color-brand)' }}>
+                                {asset.assetTag}
+                              </span>
+                              <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                                {asset.brand} {asset.modelNumber ? `• ${asset.modelNumber}` : ''}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              {asset.acType}{asset.capacityTons ? ` • ${asset.capacityTons} Ton` : ''}
+                            </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Asset:</span>
-                              <Badge variant={asset.assetStatus === 'Active' || asset.isActive ? 'success' : 'neutral'}>
-                                {asset.assetStatus ? asset.assetStatus.toUpperCase() : asset.isActive ? 'ACTIVE' : 'INACTIVE'}
+                          {/* Secondary Status Badges */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            {/* Condition: only surface when attention is required */}
+                            {asset.assetCondition && ['Needs Maintenance', 'Poor', 'Critical', 'NEEDS_MAINTENANCE', 'POOR', 'CRITICAL'].includes(asset.assetCondition) && (
+                              <Badge variant="warning">
+                                {asset.assetCondition.replace('_', ' ').toUpperCase()}
                               </Badge>
-                            </span>
-                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Condition:</span>
-                              <Badge variant={asset.assetCondition === 'Excellent' || asset.assetCondition === 'Good' ? 'neutral' : 'warning'}>
-                                {asset.assetCondition ? asset.assetCondition.toUpperCase() : 'GOOD'}
+                            )}
+
+                            {/* Inactive Asset Status: only surface if inactive */}
+                            {(!asset.isActive || asset.assetStatus === 'Inactive' || asset.assetStatus === 'Decommissioned') && (
+                              <Badge variant="neutral">
+                                INACTIVE
                               </Badge>
-                            </span>
+                            )}
+
+                            {/* Warranty Status */}
                             <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Warranty:</span>
                               <Badge
@@ -2604,39 +2613,34 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                                 {asset.warrantyStatus === 'UNDER_WARRANTY' ? 'ACTIVE' : asset.warrantyStatus.replace('_', ' ')}
                               </Badge>
                             </span>
+
+                            {/* AMC Status (Clean & Concise) */}
                             <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
                               <Badge variant={asset.currentAmc && asset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
-                                {asset.currentAmc ? asset.currentAmc.status : 'NO AMC'}
+                                {asset.currentAmc && asset.currentAmc.status === 'ACTIVE' ? 'ACTIVE' : 'NONE'}
                               </Badge>
                             </span>
                           </div>
                         </div>
 
-                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                          <span>
-                            <strong>Capacity:</strong> {asset.capacityTons ? `${asset.capacityTons} T` : 'N/A'}
-                          </span>
-                          <span>
-                            <strong>Site:</strong> {asset.siteName || 'Default'}
-                          </span>
+                        {/* 2. Middle Section: Site & Location */}
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div>
+                            <span style={{ color: 'var(--text-muted)' }}>Site: </span>
+                            <span style={{ fontWeight: 500 }}>{asset.siteName || 'Residence'}</span>
+                          </div>
                           {(asset.floorLocation || asset.roomLocation) && (
-                            <span>
-                              <strong>Location:</strong> {asset.floorLocation ? `${asset.floorLocation}, ` : ''}{asset.roomLocation || ''}
-                            </span>
-                          )}
-                          {asset.serialNumber && (
-                            <span>
-                              <strong>S/N:</strong> {asset.serialNumber}
-                            </span>
-                          )}
-                          {asset.currentAmc && (
-                            <span>
-                              <strong>AMC:</strong> {asset.currentAmc.contractNumber} ({asset.currentAmc.completedVisits}/{asset.currentAmc.totalVisits} visits)
-                            </span>
+                            <div>
+                              <span style={{ color: 'var(--text-muted)' }}>Location: </span>
+                              <span style={{ fontWeight: 500 }}>
+                                {asset.floorLocation ? `${asset.floorLocation}, ` : ''}{asset.roomLocation || ''}
+                              </span>
+                            </div>
                           )}
                         </div>
 
+                        {/* 3. Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', borderTop: '1px solid var(--border-subtle)', paddingTop: '6px', marginTop: '4px' }}>
                           <Button
                             variant="outline"
@@ -2660,6 +2664,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleAssetStatus(asset)}
+                            aria-label={`${asset.isActive ? 'Deactivate' : 'Activate'} asset ${asset.assetTag}`}
                           >
                             {asset.isActive ? 'Deactivate' : 'Activate'}
                           </Button>
@@ -3646,10 +3651,14 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       >
         {viewingAsset && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+            {/* Top Identity & Status Summary */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ASSET TAG</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Asset Identity</span>
                 <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--color-brand)' }}>{viewingAsset.assetTag}</div>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {viewingAsset.brand} {viewingAsset.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -3683,14 +3692,126 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
                   <Badge variant={viewingAsset.currentAmc && viewingAsset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
-                    {viewingAsset.currentAmc ? viewingAsset.currentAmc.status : 'NO AMC'}
+                    {viewingAsset.currentAmc && viewingAsset.currentAmc.status === 'ACTIVE' ? 'ACTIVE' : 'NO AMC'}
                   </Badge>
                 </span>
               </div>
             </div>
 
-            {/* CURRENT AMC SECTION */}
+            {/* 1. ASSET SPECIFICATIONS */}
+            <div className="card" style={{ padding: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                Asset
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Status</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.assetStatus ? viewingAsset.assetStatus.toUpperCase() : viewingAsset.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Condition</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.assetCondition ? viewingAsset.assetCondition.toUpperCase() : 'GOOD'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Type & Technology</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.acType} {viewingAsset.technology ? `• ${viewingAsset.technology}` : ''}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Capacity & Rating</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Ton` : 'Capacity N/A'}
+                    {viewingAsset.starRating ? ` • ${viewingAsset.starRating}` : ''}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Refrigerant Gas</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Unknown'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Indoor Serial Number</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.indoorSerialNumber || viewingAsset.serialNumber || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Outdoor Serial Number</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.outdoorSerialNumber || 'N/A (Single Unit)'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. LOCATION */}
+            <div className="card" style={{ padding: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                Location
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Site</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.siteName || 'Residence'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Floor</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.floorLocation || 'Ground Floor / N/A'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Location / Room</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.roomLocation || 'General Area'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. WARRANTY */}
+            <div className="card" style={{ padding: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                  Warranty
+                </div>
+                <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Status:</span>
+                  <Badge
+                    variant={
+                      viewingAsset.warrantyStatus === 'UNDER_WARRANTY'
+                        ? 'success'
+                        : viewingAsset.warrantyStatus === 'EXPIRING_SOON'
+                        ? 'warning'
+                        : viewingAsset.warrantyStatus === 'EXPIRED'
+                        ? 'danger'
+                        : 'neutral'
+                    }
+                  >
+                    {viewingAsset.warrantyStatus === 'UNDER_WARRANTY' ? 'ACTIVE' : viewingAsset.warrantyStatus.replace('_', ' ')}
+                  </Badge>
+                </span>
+              </div>
+              <div style={{ fontSize: 'var(--text-xs)' }}>
+                <div style={{ color: 'var(--text-muted)' }}>Coverage Period</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.warrantyStartDate && viewingAsset.warrantyEndDate
+                    ? `${viewingAsset.warrantyStartDate} → ${viewingAsset.warrantyEndDate}`
+                    : viewingAsset.warrantyEndDate
+                    ? `Expires: ${viewingAsset.warrantyEndDate}`
+                    : 'No warranty dates registered'}
+                </div>
+                {viewingAsset.purchaseDate && (
+                  <div style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '11px' }}>
+                    Purchased: {viewingAsset.purchaseDate} {viewingAsset.installationDate ? `• Installed: ${viewingAsset.installationDate}` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 4. CURRENT AMC */}
             <div
+              className="card"
               style={{
                 padding: 'var(--space-3)',
                 borderRadius: 'var(--radius-md)',
@@ -3723,7 +3844,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                         {viewingAsset.currentAmc.contractNumber}
                       </span>
                       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginLeft: '8px' }}>
-                        ({viewingAsset.currentAmc.frequency})
+                        {viewingAsset.currentAmc.frequency}
                       </span>
                     </div>
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
@@ -3731,19 +3852,12 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)', backgroundColor: 'var(--bg-surface)', padding: 'var(--space-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Visits Progress:</div>
-                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-brand)' }}>
-                        {viewingAsset.currentAmc.completedVisits} / {viewingAsset.currentAmc.totalVisits} Completed
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Remaining Visits:</div>
-                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-                        {viewingAsset.currentAmc.remainingVisits ?? Math.max(0, viewingAsset.currentAmc.totalVisits - viewingAsset.currentAmc.completedVisits)}
-                      </div>
-                    </div>
+                  {/* Visit Progress: Single clean metric */}
+                  <div style={{ backgroundColor: 'var(--bg-surface)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>PM Visit Progress</span>
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand)' }}>
+                      {viewingAsset.currentAmc.completedVisits} / {viewingAsset.currentAmc.totalVisits} Completed
+                    </span>
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
@@ -3772,9 +3886,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', flexWrap: 'wrap', gap: '8px' }}>
                   <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    This physical AC currently has no active AMC contract.
+                    No Active AMC
                   </span>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {onNavigate && (
@@ -3807,8 +3921,8 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               {showAssetAmcHistory && (
                 <div
                   style={{
-                    marginTop: 'var(--space-2)',
-                    paddingTop: 'var(--space-2)',
+                    marginTop: 'var(--space-3)',
+                    paddingTop: 'var(--space-3)',
                     borderTop: '1px solid var(--border-subtle)',
                     display: 'flex',
                     flexDirection: 'column',
@@ -3816,132 +3930,110 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                   }}
                 >
                   <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-                    AMC Contract History for {viewingAsset.assetTag}
+                    AMC HISTORY — {viewingAsset.assetTag}
                   </div>
 
                   {isLoadingAssetAmcHistory ? (
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-2)' }}>
                       Loading historical contracts...
                     </div>
-                  ) : !assetAmcHistory || assetAmcHistory.history.length === 0 ? (
+                  ) : !assetAmcHistory || (assetAmcHistory.history.length === 0 && !assetAmcHistory.currentAmc) ? (
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-2)' }}>
                       No historical AMC contracts found for this asset.
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                      {assetAmcHistory.history.map((h) => (
-                        <div
-                          key={h.id}
-                          style={{
-                            padding: 'var(--space-2)',
-                            backgroundColor: 'var(--bg-surface)',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-subtle)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>{h.contractNumber}</span>
-                            <Badge
-                              variant={
-                                h.status === 'ACTIVE'
-                                  ? 'success'
-                                  : h.status === 'RENEWED'
-                                  ? 'brand'
-                                  : h.status === 'EXPIRED'
-                                  ? 'danger'
-                                  : 'neutral'
-                              }
-                            >
-                              {h.status}
-                            </Badge>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                      {/* Current AMC item if available */}
+                      {assetAmcHistory.currentAmc && (
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-brand)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                            CURRENT
                           </div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-                            <span>Period: {h.startDate} → {h.endDate}</span>
-                            <span>Visits: {h.completedVisits} / {h.totalVisits} Completed</span>
+                          <div
+                            style={{
+                              padding: 'var(--space-2)',
+                              backgroundColor: 'var(--bg-surface)',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--color-brand)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '4px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 700, fontSize: 'var(--text-xs)', color: 'var(--color-brand)' }}>
+                                {assetAmcHistory.currentAmc.contractNumber}
+                              </span>
+                              <Badge variant="brand">{assetAmcHistory.currentAmc.status}</Badge>
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                              <span>{assetAmcHistory.currentAmc.startDate} → {assetAmcHistory.currentAmc.endDate}</span>
+                              <span style={{ fontWeight: 600 }}>{assetAmcHistory.currentAmc.completedVisits} / {assetAmcHistory.currentAmc.totalVisits} Completed</span>
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      )}
+
+                      {/* History items */}
+                      {(() => {
+                        const historicalContracts = assetAmcHistory.history.filter(
+                          (h) => !assetAmcHistory.currentAmc || h.id !== assetAmcHistory.currentAmc.id
+                        );
+                        if (historicalContracts.length === 0) return null;
+                        return (
+                          <div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                              HISTORY
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                              {historicalContracts.map((h) => (
+                                <div
+                                  key={h.id}
+                                  style={{
+                                    padding: 'var(--space-2)',
+                                    backgroundColor: 'var(--bg-surface)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid var(--border-subtle)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '4px',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>{h.contractNumber}</span>
+                                    <Badge
+                                      variant={
+                                        h.status === 'ACTIVE'
+                                          ? 'success'
+                                          : h.status === 'RENEWED'
+                                          ? 'brand'
+                                          : h.status === 'EXPIRED'
+                                          ? 'danger'
+                                          : 'neutral'
+                                      }
+                                    >
+                                      {h.status}
+                                    </Badge>
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                                    <span>{h.startDate} → {h.endDate}</span>
+                                    <span>{h.completedVisits} / {h.totalVisits} Completed</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Brand & Model</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.brand} {viewingAsset.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Type & Technology</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.acType} {viewingAsset.technology ? `• ${viewingAsset.technology}` : ''}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Capacity & Rating</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Tons` : 'Capacity N/A'}
-                  {viewingAsset.starRating ? ` • ${viewingAsset.starRating}` : ''}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Refrigerant Gas</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Unknown'}</div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Indoor Serial Number</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.indoorSerialNumber || viewingAsset.serialNumber || 'N/A'}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Outdoor Serial Number</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.outdoorSerialNumber || 'N/A (Single Unit)'}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Installation Location</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.floorLocation ? `${viewingAsset.floorLocation}, ` : ''}{viewingAsset.roomLocation || 'General site'}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Dates</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.purchaseDate ? `Purchased: ${viewingAsset.purchaseDate} • ` : ''}
-                  Installed: {viewingAsset.installationDate || 'N/A'}
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: 'var(--space-3)', gridColumn: 'span 2' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Warranty Coverage</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                  {viewingAsset.warrantyStartDate && viewingAsset.warrantyEndDate
-                    ? `${viewingAsset.warrantyStartDate} to ${viewingAsset.warrantyEndDate}`
-                    : viewingAsset.warrantyEndDate
-                    ? `Expires: ${viewingAsset.warrantyEndDate}`
-                    : 'No warranty dates registered'}
-                </div>
-              </div>
-            </div>
-
             {viewingAsset.notes && (
               <div className="card" style={{ padding: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
-                <div style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Technical Notes:</div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: '4px', fontWeight: 600 }}>Technical Notes:</div>
                 <div>{viewingAsset.notes}</div>
               </div>
             )}
