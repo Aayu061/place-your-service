@@ -1,9 +1,9 @@
 import React from 'react';
-import { ServiceStatus, AmcStatus } from '@/domain/types';
+import { ServiceStatus, AmcStatus, ServiceScheduleStatus } from '@/domain/types';
 import { formatStatusLabel } from '@/utils/formatters';
 
 export interface StatusBadgeProps {
-  status: ServiceStatus | AmcStatus;
+  status: ServiceStatus | AmcStatus | ServiceScheduleStatus | string;
   className?: string;
 }
 
@@ -22,11 +22,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
     case 'REQUESTED':
     case 'EXPIRING_SOON':
     case 'PAYMENT':
+    case 'RESCHEDULED':
       variant = 'warning';
       dotColor = 'var(--color-warning-solid)';
       break;
     case 'CANCELLED':
     case 'EXPIRED':
+    case 'OVERDUE':
       variant = 'error';
       dotColor = 'var(--color-error-solid)';
       break;
@@ -34,6 +36,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
     case 'ASSIGNED':
     case 'IN_PROGRESS':
     case 'RESOLVED':
+    case 'PLANNED':
+    case 'DUE':
       variant = 'info';
       dotColor = 'var(--color-info-solid)';
       break;
@@ -42,6 +46,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
     case 'REVISIT_REQUIRED':
       variant = 'amc';
       dotColor = 'var(--color-amc-solid)';
+      break;
+    case 'SKIPPED':
+      variant = 'neutral';
+      dotColor = 'var(--color-neutral-400)';
       break;
   }
 

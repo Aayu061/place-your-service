@@ -2,7 +2,6 @@
  * Place Your Service — Utility Formatters
  */
 
-import { ServiceStatus, AmcStatus } from '@/domain/types';
 
 export function formatDate(dateString: string): string {
   try {
@@ -25,7 +24,7 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatStatusLabel(status: ServiceStatus | AmcStatus): string {
+export function formatStatusLabel(status: string): string {
   return status
     .split('_')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())

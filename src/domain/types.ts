@@ -428,22 +428,6 @@ export interface ServiceRequest {
   assignedTechnicianId?: string;
 }
 
-export interface ServiceSchedule {
-  id: string;
-  scheduleCode: string; // SCH-2026-001
-  amcContractId?: string;
-  customerId: string;
-  siteId: string;
-  acAssetId: string;
-  scheduledDate: string;
-  assignedTechnicianId?: string;
-  status: ServiceStatus;
-  isSystemGenerated: boolean;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /* --------------------------------------------------
  * 7. Service Reports & Inventory
  * -------------------------------------------------- */
@@ -534,3 +518,210 @@ export interface Notification {
   isRead: boolean;
   createdAt: string;
 }
+
+/* --------------------------------------------------
+ * 10. Scheduling & Technician Assignment (Phase 9)
+ * -------------------------------------------------- */
+
+export type ServiceScheduleStatus =
+  | 'SCHEDULED'
+  | 'PLANNED'
+  | 'DUE'
+  | 'OVERDUE'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'RESOLVED'
+  | 'COMPLETED'
+  | 'SKIPPED'
+  | 'CANCELLED'
+  | 'RESCHEDULED';
+
+export interface ServiceAssignmentSummary {
+  id: string;
+  technicianId: string;
+  technicianCode: string;
+  technicianName: string;
+  technicianPhone: string;
+  assignedBy: string;
+  assignedByName?: string | null;
+  assignedAt: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  isOverride: boolean;
+  overrideReason?: string | null;
+  status: 'ASSIGNED' | 'ACKNOWLEDGED' | 'IN_PROGRESS' | 'COMPLETED' | 'REASSIGNED' | 'CANCELLED';
+  createdAt: string;
+}
+
+export interface ServiceSchedule {
+  id: string;
+  scheduleNumber: string;
+  scheduleCode?: string; // Compatibility alias
+  amcId?: string | null;
+  amcContractId?: string | null; // Compatibility alias
+  amcContractNumber?: string | null;
+  serviceRequestId?: string | null;
+  serviceRequestNumber?: string | null;
+  serviceRequestType?: ServiceType | null;
+  serviceRequestPriority?: ServicePriority | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  siteId?: string | null;
+  siteName?: string | null;
+  siteAddress?: string | null;
+  assetId: string | null;
+  acAssetId?: string | null; // Compatibility alias
+  assetTag?: string | null;
+  brand?: string | null;
+  modelNumber?: string | null;
+  acType?: string | null;
+  roomLocation?: string | null;
+  scheduledDate: string; // YYYY-MM-DD
+  startTime?: string | null;
+  endTime?: string | null;
+  durationMinutes?: number | null;
+  visitNumber?: number | null;
+  status: ServiceScheduleStatus;
+  isSystemGenerated: boolean;
+  technicianId?: string | null;
+  assignedTechnicianId?: string | null; // Compatibility alias
+  technicianName?: string | null;
+  technicianCode?: string | null;
+  technicianPhone?: string | null;
+  activeAssignment?: ServiceAssignmentSummary | null;
+  assignmentHistory?: ServiceAssignmentSummary[];
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  rescheduledFromId?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateServiceSchedulePayload {
+  serviceRequestId?: string;
+  amcId?: string;
+  assetId?: string;
+  customerId?: string;
+  siteId?: string;
+  scheduledDate: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  notes?: string;
+  technicianId?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface AssignTechnicianPayload {
+  technicianId: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface ReassignTechnicianPayload {
+  technicianId: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface ReschedulePayload {
+  scheduledDate: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  technicianId?: string;
+  reason?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface CancelSchedulePayload {
+  reason: string;
+}
+
+export interface ScoreBreakdown {
+  areaScore: number;
+  availabilityScore: number;
+  proximityScore: number;
+  workloadScore: number;
+  skillScore: number;
+}
+
+export interface TechnicianRecommendationItem {
+  technicianId: string;
+  technicianCode: string;
+  name: string;
+  phone: string;
+  specializations: string[];
+  serviceAreas: string[];
+  status: string;
+  isActive: boolean;
+  isEligible: boolean;
+  score: number;
+  scoreBreakdown: ScoreBreakdown;
+  areaMatch: boolean;
+  isAvailable: boolean;
+  skillMatch: boolean;
+  hasConflict: boolean;
+  dailyWorkload: number;
+  maxDailyWorkload: number;
+  reasons: string[];
+  warnings: string[];
+  conflictDetails?: {
+    scheduleId: string;
+    scheduleNumber: string;
+    startTime: string;
+    endTime: string;
+  };
+}
+
+export interface UnscheduledWorkItem {
+  type: 'SERVICE_REQUEST' | 'PM_OBLIGATION';
+  id: string;
+  identifier: string;
+  customerId: string;
+  customerName: string;
+  customerPhone?: string | null;
+  siteId: string;
+  siteName: string;
+  siteAddress: string;
+  assetId: string | null;
+  assetTag: string | null;
+  brand: string | null;
+  modelNumber: string | null;
+  acType: string | null;
+  dueDate: string;
+  priority?: string;
+  description?: string;
+  amcId?: string;
+  amcContractNumber?: string;
+  suggestedDurationMinutes: number;
+}
+
+export interface ScheduleFilterParams {
+  [key: string]: string | number | boolean | undefined;
+  search?: string;
+  status?: 'ALL' | ServiceScheduleStatus;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  technicianId?: string;
+  customerId?: string;
+  siteId?: string;
+  serviceRequestId?: string;
+  amcId?: string;
+  page?: number;
+  pageSize?: number;
+}
+

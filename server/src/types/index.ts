@@ -682,7 +682,8 @@ export type ServiceScheduleStatus =
   | 'RESOLVED'
   | 'COMPLETED'
   | 'SKIPPED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'RESCHEDULED';
 
 export interface AmcPlanResponse {
   id: string;
@@ -714,25 +715,207 @@ export interface AmcCoveredAssetResponse {
   createdAt: string;
 }
 
+export interface ServiceAssignmentSummary {
+  id: string;
+  technicianId: string;
+  technicianCode: string;
+  technicianName: string;
+  technicianPhone: string;
+  assignedBy: string;
+  assignedByName?: string | null;
+  assignedAt: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  isOverride: boolean;
+  overrideReason?: string | null;
+  status: 'ASSIGNED' | 'ACKNOWLEDGED' | 'IN_PROGRESS' | 'COMPLETED' | 'REASSIGNED' | 'CANCELLED';
+  createdAt: string;
+}
+
 export interface ServiceScheduleResponse {
   id: string;
   scheduleNumber: string;
   amcId: string | null;
-  assetId: string;
+  amcContractNumber?: string | null;
+  serviceRequestId?: string | null;
+  serviceRequestNumber?: string | null;
+  serviceRequestType?: ServiceRequestType | null;
+  serviceRequestPriority?: ServiceRequestPriority | null;
+  customerId?: string | null;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  siteId?: string | null;
+  siteName?: string | null;
+  siteAddress?: string | null;
+  assetId: string | null;
   assetTag?: string | null;
   brand?: string | null;
   modelNumber?: string | null;
-  siteName?: string | null;
+  acType?: string | null;
   roomLocation?: string | null;
   scheduledDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  durationMinutes?: number | null;
   visitNumber: number | null;
   status: ServiceScheduleStatus;
   isSystemGenerated: boolean;
+  technicianId?: string | null;
+  technicianName?: string | null;
+  technicianCode?: string | null;
+  technicianPhone?: string | null;
+  activeAssignment?: ServiceAssignmentSummary | null;
+  assignmentHistory?: ServiceAssignmentSummary[];
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  rescheduledFromId?: string | null;
   notes: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/* --------------------------------------------------
+ * Phase 9 Scheduling & Assignment Types
+ * -------------------------------------------------- */
+
+export interface CreateServiceSchedulePayload {
+  serviceRequestId?: string;
+  amcId?: string;
+  assetId?: string;
+  customerId?: string;
+  siteId?: string;
+  scheduledDate: string; // YYYY-MM-DD
+  startTime?: string;    // HH:mm (default 09:00)
+  endTime?: string;      // HH:mm (default 11:00)
+  durationMinutes?: number;
+  notes?: string;
+  technicianId?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface UpdateServiceSchedulePayload {
+  scheduledDate?: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  notes?: string;
+}
+
+export interface AssignTechnicianPayload {
+  technicianId: string;
+  scheduledStartTime?: string; // ISO string or HH:mm
+  scheduledEndTime?: string;   // ISO string or HH:mm
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface ReassignTechnicianPayload {
+  technicianId: string;
+  scheduledStartTime?: string;
+  scheduledEndTime?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface ReschedulePayload {
+  scheduledDate: string;       // YYYY-MM-DD
+  startTime?: string;          // HH:mm
+  endTime?: string;            // HH:mm
+  durationMinutes?: number;
+  technicianId?: string;       // Optional re-confirmed or new technician
+  reason?: string;
+  isOverride?: boolean;
+  overrideReason?: string;
+}
+
+export interface CancelSchedulePayload {
+  reason: string;
+}
+
+export interface ScheduleListQuery {
+  search?: string;
+  status?: 'ALL' | ServiceScheduleStatus;
+  date?: string;               // Exact date YYYY-MM-DD
+  startDate?: string;          // Range start YYYY-MM-DD
+  endDate?: string;            // Range end YYYY-MM-DD
+  technicianId?: string;
+  customerId?: string;
+  siteId?: string;
+  serviceRequestId?: string;
+  amcId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CalendarScheduleQuery {
+  startDate: string;           // YYYY-MM-DD
+  endDate: string;             // YYYY-MM-DD
+  technicianId?: string;
+  status?: 'ALL' | ServiceScheduleStatus;
+}
+
+export interface ScoreBreakdown {
+  areaScore: number;          // 0 or 40
+  availabilityScore: number;  // 0 or 20
+  proximityScore: number;     // 0 (documented as 0/N/A without live GPS)
+  workloadScore: number;      // 0 to 10
+  skillScore: number;         // 0 to 10
+}
+
+export interface TechnicianRecommendationItem {
+  technicianId: string;
+  technicianCode: string;
+  name: string;
+  phone: string;
+  specializations: string[];
+  serviceAreas: string[];
+  status: TechnicianOperationalStatus;
+  isActive: boolean;
+  isEligible: boolean;
+  score: number;
+  scoreBreakdown: ScoreBreakdown;
+  areaMatch: boolean;
+  isAvailable: boolean;
+  skillMatch: boolean;
+  hasConflict: boolean;
+  dailyWorkload: number;
+  maxDailyWorkload: number;
+  reasons: string[];
+  warnings: string[];
+  conflictDetails?: {
+    scheduleId: string;
+    scheduleNumber: string;
+    startTime: string;
+    endTime: string;
+  };
+}
+
+export interface UnscheduledWorkItem {
+  type: 'SERVICE_REQUEST' | 'PM_OBLIGATION';
+  id: string;
+  identifier: string; // e.g. SR-2026-0001 or PM-2026-0002
+  customerId: string;
+  customerName: string;
+  customerPhone?: string | null;
+  siteId: string;
+  siteName: string;
+  siteAddress: string;
+  assetId: string | null;
+  assetTag: string | null;
+  brand: string | null;
+  modelNumber: string | null;
+  acType: string | null;
+  dueDate: string;
+  priority?: string;
+  description?: string;
+  amcId?: string;
+  amcContractNumber?: string;
+  suggestedDurationMinutes: number;
 }
 
 export interface AmcContractResponse {
