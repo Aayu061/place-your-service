@@ -397,8 +397,10 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         if (activeUnscheduledItem.type === 'SERVICE_REQUEST') {
           payload.serviceRequestId = activeUnscheduledItem.id;
         } else if (activeUnscheduledItem.type === 'PM_OBLIGATION') {
+          payload.pmObligationId = activeUnscheduledItem.id;
           payload.amcId = activeUnscheduledItem.amcId;
           payload.assetId = activeUnscheduledItem.assetId || undefined;
+          payload.visitNumber = activeUnscheduledItem.visitNumber ?? undefined;
         }
         payload.customerId = activeUnscheduledItem.customerId;
         payload.siteId = activeUnscheduledItem.siteId;
@@ -1146,8 +1148,9 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: '340px', overflowY: 'auto' }}>
-                {recommendations.map((rec) => {
+                {recommendations.map((rec, idx) => {
                   const isSelected = selectedTechId === rec.technicianId;
+                  const isRecommended = idx === 0 && rec.isEligible && !rec.hasConflict && rec.warnings.length === 0;
 
                   return (
                     <div
@@ -1182,9 +1185,15 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                          <Badge variant={rec.isEligible ? 'success' : 'neutral'}>
-                            Match Score: {rec.score}/80
-                          </Badge>
+                          {rec.hasConflict ? (
+                            <Badge variant="error">SCHEDULE CONFLICT</Badge>
+                          ) : !rec.isEligible || rec.warnings.length > 0 ? (
+                            <Badge variant="warning">CONSTRAINED</Badge>
+                          ) : isRecommended ? (
+                            <Badge variant="success">RECOMMENDED</Badge>
+                          ) : (
+                            <Badge variant="info">ELIGIBLE</Badge>
+                          )}
                         </div>
                       </div>
 

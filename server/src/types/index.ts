@@ -771,6 +771,7 @@ export interface ServiceScheduleResponse {
   cancelledAt?: string | null;
   cancelledBy?: string | null;
   rescheduledFromId?: string | null;
+  pmObligationId?: string | null;
   notes: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
@@ -784,8 +785,10 @@ export interface ServiceScheduleResponse {
 
 export interface CreateServiceSchedulePayload {
   serviceRequestId?: string;
+  pmObligationId?: string;
   amcId?: string;
   assetId?: string;
+  visitNumber?: number;
   customerId?: string;
   siteId?: string;
   scheduledDate: string; // YYYY-MM-DD
@@ -915,6 +918,7 @@ export interface UnscheduledWorkItem {
   description?: string;
   amcId?: string;
   amcContractNumber?: string;
+  visitNumber?: number | null;
   suggestedDurationMinutes: number;
 }
 

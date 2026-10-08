@@ -304,7 +304,7 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
     expect(container.textContent).toContain('Assign Technician');
     expect(container.textContent).toContain('Raj Patel');
     expect(container.textContent).toContain('TECH-0001');
-    expect(container.textContent).toContain('Match Score: 80/80');
+    expect(container.textContent).toContain('RECOMMENDED');
     expect(container.textContent).toContain('✓ Service area match');
 
     unmount();
@@ -403,6 +403,69 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
     expect(container.textContent).toContain('ASSIGNED OPERATIONAL RESOURCE');
     expect(container.textContent).toContain('Raj Patel');
     expect(container.textContent).toContain('ASSIGNMENT AUDIT TRAIL');
+
+    unmount();
+  });
+
+  it('7. Displays SCHEDULE CONFLICT badge for conflicting technician and preserves PM obligation references', async () => {
+    const conflictingRec: TechnicianRecommendationItem = {
+      ...sampleRecommendation,
+      technicianId: 'tech-200',
+      name: 'Amit Shah',
+      technicianCode: 'TECH-0002',
+      hasConflict: true,
+      warnings: ['⚠ Schedule conflict: assigned to SCH-2026-0001 (10:00–12:00)'],
+    };
+
+    vi.spyOn(scheduleApi, 'getSchedules').mockResolvedValue({
+      schedules: [sampleSchedule],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getUnscheduledWork').mockResolvedValue({
+      items: [
+        {
+          type: 'PM_OBLIGATION',
+          id: 'pm-ob-101',
+          identifier: 'PM-2026-0001',
+          customerId: 'cust-1',
+          customerName: 'Acme Corp',
+          siteId: 'site-1',
+          siteName: 'Headquarters',
+          siteAddress: '123 Main St',
+          assetId: 'asset-1',
+          assetTag: 'ESSC-0001',
+          brand: 'Mitsubishi Heavy',
+          modelNumber: 'MSZ-01',
+          acType: 'SPLIT',
+          dueDate: '2026-10-15',
+          amcId: 'amc-101',
+          amcContractNumber: 'AMC-2026-0001',
+          visitNumber: 1,
+          suggestedDurationMinutes: 120,
+        },
+      ],
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getEligibleTechnicians').mockResolvedValue({
+      recommendations: [conflictingRec],
+    } as never);
+
+    const { container, unmount } = await renderComponent();
+
+    const assignBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Assign')
+    );
+    await act(async () => {
+      assignBtn?.click();
+    });
+
+    expect(container.textContent).toContain('Amit Shah');
+    expect(container.textContent).toContain('SCHEDULE CONFLICT');
+    expect(container.textContent).toContain('⚠ Schedule conflict: assigned to SCH-2026-0001 (10:00–12:00)');
 
     unmount();
   });

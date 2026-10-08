@@ -808,4 +808,551 @@ describe('Phase 9: Scheduling & Technician Assignment API (/api/v1/service-sched
     expect(res.body.data.items[0].type).toBe('SERVICE_REQUEST');
     expect(res.body.data.items[0].identifier).toBe('SR-2026-0001');
   });
+
+  // =========================================================================
+  // 6. Concurrency & Hardening Tests (Phase 9 Hardening Pass)
+  // =========================================================================
+  it('14. Concurrency: Two simultaneous assignment requests to same technician for overlapping slots - only one succeeds (409 Conflict)', async () => {
+    let assignmentCount = 0;
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') {
+          return authMock.from(table);
+        }
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockImplementation(() => {
+              if (assignmentCount > 0) {
+                return Promise.resolve({
+                  data: [
+                    {
+                      id: sampleScheduleId,
+                      schedule_number: 'SCH-2026-00001',
+                      start_time: '10:00',
+                      end_time: '12:00',
+                    },
+                  ],
+                  error: null,
+                });
+              }
+              return Promise.resolve({ data: [], error: null });
+            }),
+            maybeSingle: vi.fn().mockImplementation(() => {
+              return Promise.resolve({
+                data: {
+                  ...sampleScheduleRecord,
+                  id: `sched-${Math.random()}`,
+                  start_time: '10:30',
+                  end_time: '11:30',
+                },
+                error: null,
+              });
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockImplementation(() => {
+                assignmentCount++;
+                return Promise.resolve({ error: null });
+              }),
+            }),
+          };
+        }
+        if (table === 'technicians') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: sampleTechnician,
+              error: null,
+            }),
+          };
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            update: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'service_requests') {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post(`/api/v1/service-schedules/${sampleScheduleId}/assign`)
+        .set('Authorization', adminAuthToken)
+        .send({ technicianId: sampleTechId }),
+      request(app)
+        .post(`/api/v1/service-schedules/${sampleScheduleId}/assign`)
+        .set('Authorization', adminAuthToken)
+        .send({ technicianId: sampleTechId }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const conflictRes = res1.status === 409 ? res1 : res2;
+    expect(conflictRes.body.error.message).toMatch(/already assigned to another service|Technician conflict/);
+  });
+
+  it('15. Time overlap boundary testing: contiguous edges are allowed, overlapping intervals rejected', async () => {
+    const existingBooking = {
+      id: 'existing-sched',
+      schedule_number: 'SCH-2026-00001',
+      start_time: '10:00',
+      end_time: '12:00',
+    };
+
+    const makeBoundaryCheck = async (startTime: string, endTime: string) => {
+      const authMock = setupAuth('ADMIN');
+      const dbMock = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              in: vi.fn().mockReturnThis(),
+              neq: vi.fn().mockResolvedValue({
+                data: [existingBooking],
+                error: null,
+              }),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  ...sampleScheduleRecord,
+                  start_time: startTime,
+                  end_time: endTime,
+                },
+                error: null,
+              }),
+              update: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ error: null }),
+              }),
+            };
+          }
+          if (table === 'technicians') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: sampleTechnician,
+                error: null,
+              }),
+            };
+          }
+          if (table === 'service_assignments') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              update: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ error: null }),
+              insert: vi.fn().mockResolvedValue({ error: null }),
+            };
+          }
+          if (table === 'service_requests') {
+            return {
+              update: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ error: null }),
+              }),
+            };
+          }
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ error: null }) };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+      return request(app)
+        .post(`/api/v1/service-schedules/${sampleScheduleId}/assign`)
+        .set('Authorization', adminAuthToken)
+        .send({ technicianId: sampleTechId });
+    };
+
+    // 1. 09:00 - 10:00 (contiguous before) -> 200 Allowed
+    const resBefore = await makeBoundaryCheck('09:00', '10:00');
+    expect(resBefore.status).toBe(200);
+
+    // 2. 12:00 - 14:00 (contiguous after) -> 200 Allowed
+    const resAfter = await makeBoundaryCheck('12:00', '14:00');
+    expect(resAfter.status).toBe(200);
+
+    // 3. 11:00 - 13:00 (partial overlap right) -> 409 Conflict
+    const resRightOverlap = await makeBoundaryCheck('11:00', '13:00');
+    expect(resRightOverlap.status).toBe(409);
+
+    // 4. 09:00 - 13:00 (encloses existing) -> 409 Conflict
+    const resEnclosed = await makeBoundaryCheck('09:00', '13:00');
+    expect(resEnclosed.status).toBe(409);
+
+    // 5. 10:00 - 12:00 (exact match) -> 409 Conflict
+    const resExact = await makeBoundaryCheck('10:00', '12:00');
+    expect(resExact.status).toBe(409);
+  });
+
+  it('16. PM duplicate protection: schedules PM obligation and rejects duplicate active schedule with 409', async () => {
+    const samplePmId = '88888888-8888-8888-8888-888888888888';
+    const sampleAmcId = '99999999-9999-9999-9999-999999999999';
+
+    const authMock = setupAuth('ADMIN');
+    let hasExistingSchedule = false;
+
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            not: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockImplementation(() => {
+              if (hasExistingSchedule) {
+                return Promise.resolve({
+                  data: {
+                    id: sampleScheduleId,
+                    schedule_number: 'SCH-2026-PM01',
+                    status: 'SCHEDULED',
+                  },
+                  error: null,
+                });
+              }
+              return Promise.resolve({ data: null, error: null });
+            }),
+            insert: vi.fn().mockImplementation(() => {
+              hasExistingSchedule = true;
+              return {
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    ...sampleScheduleRecord,
+                    pm_obligation_id: samplePmId,
+                    amc_id: sampleAmcId,
+                  },
+                  error: null,
+                }),
+              };
+            }),
+          };
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    // First attempt: should succeed
+    const res1 = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        pmObligationId: samplePmId,
+        customerId: sampleCustomerId,
+        siteId: sampleSiteId,
+        scheduledDate: '2026-10-20',
+        startTime: '10:00',
+        endTime: '12:00',
+      });
+
+    expect(res1.status).toBe(201);
+    expect(res1.body.success).toBe(true);
+
+    // Second attempt: must reject with 409 Conflict
+    const res2 = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        pmObligationId: samplePmId,
+        customerId: sampleCustomerId,
+        siteId: sampleSiteId,
+        scheduledDate: '2026-10-20',
+        startTime: '10:00',
+        endTime: '12:00',
+      });
+
+    expect(res2.status).toBe(409);
+    expect(res2.body.success).toBe(false);
+    expect(res2.body.error.message).toContain('already has an active operational schedule');
+  });
+
+  it('17. Rejects scheduling completed PM obligation with 409 Conflict', async () => {
+    const samplePmId = '88888888-8888-8888-8888-888888888888';
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                id: samplePmId,
+                schedule_number: 'SCH-2026-PM01',
+                status: 'COMPLETED',
+              },
+              error: null,
+            }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const res = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        pmObligationId: samplePmId,
+        scheduledDate: '2026-10-20',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toContain('already been completed');
+  });
+
+  it('18. Concurrent PM scheduling: only one schedule is created, second receives 409', async () => {
+    const samplePmId = '88888888-8888-8888-8888-888888888888';
+    const sampleAmcId = '99999999-9999-9999-9999-999999999999';
+    let scheduleCreated = false;
+
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            not: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockImplementation(() => {
+              if (scheduleCreated) {
+                return Promise.resolve({
+                  data: { id: sampleScheduleId, status: 'SCHEDULED' },
+                  error: null,
+                });
+              }
+              return Promise.resolve({ data: null, error: null });
+            }),
+            insert: vi.fn().mockImplementation(() => {
+              if (scheduleCreated) {
+                return {
+                  select: vi.fn().mockReturnThis(),
+                  single: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+                  }),
+                };
+              }
+              scheduleCreated = true;
+              return {
+                select: vi.fn().mockReturnThis(),
+                single: vi.fn().mockResolvedValue({
+                  data: {
+                    ...sampleScheduleRecord,
+                    pm_obligation_id: samplePmId,
+                  },
+                  error: null,
+                }),
+              };
+            }),
+          };
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post('/api/v1/service-schedules')
+        .set('Authorization', adminAuthToken)
+        .send({ pmObligationId: samplePmId, customerId: sampleCustomerId, siteId: sampleSiteId, scheduledDate: '2026-10-20' }),
+      request(app)
+        .post('/api/v1/service-schedules')
+        .set('Authorization', adminAuthToken)
+        .send({ pmObligationId: samplePmId, customerId: sampleCustomerId, siteId: sampleSiteId, scheduledDate: '2026-10-20' }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([201, 409]);
+  });
+
+  it('19. Maps database trigger concurrency lock error (23P01) to 409 Conflict', async () => {
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: sampleScheduleRecord,
+              error: null,
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                error: {
+                  code: '23P01',
+                  message: 'TECHNICIAN_OVERLAP_CONFLICT: Technician is already booked for overlapping schedule',
+                },
+              }),
+            }),
+          };
+        }
+        if (table === 'technicians') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: sampleTechnician,
+              error: null,
+            }),
+          };
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            update: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ error: null }),
+            insert: vi.fn().mockResolvedValue({
+              error: {
+                code: '23P01',
+                message: 'TECHNICIAN_OVERLAP_CONFLICT: Concurrent assignment rejected by database constraint',
+              },
+            }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const res = await request(app)
+      .post(`/api/v1/service-schedules/${sampleScheduleId}/assign`)
+      .set('Authorization', adminAuthToken)
+      .send({ technicianId: sampleTechId });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('Technician conflict');
+  });
+
+  it('20. Rescheduling to a conflicting slot returns 409 Conflict', async () => {
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'conflict-id',
+                  schedule_number: 'SCH-2026-999',
+                  start_time: '14:00',
+                  end_time: '16:00',
+                },
+              ],
+              error: null,
+            }),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                ...sampleScheduleRecord,
+                technician_id: sampleTechId,
+              },
+              error: null,
+            }),
+          };
+        }
+        if (table === 'technicians') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: sampleTechnician,
+              error: null,
+            }),
+          };
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const res = await request(app)
+      .post(`/api/v1/service-schedules/${sampleScheduleId}/reschedule`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        scheduledDate: '2026-10-16',
+        startTime: '14:30',
+        endTime: '15:30',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('already assigned to another service');
+  });
 });

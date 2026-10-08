@@ -50,8 +50,10 @@ export const calendarSchedulesSchema = {
 export const createScheduleSchema = {
   body: z.object({
     serviceRequestId: z.string().uuid().optional(),
+    pmObligationId: z.string().uuid().optional(),
     amcId: z.string().uuid().optional(),
     assetId: z.string().uuid().optional(),
+    visitNumber: z.number().int().positive().optional(),
     customerId: z.string().uuid().optional(),
     siteId: z.string().uuid().optional(),
     scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD'),
@@ -63,10 +65,10 @@ export const createScheduleSchema = {
     isOverride: z.boolean().optional().default(false),
     overrideReason: z.string().trim().optional(),
   }).refine((data) => {
-    // Either serviceRequestId, amcId, or customerId + siteId must be provided
-    return Boolean(data.serviceRequestId || data.amcId || (data.customerId && data.siteId));
+    // Either serviceRequestId, pmObligationId, amcId, or customerId + siteId must be provided
+    return Boolean(data.serviceRequestId || data.pmObligationId || data.amcId || (data.customerId && data.siteId));
   }, {
-    message: 'Schedule must be linked to either a Service Request, an AMC obligation, or a customer and site.',
+    message: 'Schedule must be linked to either a Service Request, an AMC/PM obligation, or a customer and site.',
   }),
 };
 
