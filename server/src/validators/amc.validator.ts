@@ -15,7 +15,7 @@ export const amcAssetParamSchema = z.object({
 export const listAmcQuerySchema = z.object({
   search: z.string().optional(),
   status: z
-    .enum(['ALL', 'DRAFT', 'ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'CANCELLED', 'RENEWED'])
+    .enum(['ALL', 'DRAFT', 'ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'CANCELLED', 'RENEWED', 'HISTORY'])
     .optional()
     .default('ALL'),
   frequency: z
@@ -100,3 +100,24 @@ export const generatePmSchema = z.object({
     .array(z.string().regex(UUID_REGEX, 'Invalid Asset ID format'))
     .optional(),
 });
+
+export const renewAmcContractSchema = z
+  .object({
+    startDate: z.string().regex(DATE_REGEX, 'Start date must be in YYYY-MM-DD format'),
+    endDate: z.string().regex(DATE_REGEX, 'End date must be in YYYY-MM-DD format'),
+    frequency: z.enum(['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']).optional(),
+    totalAmount: z.coerce.number().min(0, 'Total amount cannot be negative').optional(),
+    totalVisits: z.coerce.number().int().min(1, 'Total visits must be at least 1').optional(),
+    coveredAssetIds: z.array(z.string().regex(UUID_REGEX, 'Invalid Asset ID format')).optional(),
+    planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format').optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+  })
+  .refine(
+    (data) => {
+      return data.endDate >= data.startDate;
+    },
+    {
+      message: 'AMC contract end date cannot precede start date',
+      path: ['endDate'],
+    }
+  );

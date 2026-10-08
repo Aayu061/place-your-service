@@ -120,7 +120,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [page, setPage] = useState(1);
   const pageSize = 15;
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ACTIVE');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -688,6 +688,67 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         </div>
       )}
 
+      {/* 2.5 Contract View Navigation Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          borderBottom: '1px solid var(--border-subtle)',
+          paddingBottom: 'var(--space-2)',
+        }}
+      >
+        {[
+          { id: 'ACTIVE', label: 'Active', count: metrics?.activeContracts },
+          { id: 'EXPIRING_SOON', label: 'Expiring Soon', count: metrics?.expiringSoonContracts },
+          { id: 'HISTORY', label: 'History (Renewed / Expired)' },
+          { id: 'ALL', label: 'All Contracts' },
+        ].map((tab) => {
+          const isSelected =
+            statusFilter === tab.id ||
+            (tab.id === 'HISTORY' && ['HISTORY', 'RENEWED', 'EXPIRED', 'CANCELLED'].includes(statusFilter));
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setStatusFilter(tab.id);
+                setPage(1);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: isSelected ? 600 : 500,
+                color: isSelected ? 'var(--color-primary-600)' : 'var(--text-secondary)',
+                backgroundColor: isSelected ? 'var(--bg-surface-subtle)' : 'transparent',
+                border: isSelected ? '1px solid var(--color-primary-300)' : '1px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    padding: '1px 6px',
+                    borderRadius: '10px',
+                    backgroundColor: isSelected ? 'var(--color-primary-100)' : 'var(--bg-subtle)',
+                    color: isSelected ? 'var(--color-primary-700)' : 'var(--text-muted)',
+                    fontWeight: 600,
+                  }}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* 3. Search and Filtering Controls */}
       <div
         style={{
@@ -781,7 +842,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             icon={<FileCheck2 style={{ width: '48px', height: '48px', color: 'var(--text-muted)' }} />}
             title="No AMC contracts found"
             description={
-              search || statusFilter !== 'ALL'
+              search || (statusFilter !== 'ALL' && ((metrics?.activeContracts || 0) + (metrics?.expiredContracts || 0) > 0))
                 ? 'No maintenance agreements match your search filters.'
                 : 'Get started by creating your first commercial maintenance agreement.'
             }
@@ -1645,8 +1706,33 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           }}
           className="space-y-4"
         >
+          <div
+            style={{
+              padding: 'var(--space-3)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-primary-600)', textTransform: 'uppercase' }}>
+              Automatic Equipment Carry-Forward
+            </div>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: '4px', marginBottom: '8px' }}>
+              All <strong>{detailContract?.coveredAssets?.length || 0} covered AC assets</strong> from contract {detailContract?.contractNumber || ''} will automatically carry forward into the renewed contract without manual re-selection.
+            </p>
+            {detailContract?.coveredAssets && detailContract.coveredAssets.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {detailContract.coveredAssets.map((a) => (
+                  <Badge key={a.id} variant="brand">
+                    {a.assetTag} {a.brand ? `• ${a.brand}` : ''}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-            Renewing will preserve the current contract as <strong>RENEWED</strong> and create a linked contract for the new period.
+            Renewing will preserve contract <strong>{detailContract?.contractNumber || ''}</strong> in history as <strong>RENEWED</strong> and activate a linked successor contract with newly scheduled PM obligations.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>

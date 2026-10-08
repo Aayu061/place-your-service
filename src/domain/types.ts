@@ -181,6 +181,40 @@ export interface AcAsset {
   siteName?: string | null;
   customerName?: string | null;
   customerCode?: string | null;
+  currentAmc?: AssetCurrentAmcSummary | null;
+}
+
+export interface AssetCurrentAmcSummary {
+  id: string;
+  contractNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  frequency: string;
+  totalVisits: number;
+  completedVisits: number;
+  remainingVisits: number;
+}
+
+export interface AssetAmcHistoryItem {
+  id: string;
+  contractNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  planName?: string | null;
+  billingFrequency: string;
+  totalAmount?: number | null;
+  totalVisits: number;
+  completedVisits: number;
+  previousContractId?: string | null;
+}
+
+export interface AssetAmcHistoryResponse {
+  assetId: string;
+  assetTag: string;
+  currentAmc: AssetCurrentAmcSummary | null;
+  history: AssetAmcHistoryItem[];
 }
 
 /* --------------------------------------------------

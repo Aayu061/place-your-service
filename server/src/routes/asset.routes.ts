@@ -51,4 +51,12 @@ assetRouter.patch(
   assetController.updateAcAssetStatus.bind(assetController)
 );
 
+// 6. Get asset AMC history
+assetRouter.get(
+  '/:id/amc-history',
+  validate(assetIdParamSchema),
+  assetController.getAssetAmcHistory.bind(assetController)
+);
+
 export default assetRouter;
+

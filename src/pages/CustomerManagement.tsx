@@ -34,6 +34,7 @@ import {
   WarrantyStatus,
   AcBrand,
   AcModel,
+  AssetAmcHistoryResponse,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -283,6 +284,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState<boolean>(false);
   const [editingAsset, setEditingAsset] = useState<AcAsset | null>(null);
   const [viewingAsset, setViewingAsset] = useState<AcAsset | null>(null);
+  const [assetAmcHistory, setAssetAmcHistory] = useState<AssetAmcHistoryResponse | null>(null);
+  const [isLoadingAssetAmcHistory, setIsLoadingAssetAmcHistory] = useState(false);
+  const [showAssetAmcHistory, setShowAssetAmcHistory] = useState(false);
   const [assetFormSiteId, setAssetFormSiteId] = useState('');
   const [assetFormTag, setAssetFormTag] = useState('');
   
@@ -824,13 +828,6 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   };
 
   const handleModelChange = (selectedModelVal: string) => {
-    if (selectedModelVal === 'CUSTOM') {
-      setAssetFormModelId('');
-      setAssetFormModel('');
-      setIsModelSpecsLocked(false);
-      return;
-    }
-
     const found = availableModels.find((m) => m.id === selectedModelVal || m.modelNumber === selectedModelVal);
     if (found) {
       setAssetFormModelId(found.id);
@@ -843,8 +840,26 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setIsModelSpecsLocked(true);
     } else {
       setAssetFormModelId('');
-      setAssetFormModel(selectedModelVal);
+      setAssetFormModel('');
       setIsModelSpecsLocked(false);
+    }
+  };
+
+  const handleToggleAssetAmcHistory = async (assetId: string) => {
+    if (showAssetAmcHistory) {
+      setShowAssetAmcHistory(false);
+      return;
+    }
+    setIsLoadingAssetAmcHistory(true);
+    setShowAssetAmcHistory(true);
+    try {
+      const res = await apiClient.get<AssetAmcHistoryResponse>(`/assets/${assetId}/amc-history`);
+      setAssetAmcHistory(res);
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to load AMC history';
+      showToast({ type: 'error', title: 'Error', message: msg });
+    } finally {
+      setIsLoadingAssetAmcHistory(false);
     }
   };
 
@@ -2560,23 +2575,41 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                             <Badge variant="neutral">{asset.acType}</Badge>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Badge
-                              variant={
-                                asset.warrantyStatus === 'UNDER_WARRANTY'
-                                  ? 'success'
-                                  : asset.warrantyStatus === 'AMC_COVERED'
-                                  ? 'brand'
-                                  : asset.warrantyStatus === 'EXPIRED'
-                                  ? 'danger'
-                                  : 'neutral'
-                              }
-                            >
-                              {asset.warrantyStatus.replace('_', ' ')}
-                            </Badge>
-                            <Badge variant={asset.isActive ? 'success' : 'neutral'}>
-                              {asset.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Asset:</span>
+                              <Badge variant={asset.assetStatus === 'Active' || asset.isActive ? 'success' : 'neutral'}>
+                                {asset.assetStatus ? asset.assetStatus.toUpperCase() : asset.isActive ? 'ACTIVE' : 'INACTIVE'}
+                              </Badge>
+                            </span>
+                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Condition:</span>
+                              <Badge variant={asset.assetCondition === 'Excellent' || asset.assetCondition === 'Good' ? 'neutral' : 'warning'}>
+                                {asset.assetCondition ? asset.assetCondition.toUpperCase() : 'GOOD'}
+                              </Badge>
+                            </span>
+                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Warranty:</span>
+                              <Badge
+                                variant={
+                                  asset.warrantyStatus === 'UNDER_WARRANTY'
+                                    ? 'success'
+                                    : asset.warrantyStatus === 'EXPIRING_SOON'
+                                    ? 'warning'
+                                    : asset.warrantyStatus === 'EXPIRED'
+                                    ? 'danger'
+                                    : 'neutral'
+                                }
+                              >
+                                {asset.warrantyStatus === 'UNDER_WARRANTY' ? 'ACTIVE' : asset.warrantyStatus.replace('_', ' ')}
+                              </Badge>
+                            </span>
+                            <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
+                              <Badge variant={asset.currentAmc && asset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
+                                {asset.currentAmc ? asset.currentAmc.status : 'NO AMC'}
+                              </Badge>
+                            </span>
                           </div>
                         </div>
 
@@ -2595,6 +2628,11 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                           {asset.serialNumber && (
                             <span>
                               <strong>S/N:</strong> {asset.serialNumber}
+                            </span>
+                          )}
+                          {asset.currentAmc && (
+                            <span>
+                              <strong>AMC:</strong> {asset.currentAmc.contractNumber} ({asset.currentAmc.completedVisits}/{asset.currentAmc.totalVisits} visits)
                             </span>
                           )}
                         </div>
@@ -2872,60 +2910,38 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                         {b.name}
                       </option>
                     ))}
-                    <option value="CUSTOM">+ Other Brand</option>
                   </select>
                 </div>
               </div>
-
-              {assetFormBrandId === 'CUSTOM' && (
-                <Input
-                  label="Custom Brand Name *"
-                  placeholder="e.g. Daikin, Mitsubishi, LG"
-                  value={assetFormBrand}
-                  onChange={(e) => setAssetFormBrand(e.target.value)}
-                  required
-                />
-              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
                     Model Number *
                   </label>
-                  {assetFormBrandId === 'CUSTOM' ? (
-                    <Input
-                      label=""
-                      placeholder="e.g. FTKF50TV"
-                      value={assetFormModel}
-                      onChange={(e) => setAssetFormModel(e.target.value)}
-                      required
-                    />
-                  ) : (
-                    <select
-                      className="select"
-                      value={assetFormModelId}
-                      onChange={(e) => handleModelChange(e.target.value)}
-                      disabled={!assetFormBrandId || isLoadingMasterModels}
-                      required
-                      style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-                    >
-                      <option value="">
-                        {isLoadingMasterModels
-                          ? 'Loading models...'
-                          : !assetFormBrandId
-                          ? 'Select brand first'
-                          : availableModels.length === 0
-                          ? 'No models available for this brand'
-                          : 'Select Model...'}
+                  <select
+                    className="select"
+                    value={assetFormModelId}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                    disabled={!assetFormBrandId || isLoadingMasterModels}
+                    required
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                  >
+                    <option value="">
+                      {isLoadingMasterModels
+                        ? 'Loading models...'
+                        : !assetFormBrandId
+                        ? 'Select brand first'
+                        : availableModels.length === 0
+                        ? 'No models available for this brand'
+                        : 'Select Model...'}
+                    </option>
+                    {availableModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.modelNumber} {m.capacityTons ? `• ${m.capacityTons} Ton` : ''}
                       </option>
-                      {availableModels.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.modelNumber} {m.capacityTons ? `• ${m.capacityTons} Ton` : ''}
-                        </option>
-                      ))}
-                      <option value="CUSTOM">+ Other Model</option>
-                    </select>
-                  )}
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -2954,16 +2970,6 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                   </select>
                 </div>
               </div>
-
-              {assetFormModelId === 'CUSTOM' && (
-                <Input
-                  label="Custom Model Number *"
-                  placeholder="e.g. FTKF50TV"
-                  value={assetFormModel}
-                  onChange={(e) => setAssetFormModel(e.target.value)}
-                  required
-                />
-              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
@@ -3630,7 +3636,11 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       {/* 14. VIEW AC ASSET SPECIFICATIONS MODAL */}
       <Modal
         isOpen={!!viewingAsset}
-        onClose={() => setViewingAsset(null)}
+        onClose={() => {
+          setViewingAsset(null);
+          setShowAssetAmcHistory(false);
+          setAssetAmcHistory(null);
+        }}
         title={`Asset Specifications: ${viewingAsset?.assetTag || ''}`}
         description={`${viewingAsset?.brand || ''} ${viewingAsset?.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}`}
       >
@@ -3641,32 +3651,223 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ASSET TAG</span>
                 <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--color-brand)' }}>{viewingAsset.assetTag}</div>
               </div>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                <Badge
-                  variant={
-                    viewingAsset.warrantyStatus === 'UNDER_WARRANTY'
-                      ? 'success'
-                      : viewingAsset.warrantyStatus === 'EXPIRING_SOON'
-                      ? 'warning'
-                      : viewingAsset.warrantyStatus === 'AMC_COVERED'
-                      ? 'brand'
-                      : viewingAsset.warrantyStatus === 'EXPIRED'
-                      ? 'danger'
-                      : 'neutral'
-                  }
-                >
-                  {viewingAsset.warrantyStatus.replace('_', ' ')}
-                </Badge>
-                {viewingAsset.assetStatus && (
-                  <Badge variant="brand">{viewingAsset.assetStatus}</Badge>
-                )}
-                {viewingAsset.assetCondition && (
-                  <Badge variant="neutral">{viewingAsset.assetCondition}</Badge>
-                )}
-                <Badge variant={viewingAsset.isActive ? 'success' : 'neutral'}>
-                  {viewingAsset.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Asset:</span>
+                  <Badge variant={viewingAsset.assetStatus === 'Active' || viewingAsset.isActive ? 'success' : 'neutral'}>
+                    {viewingAsset.assetStatus ? viewingAsset.assetStatus.toUpperCase() : viewingAsset.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  </Badge>
+                </span>
+                <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Condition:</span>
+                  <Badge variant={viewingAsset.assetCondition === 'Excellent' || viewingAsset.assetCondition === 'Good' ? 'neutral' : 'warning'}>
+                    {viewingAsset.assetCondition ? viewingAsset.assetCondition.toUpperCase() : 'GOOD'}
+                  </Badge>
+                </span>
+                <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Warranty:</span>
+                  <Badge
+                    variant={
+                      viewingAsset.warrantyStatus === 'UNDER_WARRANTY'
+                        ? 'success'
+                        : viewingAsset.warrantyStatus === 'EXPIRING_SOON'
+                        ? 'warning'
+                        : viewingAsset.warrantyStatus === 'EXPIRED'
+                        ? 'danger'
+                        : 'neutral'
+                    }
+                  >
+                    {viewingAsset.warrantyStatus === 'UNDER_WARRANTY' ? 'ACTIVE' : viewingAsset.warrantyStatus.replace('_', ' ')}
+                  </Badge>
+                </span>
+                <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
+                  <Badge variant={viewingAsset.currentAmc && viewingAsset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
+                    {viewingAsset.currentAmc ? viewingAsset.currentAmc.status : 'NO AMC'}
+                  </Badge>
+                </span>
               </div>
+            </div>
+
+            {/* CURRENT AMC SECTION */}
+            <div
+              style={{
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                backgroundColor: viewingAsset.currentAmc ? 'var(--color-brand-subtle, rgba(37, 99, 235, 0.04))' : 'var(--bg-surface-subtle)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FileCheck2 size={16} style={{ color: 'var(--color-brand)' }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                    Current AMC
+                  </span>
+                </div>
+                {viewingAsset.currentAmc ? (
+                  <Badge variant="brand">{viewingAsset.currentAmc.status}</Badge>
+                ) : (
+                  <Badge variant="neutral">NO ACTIVE AMC</Badge>
+                )}
+              </div>
+
+              {viewingAsset.currentAmc ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {viewingAsset.currentAmc.contractNumber}
+                      </span>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                        ({viewingAsset.currentAmc.frequency})
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                      {viewingAsset.currentAmc.startDate} → {viewingAsset.currentAmc.endDate}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)', backgroundColor: 'var(--bg-surface)', padding: 'var(--space-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Visits Progress:</div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-brand)' }}>
+                        {viewingAsset.currentAmc.completedVisits} / {viewingAsset.currentAmc.totalVisits} Completed
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Remaining Visits:</div>
+                      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                        {viewingAsset.currentAmc.remainingVisits ?? Math.max(0, viewingAsset.currentAmc.totalVisits - viewingAsset.currentAmc.completedVisits)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    {onNavigate && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setViewingAsset(null);
+                          setShowAssetAmcHistory(false);
+                          setAssetAmcHistory(null);
+                          onNavigate('amc');
+                        }}
+                      >
+                        View AMC
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleAssetAmcHistory(viewingAsset.id)}
+                      isLoading={isLoadingAssetAmcHistory}
+                    >
+                      {showAssetAmcHistory ? 'Hide AMC History' : 'AMC History'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    This physical AC currently has no active AMC contract.
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {onNavigate && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setViewingAsset(null);
+                          setShowAssetAmcHistory(false);
+                          setAssetAmcHistory(null);
+                          onNavigate('amc');
+                        }}
+                      >
+                        Create AMC
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleAssetAmcHistory(viewingAsset.id)}
+                      isLoading={isLoadingAssetAmcHistory}
+                    >
+                      {showAssetAmcHistory ? 'Hide AMC History' : 'AMC History'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* AMC HISTORY SUB-SECTION (LOADED ON DEMAND) */}
+              {showAssetAmcHistory && (
+                <div
+                  style={{
+                    marginTop: 'var(--space-2)',
+                    paddingTop: 'var(--space-2)',
+                    borderTop: '1px solid var(--border-subtle)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 'var(--space-2)',
+                  }}
+                >
+                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+                    AMC Contract History for {viewingAsset.assetTag}
+                  </div>
+
+                  {isLoadingAssetAmcHistory ? (
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-2)' }}>
+                      Loading historical contracts...
+                    </div>
+                  ) : !assetAmcHistory || assetAmcHistory.history.length === 0 ? (
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-2)' }}>
+                      No historical AMC contracts found for this asset.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                      {assetAmcHistory.history.map((h) => (
+                        <div
+                          key={h.id}
+                          style={{
+                            padding: 'var(--space-2)',
+                            backgroundColor: 'var(--bg-surface)',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-subtle)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>{h.contractNumber}</span>
+                            <Badge
+                              variant={
+                                h.status === 'ACTIVE'
+                                  ? 'success'
+                                  : h.status === 'RENEWED'
+                                  ? 'brand'
+                                  : h.status === 'EXPIRED'
+                                  ? 'danger'
+                                  : 'neutral'
+                              }
+                            >
+                              {h.status}
+                            </Badge>
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Period: {h.startDate} → {h.endDate}</span>
+                            <span>Visits: {h.completedVisits} / {h.totalVisits} Completed</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
@@ -3746,7 +3947,14 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
-              <Button variant="primary" onClick={() => setViewingAsset(null)}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setViewingAsset(null);
+                  setShowAssetAmcHistory(false);
+                  setAssetAmcHistory(null);
+                }}
+              >
                 Close
               </Button>
             </div>

@@ -363,6 +363,19 @@ export interface AcAssetResponse {
   siteName?: string | null;
   customerName?: string | null;
   customerCode?: string | null;
+  currentAmc?: AssetCurrentAmcSummary | null;
+}
+
+export interface AssetCurrentAmcSummary {
+  id: string;
+  contractNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  frequency: string;
+  totalVisits: number;
+  completedVisits: number;
+  remainingVisits: number;
 }
 
 export interface CreateAcAssetPayload {
@@ -810,9 +823,43 @@ export interface PmGenerationResult {
   schedules: ServiceScheduleResponse[];
 }
 
+export interface RenewAmcContractPayload {
+  startDate: string;
+  endDate: string;
+  frequency?: AmcFrequency;
+  totalAmount?: number;
+  totalVisits?: number;
+  coveredAssetIds?: string[];
+  planId?: string | null;
+  notes?: string | null;
+}
+
+export interface AssetAmcHistoryItem {
+  id: string;
+  contractNumber: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  frequency: string;
+  totalAmount: number;
+  totalVisits: number;
+  completedVisits: number;
+  remainingVisits: number;
+  previousContractId: string | null;
+  customerName?: string | null;
+  createdAt: string;
+}
+
+export interface AssetAmcHistoryResponse {
+  assetId: string;
+  assetTag: string;
+  currentAmc: AssetCurrentAmcSummary | null;
+  history: AssetAmcHistoryItem[];
+}
+
 export interface AmcContractListQuery {
   search?: string;
-  status?: 'ALL' | AmcStatus;
+  status?: 'ALL' | AmcStatus | 'HISTORY';
   frequency?: 'ALL' | AmcFrequency;
   planId?: string;
   customerId?: string;

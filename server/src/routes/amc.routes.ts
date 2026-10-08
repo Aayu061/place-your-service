@@ -13,6 +13,7 @@ import {
   cancelAmcSchema,
   addAmcAssetsSchema,
   generatePmSchema,
+  renewAmcContractSchema,
 } from '../validators/amc.validator.js';
 
 const amcRouter = Router();
@@ -106,7 +107,7 @@ amcRouter.get(
 // 14. Renew contract
 amcRouter.post(
   '/:id/renew',
-  validate({ params: amcIdParamSchema, body: createAmcContractSchema }),
+  validate({ params: amcIdParamSchema, body: renewAmcContractSchema }),
   amcController.renewContract.bind(amcController)
 );
 

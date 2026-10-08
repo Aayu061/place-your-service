@@ -1,19 +1,52 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { AppShell } from '@/layouts/AppShell';
-import { DashboardShell } from '@/pages/DashboardShell';
-import { ModuleShellPlaceholder } from '@/pages/ModuleShellPlaceholder';
-import { PhaseZeroOverview } from '@/pages/PhaseZeroOverview';
-import { StaffManagement } from '@/pages/StaffManagement';
-import { CustomerManagement } from '@/pages/CustomerManagement';
-import { ServiceRequestManagement } from '@/pages/ServiceRequestManagement';
-import { TechnicianManagement } from '@/pages/TechnicianManagement';
-import { AmcManagement } from '@/pages/AmcManagement';
-import { AcMasterManagement } from '@/pages/AcMasterManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
+
+// Route-level code-splitting: lazy load pages on-demand to optimize bundle size and startup performance
+const DashboardShell = lazy(() => import('@/pages/DashboardShell').then((m) => ({ default: m.DashboardShell })));
+const CustomerManagement = lazy(() => import('@/pages/CustomerManagement').then((m) => ({ default: m.CustomerManagement })));
+const AmcManagement = lazy(() => import('@/pages/AmcManagement').then((m) => ({ default: m.AmcManagement })));
+const ServiceRequestManagement = lazy(() => import('@/pages/ServiceRequestManagement').then((m) => ({ default: m.ServiceRequestManagement })));
+const TechnicianManagement = lazy(() => import('@/pages/TechnicianManagement').then((m) => ({ default: m.TechnicianManagement })));
+const StaffManagement = lazy(() => import('@/pages/StaffManagement').then((m) => ({ default: m.StaffManagement })));
+const AcMasterManagement = lazy(() => import('@/pages/AcMasterManagement').then((m) => ({ default: m.AcMasterManagement })));
+const PhaseZeroOverview = lazy(() => import('@/pages/PhaseZeroOverview').then((m) => ({ default: m.PhaseZeroOverview })));
+const ModuleShellPlaceholder = lazy(() => import('@/pages/ModuleShellPlaceholder').then((m) => ({ default: m.ModuleShellPlaceholder })));
+
+const RouteLoadingFallback: React.FC = () => (
+  <div
+    style={{
+      padding: 'var(--space-8)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 'var(--space-3)',
+      minHeight: '300px',
+    }}
+    role="status"
+    aria-live="polite"
+  >
+    <span
+      className="animate-spin"
+      style={{
+        width: '28px',
+        height: '28px',
+        border: '3px solid var(--color-brand)',
+        borderRightColor: 'transparent',
+        borderRadius: '50%',
+      }}
+      aria-hidden="true"
+    />
+    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 }}>
+      Loading workspace module...
+    </div>
+  </div>
+);
 
 const MODULE_DEFINITIONS: Record<
   string,
@@ -216,70 +249,78 @@ const AuthenticatedApp: React.FC = () => {
   return (
     <AppShell role={user.role}>
       {({ currentRole, activeItem, onNavigate }) => {
-        if (activeItem === 'dashboard') {
+        const renderModule = () => {
+          if (activeItem === 'dashboard') {
+            return (
+              <DashboardShell
+                currentRole={currentRole}
+                onNavigate={onNavigate}
+              />
+            );
+          }
+
+          // Dedicated Phase 3 Staff Management (Admin Only)
+          if (activeItem === 'staff') {
+            return <StaffManagement />;
+          }
+
+          // Dedicated Phase 4 Customer Management (Admin & Staff)
+          if (activeItem === 'customers') {
+            return <CustomerManagement onNavigate={onNavigate} />;
+          }
+
+          // Dedicated Phase 6 Service Request Management (Admin & Staff)
+          if (activeItem === 'service-requests') {
+            return <ServiceRequestManagement onNavigate={onNavigate} />;
+          }
+
+          // Dedicated Phase 7 Technician Management (Admin & Staff)
+          if (activeItem === 'technicians') {
+            return <TechnicianManagement onNavigate={onNavigate} />;
+          }
+
+          // Dedicated Phase 8 AMC & Preventive Maintenance (Admin & Staff)
+          if (activeItem === 'amc') {
+            return <AmcManagement onNavigate={onNavigate} />;
+          }
+
+          // AC Master Data Management (Admin)
+          if (activeItem === 'ac-master') {
+            return <AcMasterManagement onNavigate={onNavigate} />;
+          }
+
+          if (activeItem === 'phase-zero-review') {
+            return <PhaseZeroOverview currentRole={currentRole} />;
+          }
+
+          const moduleDef = MODULE_DEFINITIONS[activeItem];
+          if (moduleDef) {
+            return (
+              <ModuleShellPlaceholder
+                moduleId={activeItem}
+                moduleName={moduleDef.name}
+                category={moduleDef.category}
+                plannedPhase={moduleDef.phase}
+                description={moduleDef.description}
+                plannedFeatures={moduleDef.features}
+                onBackToDashboard={() => onNavigate('dashboard')}
+              />
+            );
+          }
+
+          // Fallback to Dashboard
           return (
             <DashboardShell
               currentRole={currentRole}
               onNavigate={onNavigate}
             />
           );
-        }
+        };
 
-        // Dedicated Phase 3 Staff Management (Admin Only)
-        if (activeItem === 'staff') {
-          return <StaffManagement />;
-        }
-
-        // Dedicated Phase 4 Customer Management (Admin & Staff)
-        if (activeItem === 'customers') {
-          return <CustomerManagement onNavigate={onNavigate} />;
-        }
-
-        // Dedicated Phase 6 Service Request Management (Admin & Staff)
-        if (activeItem === 'service-requests') {
-          return <ServiceRequestManagement onNavigate={onNavigate} />;
-        }
-
-        // Dedicated Phase 7 Technician Management (Admin & Staff)
-        if (activeItem === 'technicians') {
-          return <TechnicianManagement onNavigate={onNavigate} />;
-        }
-
-        // Dedicated Phase 8 AMC & Preventive Maintenance (Admin & Staff)
-        if (activeItem === 'amc') {
-          return <AmcManagement onNavigate={onNavigate} />;
-        }
-
-        // AC Master Data Management (Admin)
-        if (activeItem === 'ac-master') {
-          return <AcMasterManagement onNavigate={onNavigate} />;
-        }
-
-        if (activeItem === 'phase-zero-review') {
-          return <PhaseZeroOverview currentRole={currentRole} />;
-        }
-
-        const moduleDef = MODULE_DEFINITIONS[activeItem];
-        if (moduleDef) {
-          return (
-            <ModuleShellPlaceholder
-              moduleId={activeItem}
-              moduleName={moduleDef.name}
-              category={moduleDef.category}
-              plannedPhase={moduleDef.phase}
-              description={moduleDef.description}
-              plannedFeatures={moduleDef.features}
-              onBackToDashboard={() => onNavigate('dashboard')}
-            />
-          );
-        }
-
-        // Fallback to Dashboard
         return (
-          <DashboardShell
-            currentRole={currentRole}
-            onNavigate={onNavigate}
-          />
+          <Suspense fallback={<RouteLoadingFallback />}>
+            {renderModule()}
+          </Suspense>
         );
       }}
     </AppShell>

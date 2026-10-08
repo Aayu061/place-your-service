@@ -5,6 +5,7 @@ import {
   AmcCoveredAssetResponse,
   ServiceScheduleResponse,
   CreateAmcContractPayload,
+  RenewAmcContractPayload,
   UpdateAmcContractPayload,
   UpdateAmcStatusPayload,
   CancelAmcContractPayload,
@@ -305,7 +306,9 @@ export class AmcService {
         { count: 'exact' }
       );
 
-    if (query.status && query.status !== 'ALL') {
+    if (query.status === 'HISTORY') {
+      dbQuery = dbQuery.in('status', ['RENEWED', 'EXPIRED', 'CANCELLED']);
+    } else if (query.status && query.status !== 'ALL') {
       dbQuery = dbQuery.eq('status', query.status);
     }
 
@@ -1207,49 +1210,170 @@ export class AmcService {
   }
 
   /**
-   * Renew an existing contract safely
+   * Renew an existing contract safely and atomically
    */
   async renewContract(
     id: string,
-    payload: CreateAmcContractPayload,
+    payload: RenewAmcContractPayload,
     actorId: string
   ): Promise<AmcContractResponse> {
     const supabase = getSupabaseClient();
     const existing = await this.getContractById(id);
 
-    // 1. Mark existing as RENEWED
-    await supabase
+    // 1. Validate predecessor state
+    if (existing.status === 'CANCELLED') {
+      throw new BadRequestError('Cannot renew a cancelled AMC contract');
+    }
+    if (existing.status === 'RENEWED') {
+      throw new BadRequestError('This AMC contract has already been renewed');
+    }
+
+    // Check if successor contract already exists
+    const { data: successors } = await supabase
       .from('amc_contracts')
-      .update({
-        status: 'RENEWED',
-        updated_by: actorId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+      .select('id, contract_number')
+      .eq('previous_contract_id', id);
 
-    // 2. Create new contract with previous_contract_id
-    const assetIds = payload.coveredAssetIds || (existing.coveredAssets || []).map((a: any) => a.assetId);
+    const existingSuccessor = successors && successors.length > 0 ? successors[0] : null;
 
-    const newContractPayload: CreateAmcContractPayload = {
-      ...payload,
-      customerId: existing.customerId,
-      coveredAssetIds: assetIds,
-    };
+    if (existingSuccessor) {
+      throw new ConflictError(
+        `This AMC contract has already been renewed as '${existingSuccessor.contract_number}'`
+      );
+    }
 
-    const created = await this.createContract(newContractPayload, actorId);
+    // 2. Automatically carry forward covered assets from predecessor
+    const predecessorAssetIds = (existing.coveredAssets || []).map((a: any) => a.assetId);
+    const assetIds = (payload.coveredAssetIds && payload.coveredAssetIds.length > 0)
+      ? payload.coveredAssetIds
+      : predecessorAssetIds;
 
-    // Link previous contract
-    await supabase
-      .from('amc_contracts')
-      .update({ previous_contract_id: id })
-      .eq('id', created.id);
+    if (assetIds.length === 0) {
+      throw new BadRequestError('Cannot renew AMC contract: no covered AC assets are attached to carry forward');
+    }
 
-    await this.recordAudit(actorId, 'AMC_RENEWED', id, {
-      renewedToContractId: created.id,
-      newContractNumber: created.contractNumber,
-    });
+    // 3. Validate asset ownership & overlap for the new period (excluding the predecessor)
+    await this.validateAssetOwnershipAndOverlap(
+      existing.customerId,
+      assetIds,
+      payload.startDate,
+      payload.endDate,
+      existing.id
+    );
 
-    return this.getContractById(created.id);
+    // 4. Generate successor contract number
+    const contractNumber = await this.generateContractNumber();
+
+    const frequency = payload.frequency || existing.frequency;
+    const totalAmount = payload.totalAmount !== undefined ? payload.totalAmount : existing.totalAmount;
+    const totalVisits = payload.totalVisits !== undefined ? payload.totalVisits : existing.totalVisits;
+    const planId = payload.planId !== undefined ? payload.planId : existing.planId;
+    const notes = payload.notes !== undefined ? payload.notes : (existing.notes || null);
+
+    // 5. Atomic execution with rollback safeguard
+    let createdSuccessorId: string | null = null;
+    let predecessorMarkedRenewed = false;
+
+    try {
+      // 5a. Insert successor contract (status ACTIVE, previous_contract_id linked)
+      const { data: inserted, error: iErr } = await supabase
+        .from('amc_contracts')
+        .insert({
+          contract_number: contractNumber,
+          customer_id: existing.customerId,
+          plan_id: planId || null,
+          start_date: payload.startDate,
+          end_date: payload.endDate,
+          frequency,
+          total_amount: totalAmount,
+          total_visits: totalVisits,
+          status: 'ACTIVE',
+          notes,
+          previous_contract_id: existing.id,
+          created_by: actorId,
+        })
+        .select()
+        .single();
+
+      if (iErr || !inserted) {
+        logger.error('Failed to create successor AMC contract', { error: iErr });
+        throw new BadRequestError('Failed to create successor AMC contract');
+      }
+
+      createdSuccessorId = inserted.id;
+
+      // 5b. Automatically attach all carried-forward assets
+      const assetRows = assetIds.map((aId: string) => ({
+        amc_id: inserted.id,
+        asset_id: aId,
+      }));
+
+      const { error: covErr } = await supabase.from('amc_assets').insert(assetRows);
+      if (covErr) {
+        logger.error('Failed to copy covered assets into successor contract', { error: covErr });
+        throw new BadRequestError('Failed to attach covered assets to renewed contract');
+      }
+
+      // 5c. Mark predecessor as RENEWED
+      const { error: updErr } = await supabase
+        .from('amc_contracts')
+        .update({
+          status: 'RENEWED',
+          updated_by: actorId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+
+      if (updErr) {
+        logger.error('Failed to mark predecessor contract as RENEWED', { error: updErr });
+        throw new BadRequestError('Failed to update predecessor contract status');
+      }
+
+      predecessorMarkedRenewed = true;
+
+      // 5d. Generate successor PM obligations
+      await this.generatePmObligations(inserted.id, {}, actorId);
+
+      // 5e. Record audit log
+      await this.recordAudit(actorId, 'AMC_RENEWED', existing.id, {
+        predecessorContractNumber: existing.contractNumber,
+        successorContractId: inserted.id,
+        successorContractNumber: inserted.contract_number,
+        assetsCount: assetIds.length,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+      });
+
+      return this.getContractById(inserted.id);
+    } catch (err) {
+      logger.error('AMC renewal failed, rolling back changes', { error: err });
+      // Clean up newly created successor contract and child records
+      if (createdSuccessorId) {
+        try {
+          await supabase.from('service_schedules').delete().eq('amc_id', createdSuccessorId);
+          await supabase.from('amc_assets').delete().eq('amc_id', createdSuccessorId);
+          await supabase.from('amc_contracts').delete().eq('id', createdSuccessorId);
+        } catch (cleanupErr) {
+          logger.error('Rollback cleanup failed for successor contract', { error: cleanupErr });
+        }
+      }
+      // Revert predecessor status if it was changed
+      if (predecessorMarkedRenewed) {
+        try {
+          await supabase
+            .from('amc_contracts')
+            .update({
+              status: existing.status,
+              updated_by: actorId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existing.id);
+        } catch (revertErr) {
+          logger.error('Rollback revert failed for predecessor status', { error: revertErr });
+        }
+      }
+      throw err;
+    }
   }
 }
 

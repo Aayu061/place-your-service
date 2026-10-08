@@ -106,6 +106,16 @@ export class AssetController {
       next(err);
     }
   }
+
+  public async getAssetAmcHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await assetService.getAssetAmcHistory(req.params.id as string);
+      sendSuccess(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const assetController = new AssetController();
+

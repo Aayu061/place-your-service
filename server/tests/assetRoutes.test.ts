@@ -392,4 +392,97 @@ describe('AC Asset Register API (/api/v1/sites/:siteId/assets & /api/v1/assets)'
     expect(res.body.success).toBe(true);
     expect(res.body.data.asset.isActive).toBe(false);
   });
+
+  it('9. GET /api/v1/assets/:id/amc-history returns current AMC and historical contracts with visit progress', async () => {
+    const historicalContract = {
+      id: 'old-contract-111',
+      contract_number: 'AMC-2026-0001',
+      status: 'RENEWED',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+      plan_name: 'Basic AMC',
+      billing_frequency: 'QUARTERLY',
+      total_amount: 24000,
+      total_visits: 4,
+      previous_contract_id: null,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+
+    const activeContract = {
+      id: 'active-contract-222',
+      contract_number: 'AMC-2027-0002',
+      status: 'ACTIVE',
+      start_date: '2027-01-01',
+      end_date: '2027-12-31',
+      plan_name: 'Basic AMC',
+      billing_frequency: 'QUARTERLY',
+      total_amount: 26000,
+      total_visits: 4,
+      previous_contract_id: 'old-contract-111',
+      created_at: '2027-01-01T00:00:00Z',
+    };
+
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const authHandler = setupAuthMock('STAFF')(table);
+        if (authHandler.select) return authHandler;
+
+        if (table === 'ac_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleAsset, error: null }),
+            single: vi.fn().mockResolvedValue({ data: sampleAsset, error: null }),
+          };
+        }
+        if (table === 'amc_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({
+              data: [
+                { asset_id: sampleAssetId, contract_id: activeContract.id, amc_contracts: activeContract },
+              ],
+              error: null,
+            }),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [
+                { contract_id: activeContract.id, amc_contracts: activeContract },
+                { contract_id: historicalContract.id, amc_contracts: historicalContract },
+              ],
+              error: null,
+            }),
+          };
+        }
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({
+              data: [{ amc_id: activeContract.id, status: 'COMPLETED' }],
+              error: null,
+            }),
+          };
+        }
+        return {};
+      }),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get(`/api/v1/assets/${sampleAssetId}/amc-history`)
+      .set('Authorization', staffAuthToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.assetId).toBe(sampleAssetId);
+    expect(res.body.data.assetTag).toBe(sampleAsset.asset_tag);
+    expect(res.body.data.currentAmc).toBeDefined();
+    expect(res.body.data.currentAmc.contractNumber).toBe('AMC-2027-0002');
+    expect(res.body.data.currentAmc.status).toBe('ACTIVE');
+    expect(res.body.data.history).toHaveLength(2);
+  });
 });

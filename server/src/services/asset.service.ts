@@ -1,6 +1,9 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
   AcAssetResponse,
+  AssetCurrentAmcSummary,
+  AssetAmcHistoryResponse,
+  AssetAmcHistoryItem,
   CreateAcAssetPayload,
   UpdateAcAssetPayload,
   AcAssetListQuery,
@@ -104,9 +107,101 @@ export class AssetService {
   }
 
   /**
+   * Resolves current active AMC and visit progress for a list of asset IDs
+   */
+  private async resolveCurrentAmcForAssets(
+    assetIds: string[]
+  ): Promise<Record<string, AssetCurrentAmcSummary>> {
+    if (assetIds.length === 0) return {};
+
+    const supabase = getSupabaseClient();
+    const result: Record<string, AssetCurrentAmcSummary> = {};
+
+    try {
+      // 1. Fetch coverage records where contract is ACTIVE or EXPIRING_SOON
+      const { data: coverageRows, error: cErr } = await supabase
+        .from('amc_assets')
+        .select(`
+          asset_id,
+          amc_contracts (
+            id, contract_number, status, start_date, end_date, frequency, total_visits
+          )
+        `)
+        .in('asset_id', assetIds);
+
+      if (cErr || !coverageRows) {
+        return {};
+      }
+
+      // Filter for active contracts and map to asset
+      const activeContractMap: Record<string, any> = {};
+      const amcIdsToFetchSchedules: Set<string> = new Set();
+
+      for (const row of coverageRows) {
+        const contract = row.amc_contracts as any;
+        if (!contract) continue;
+        if (['ACTIVE', 'EXPIRING_SOON'].includes(contract.status)) {
+          // If multiple, prioritize ACTIVE or latest end_date
+          const existing = activeContractMap[row.asset_id];
+          if (!existing || contract.end_date > existing.end_date) {
+            activeContractMap[row.asset_id] = contract;
+            amcIdsToFetchSchedules.add(contract.id);
+          }
+        }
+      }
+
+      if (amcIdsToFetchSchedules.size === 0) {
+        return {};
+      }
+
+      // 2. Fetch completed PM schedule obligations for these active contracts and assets
+      const { data: scheduleRows } = await supabase
+        .from('service_schedules')
+        .select('amc_id, asset_id, status')
+        .in('amc_id', Array.from(amcIdsToFetchSchedules))
+        .in('asset_id', assetIds);
+
+      const completedMap: Record<string, number> = {};
+      if (scheduleRows) {
+        for (const s of scheduleRows) {
+          if (['COMPLETED', 'RESOLVED'].includes(s.status)) {
+            const key = `${s.amc_id}_${s.asset_id}`;
+            completedMap[key] = (completedMap[key] || 0) + 1;
+          }
+        }
+      }
+
+      for (const [assetId, contract] of Object.entries(activeContractMap)) {
+        const key = `${contract.id}_${assetId}`;
+        const completedVisits = completedMap[key] || 0;
+        const totalVisits = Number(contract.total_visits) || 0;
+
+        result[assetId] = {
+          id: contract.id,
+          contractNumber: contract.contract_number,
+          status: contract.status,
+          startDate: contract.start_date,
+          endDate: contract.end_date,
+          frequency: contract.frequency,
+          totalVisits,
+          completedVisits,
+          remainingVisits: Math.max(0, totalVisits - completedVisits),
+        };
+      }
+    } catch (err) {
+      logger.warn('Failed to resolve current AMC for assets', { err });
+    }
+
+    return result;
+  }
+
+  /**
    * Maps raw database record to standardized AcAssetResponse.
    */
-  private mapAssetRecord(record: RawAssetJoinRecord): AcAssetResponse {
+  private mapAssetRecord(
+    record: RawAssetJoinRecord,
+    currentAmc?: AssetCurrentAmcSummary | null
+  ): AcAssetResponse {
     const site = record.customer_sites;
     const customer = site?.customers;
 
@@ -133,8 +228,12 @@ export class AssetService {
       floorLocation: record.floor_location,
       roomLocation: record.room_location,
       refrigerantType: record.refrigerant_type,
-      warrantyStatus: record.warranty_status,
-      assetStatus: record.asset_status || 'Active',
+      warrantyStatus: calculateWarrantyStatus(
+        record.warranty_end_date,
+        record.warranty_start_date,
+        record.warranty_status
+      ),
+      assetStatus: record.asset_status || (record.is_active ? 'Active' : 'Temporarily Inactive'),
       assetCondition: record.asset_condition || 'Good',
       isActive: record.is_active,
       notes: record.notes,
@@ -143,6 +242,7 @@ export class AssetService {
       siteName: site?.site_name || null,
       customerName: customer?.name || null,
       customerCode: customer?.customer_code || null,
+      currentAmc: currentAmc !== undefined ? currentAmc : null,
     };
   }
 
@@ -201,8 +301,11 @@ export class AssetService {
       throw new BadRequestError(`Failed to list AC assets: ${error.message}`);
     }
 
+    const assetIds = (records || []).map((r) => r.id);
+    const amcMap = await this.resolveCurrentAmcForAssets(assetIds);
+
     const assets = (records || []).map((r) =>
-      this.mapAssetRecord(r as unknown as RawAssetJoinRecord)
+      this.mapAssetRecord(r as unknown as RawAssetJoinRecord, amcMap[r.id] || null)
     );
 
     const total = count || 0;
@@ -272,8 +375,11 @@ export class AssetService {
       throw new BadRequestError(`Failed to list site assets: ${error.message}`);
     }
 
+    const assetIds = (records || []).map((r) => r.id);
+    const amcMap = await this.resolveCurrentAmcForAssets(assetIds);
+
     const assets = (records || []).map((r) =>
-      this.mapAssetRecord(r as unknown as RawAssetJoinRecord)
+      this.mapAssetRecord(r as unknown as RawAssetJoinRecord, amcMap[r.id] || null)
     );
 
     const total = count || 0;
@@ -304,7 +410,101 @@ export class AssetService {
       throw new NotFoundError(`AC Asset with ID '${assetId}' not found`);
     }
 
-    return this.mapAssetRecord(data as unknown as RawAssetJoinRecord);
+    const amcMap = await this.resolveCurrentAmcForAssets([assetId]);
+    return this.mapAssetRecord(data as unknown as RawAssetJoinRecord, amcMap[assetId] || null);
+  }
+
+  /**
+   * Retrieves complete AMC contract history for an asset
+   */
+  public async getAssetAmcHistory(assetId: string): Promise<AssetAmcHistoryResponse> {
+    const supabase = getSupabaseClient();
+    const asset = await this.getAssetById(assetId);
+
+    const { data: coverageRows, error } = await supabase
+      .from('amc_assets')
+      .select(`
+        id,
+        created_at,
+        amc_contracts (
+          id,
+          contract_number,
+          status,
+          start_date,
+          end_date,
+          frequency,
+          total_amount,
+          total_visits,
+          previous_contract_id,
+          created_at,
+          customers (name)
+        )
+      `)
+      .eq('asset_id', assetId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error('Failed to fetch AMC history for asset', { error });
+      throw new BadRequestError('Failed to retrieve AMC history');
+    }
+
+    const contractIds = (coverageRows || [])
+      .map((r: any) => r.amc_contracts?.id)
+      .filter(Boolean);
+
+    // Fetch schedules stats for all historical contracts
+    let completedMap: Record<string, number> = {};
+    if (contractIds.length > 0) {
+      const { data: scheduleRows } = await supabase
+        .from('service_schedules')
+        .select('amc_id, status')
+        .in('amc_id', contractIds)
+        .eq('asset_id', assetId);
+
+      if (scheduleRows) {
+        for (const s of scheduleRows) {
+          if (['COMPLETED', 'RESOLVED'].includes(s.status)) {
+            completedMap[s.amc_id] = (completedMap[s.amc_id] || 0) + 1;
+          }
+        }
+      }
+    }
+
+    const history: AssetAmcHistoryItem[] = (coverageRows || [])
+      .map((row: any) => {
+        const c = row.amc_contracts;
+        if (!c) return null;
+        const customer = c.customers as { name: string } | null;
+        const totalVisits = Number(c.total_visits) || 0;
+        const completedVisits = completedMap[c.id] || 0;
+
+        return {
+          id: c.id,
+          contractNumber: c.contract_number,
+          status: c.status,
+          startDate: c.start_date,
+          endDate: c.end_date,
+          frequency: c.frequency,
+          totalAmount: Number(c.total_amount) || 0,
+          totalVisits,
+          completedVisits,
+          remainingVisits: Math.max(0, totalVisits - completedVisits),
+          previousContractId: c.previous_contract_id || null,
+          customerName: customer?.name || null,
+          createdAt: c.created_at,
+        };
+      })
+      .filter(Boolean) as AssetAmcHistoryItem[];
+
+    // Sort history by startDate desc
+    history.sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+    return {
+      assetId: asset.id,
+      assetTag: asset.assetTag,
+      currentAmc: asset.currentAmc || null,
+      history,
+    };
   }
 
   /**
