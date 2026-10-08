@@ -4,6 +4,31 @@ import { sendSuccess } from '../utils/apiResponse.js';
 import { AcAssetListQuery } from '../types/index.js';
 
 export class AssetController {
+  public async listAssets(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await assetService.listAssets(req.query as AcAssetListQuery);
+      sendSuccess(
+        res,
+        {
+          assets: result.assets,
+          total: result.total,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages,
+        },
+        200,
+        {
+          total: result.total,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalPages: result.totalPages,
+        }
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async listSiteAssets(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const siteId = req.params.siteId as string;
@@ -41,7 +66,7 @@ export class AssetController {
 
   public async createAcAsset(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const siteId = req.params.siteId as string;
+      const siteId = (req.params.siteId as string) || (req.body.siteId as string);
       const asset = await assetService.createAcAsset(
         siteId,
         req.body,

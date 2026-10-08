@@ -8,6 +8,7 @@ import { CustomerManagement } from '@/pages/CustomerManagement';
 import { ServiceRequestManagement } from '@/pages/ServiceRequestManagement';
 import { TechnicianManagement } from '@/pages/TechnicianManagement';
 import { AmcManagement } from '@/pages/AmcManagement';
+import { AcMasterManagement } from '@/pages/AcMasterManagement';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -247,6 +248,11 @@ const AuthenticatedApp: React.FC = () => {
         // Dedicated Phase 8 AMC & Preventive Maintenance (Admin & Staff)
         if (activeItem === 'amc') {
           return <AmcManagement onNavigate={onNavigate} />;
+        }
+
+        // AC Master Data Management (Admin)
+        if (activeItem === 'ac-master') {
+          return <AcMasterManagement onNavigate={onNavigate} />;
         }
 
         if (activeItem === 'phase-zero-review') {

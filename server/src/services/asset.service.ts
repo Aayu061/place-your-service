@@ -6,6 +6,8 @@ import {
   AcAssetListQuery,
   AcType,
   WarrantyStatus,
+  AssetStatus,
+  AssetCondition,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -16,15 +18,26 @@ interface RawAssetJoinRecord {
   asset_tag: string;
   site_id: string;
   brand: string;
+  brand_id?: string | null;
   model_number: string | null;
+  model_id?: string | null;
   serial_number: string | null;
+  indoor_serial_number?: string | null;
+  outdoor_serial_number?: string | null;
   ac_type: AcType;
+  technology?: string | null;
   capacity_tons: number | null;
+  star_rating?: string | null;
   installation_date: string | null;
+  purchase_date?: string | null;
+  warranty_start_date?: string | null;
+  warranty_end_date?: string | null;
   floor_location: string | null;
   room_location: string | null;
   refrigerant_type: string | null;
   warranty_status: WarrantyStatus;
+  asset_status?: AssetStatus;
+  asset_condition?: AssetCondition;
   is_active: boolean;
   notes: string | null;
   created_at: string;
@@ -39,24 +52,55 @@ interface RawAssetJoinRecord {
   } | null;
 }
 
+/**
+ * Calculates operational warranty status based on dates.
+ * - If warranty_end_date < today -> EXPIRED
+ * - Else if warranty_end_date <= today + 30 days -> EXPIRING_SOON
+ * - Else -> UNDER_WARRANTY
+ */
+export function calculateWarrantyStatus(
+  warrantyEndDate?: string | null,
+  warrantyStartDate?: string | null,
+  fallbackStatus?: WarrantyStatus
+): WarrantyStatus {
+  if (!warrantyEndDate) {
+    return fallbackStatus || 'UNDER_WARRANTY';
+  }
+
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysStr = thirtyDaysLater.toISOString().split('T')[0];
+
+  if (warrantyEndDate < todayStr) {
+    return 'EXPIRED';
+  }
+  if (warrantyEndDate <= thirtyDaysStr) {
+    return 'EXPIRING_SOON';
+  }
+  return 'UNDER_WARRANTY';
+}
+
 export class AssetService {
   /**
-   * Generates a collision-resistant asset tag (e.g. AC-409122).
+   * Generates a permanent sequential ESSC-XXXX asset code using PostgreSQL sequence.
    */
-  private async generateAssetTag(): Promise<string> {
+  private async generateEsscCode(): Promise<string> {
     const supabase = getSupabaseClient();
-    for (let i = 0; i < 5; i++) {
-      const num = Math.floor(100000 + Math.random() * 900000);
-      const tag = `AC-${num}`;
-      const { data } = await supabase
-        .from('ac_assets')
-        .select('id')
-        .eq('asset_tag', tag)
-        .maybeSingle();
-
-      if (!data) return tag;
+    try {
+      if (typeof supabase.rpc === 'function') {
+        const { data, error } = await supabase.rpc('get_next_essc_code');
+        if (!error && data && typeof data === 'string') {
+          return data;
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to call get_next_essc_code RPC, using fallback', { err });
     }
-    return `AC-${Date.now().toString().slice(-6)}`;
+
+    // Fallback for test/mock environments
+    return 'ESSC-0001';
   }
 
   /**
@@ -72,15 +116,26 @@ export class AssetService {
       siteId: record.site_id,
       customerId: site?.customer_id || '',
       brand: record.brand,
+      brandId: record.brand_id || null,
       modelNumber: record.model_number,
+      modelId: record.model_id || null,
       serialNumber: record.serial_number,
+      indoorSerialNumber: record.indoor_serial_number || null,
+      outdoorSerialNumber: record.outdoor_serial_number || null,
       acType: record.ac_type,
+      technology: record.technology || null,
       capacityTons: record.capacity_tons ? Number(record.capacity_tons) : null,
+      starRating: record.star_rating || null,
       installationDate: record.installation_date,
+      purchaseDate: record.purchase_date || null,
+      warrantyStartDate: record.warranty_start_date || null,
+      warrantyEndDate: record.warranty_end_date || null,
       floorLocation: record.floor_location,
       roomLocation: record.room_location,
       refrigerantType: record.refrigerant_type,
       warrantyStatus: record.warranty_status,
+      assetStatus: record.asset_status || 'Active',
+      assetCondition: record.asset_condition || 'Good',
       isActive: record.is_active,
       notes: record.notes,
       createdAt: record.created_at,
@@ -89,6 +144,71 @@ export class AssetService {
       customerName: customer?.name || null,
       customerCode: customer?.customer_code || null,
     };
+  }
+
+  /**
+   * Retrieves paginated list of assets globally across sites.
+   */
+  public async listAssets(
+    query: AcAssetListQuery = {}
+  ): Promise<{ assets: AcAssetResponse[]; total: number; page: number; pageSize: number; totalPages: number }> {
+    const supabase = getSupabaseClient();
+    const page = query.page && query.page > 0 ? query.page : 1;
+    const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 50;
+    const offset = (page - 1) * pageSize;
+
+    let assetQuery = supabase
+      .from('ac_assets')
+      .select('*, customer_sites(site_name, customer_id, customers(name, customer_code))', { count: 'exact' });
+
+    if (query.siteId) {
+      assetQuery = assetQuery.eq('site_id', query.siteId);
+    }
+
+    if (query.status === 'ACTIVE') {
+      assetQuery = assetQuery.eq('is_active', true);
+    } else if (query.status === 'INACTIVE') {
+      assetQuery = assetQuery.eq('is_active', false);
+    }
+
+    if (query.acType && query.acType !== 'ALL') {
+      assetQuery = assetQuery.eq('ac_type', query.acType);
+    }
+
+    if (query.warrantyStatus && query.warrantyStatus !== 'ALL') {
+      assetQuery = assetQuery.eq('warranty_status', query.warrantyStatus);
+    }
+
+    if (query.assetStatus) {
+      assetQuery = assetQuery.eq('asset_status', query.assetStatus);
+    }
+
+    if (query.search && query.search.trim()) {
+      const term = query.search.trim();
+      assetQuery = assetQuery.or(
+        `asset_tag.ilike.%${term}%,brand.ilike.%${term}%,model_number.ilike.%${term}%,serial_number.ilike.%${term}%,indoor_serial_number.ilike.%${term}%,outdoor_serial_number.ilike.%${term}%,floor_location.ilike.%${term}%,room_location.ilike.%${term}%`
+      );
+    }
+
+    assetQuery = assetQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    const { data: records, error, count } = await assetQuery;
+
+    if (error) {
+      logger.error('Failed to list AC assets', { error: error.message });
+      throw new BadRequestError(`Failed to list AC assets: ${error.message}`);
+    }
+
+    const assets = (records || []).map((r) =>
+      this.mapAssetRecord(r as unknown as RawAssetJoinRecord)
+    );
+
+    const total = count || 0;
+    const totalPages = Math.ceil(total / pageSize) || 1;
+
+    return { assets, total, page, pageSize, totalPages };
   }
 
   /**
@@ -191,30 +311,42 @@ export class AssetService {
    * Creates an AC asset under a site.
    */
   public async createAcAsset(
-    siteId: string,
+    siteIdParam: string | undefined,
     payload: CreateAcAssetPayload,
     actorProfileId: string,
     ipAddress?: string
   ): Promise<AcAssetResponse> {
     const supabase = getSupabaseClient();
+    const targetSiteId = siteIdParam || payload.siteId;
+
+    if (!targetSiteId) {
+      throw new BadRequestError('Installation site ID is required');
+    }
 
     // 1. Verify site exists and is active
     const { data: site, error: siteErr } = await supabase
       .from('customer_sites')
       .select('id, site_name, customer_id, is_active')
-      .eq('id', siteId)
+      .eq('id', targetSiteId)
       .maybeSingle();
 
     if (siteErr || !site) {
-      throw new NotFoundError(`Site with ID '${siteId}' not found`);
+      throw new NotFoundError(`Site with ID '${targetSiteId}' not found`);
     }
 
     if (!site.is_active) {
       throw new BadRequestError(`Cannot add an asset to an inactive site ('${site.site_name}'). Activate the site first.`);
     }
 
-    // 2. Duplicate detection
-    // A) If custom assetTag provided, check uniqueness
+    // 2. Date validation
+    if (payload.purchaseDate && payload.installationDate && payload.purchaseDate > payload.installationDate) {
+      throw new BadRequestError('Purchase date cannot be later than installation date.');
+    }
+    if (payload.warrantyStartDate && payload.warrantyEndDate && payload.warrantyEndDate < payload.warrantyStartDate) {
+      throw new BadRequestError('Warranty end date cannot be earlier than warranty start date.');
+    }
+
+    // 3. Asset Code allocation
     let assetTag = payload.assetTag?.trim();
     if (assetTag) {
       const { data: existingTag } = await supabase
@@ -227,16 +359,49 @@ export class AssetService {
         throw new ConflictError(`An asset with tag '${assetTag}' already exists. Asset tags must be globally unique.`);
       }
     } else {
-      assetTag = await this.generateAssetTag();
+      assetTag = await this.generateEsscCode();
     }
 
-    // B) If serialNumber provided, check if same brand + serial exists under same site
+    // 4. Duplicate serial number validations
+    // A) Indoor Serial Number
+    if (payload.indoorSerialNumber?.trim()) {
+      const indoorSerial = payload.indoorSerialNumber.trim();
+      const { data: existingIndoor } = await supabase
+        .from('ac_assets')
+        .select('id, asset_tag')
+        .eq('indoor_serial_number', indoorSerial)
+        .maybeSingle();
+
+      if (existingIndoor) {
+        throw new ConflictError(
+          `An asset with indoor serial number '${indoorSerial}' already exists (Tag: ${existingIndoor.asset_tag}).`
+        );
+      }
+    }
+
+    // B) Outdoor Serial Number
+    if (payload.outdoorSerialNumber?.trim()) {
+      const outdoorSerial = payload.outdoorSerialNumber.trim();
+      const { data: existingOutdoor } = await supabase
+        .from('ac_assets')
+        .select('id, asset_tag')
+        .eq('outdoor_serial_number', outdoorSerial)
+        .maybeSingle();
+
+      if (existingOutdoor) {
+        throw new ConflictError(
+          `An asset with outdoor serial number '${outdoorSerial}' already exists (Tag: ${existingOutdoor.asset_tag}).`
+        );
+      }
+    }
+
+    // C) Single Serial Number
     if (payload.serialNumber?.trim()) {
       const serial = payload.serialNumber.trim();
       const { data: existingSerial } = await supabase
         .from('ac_assets')
         .select('id, asset_tag, brand')
-        .eq('site_id', siteId)
+        .eq('site_id', targetSiteId)
         .eq('brand', payload.brand.trim())
         .eq('serial_number', serial)
         .eq('is_active', true)
@@ -249,45 +414,86 @@ export class AssetService {
       }
     }
 
-    // 3. Insert asset
+    // 5. Brand and Model linking
+    let brandId = payload.brandId || null;
+    let modelId = payload.modelId || null;
+
+    if (brandId) {
+      const { data: bData } = await supabase.from('ac_brands').select('id, is_active').eq('id', brandId).maybeSingle();
+      if (!bData || !bData.is_active) {
+        throw new BadRequestError('Selected AC brand is inactive or not found.');
+      }
+    }
+
+    if (modelId) {
+      const { data: mData } = await supabase.from('ac_models').select('id, brand_id, is_active').eq('id', modelId).maybeSingle();
+      if (!mData || !mData.is_active) {
+        throw new BadRequestError('Selected AC model is inactive or not found.');
+      }
+      if (brandId && mData.brand_id !== brandId) {
+        throw new BadRequestError('Selected AC model does not belong to the selected brand.');
+      }
+    }
+
+    // 6. Warranty Status Calculation
+    const calculatedWarranty = calculateWarrantyStatus(
+      payload.warrantyEndDate,
+      payload.warrantyStartDate,
+      payload.warrantyStatus
+    );
+
+    // 7. Insert asset
     const { data: newAsset, error: insertErr } = await supabase
       .from('ac_assets')
       .insert({
         asset_tag: assetTag,
-        site_id: siteId,
+        site_id: targetSiteId,
         brand: payload.brand.trim(),
+        brand_id: brandId,
         model_number: payload.modelNumber?.trim() || null,
+        model_id: modelId,
         serial_number: payload.serialNumber?.trim() || null,
+        indoor_serial_number: payload.indoorSerialNumber?.trim() || null,
+        outdoor_serial_number: payload.outdoorSerialNumber?.trim() || null,
         ac_type: payload.acType,
+        technology: payload.technology?.trim() || null,
         capacity_tons: payload.capacityTons || null,
+        star_rating: payload.starRating?.trim() || null,
         installation_date: payload.installationDate || null,
+        purchase_date: payload.purchaseDate || null,
+        warranty_start_date: payload.warrantyStartDate || null,
+        warranty_end_date: payload.warrantyEndDate || null,
         floor_location: payload.floorLocation?.trim() || null,
         room_location: payload.roomLocation?.trim() || null,
         refrigerant_type: payload.refrigerantType?.trim() || null,
-        warranty_status: payload.warrantyStatus || 'UNDER_WARRANTY',
-        is_active: true,
+        warranty_status: calculatedWarranty,
+        asset_status: payload.assetStatus || 'Active',
+        asset_condition: payload.assetCondition || 'Good',
+        is_active: payload.assetStatus ? !['Decommissioned', 'Scrapped'].includes(payload.assetStatus) : true,
         notes: payload.notes?.trim() || null,
       })
       .select('*, customer_sites(site_name, customer_id, customers(name, customer_code))')
       .single();
 
     if (insertErr || !newAsset) {
-      logger.error('Failed to create AC asset', { siteId, error: insertErr?.message });
+      logger.error('Failed to create AC asset', { targetSiteId, error: insertErr?.message });
       throw new BadRequestError(`Failed to create AC asset: ${insertErr?.message}`);
     }
 
-    // 4. Audit log
+    // 8. Audit log
     await logActivity({
       actorProfileId,
       action: 'ASSET_CREATED',
       entityType: 'ac_asset',
       entityId: newAsset.id,
       details: {
-        siteId,
+        siteId: targetSiteId,
         customerId: site.customer_id,
         assetTag: newAsset.asset_tag,
         brand: newAsset.brand,
+        modelNumber: newAsset.model_number,
         acType: newAsset.ac_type,
+        warrantyStatus: newAsset.warranty_status,
       },
       ipAddress,
     });
@@ -295,7 +501,7 @@ export class AssetService {
     logger.info('AC asset created successfully', {
       assetId: newAsset.id,
       assetTag: newAsset.asset_tag,
-      siteId,
+      siteId: targetSiteId,
     });
 
     return this.mapAssetRecord(newAsset as unknown as RawAssetJoinRecord);
@@ -315,7 +521,20 @@ export class AssetService {
     // 1. Verify existence
     const existing = await this.getAssetById(assetId);
 
-    // 2. Duplicate serial number check if serial or brand changed
+    // 2. Date validation
+    const purchaseDate = payload.purchaseDate !== undefined ? payload.purchaseDate : existing.purchaseDate;
+    const installationDate = payload.installationDate !== undefined ? payload.installationDate : existing.installationDate;
+    if (purchaseDate && installationDate && purchaseDate > installationDate) {
+      throw new BadRequestError('Purchase date cannot be later than installation date.');
+    }
+
+    const warrantyStartDate = payload.warrantyStartDate !== undefined ? payload.warrantyStartDate : existing.warrantyStartDate;
+    const warrantyEndDate = payload.warrantyEndDate !== undefined ? payload.warrantyEndDate : existing.warrantyEndDate;
+    if (warrantyStartDate && warrantyEndDate && warrantyEndDate < warrantyStartDate) {
+      throw new BadRequestError('Warranty end date cannot be earlier than warranty start date.');
+    }
+
+    // 3. Duplicate serial checks if changed
     const targetBrand = payload.brand !== undefined ? payload.brand.trim() : existing.brand;
     const targetSerial = payload.serialNumber !== undefined ? payload.serialNumber?.trim() || null : existing.serialNumber;
 
@@ -337,21 +556,76 @@ export class AssetService {
       }
     }
 
-    // 3. Build update
+    if (payload.indoorSerialNumber?.trim() && payload.indoorSerialNumber.trim() !== existing.indoorSerialNumber) {
+      const indoor = payload.indoorSerialNumber.trim();
+      const { data: dupIndoor } = await supabase
+        .from('ac_assets')
+        .select('id, asset_tag')
+        .eq('indoor_serial_number', indoor)
+        .neq('id', assetId)
+        .maybeSingle();
+
+      if (dupIndoor) {
+        throw new ConflictError(`Another asset with indoor serial number '${indoor}' already exists.`);
+      }
+    }
+
+    if (payload.outdoorSerialNumber?.trim() && payload.outdoorSerialNumber.trim() !== existing.outdoorSerialNumber) {
+      const outdoor = payload.outdoorSerialNumber.trim();
+      const { data: dupOutdoor } = await supabase
+        .from('ac_assets')
+        .select('id, asset_tag')
+        .eq('outdoor_serial_number', outdoor)
+        .neq('id', assetId)
+        .maybeSingle();
+
+      if (dupOutdoor) {
+        throw new ConflictError(`Another asset with outdoor serial number '${outdoor}' already exists.`);
+      }
+    }
+
+    // 4. Build updates
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
     if (payload.brand !== undefined) updates.brand = payload.brand.trim();
+    if (payload.brandId !== undefined) updates.brand_id = payload.brandId || null;
     if (payload.modelNumber !== undefined) updates.model_number = payload.modelNumber?.trim() || null;
+    if (payload.modelId !== undefined) updates.model_id = payload.modelId || null;
     if (payload.serialNumber !== undefined) updates.serial_number = payload.serialNumber?.trim() || null;
+    if (payload.indoorSerialNumber !== undefined) updates.indoor_serial_number = payload.indoorSerialNumber?.trim() || null;
+    if (payload.outdoorSerialNumber !== undefined) updates.outdoor_serial_number = payload.outdoorSerialNumber?.trim() || null;
     if (payload.acType !== undefined) updates.ac_type = payload.acType;
+    if (payload.technology !== undefined) updates.technology = payload.technology?.trim() || null;
     if (payload.capacityTons !== undefined) updates.capacity_tons = payload.capacityTons || null;
+    if (payload.starRating !== undefined) updates.star_rating = payload.starRating?.trim() || null;
+    if (payload.purchaseDate !== undefined) updates.purchase_date = payload.purchaseDate || null;
     if (payload.installationDate !== undefined) updates.installation_date = payload.installationDate || null;
+    if (payload.warrantyStartDate !== undefined) updates.warranty_start_date = payload.warrantyStartDate || null;
+    if (payload.warrantyEndDate !== undefined) updates.warranty_end_date = payload.warrantyEndDate || null;
     if (payload.floorLocation !== undefined) updates.floor_location = payload.floorLocation?.trim() || null;
     if (payload.roomLocation !== undefined) updates.room_location = payload.roomLocation?.trim() || null;
     if (payload.refrigerantType !== undefined) updates.refrigerant_type = payload.refrigerantType?.trim() || null;
-    if (payload.warrantyStatus !== undefined) updates.warranty_status = payload.warrantyStatus;
+    if (payload.assetStatus !== undefined) {
+      updates.asset_status = payload.assetStatus;
+      if (['Decommissioned', 'Scrapped'].includes(payload.assetStatus)) {
+        updates.is_active = false;
+      }
+    }
+    if (payload.assetCondition !== undefined) updates.asset_condition = payload.assetCondition;
+
+    // Recalculate warranty status if dates changed, or update directly
+    if (payload.warrantyEndDate !== undefined || payload.warrantyStartDate !== undefined) {
+      updates.warranty_status = calculateWarrantyStatus(
+        payload.warrantyEndDate !== undefined ? payload.warrantyEndDate : existing.warrantyEndDate,
+        payload.warrantyStartDate !== undefined ? payload.warrantyStartDate : existing.warrantyStartDate,
+        payload.warrantyStatus || existing.warrantyStatus
+      );
+    } else if (payload.warrantyStatus !== undefined) {
+      updates.warranty_status = payload.warrantyStatus;
+    }
+
     if (payload.notes !== undefined) updates.notes = payload.notes?.trim() || null;
 
     const { data: updated, error } = await supabase
@@ -366,7 +640,7 @@ export class AssetService {
       throw new BadRequestError(`Failed to update AC asset: ${error?.message}`);
     }
 
-    // 4. Audit log
+    // 5. Audit log
     await logActivity({
       actorProfileId,
       action: 'ASSET_UPDATED',

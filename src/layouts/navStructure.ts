@@ -68,6 +68,7 @@ export const NAV_STRUCTURE: NavGroupDef[] = [
     group: 'ADMIN AREA',
     adminOnly: true,
     items: [
+      { id: 'ac-master', label: 'AC Master Data', icon: Boxes, adminOnly: true },
       { id: 'staff', label: 'Staff Management', icon: ShieldCheck, adminOnly: true },
       { id: 'settings', label: 'Settings', icon: Settings, adminOnly: true },
     ],

@@ -32,6 +32,8 @@ import {
   AcAsset,
   AcType,
   WarrantyStatus,
+  AcBrand,
+  AcModel,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -41,6 +43,132 @@ import { Drawer } from '@/components/ui/Drawer';
 import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
+
+const FLOOR_OPTIONS = [
+  'Basement',
+  'Ground Floor',
+  '1st Floor',
+  '2nd Floor',
+  '3rd Floor',
+  '4th Floor',
+  '5th Floor',
+  'Terrace',
+  'Other',
+];
+
+const ROOM_OPTIONS = [
+  'Reception',
+  'Waiting Area',
+  'Manager Cabin',
+  'Director Cabin',
+  'Admin Office',
+  'HR Cabin',
+  'Accounts Department',
+  'Sales Department',
+  'Service Department',
+  'IT Room',
+  'Server Room',
+  'Conference Room',
+  'Meeting Room',
+  'Training Room',
+  'Staff Room',
+  'Pantry',
+  'Kitchen',
+  'Cafeteria',
+  'Customer Lounge',
+  'Showroom',
+  'Warehouse',
+  'Store Room',
+  'Workshop',
+  'Technician Room',
+  'Security Room',
+  'Lobby',
+  'Corridor',
+  'Bedroom',
+  'Living Room',
+  'Dining Room',
+  'Guest Room',
+  'Other',
+];
+
+const AC_TYPE_OPTIONS = [
+  'Split AC',
+  'Window AC',
+  'Cassette AC',
+  'Floor Standing AC',
+  'Tower AC',
+  'Ductable AC',
+  'Ceiling Suspended AC',
+  'Portable AC',
+  'Central AC',
+  'Package AC',
+  'VRF System',
+  'VRV System',
+  'AHU / FCU Connected System',
+  'Other',
+];
+
+const TECHNOLOGY_OPTIONS = [
+  'Inverter',
+  'Non-Inverter',
+  'Fixed Speed',
+  'Variable Speed',
+  'Unknown',
+];
+
+const RATING_OPTIONS = [
+  '5 Star',
+  '4 Star',
+  '3 Star',
+  '2 Star',
+  '1 Star',
+  'Not Rated',
+  'Unknown',
+];
+
+const REFRIGERANT_OPTIONS = [
+  'R32',
+  'R410A',
+  'R22',
+  'R290',
+  'Other',
+  'Unknown',
+];
+
+const ASSET_STATUS_OPTIONS = [
+  'Active',
+  'Under Service',
+  'Under Repair',
+  'Temporarily Inactive',
+  'Decommissioned',
+  'Replaced',
+  'Scrapped',
+];
+
+const ASSET_CONDITION_OPTIONS = [
+  'Excellent',
+  'Good',
+  'Fair',
+  'Needs Maintenance',
+  'Poor',
+  'Critical',
+];
+
+function computeLiveWarrantyStatus(_startDate?: string, endDate?: string): WarrantyStatus {
+  if (!endDate) return 'OUT_OF_WARRANTY';
+  const end = new Date(endDate);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const thirtyDaysLater = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  if (end < today) {
+    return 'EXPIRED';
+  } else if (end <= thirtyDaysLater) {
+    return 'EXPIRING_SOON';
+  } else {
+    return 'UNDER_WARRANTY';
+  }
+}
 
 interface CustomersApiResponse {
   customers: Customer[];
@@ -157,16 +285,46 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [viewingAsset, setViewingAsset] = useState<AcAsset | null>(null);
   const [assetFormSiteId, setAssetFormSiteId] = useState('');
   const [assetFormTag, setAssetFormTag] = useState('');
+  
+  // Master data & specs
+  const [availableBrands, setAvailableBrands] = useState<AcBrand[]>([]);
+  const [availableModels, setAvailableModels] = useState<AcModel[]>([]);
+  const [isLoadingMasterBrands, setIsLoadingMasterBrands] = useState(false);
+  const [isLoadingMasterModels, setIsLoadingMasterModels] = useState(false);
+  const [isModelSpecsLocked, setIsModelSpecsLocked] = useState(false);
+
   const [assetFormBrand, setAssetFormBrand] = useState('');
+  const [assetFormBrandId, setAssetFormBrandId] = useState('');
   const [assetFormModel, setAssetFormModel] = useState('');
-  const [assetFormSerial, setAssetFormSerial] = useState('');
-  const [assetFormType, setAssetFormType] = useState<AcType>('SPLIT');
+  const [assetFormModelId, setAssetFormModelId] = useState('');
+  const [assetFormType, setAssetFormType] = useState<AcType>('Split AC');
+  const [assetFormTechnology, setAssetFormTechnology] = useState('Inverter');
   const [assetFormCapacity, setAssetFormCapacity] = useState('1.5');
-  const [assetFormInstallDate, setAssetFormInstallDate] = useState('');
-  const [assetFormFloor, setAssetFormFloor] = useState('');
-  const [assetFormRoom, setAssetFormRoom] = useState('');
+  const [assetFormRating, setAssetFormRating] = useState('5 Star');
   const [assetFormRefrigerant, setAssetFormRefrigerant] = useState('R32');
+
+  // Serial numbers
+  const [assetFormSerial, setAssetFormSerial] = useState('');
+  const [assetFormIndoorSerial, setAssetFormIndoorSerial] = useState('');
+  const [assetFormOutdoorSerial, setAssetFormOutdoorSerial] = useState('');
+  const [assetFormHasSingleSerial, setAssetFormHasSingleSerial] = useState(false);
+
+  // Locations
+  const [assetFormFloor, setAssetFormFloor] = useState('Ground Floor');
+  const [assetFormCustomFloor, setAssetFormCustomFloor] = useState('');
+  const [assetFormRoom, setAssetFormRoom] = useState('Reception');
+  const [assetFormCustomRoom, setAssetFormCustomRoom] = useState('');
+
+  // Dates & Warranty
+  const [assetFormPurchaseDate, setAssetFormPurchaseDate] = useState('');
+  const [assetFormInstallDate, setAssetFormInstallDate] = useState('');
+  const [assetFormWarrantyStartDate, setAssetFormWarrantyStartDate] = useState('');
+  const [assetFormWarrantyEndDate, setAssetFormWarrantyEndDate] = useState('');
   const [assetFormWarranty, setAssetFormWarranty] = useState<WarrantyStatus>('UNDER_WARRANTY');
+
+  // Status & Lifecycle
+  const [assetFormStatus, setAssetFormStatus] = useState('Active');
+  const [assetFormCondition, setAssetFormCondition] = useState('Good');
   const [assetFormNotes, setAssetFormNotes] = useState('');
   const [assetFormError, setAssetFormError] = useState<string | null>(null);
   const [isSubmittingAsset, setIsSubmittingAsset] = useState<boolean>(false);
@@ -621,23 +779,113 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   };
 
   // AC Asset Operations
+  const loadAvailableBrands = useCallback(async () => {
+    setIsLoadingMasterBrands(true);
+    try {
+      const res = await apiClient.get<{ data?: { brands: AcBrand[] }; brands?: AcBrand[] }>('/ac-brands?activeOnly=true&pageSize=100');
+      const brandList = res.data?.brands || res.brands || [];
+      setAvailableBrands(brandList);
+    } catch {
+      setAvailableBrands([]);
+    } finally {
+      setIsLoadingMasterBrands(false);
+    }
+  }, []);
+
+  const handleBrandChange = async (selectedBrandVal: string) => {
+    const found = availableBrands.find((b) => b.id === selectedBrandVal || b.name === selectedBrandVal);
+    if (found) {
+      setAssetFormBrandId(found.id);
+      setAssetFormBrand(found.name);
+      setAssetFormModelId('');
+      setAssetFormModel('');
+      setIsModelSpecsLocked(false);
+
+      setIsLoadingMasterModels(true);
+      try {
+        const res = await apiClient.get<{ data?: { models: AcModel[] }; models?: AcModel[] }>(
+          `/ac-models?brandId=${found.id}&activeOnly=true&pageSize=100`
+        );
+        const modelList = res.data?.models || res.models || [];
+        setAvailableModels(modelList);
+      } catch {
+        setAvailableModels([]);
+      } finally {
+        setIsLoadingMasterModels(false);
+      }
+    } else {
+      setAssetFormBrandId('');
+      setAssetFormBrand(selectedBrandVal);
+      setAssetFormModelId('');
+      setAssetFormModel('');
+      setAvailableModels([]);
+      setIsModelSpecsLocked(false);
+    }
+  };
+
+  const handleModelChange = (selectedModelVal: string) => {
+    if (selectedModelVal === 'CUSTOM') {
+      setAssetFormModelId('');
+      setAssetFormModel('');
+      setIsModelSpecsLocked(false);
+      return;
+    }
+
+    const found = availableModels.find((m) => m.id === selectedModelVal || m.modelNumber === selectedModelVal);
+    if (found) {
+      setAssetFormModelId(found.id);
+      setAssetFormModel(found.modelNumber);
+      if (found.acType) setAssetFormType(found.acType as AcType);
+      if (found.technology) setAssetFormTechnology(found.technology);
+      if (found.capacityTons) setAssetFormCapacity(String(found.capacityTons));
+      if (found.rating) setAssetFormRating(found.rating);
+      if (found.refrigerant) setAssetFormRefrigerant(found.refrigerant);
+      setIsModelSpecsLocked(true);
+    } else {
+      setAssetFormModelId('');
+      setAssetFormModel(selectedModelVal);
+      setIsModelSpecsLocked(false);
+    }
+  };
+
   const openAddAssetModal = (defaultSiteId?: string) => {
     const targetSiteId = defaultSiteId || (sites.length > 0 ? sites[0].id : '');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const nextYearStr = nextYear.toISOString().split('T')[0];
+
     setAssetFormSiteId(targetSiteId);
     setAssetFormTag('');
     setAssetFormBrand('');
+    setAssetFormBrandId('');
     setAssetFormModel('');
+    setAssetFormModelId('');
     setAssetFormSerial('');
-    setAssetFormType('SPLIT');
+    setAssetFormIndoorSerial('');
+    setAssetFormOutdoorSerial('');
+    setAssetFormHasSingleSerial(false);
+    setAssetFormType('Split AC');
+    setAssetFormTechnology('Inverter');
     setAssetFormCapacity('1.5');
-    setAssetFormInstallDate(new Date().toISOString().split('T')[0]);
-    setAssetFormFloor('');
-    setAssetFormRoom('');
+    setAssetFormRating('5 Star');
     setAssetFormRefrigerant('R32');
+    setAssetFormFloor('Ground Floor');
+    setAssetFormCustomFloor('');
+    setAssetFormRoom('Reception');
+    setAssetFormCustomRoom('');
+    setAssetFormPurchaseDate(todayStr);
+    setAssetFormInstallDate(todayStr);
+    setAssetFormWarrantyStartDate(todayStr);
+    setAssetFormWarrantyEndDate(nextYearStr);
     setAssetFormWarranty('UNDER_WARRANTY');
+    setAssetFormStatus('Active');
+    setAssetFormCondition('Good');
     setAssetFormNotes('');
+    setIsModelSpecsLocked(false);
     setAssetFormError(null);
     setIsAddAssetModalOpen(true);
+    loadAvailableBrands();
   };
 
   const openEditAssetModal = (asset: AcAsset) => {
@@ -645,38 +893,85 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormSiteId(asset.siteId);
     setAssetFormTag(asset.assetTag);
     setAssetFormBrand(asset.brand);
+    setAssetFormBrandId(asset.brandId || '');
     setAssetFormModel(asset.modelNumber || '');
+    setAssetFormModelId(asset.modelId || '');
     setAssetFormSerial(asset.serialNumber || '');
+    setAssetFormIndoorSerial(asset.indoorSerialNumber || '');
+    setAssetFormOutdoorSerial(asset.outdoorSerialNumber || '');
+    setAssetFormHasSingleSerial(!!asset.serialNumber && !asset.indoorSerialNumber);
     setAssetFormType(asset.acType);
+    setAssetFormTechnology(asset.technology || 'Inverter');
     setAssetFormCapacity(asset.capacityTons ? String(asset.capacityTons) : '');
+    setAssetFormRating(asset.starRating || '5 Star');
     setAssetFormInstallDate(asset.installationDate || '');
-    setAssetFormFloor(asset.floorLocation || '');
-    setAssetFormRoom(asset.roomLocation || '');
+    setAssetFormPurchaseDate(asset.purchaseDate || '');
+    setAssetFormWarrantyStartDate(asset.warrantyStartDate || '');
+    setAssetFormWarrantyEndDate(asset.warrantyEndDate || '');
+    setAssetFormFloor(FLOOR_OPTIONS.includes(asset.floorLocation || '') ? asset.floorLocation! : (asset.floorLocation ? 'Other' : 'Ground Floor'));
+    setAssetFormCustomFloor(FLOOR_OPTIONS.includes(asset.floorLocation || '') ? '' : (asset.floorLocation || ''));
+    setAssetFormRoom(ROOM_OPTIONS.includes(asset.roomLocation || '') ? asset.roomLocation! : (asset.roomLocation ? 'Other' : 'Reception'));
+    setAssetFormCustomRoom(ROOM_OPTIONS.includes(asset.roomLocation || '') ? '' : (asset.roomLocation || ''));
     setAssetFormRefrigerant(asset.refrigerantType || 'R32');
     setAssetFormWarranty(asset.warrantyStatus);
+    setAssetFormStatus(asset.assetStatus || (asset.isActive ? 'Active' : 'Temporarily Inactive'));
+    setAssetFormCondition(asset.assetCondition || 'Good');
     setAssetFormNotes(asset.notes || '');
+    setIsModelSpecsLocked(false);
     setAssetFormError(null);
   };
 
   const handleCreateAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assetFormSiteId || !selectedCustomer) return;
+
+    if (assetFormPurchaseDate && assetFormInstallDate && assetFormPurchaseDate > assetFormInstallDate) {
+      setAssetFormError('Purchase date cannot be later than installation date.');
+      return;
+    }
+    if (assetFormWarrantyStartDate && assetFormWarrantyEndDate && assetFormWarrantyEndDate < assetFormWarrantyStartDate) {
+      setAssetFormError('Warranty end date cannot be earlier than warranty start date.');
+      return;
+    }
+
     setIsSubmittingAsset(true);
     setAssetFormError(null);
 
     try {
+      const isSingle =
+        assetFormType.toLowerCase().includes('window') ||
+        assetFormType.toLowerCase().includes('portable') ||
+        assetFormType.toLowerCase().includes('package') ||
+        assetFormHasSingleSerial;
+
+      const finalFloor = assetFormFloor === 'Other' && assetFormCustomFloor ? assetFormCustomFloor : assetFormFloor;
+      const finalRoom = assetFormRoom === 'Other' && assetFormCustomRoom ? assetFormCustomRoom : assetFormRoom;
+
       await apiClient.post<AssetApiResponse>(`/sites/${assetFormSiteId}/assets`, {
         assetTag: assetFormTag.trim() || undefined,
         brand: assetFormBrand.trim(),
+        brandId: assetFormBrandId || undefined,
         modelNumber: assetFormModel.trim() || undefined,
-        serialNumber: assetFormSerial.trim() || undefined,
+        modelId: assetFormModelId || undefined,
+        serialNumber: (isSingle ? assetFormSerial : (assetFormSerial || assetFormIndoorSerial)).trim() || undefined,
+        indoorSerialNumber: !isSingle ? assetFormIndoorSerial.trim() || undefined : undefined,
+        outdoorSerialNumber: !isSingle ? assetFormOutdoorSerial.trim() || undefined : undefined,
         acType: assetFormType,
+        technology: assetFormTechnology || undefined,
         capacityTons: assetFormCapacity ? parseFloat(assetFormCapacity) : undefined,
+        starRating: assetFormRating || undefined,
         installationDate: assetFormInstallDate || undefined,
-        floorLocation: assetFormFloor.trim() || undefined,
-        roomLocation: assetFormRoom.trim() || undefined,
+        purchaseDate: assetFormPurchaseDate || undefined,
+        warrantyStartDate: assetFormWarrantyStartDate || undefined,
+        warrantyEndDate: assetFormWarrantyEndDate || undefined,
+        floorLocation: finalFloor.trim() || undefined,
+        roomLocation: finalRoom.trim() || undefined,
         refrigerantType: assetFormRefrigerant.trim() || undefined,
-        warrantyStatus: assetFormWarranty,
+        warrantyStatus: assetFormWarrantyEndDate
+          ? computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate)
+          : assetFormWarranty,
+        assetStatus: assetFormStatus,
+        assetCondition: assetFormCondition,
         notes: assetFormNotes.trim() || undefined,
       });
 
@@ -695,21 +990,47 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const handleUpdateAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAsset || !selectedCustomer) return;
+
+    if (assetFormPurchaseDate && assetFormInstallDate && assetFormPurchaseDate > assetFormInstallDate) {
+      setAssetFormError('Purchase date cannot be later than installation date.');
+      return;
+    }
+    if (assetFormWarrantyStartDate && assetFormWarrantyEndDate && assetFormWarrantyEndDate < assetFormWarrantyStartDate) {
+      setAssetFormError('Warranty end date cannot be earlier than warranty start date.');
+      return;
+    }
+
     setIsSubmittingAsset(true);
     setAssetFormError(null);
 
     try {
+      const finalFloor = assetFormFloor === 'Other' && assetFormCustomFloor ? assetFormCustomFloor : assetFormFloor;
+      const finalRoom = assetFormRoom === 'Other' && assetFormCustomRoom ? assetFormCustomRoom : assetFormRoom;
+
       await apiClient.patch<AssetApiResponse>(`/assets/${editingAsset.id}`, {
         brand: assetFormBrand.trim(),
+        brandId: assetFormBrandId || null,
         modelNumber: assetFormModel.trim() || null,
+        modelId: assetFormModelId || null,
         serialNumber: assetFormSerial.trim() || null,
+        indoorSerialNumber: assetFormIndoorSerial.trim() || null,
+        outdoorSerialNumber: assetFormOutdoorSerial.trim() || null,
         acType: assetFormType,
+        technology: assetFormTechnology || null,
         capacityTons: assetFormCapacity ? parseFloat(assetFormCapacity) : null,
+        starRating: assetFormRating || null,
         installationDate: assetFormInstallDate || null,
-        floorLocation: assetFormFloor.trim() || null,
-        roomLocation: assetFormRoom.trim() || null,
+        purchaseDate: assetFormPurchaseDate || null,
+        warrantyStartDate: assetFormWarrantyStartDate || null,
+        warrantyEndDate: assetFormWarrantyEndDate || null,
+        floorLocation: finalFloor.trim() || null,
+        roomLocation: finalRoom.trim() || null,
         refrigerantType: assetFormRefrigerant.trim() || null,
-        warrantyStatus: assetFormWarranty,
+        warrantyStatus: assetFormWarrantyEndDate
+          ? computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate)
+          : assetFormWarranty,
+        assetStatus: assetFormStatus,
+        assetCondition: assetFormCondition,
         notes: assetFormNotes.trim() || null,
       });
 
@@ -2476,154 +2797,489 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         isOpen={isAddAssetModalOpen}
         onClose={() => setIsAddAssetModalOpen(false)}
         title="Register New AC Asset"
-        description="Add a physical AC unit to this customer's site register"
+        description="Add a physical AC unit to this customer's site register with permanent ESSC asset code"
       >
-        <form onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <form noValidate onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
           {assetFormError && (
             <div style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', fontSize: 'var(--text-xs)' }}>
               {assetFormError}
             </div>
           )}
 
+          {/* 1. BASIC INFORMATION */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              1. Basic Information
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Installation Site *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormSiteId}
+                  onChange={(e) => setAssetFormSiteId(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.siteName} {s.isPrimary ? '(PRIMARY)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Asset Tag / Code
+                  </label>
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-xs)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px dashed var(--border-default)',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>{assetFormTag || 'ESSC-XXXX'}</span>
+                    <Badge variant="neutral">Auto-generated on registration</Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Brand *
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormBrandId}
+                    onChange={(e) => handleBrandChange(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                  >
+                    <option value="">{isLoadingMasterBrands ? 'Loading brands...' : 'Select AC Brand...'}</option>
+                    {availableBrands.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">+ Other Brand</option>
+                  </select>
+                </div>
+              </div>
+
+              {assetFormBrandId === 'CUSTOM' && (
+                <Input
+                  label="Custom Brand Name *"
+                  placeholder="e.g. Daikin, Mitsubishi, LG"
+                  value={assetFormBrand}
+                  onChange={(e) => setAssetFormBrand(e.target.value)}
+                  required
+                />
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Model Number *
+                  </label>
+                  {assetFormBrandId === 'CUSTOM' ? (
+                    <Input
+                      label=""
+                      placeholder="e.g. FTKF50TV"
+                      value={assetFormModel}
+                      onChange={(e) => setAssetFormModel(e.target.value)}
+                      required
+                    />
+                  ) : (
+                    <select
+                      className="select"
+                      value={assetFormModelId}
+                      onChange={(e) => handleModelChange(e.target.value)}
+                      disabled={!assetFormBrandId || isLoadingMasterModels}
+                      required
+                      style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                    >
+                      <option value="">
+                        {isLoadingMasterModels
+                          ? 'Loading models...'
+                          : !assetFormBrandId
+                          ? 'Select brand first'
+                          : availableModels.length === 0
+                          ? 'No models available for this brand'
+                          : 'Select Model...'}
+                      </option>
+                      {availableModels.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.modelNumber} {m.capacityTons ? `• ${m.capacityTons} Ton` : ''}
+                        </option>
+                      ))}
+                      <option value="CUSTOM">+ Other Model</option>
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    AC Type * {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked from Master)</span>}
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormType}
+                    onChange={(e) => setAssetFormType(e.target.value as AcType)}
+                    disabled={isModelSpecsLocked}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-sm)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-default)',
+                      backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
+                    }}
+                  >
+                    {AC_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {assetFormModelId === 'CUSTOM' && (
+                <Input
+                  label="Custom Model Number *"
+                  placeholder="e.g. FTKF50TV"
+                  value={assetFormModel}
+                  onChange={(e) => setAssetFormModel(e.target.value)}
+                  required
+                />
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Technology {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormTechnology}
+                    onChange={(e) => setAssetFormTechnology(e.target.value)}
+                    disabled={isModelSpecsLocked}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-sm)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-default)',
+                      backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
+                    }}
+                  >
+                    {TECHNOLOGY_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Input
+                    label={`Capacity (Tons) ${isModelSpecsLocked ? '(Locked)' : ''}`}
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 1.5"
+                    value={assetFormCapacity}
+                    onChange={(e) => setAssetFormCapacity(e.target.value)}
+                    disabled={isModelSpecsLocked}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Rating {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormRating}
+                    onChange={(e) => setAssetFormRating(e.target.value)}
+                    disabled={isModelSpecsLocked}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-sm)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-default)',
+                      backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
+                    }}
+                  >
+                    {RATING_OPTIONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Refrigerant {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
+                </label>
+                <select
+                  className="select"
+                  value={assetFormRefrigerant}
+                  onChange={(e) => setAssetFormRefrigerant(e.target.value)}
+                  disabled={isModelSpecsLocked}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: 'var(--text-sm)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
+                  }}
+                >
+                  {REFRIGERANT_OPTIONS.map((ref) => (
+                    <option key={ref} value={ref}>
+                      {ref}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. UNIT IDENTIFICATION */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                2. Unit Identification
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <input
+                  type="checkbox"
+                  checked={assetFormHasSingleSerial}
+                  onChange={(e) => setAssetFormHasSingleSerial(e.target.checked)}
+                />
+                Single unit serial only
+              </label>
+            </div>
+
+            {assetFormType === 'Window AC' || assetFormType === 'Portable AC' || assetFormType === 'Package AC' || assetFormHasSingleSerial ? (
+              <Input
+                label="Serial Number *"
+                placeholder="e.g. SN-98214451"
+                value={assetFormSerial}
+                onChange={(e) => setAssetFormSerial(e.target.value)}
+                required
+              />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <Input
+                  label="Indoor Unit Serial Number *"
+                  placeholder="e.g. IDU-DKN-88192"
+                  value={assetFormIndoorSerial}
+                  onChange={(e) => setAssetFormIndoorSerial(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Outdoor Unit Serial Number *"
+                  placeholder="e.g. ODU-DKN-77312"
+                  value={assetFormOutdoorSerial}
+                  onChange={(e) => setAssetFormOutdoorSerial(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 3. LOCATION DETAILS */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              3. Location Details
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Floor Location *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormFloor}
+                  onChange={(e) => setAssetFormFloor(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {FLOOR_OPTIONS.map((fl) => (
+                    <option key={fl} value={fl}>
+                      {fl}
+                    </option>
+                  ))}
+                </select>
+                {assetFormFloor === 'Other' && (
+                  <Input
+                    label=""
+                    placeholder="Specify floor..."
+                    value={assetFormCustomFloor}
+                    onChange={(e) => setAssetFormCustomFloor(e.target.value)}
+                    required
+                    style={{ marginTop: '6px' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Room / Cabin Location *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormRoom}
+                  onChange={(e) => setAssetFormRoom(e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ROOM_OPTIONS.map((rm) => (
+                    <option key={rm} value={rm}>
+                      {rm}
+                    </option>
+                  ))}
+                </select>
+                {assetFormRoom === 'Other' && (
+                  <Input
+                    label=""
+                    placeholder="Specify room/cabin..."
+                    value={assetFormCustomRoom}
+                    onChange={(e) => setAssetFormCustomRoom(e.target.value)}
+                    required
+                    style={{ marginTop: '6px' }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. DATES & WARRANTY */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                4. Dates & Warranty
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Calculated Status:</span>
+                <Badge
+                  variant={
+                    computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'UNDER_WARRANTY'
+                      ? 'success'
+                      : computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'EXPIRING_SOON'
+                      ? 'warning'
+                      : computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'EXPIRED'
+                      ? 'danger'
+                      : 'neutral'
+                  }
+                >
+                  {computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate).replace('_', ' ')}
+                </Badge>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <Input
+                label="Purchase Date *"
+                type="date"
+                value={assetFormPurchaseDate}
+                onChange={(e) => setAssetFormPurchaseDate(e.target.value)}
+                required
+              />
+
+              <Input
+                label="Installation Date *"
+                type="date"
+                value={assetFormInstallDate}
+                onChange={(e) => setAssetFormInstallDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <Input
+                label="Warranty Start Date"
+                type="date"
+                value={assetFormWarrantyStartDate}
+                onChange={(e) => setAssetFormWarrantyStartDate(e.target.value)}
+              />
+
+              <Input
+                label="Warranty End Date"
+                type="date"
+                value={assetFormWarrantyEndDate}
+                onChange={(e) => setAssetFormWarrantyEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* 5. ASSET STATUS */}
           <div>
-            <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-              Installation Site *
-            </label>
-            <select
-              className="select"
-              value={assetFormSiteId}
-              onChange={(e) => setAssetFormSiteId(e.target.value)}
-              required
-              style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-            >
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.siteName} {s.isPrimary ? '(PRIMARY)' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Asset Tag / Code"
-              placeholder="e.g. AC-100201 (optional)"
-              value={assetFormTag}
-              onChange={(e) => setAssetFormTag(e.target.value)}
-            />
-
-            <Input
-              label="Brand *"
-              placeholder="Daikin, Voltas, LG, Carrier"
-              value={assetFormBrand}
-              onChange={(e) => setAssetFormBrand(e.target.value)}
-              required
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Model Number"
-              placeholder="e.g. FTKF50TV"
-              value={assetFormModel}
-              onChange={(e) => setAssetFormModel(e.target.value)}
-            />
-
-            <Input
-              label="Serial Number"
-              placeholder="e.g. DKN-982144"
-              value={assetFormSerial}
-              onChange={(e) => setAssetFormSerial(e.target.value)}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-                AC Type *
-              </label>
-              <select
-                className="select"
-                value={assetFormType}
-                onChange={(e) => setAssetFormType(e.target.value as AcType)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-              >
-                <option value="SPLIT">Split</option>
-                <option value="WINDOW">Window</option>
-                <option value="CASSETTE">Cassette</option>
-                <option value="PACKAGE">Package</option>
-                <option value="TOWER">Tower</option>
-                <option value="DUCTABLE">Ductable</option>
-                <option value="VRV_VRF">VRV / VRF</option>
-                <option value="OTHER">Other</option>
-              </select>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              5. Asset Status
             </div>
 
-            <Input
-              label="Capacity (Tons)"
-              type="number"
-              step="0.1"
-              placeholder="e.g. 1.5"
-              value={assetFormCapacity}
-              onChange={(e) => setAssetFormCapacity(e.target.value)}
-            />
-          </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Asset Status *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormStatus}
+                  onChange={(e) => setAssetFormStatus(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ASSET_STATUS_OPTIONS.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Floor Location"
-              placeholder="e.g. 2nd Floor"
-              value={assetFormFloor}
-              onChange={(e) => setAssetFormFloor(e.target.value)}
-            />
-
-            <Input
-              label="Room / Cabin Location"
-              placeholder="e.g. Server Room, Reception"
-              value={assetFormRoom}
-              onChange={(e) => setAssetFormRoom(e.target.value)}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Installation Date"
-              type="date"
-              value={assetFormInstallDate}
-              onChange={(e) => setAssetFormInstallDate(e.target.value)}
-            />
-
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-                Warranty Status
-              </label>
-              <select
-                className="select"
-                value={assetFormWarranty}
-                onChange={(e) => setAssetFormWarranty(e.target.value as WarrantyStatus)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-              >
-                <option value="UNDER_WARRANTY">Under Warranty</option>
-                <option value="AMC_COVERED">AMC Covered</option>
-                <option value="EXPIRED">Expired</option>
-                <option value="OUT_OF_WARRANTY">Out of Warranty</option>
-              </select>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Asset Condition *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormCondition}
+                  onChange={(e) => setAssetFormCondition(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ASSET_CONDITION_OPTIONS.map((cd) => (
+                    <option key={cd} value={cd}>
+                      {cd}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
+            <Textarea
+              label="Technical Notes"
+              placeholder="Specific piping details, outdoor unit location, service access requirements (optional)"
+              value={assetFormNotes}
+              onChange={(e) => setAssetFormNotes(e.target.value)}
+            />
           </div>
-
-          <Input
-            label="Refrigerant Gas"
-            placeholder="e.g. R32, R410A, R22"
-            value={assetFormRefrigerant}
-            onChange={(e) => setAssetFormRefrigerant(e.target.value)}
-          />
-
-          <Textarea
-            label="Technical Notes"
-            placeholder="Specific piping details, outdoor unit location, service access requirements"
-            value={assetFormNotes}
-            onChange={(e) => setAssetFormNotes(e.target.value)}
-          />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
             <Button variant="outline" onClick={() => setIsAddAssetModalOpen(false)} disabled={isSubmittingAsset}>
@@ -2641,111 +3297,324 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         isOpen={!!editingAsset}
         onClose={() => setEditingAsset(null)}
         title={`Edit AC Asset: ${editingAsset?.assetTag || ''}`}
-        description="Update specifications or warranty status"
+        description="Update specifications, serial numbers, warranty, or condition"
       >
-        <form onSubmit={handleUpdateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <form noValidate onSubmit={handleUpdateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
           {assetFormError && (
             <div style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', fontSize: 'var(--text-xs)' }}>
               {assetFormError}
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Brand *"
-              value={assetFormBrand}
-              onChange={(e) => setAssetFormBrand(e.target.value)}
-              required
-            />
+          {/* 1. BASIC SPECIFICATIONS */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              1. Basic Information
+            </div>
 
-            <Input
-              label="Model Number"
-              value={assetFormModel}
-              onChange={(e) => setAssetFormModel(e.target.value)}
-            />
-          </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <Input
+                label="Brand *"
+                value={assetFormBrand}
+                onChange={(e) => setAssetFormBrand(e.target.value)}
+                required
+              />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Serial Number"
-              value={assetFormSerial}
-              onChange={(e) => setAssetFormSerial(e.target.value)}
-            />
+              <Input
+                label="Model Number"
+                value={assetFormModel}
+                onChange={(e) => setAssetFormModel(e.target.value)}
+              />
+            </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-                AC Type
-              </label>
-              <select
-                className="select"
-                value={assetFormType}
-                onChange={(e) => setAssetFormType(e.target.value as AcType)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-              >
-                <option value="SPLIT">Split</option>
-                <option value="WINDOW">Window</option>
-                <option value="CASSETTE">Cassette</option>
-                <option value="PACKAGE">Package</option>
-                <option value="TOWER">Tower</option>
-                <option value="DUCTABLE">Ductable</option>
-                <option value="VRV_VRF">VRV / VRF</option>
-                <option value="OTHER">Other</option>
-              </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  AC Type *
+                </label>
+                <select
+                  className="select"
+                  value={assetFormType}
+                  onChange={(e) => setAssetFormType(e.target.value as AcType)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {AC_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Technology
+                </label>
+                <select
+                  className="select"
+                  value={assetFormTechnology}
+                  onChange={(e) => setAssetFormTechnology(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {TECHNOLOGY_OPTIONS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+              <Input
+                label="Capacity (Tons)"
+                type="number"
+                step="0.1"
+                value={assetFormCapacity}
+                onChange={(e) => setAssetFormCapacity(e.target.value)}
+              />
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Rating
+                </label>
+                <select
+                  className="select"
+                  value={assetFormRating}
+                  onChange={(e) => setAssetFormRating(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {RATING_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Refrigerant
+                </label>
+                <select
+                  className="select"
+                  value={assetFormRefrigerant}
+                  onChange={(e) => setAssetFormRefrigerant(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {REFRIGERANT_OPTIONS.map((ref) => (
+                    <option key={ref} value={ref}>
+                      {ref}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Capacity (Tons)"
-              type="number"
-              step="0.1"
-              value={assetFormCapacity}
-              onChange={(e) => setAssetFormCapacity(e.target.value)}
-            />
-
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-                Warranty Status
+          {/* 2. UNIT IDENTIFICATION */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                2. Unit Identification
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <input
+                  type="checkbox"
+                  checked={assetFormHasSingleSerial}
+                  onChange={(e) => setAssetFormHasSingleSerial(e.target.checked)}
+                />
+                Single serial only
               </label>
-              <select
-                className="select"
-                value={assetFormWarranty}
-                onChange={(e) => setAssetFormWarranty(e.target.value as WarrantyStatus)}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
-              >
-                <option value="UNDER_WARRANTY">Under Warranty</option>
-                <option value="AMC_COVERED">AMC Covered</option>
-                <option value="EXPIRED">Expired</option>
-                <option value="OUT_OF_WARRANTY">Out of Warranty</option>
-              </select>
+            </div>
+
+            {assetFormHasSingleSerial ? (
+              <Input
+                label="Serial Number"
+                value={assetFormSerial}
+                onChange={(e) => setAssetFormSerial(e.target.value)}
+              />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <Input
+                  label="Indoor Unit Serial Number"
+                  value={assetFormIndoorSerial}
+                  onChange={(e) => setAssetFormIndoorSerial(e.target.value)}
+                />
+                <Input
+                  label="Outdoor Unit Serial Number"
+                  value={assetFormOutdoorSerial}
+                  onChange={(e) => setAssetFormOutdoorSerial(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 3. LOCATION DETAILS */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              3. Location Details
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Floor Location
+                </label>
+                <select
+                  className="select"
+                  value={assetFormFloor}
+                  onChange={(e) => setAssetFormFloor(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {FLOOR_OPTIONS.map((fl) => (
+                    <option key={fl} value={fl}>
+                      {fl}
+                    </option>
+                  ))}
+                </select>
+                {assetFormFloor === 'Other' && (
+                  <Input
+                    label=""
+                    placeholder="Specify floor..."
+                    value={assetFormCustomFloor}
+                    onChange={(e) => setAssetFormCustomFloor(e.target.value)}
+                    style={{ marginTop: '6px' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Room / Cabin Location
+                </label>
+                <select
+                  className="select"
+                  value={assetFormRoom}
+                  onChange={(e) => setAssetFormRoom(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ROOM_OPTIONS.map((rm) => (
+                    <option key={rm} value={rm}>
+                      {rm}
+                    </option>
+                  ))}
+                </select>
+                {assetFormRoom === 'Other' && (
+                  <Input
+                    label=""
+                    placeholder="Specify room/cabin..."
+                    value={assetFormCustomRoom}
+                    onChange={(e) => setAssetFormCustomRoom(e.target.value)}
+                    style={{ marginTop: '6px' }}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Floor Location"
-              value={assetFormFloor}
-              onChange={(e) => setAssetFormFloor(e.target.value)}
-            />
+          {/* 4. DATES & WARRANTY */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                4. Dates & Warranty
+              </div>
+              <Badge
+                variant={
+                  computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'UNDER_WARRANTY'
+                    ? 'success'
+                    : computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'EXPIRING_SOON'
+                    ? 'warning'
+                    : computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate) === 'EXPIRED'
+                    ? 'danger'
+                    : 'neutral'
+                }
+              >
+                {computeLiveWarrantyStatus(assetFormWarrantyStartDate, assetFormWarrantyEndDate).replace('_', ' ')}
+              </Badge>
+            </div>
 
-            <Input
-              label="Room / Cabin Location"
-              value={assetFormRoom}
-              onChange={(e) => setAssetFormRoom(e.target.value)}
-            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <Input
+                label="Purchase Date"
+                type="date"
+                value={assetFormPurchaseDate}
+                onChange={(e) => setAssetFormPurchaseDate(e.target.value)}
+              />
+              <Input
+                label="Installation Date"
+                type="date"
+                value={assetFormInstallDate}
+                onChange={(e) => setAssetFormInstallDate(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <Input
+                label="Warranty Start Date"
+                type="date"
+                value={assetFormWarrantyStartDate}
+                onChange={(e) => setAssetFormWarrantyStartDate(e.target.value)}
+              />
+              <Input
+                label="Warranty End Date"
+                type="date"
+                value={assetFormWarrantyEndDate}
+                onChange={(e) => setAssetFormWarrantyEndDate(e.target.value)}
+              />
+            </div>
           </div>
 
-          <Input
-            label="Refrigerant Gas"
-            value={assetFormRefrigerant}
-            onChange={(e) => setAssetFormRefrigerant(e.target.value)}
-          />
+          {/* 5. ASSET STATUS & CONDITION */}
+          <div>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
+              5. Asset Status & Condition
+            </div>
 
-          <Textarea
-            label="Technical Notes"
-            value={assetFormNotes}
-            onChange={(e) => setAssetFormNotes(e.target.value)}
-          />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Asset Status
+                </label>
+                <select
+                  className="select"
+                  value={assetFormStatus}
+                  onChange={(e) => setAssetFormStatus(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ASSET_STATUS_OPTIONS.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                  Asset Condition
+                </label>
+                <select
+                  className="select"
+                  value={assetFormCondition}
+                  onChange={(e) => setAssetFormCondition(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                >
+                  {ASSET_CONDITION_OPTIONS.map((cd) => (
+                    <option key={cd} value={cd}>
+                      {cd}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <Textarea
+              label="Technical Notes"
+              value={assetFormNotes}
+              onChange={(e) => setAssetFormNotes(e.target.value)}
+            />
+          </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
             <Button variant="outline" onClick={() => setEditingAsset(null)} disabled={isSubmittingAsset}>
@@ -2766,16 +3635,34 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         description={`${viewingAsset?.brand || ''} ${viewingAsset?.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}`}
       >
         {viewingAsset && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
               <div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ASSET TAG</span>
                 <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--color-brand)' }}>{viewingAsset.assetTag}</div>
               </div>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <Badge variant={viewingAsset.warrantyStatus === 'UNDER_WARRANTY' ? 'success' : viewingAsset.warrantyStatus === 'AMC_COVERED' ? 'brand' : 'neutral'}>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                <Badge
+                  variant={
+                    viewingAsset.warrantyStatus === 'UNDER_WARRANTY'
+                      ? 'success'
+                      : viewingAsset.warrantyStatus === 'EXPIRING_SOON'
+                      ? 'warning'
+                      : viewingAsset.warrantyStatus === 'AMC_COVERED'
+                      ? 'brand'
+                      : viewingAsset.warrantyStatus === 'EXPIRED'
+                      ? 'danger'
+                      : 'neutral'
+                  }
+                >
                   {viewingAsset.warrantyStatus.replace('_', ' ')}
                 </Badge>
+                {viewingAsset.assetStatus && (
+                  <Badge variant="brand">{viewingAsset.assetStatus}</Badge>
+                )}
+                {viewingAsset.assetCondition && (
+                  <Badge variant="neutral">{viewingAsset.assetCondition}</Badge>
+                )}
                 <Badge variant={viewingAsset.isActive ? 'success' : 'neutral'}>
                   {viewingAsset.isActive ? 'Active' : 'Inactive'}
                 </Badge>
@@ -2784,23 +3671,44 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
               <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Brand & Type</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.brand} • {viewingAsset.acType}</div>
+                <div style={{ color: 'var(--text-muted)' }}>Brand & Model</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.brand} {viewingAsset.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}
+                </div>
               </div>
 
               <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Capacity</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Tons` : 'Not specified'}</div>
+                <div style={{ color: 'var(--text-muted)' }}>Type & Technology</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.acType} {viewingAsset.technology ? `• ${viewingAsset.technology}` : ''}
+                </div>
               </div>
 
               <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Serial Number</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.serialNumber || 'N/A'}</div>
+                <div style={{ color: 'var(--text-muted)' }}>Capacity & Rating</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Tons` : 'Capacity N/A'}
+                  {viewingAsset.starRating ? ` • ${viewingAsset.starRating}` : ''}
+                </div>
               </div>
 
               <div className="card" style={{ padding: 'var(--space-3)' }}>
                 <div style={{ color: 'var(--text-muted)' }}>Refrigerant Gas</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Standard'}</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Unknown'}</div>
+              </div>
+
+              <div className="card" style={{ padding: 'var(--space-3)' }}>
+                <div style={{ color: 'var(--text-muted)' }}>Indoor Serial Number</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.indoorSerialNumber || viewingAsset.serialNumber || 'N/A'}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 'var(--space-3)' }}>
+                <div style={{ color: 'var(--text-muted)' }}>Outdoor Serial Number</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.outdoorSerialNumber || 'N/A (Single Unit)'}
+                </div>
               </div>
 
               <div className="card" style={{ padding: 'var(--space-3)' }}>
@@ -2811,8 +3719,22 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               </div>
 
               <div className="card" style={{ padding: 'var(--space-3)' }}>
-                <div style={{ color: 'var(--text-muted)' }}>Installed On</div>
-                <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.installationDate || 'Not recorded'}</div>
+                <div style={{ color: 'var(--text-muted)' }}>Dates</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.purchaseDate ? `Purchased: ${viewingAsset.purchaseDate} • ` : ''}
+                  Installed: {viewingAsset.installationDate || 'N/A'}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: 'var(--space-3)', gridColumn: 'span 2' }}>
+                <div style={{ color: 'var(--text-muted)' }}>Warranty Coverage</div>
+                <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                  {viewingAsset.warrantyStartDate && viewingAsset.warrantyEndDate
+                    ? `${viewingAsset.warrantyStartDate} to ${viewingAsset.warrantyEndDate}`
+                    : viewingAsset.warrantyEndDate
+                    ? `Expires: ${viewingAsset.warrantyEndDate}`
+                    : 'No warranty dates registered'}
+                </div>
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import assetRouter from './asset.routes.js';
 import serviceRequestRouter from './serviceRequest.routes.js';
 import technicianRouter from './technician.routes.js';
 import { amcRouter } from './amc.routes.js';
+import { brandRouter, modelRouter } from './masterData.routes.js';
 
 const apiV1Router = Router();
 
@@ -24,6 +25,10 @@ apiV1Router.use('/customers', customerRouter);
 // Phase 5 Customer Sites & AC Asset Register Routes
 apiV1Router.use('/sites', siteRouter);
 apiV1Router.use('/assets', assetRouter);
+
+// AC Brand & Model Master Data Routes
+apiV1Router.use('/ac-brands', brandRouter);
+apiV1Router.use('/ac-models', modelRouter);
 
 // Phase 6 Service Request Management Routes
 apiV1Router.use('/service-requests', serviceRequestRouter);

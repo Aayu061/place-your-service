@@ -101,34 +101,77 @@ export type AcType =
   | 'TOWER'
   | 'DUCTABLE'
   | 'VRV_VRF'
-  | 'OTHER';
+  | 'FLOOR_STANDING'
+  | 'CEILING_SUSPENDED'
+  | 'PORTABLE'
+  | 'CENTRAL'
+  | 'OTHER'
+  | string;
 
 export type WarrantyStatus =
   | 'UNDER_WARRANTY'
+  | 'EXPIRING_SOON'
   | 'EXPIRED'
   | 'AMC_COVERED'
   | 'OUT_OF_WARRANTY';
 
+export interface AcBrand {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  modelCount?: number;
+}
+
+export interface AcModel {
+  id: string;
+  brandId: string;
+  brandName?: string | null;
+  brandCode?: string | null;
+  modelNumber: string;
+  acType: string | null;
+  technology: string | null;
+  capacityTons: number | null;
+  rating: string | null;
+  refrigerant: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AcAsset {
   id: string;
-  assetTag: string;
+  assetTag: string; // ESSC-XXXX
   assetCode?: string; // Compatibility alias
   internalCode?: string; // Compatibility alias
   qrCodeRef?: string;
   siteId: string;
   customerId?: string;
   brand: string;
+  brandId?: string | null;
   modelNumber?: string | null;
+  modelId?: string | null;
   serialNumber?: string | null;
+  indoorSerialNumber?: string | null;
+  outdoorSerialNumber?: string | null;
   acType: AcType;
+  technology?: string | null;
   capacityTons?: number | null;
   tonnageCapacity?: number; // Compatibility alias
+  starRating?: string | null;
   refrigerantType?: string | null;
   installationDate?: string | null;
+  purchaseDate?: string | null;
+  warrantyStartDate?: string | null;
+  warrantyEndDate?: string | null;
   floorLocation?: string | null;
   roomLocation?: string | null;
   locationDetails?: string; // Compatibility alias
   warrantyStatus: WarrantyStatus;
+  assetStatus?: string;
+  assetCondition?: string;
   isUnderWarranty?: boolean; // Compatibility alias
   warrantyValidUntil?: string;
   isActive: boolean;
