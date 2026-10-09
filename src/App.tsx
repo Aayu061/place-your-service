@@ -15,6 +15,7 @@ const TechnicianManagement = lazy(() => import('@/pages/TechnicianManagement').t
 const StaffManagement = lazy(() => import('@/pages/StaffManagement').then((m) => ({ default: m.StaffManagement })));
 const AcMasterManagement = lazy(() => import('@/pages/AcMasterManagement').then((m) => ({ default: m.AcMasterManagement })));
 const ServiceScheduleManagement = lazy(() => import('@/pages/ServiceScheduleManagement').then((m) => ({ default: m.ServiceScheduleManagement })));
+const ServiceReportsManagement = lazy(() => import('@/pages/ServiceReportsManagement').then((m) => ({ default: m.ServiceReportsManagement })));
 const PhaseZeroOverview = lazy(() => import('@/pages/PhaseZeroOverview').then((m) => ({ default: m.PhaseZeroOverview })));
 const ModuleShellPlaceholder = lazy(() => import('@/pages/ModuleShellPlaceholder').then((m) => ({ default: m.ModuleShellPlaceholder })));
 
@@ -288,6 +289,11 @@ const AuthenticatedApp: React.FC = () => {
           // Dedicated Phase 9 Service Schedule & Assignment (Admin & Staff)
           if (activeItem === 'service-schedule') {
             return <ServiceScheduleManagement onNavigate={onNavigate} />;
+          }
+
+          // Service Visit Report & Completion Management Module (Admin & Staff)
+          if (activeItem === 'service-reports') {
+            return <ServiceReportsManagement onNavigate={onNavigate} />;
           }
 
           // AC Master Data Management (Admin)

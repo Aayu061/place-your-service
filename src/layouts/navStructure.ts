@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -6,6 +5,7 @@ import {
   CalendarDays,
   HardHat,
   FileCheck2,
+  FileText,
   Package,
   Boxes,
   Receipt,
@@ -39,6 +39,7 @@ export const NAV_STRUCTURE: NavGroupDef[] = [
       { id: 'customers', label: 'Customers', icon: Users },
       { id: 'service-requests', label: 'Service Requests', icon: Wrench },
       { id: 'service-schedule', label: 'Service Schedule', icon: CalendarDays },
+      { id: 'service-reports', label: 'Service Reports', icon: FileText },
       { id: 'technicians', label: 'Technicians', icon: HardHat },
     ],
   },

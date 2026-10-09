@@ -748,3 +748,162 @@ export interface ScheduleFilterParams {
   pageSize?: number;
 }
 
+/* --------------------------------------------------
+ * 11. Service Visit Reports & Completion Module
+ * -------------------------------------------------- */
+
+export type ServiceVisitType = 'PREVENTIVE' | 'SERVICE_REQUEST';
+export type ServiceVisitOutcome = 'COMPLETED' | 'PENDING_PARTS' | 'PENDING_REPAIRS';
+
+export interface ServiceReportAsset {
+  id: string;
+  reportId: string;
+  assetId: string;
+  assetTag?: string | null;
+  brand?: string | null;
+  modelNumber?: string | null;
+  roomLocation?: string | null;
+  faultReported?: string | null;
+  diagnosisFindings?: string | null;
+  workPerformed?: string | null;
+  assetOutcome: ServiceVisitOutcome;
+  finalCondition?: string | null;
+  refrigerantAdded: boolean;
+  refrigerantQtyKg?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceReportItem {
+  id: string;
+  reportId: string;
+  assetId?: string | null;
+  assetTag?: string | null;
+  itemType: 'PART_REQUIRED' | 'REPAIR_REQUIRED';
+  itemName: string;
+  partNumber?: string | null;
+  quantity: number;
+  reason: string;
+  diagnosis?: string | null;
+  workCompleted?: string | null;
+  recommendedAction?: string | null;
+  isApprovalRequired: boolean;
+  isSpecialistRequired: boolean;
+  isRevisitRequired: boolean;
+  acCondition?: string | null;
+  followUpNotes?: string | null;
+  isResolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceVisitReport {
+  id: string;
+  reportNumber: string;
+  visitType: ServiceVisitType;
+  scheduleId: string;
+  scheduleNumber?: string | null;
+  serviceRequestId?: string | null;
+  serviceRequestNumber?: string | null;
+  amcId?: string | null;
+  amcContractNumber?: string | null;
+  pmObligationId?: string | null;
+  customerId: string;
+  customerName?: string | null;
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  siteId: string;
+  siteName?: string | null;
+  siteAddress?: string | null;
+  technicianId: string;
+  technicianName?: string | null;
+  technicianCode?: string | null;
+  technicianPhone?: string | null;
+  serviceDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  primaryOutcome: ServiceVisitOutcome;
+  workDescription?: string | null;
+  technicianRemarks?: string | null;
+  customerRepresentative?: string | null;
+  customerAcknowledgement?: string | null;
+  customerSignatureUrl?: string | null;
+  status: string;
+  followUpScheduleId?: string | null;
+  followUpScheduleNumber?: string | null;
+  assets: ServiceReportAsset[];
+  items: ServiceReportItem[];
+  createdBy?: string | null;
+  createdByName?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateServiceReportPayload {
+  reportNumber: string;
+  scheduleId: string;
+  visitType: ServiceVisitType;
+  serviceDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  primaryOutcome: ServiceVisitOutcome;
+  workDescription?: string | null;
+  technicianRemarks?: string | null;
+  customerRepresentative?: string | null;
+  customerAcknowledgement?: string | null;
+  customerSignatureUrl?: string | null;
+  assets: {
+    assetId: string;
+    faultReported?: string | null;
+    diagnosisFindings?: string | null;
+    workPerformed?: string | null;
+    assetOutcome: ServiceVisitOutcome;
+    finalCondition?: string | null;
+    refrigerantAdded?: boolean;
+    refrigerantQtyKg?: number | null;
+    notes?: string | null;
+  }[];
+  items?: {
+    assetId?: string | null;
+    itemType: 'PART_REQUIRED' | 'REPAIR_REQUIRED';
+    itemName: string;
+    partNumber?: string | null;
+    quantity?: number;
+    reason: string;
+    diagnosis?: string | null;
+    workCompleted?: string | null;
+    recommendedAction?: string | null;
+    isApprovalRequired?: boolean;
+    isSpecialistRequired?: boolean;
+    isRevisitRequired?: boolean;
+    acCondition?: string | null;
+    followUpNotes?: string | null;
+  }[];
+}
+
+export interface CreateFollowUpSchedulePayload {
+  scheduledDate: string;
+  startTime?: string;
+  endTime?: string;
+  durationMinutes?: number;
+  technicianId?: string;
+  notes?: string;
+}
+
+export interface ServiceReportFilterParams {
+  [key: string]: string | number | boolean | undefined;
+  search?: string;
+  visitType?: 'ALL' | ServiceVisitType;
+  outcome?: 'ALL' | ServiceVisitOutcome;
+  technicianId?: string;
+  customerId?: string;
+  siteId?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+

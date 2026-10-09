@@ -15,6 +15,8 @@ import {
   ShieldAlert,
   XCircle,
   MapPin,
+  FileText,
+  Printer,
 } from 'lucide-react';
 import {
   ServiceSchedule,
@@ -22,8 +24,12 @@ import {
   TechnicianRecommendationItem,
   UnscheduledWorkItem,
   CreateServiceSchedulePayload,
+  ServiceVisitReport,
 } from '@/domain/types';
 import { scheduleApi } from '@/services/scheduleApi';
+import { serviceReportApi } from '@/services/serviceReportApi';
+import { ServiceVisitReportModal } from '@/components/serviceReports/ServiceVisitReportModal';
+import { ServiceReportPrintView } from '@/components/serviceReports/ServiceReportPrintView';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -84,6 +90,13 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [detailSchedule, setDetailSchedule] = useState<ServiceSchedule | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
+
+  // Service Visit Report state
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [scheduleForReport, setScheduleForReport] = useState<ServiceSchedule | null>(null);
+  const [scheduleReportDetail, setScheduleReportDetail] = useState<ServiceVisitReport | null>(null);
+  const [isLoadingReportDetail, setIsLoadingReportDetail] = useState<boolean>(false);
+  const [reportToPrint, setReportToPrint] = useState<ServiceVisitReport | null>(null);
 
   // Schedule & Assign Modal state
   const [isAssignModalOpen, setIsAssignModalOpen] = useState<boolean>(false);
@@ -192,6 +205,8 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   // Load schedule details when drawer opens
   const openDetailDrawer = async (scheduleId: string) => {
     setSelectedScheduleId(scheduleId);
+    setDetailSchedule(null);
+    setScheduleReportDetail(null);
     try {
       setIsLoadingDetail(true);
       const res = await scheduleApi.getScheduleById(scheduleId);
@@ -200,6 +215,17 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       showToast({ type: 'error', title: 'Error', message: getErrorMessage(err, 'Failed to load schedule details') });
     } finally {
       setIsLoadingDetail(false);
+    }
+
+    // Check for linked service visit report asynchronously
+    try {
+      setIsLoadingReportDetail(true);
+      const repRes = await serviceReportApi.getReportByScheduleId(scheduleId);
+      setScheduleReportDetail(repRes?.report || null);
+    } catch {
+      setScheduleReportDetail(null);
+    } finally {
+      setIsLoadingReportDetail(false);
     }
   };
 
@@ -846,6 +872,21 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                       <UserCheck style={{ width: '14px', height: '14px' }} />
                       {schedule.technicianId ? 'Reassign' : 'Assign'}
                     </Button>
+
+                    {(schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setScheduleForReport(schedule);
+                          setIsReportModalOpen(true);
+                        }}
+                        title="Create / Record Visit Report"
+                      >
+                        <FileText style={{ width: '14px', height: '14px' }} />
+                        Report
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -996,7 +1037,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                       </td>
                       <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
-                          <Button variant="secondary" size="sm" onClick={() => openDetailDrawer(schedule.id)}>
+                          <Button variant="secondary" size="sm" onClick={() => openDetailDrawer(schedule.id)} title="View Details">
                             <Eye style={{ width: '14px', height: '14px' }} />
                           </Button>
                           <Button
@@ -1007,6 +1048,19 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                           >
                             <UserCheck style={{ width: '14px', height: '14px' }} />
                           </Button>
+                          {(schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setScheduleForReport(schedule);
+                                setIsReportModalOpen(true);
+                              }}
+                              title="Create / Record Visit Report"
+                            >
+                              <FileText style={{ width: '14px', height: '14px' }} />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1814,6 +1868,78 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               </div>
             )}
 
+            {/* Service Visit Report Section */}
+            <div className="card" style={{ padding: 'var(--space-4)', border: scheduleReportDetail ? '1px solid var(--color-brand)' : undefined }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  SERVICE VISIT REPORT & COMPLETION
+                </div>
+                {scheduleReportDetail && (
+                  <Badge variant={scheduleReportDetail.primaryOutcome === 'COMPLETED' ? 'success' : scheduleReportDetail.primaryOutcome === 'PENDING_PARTS' ? 'warning' : 'danger'}>
+                    {scheduleReportDetail.primaryOutcome.replace('_', ' ')}
+                  </Badge>
+                )}
+              </div>
+
+              {isLoadingReportDetail ? (
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Checking report status...</div>
+              ) : scheduleReportDetail ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>Report Number:</strong>{' '}
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-brand)' }}>
+                        #{scheduleReportDetail.reportNumber}
+                      </span>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setReportToPrint(scheduleReportDetail)}
+                    >
+                      <Printer style={{ width: '14px', height: '14px' }} className="mr-1" />
+                      Print / PDF
+                    </Button>
+                  </div>
+
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Reported Date: {formatDate(scheduleReportDetail.serviceDate)} ({scheduleReportDetail.startTime || ''} – {scheduleReportDetail.endTime || ''})
+                  </div>
+
+                  {scheduleReportDetail.workDescription && (
+                    <div style={{ fontSize: 'var(--text-xs)', backgroundColor: 'var(--bg-canvas)', padding: 'var(--space-2)', borderRadius: 'var(--radius-sm)' }}>
+                      <strong>Summary:</strong> {scheduleReportDetail.workDescription}
+                    </div>
+                  )}
+
+                  {scheduleReportDetail.followUpScheduleId && (
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-brand)', fontWeight: 600 }}>
+                      Follow-up Revisit Scheduled: #{scheduleReportDetail.followUpScheduleNumber || scheduleReportDetail.followUpScheduleId}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    No service visit report recorded yet.
+                  </div>
+                  {(detailSchedule.technicianId || detailSchedule.status === 'ASSIGNED' || detailSchedule.status === 'IN_PROGRESS' || detailSchedule.status === 'COMPLETED') && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setScheduleForReport(detailSchedule);
+                        setIsReportModalOpen(true);
+                      }}
+                    >
+                      <FileText style={{ width: '14px', height: '14px' }} className="mr-1" />
+                      Create Visit Report
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Actions Footer in Drawer */}
             <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', paddingTop: 'var(--space-2)' }}>
               <Button
@@ -1839,6 +1965,32 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
           </div>
         )}
       </Drawer>
+
+      {/* 10. Service Visit Report Modal */}
+      {scheduleForReport && (
+        <ServiceVisitReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setScheduleForReport(null);
+          }}
+          schedule={scheduleForReport}
+          onSuccess={() => {
+            fetchSchedules();
+            if (selectedScheduleId) {
+              openDetailDrawer(selectedScheduleId);
+            }
+          }}
+        />
+      )}
+
+      {/* 11. Service Visit Report Print View */}
+      {reportToPrint && (
+        <ServiceReportPrintView
+          report={reportToPrint}
+          onClose={() => setReportToPrint(null)}
+        />
+      )}
     </div>
   );
 };

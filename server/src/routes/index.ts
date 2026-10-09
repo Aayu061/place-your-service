@@ -10,6 +10,7 @@ import technicianRouter from './technician.routes.js';
 import { amcRouter } from './amc.routes.js';
 import { brandRouter, modelRouter, variantRouter } from './masterData.routes.js';
 import scheduleRouter from './schedule.routes.js';
+import serviceReportRouter from './serviceReport.routes.js';
 
 const apiV1Router = Router();
 
@@ -43,6 +44,9 @@ apiV1Router.use('/amc-contracts', amcRouter);
 
 // Phase 9 Scheduling & Technician Assignment Routes
 apiV1Router.use('/service-schedules', scheduleRouter);
+
+// Service Visit Reports & Completion Management Routes
+apiV1Router.use('/service-reports', serviceReportRouter);
 
 export default apiV1Router;
 
