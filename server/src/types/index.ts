@@ -1236,6 +1236,13 @@ export interface ServiceVisitReportResponse {
   updatedAt: string;
 }
 
+export interface ServiceReportSummaryCounts {
+  total: number;
+  completed: number;
+  pendingParts: number;
+  pendingRepairs: number;
+}
+
 export interface ServiceReportListQuery {
   search?: string;
   visitType?: 'ALL' | ServiceVisitType;

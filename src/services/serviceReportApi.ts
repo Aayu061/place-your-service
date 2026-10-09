@@ -4,6 +4,7 @@ import {
   CreateServiceReportPayload,
   CreateFollowUpSchedulePayload,
   ServiceReportFilterParams,
+  ServiceReportSummaryCounts,
 } from '@/domain/types';
 
 export interface ServiceReportsListResponse {
@@ -12,6 +13,7 @@ export interface ServiceReportsListResponse {
   page: number;
   pageSize: number;
   totalPages: number;
+  summary?: ServiceReportSummaryCounts;
 }
 
 export const serviceReportApi = {

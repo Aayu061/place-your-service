@@ -8,6 +8,7 @@ import {
   ServiceReportListQuery,
   CreateFollowUpSchedulePayload,
   ServiceVisitOutcome,
+  ServiceReportSummaryCounts,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -264,7 +265,24 @@ export class ServiceReportService {
       })
       .eq('id', schedule.id);
 
-    // 9b. Update Service Request (if applicable) preserving workflow stages:
+    // 9b. If linked to an AMC PM obligation (distinct from current appointment), synchronize it to COMPLETED
+    if (
+      schedule.pm_obligation_id &&
+      schedule.pm_obligation_id !== schedule.id &&
+      payload.primaryOutcome === 'COMPLETED'
+    ) {
+      await supabase
+        .from('service_schedules')
+        .update({
+          status: 'COMPLETED',
+          notes: `Completed by Visit Report #${trimmedReportNumber}`,
+          updated_by: actorId || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schedule.pm_obligation_id);
+    }
+
+    // 9c. Update Service Request (if applicable) preserving workflow stages:
     // COMPLETED -> RESOLVED (does not skip PAYMENT/CLOSED!)
     // PENDING_PARTS -> AWAITING_PARTS
     // PENDING_REPAIRS -> REVISIT_REQUIRED
@@ -479,6 +497,7 @@ export class ServiceReportService {
     page: number;
     pageSize: number;
     totalPages: number;
+    summary: ServiceReportSummaryCounts;
   }> {
     const supabase = getSupabaseClient();
     const page = query.page || 1;
@@ -597,7 +616,40 @@ export class ServiceReportService {
       updatedAt: row.updated_at,
     }));
 
-    return { reports, total, page, pageSize, totalPages };
+    // Server-wide aggregate counts
+    let totalAll = total;
+    let completedAll = 0;
+    let pendingPartsAll = 0;
+    let pendingRepairsAll = 0;
+
+    try {
+      const [
+        { count: cTotal },
+        { count: cCompleted },
+        { count: cParts },
+        { count: cRepairs },
+      ] = await Promise.all([
+        supabase.from('service_reports').select('id', { count: 'exact', head: true }),
+        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'COMPLETED'),
+        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'PENDING_PARTS'),
+        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'PENDING_REPAIRS'),
+      ]);
+      totalAll = cTotal ?? total;
+      completedAll = cCompleted ?? 0;
+      pendingPartsAll = cParts ?? 0;
+      pendingRepairsAll = cRepairs ?? 0;
+    } catch {
+      // Keep fallbacks
+    }
+
+    const summary: ServiceReportSummaryCounts = {
+      total: totalAll,
+      completed: completedAll,
+      pendingParts: pendingPartsAll,
+      pendingRepairs: pendingRepairsAll,
+    };
+
+    return { reports, total, page, pageSize, totalPages, summary };
   }
 
   /**

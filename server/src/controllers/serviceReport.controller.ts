@@ -35,6 +35,7 @@ export class ServiceReportController {
           page: result.page,
           pageSize: result.pageSize,
           totalPages: result.totalPages,
+          summary: result.summary,
         },
         200,
         {

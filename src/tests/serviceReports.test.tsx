@@ -14,6 +14,7 @@ import {
   ServiceVisitReport,
   ServiceSchedule,
 } from '@/domain/types';
+import { ApiError } from '@/services/api/client';
 
 describe('Service Visit Reports & Completion Management Frontend Suite', () => {
   beforeEach(() => {
@@ -422,6 +423,277 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(container.textContent).toContain('DK-OFM-45');
     expect(container.textContent).toContain('Technician Signature');
     expect(container.textContent).toContain('Customer / Client Sign-off');
+
+    unmount();
+  });
+
+  it('7. ServiceVisitReportModal immediately clears stale error notice when user types report number', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    // 1. Submit empty -> triggers validation notice
+    await act(async () => {
+      submitBtn?.click();
+    });
+    expect(container.textContent).toContain('Manual report number is mandatory');
+
+    // 2. Type valid report number -> error notice MUST be immediately cleared!
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+
+    await act(async () => {
+      setInputValue(reportNumInput, 'SVR-2026-NEW');
+    });
+
+    // The stale validation notice MUST NOT be present on the screen
+    expect(container.textContent).not.toContain('Manual report number is mandatory');
+
+    unmount();
+  });
+
+  it('8. ServiceVisitReportModal validates that visit end time must be after start time', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      setInputValue(reportNumInput, 'SVR-2026-TIME');
+    });
+
+    // Set invalid time range: end 08:00 is earlier than start 10:00
+    const timeInputs = container.querySelectorAll('input[type="time"]');
+    expect(timeInputs.length).toBeGreaterThanOrEqual(2);
+    const startTimeInput = timeInputs[0] as HTMLInputElement;
+    const endTimeInput = timeInputs[1] as HTMLInputElement;
+
+    await act(async () => {
+      setInputValue(startTimeInput, '10:00');
+      setInputValue(endTimeInput, '08:00');
+    });
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(container.textContent).toContain('End time must be after start time');
+
+    // Fixing end time clears error
+    await act(async () => {
+      setInputValue(endTimeInput, '12:00');
+    });
+    expect(container.textContent).not.toContain('End time must be after start time');
+
+    unmount();
+  });
+
+  it('9. ServiceVisitReportModal handles 409 duplicate report number without losing entered data', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    vi.spyOn(serviceReportApi, 'createReport').mockRejectedValue(
+      new ApiError(409, 'CONFLICT', 'Report number already exists')
+    );
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    const workInput = container.querySelector(
+      'input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]'
+    ) as HTMLInputElement;
+
+    await act(async () => {
+      setInputValue(reportNumInput, 'SVR-2026-DUPLICATE');
+      setInputValue(workInput, 'Tested compressor amperage and jet cleaned blower.');
+    });
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    // Should display conflict notice
+    expect(container.textContent).toContain('already exists');
+    // Modal must NOT close on error
+    expect(handleClose).not.toHaveBeenCalled();
+    // Entered data must NOT be cleared!
+    expect(reportNumInput.value).toBe('SVR-2026-DUPLICATE');
+    expect(workInput.value).toBe('Tested compressor amperage and jet cleaned blower.');
+
+    unmount();
+  });
+
+  it('10. ServiceVisitReportModal validates Pending for Parts required fields', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Switch to Pending for Parts
+    const pendingPartsCard = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Pending for Parts')
+    );
+    expect(pendingPartsCard).toBeDefined();
+
+    await act(async () => {
+      pendingPartsCard?.click();
+    });
+
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      setInputValue(reportNumInput, 'SVR-2026-PARTS');
+    });
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    // Submitting without part name & reason should show validation error
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(container.textContent).toContain('All required part items must have a Part Name and Reason');
+
+    unmount();
+  });
+
+  it('11. ServiceVisitReportModal validates Pending for Repairs required fields', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Switch to Pending for Repairs
+    const pendingRepairsCard = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Pending for Repairs')
+    );
+    expect(pendingRepairsCard).toBeDefined();
+
+    await act(async () => {
+      pendingRepairsCard?.click();
+    });
+
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      setInputValue(reportNumInput, 'SVR-2026-REPAIRS');
+    });
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(container.textContent).toContain('All repair items must have a Fault/Repair Description');
+
+    unmount();
+  });
+
+  it('12. ServiceReportsManagement displays server summary KPI counts and resets filters', async () => {
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [mockCompletedReport, mockPendingPartsReport],
+      total: 50,
+      page: 1,
+      pageSize: 15,
+      totalPages: 4,
+      summary: {
+        total: 50,
+        completed: 35,
+        pendingParts: 10,
+        pendingRepairs: 5,
+      },
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    expect(container.textContent).toContain('50');
+    expect(container.textContent).toContain('35');
+    expect(container.textContent).toContain('10');
+    expect(container.textContent).toContain('5');
+
+    // Filter controls exist
+    const searchInput = container.querySelector('input[placeholder*="Search by Report #"]') as HTMLInputElement;
+    expect(searchInput).toBeDefined();
+
+    await act(async () => {
+      setInputValue(searchInput, 'SVR-2026');
+    });
+    expect(searchInput.value).toBe('SVR-2026');
+
+    // Reset button clears filter
+    const resetBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Reset')
+    );
+    expect(resetBtn).toBeDefined();
+
+    await act(async () => {
+      resetBtn?.click();
+    });
+
+    expect(searchInput.value).toBe('');
 
     unmount();
   });

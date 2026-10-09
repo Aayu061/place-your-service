@@ -841,6 +841,13 @@ export interface ServiceVisitReport {
   updatedAt: string;
 }
 
+export interface ServiceReportSummaryCounts {
+  total: number;
+  completed: number;
+  pendingParts: number;
+  pendingRepairs: number;
+}
+
 export interface CreateServiceReportPayload {
   reportNumber: string;
   scheduleId: string;

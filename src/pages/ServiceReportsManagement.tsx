@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Search,
@@ -9,15 +9,21 @@ import {
   Wrench,
   Package,
   CheckCircle,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  RotateCcw,
+  X,
+  Building,
+  User,
 } from 'lucide-react';
 import {
   ServiceVisitReport,
   ServiceVisitType,
   ServiceVisitOutcome,
   CreateFollowUpSchedulePayload,
+  ServiceReportSummaryCounts,
 } from '@/domain/types';
 import { serviceReportApi } from '@/services/serviceReportApi';
 import { Button } from '@/components/ui/Button';
@@ -44,12 +50,30 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
+  // Server-wide KPI Summary Counts
+  const [summaryStats, setSummaryStats] = useState<ServiceReportSummaryCounts>({
+    total: 0,
+    completed: 0,
+    pendingParts: 0,
+    pendingRepairs: 0,
+  });
+
   // Filters
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [visitTypeFilter, setVisitTypeFilter] = useState<'ALL' | ServiceVisitType>('ALL');
   const [outcomeFilter, setOutcomeFilter] = useState<'ALL' | ServiceVisitOutcome>('ALL');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Drawer / View / Print State
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -70,7 +94,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     try {
       setIsLoading(true);
       const res = await serviceReportApi.getReports({
-        search: searchTerm.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         visitType: visitTypeFilter !== 'ALL' ? visitTypeFilter : undefined,
         outcome: outcomeFilter !== 'ALL' ? outcomeFilter : undefined,
         startDate: startDateFilter || undefined,
@@ -82,13 +106,33 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       setReports(res.reports || []);
       setTotalCount(res.total || 0);
       setTotalPages(res.totalPages || 1);
+
+      if (res.summary) {
+        setSummaryStats(res.summary);
+      } else {
+        // Fallback calculation
+        let completed = 0;
+        let parts = 0;
+        let repairs = 0;
+        (res.reports || []).forEach((r) => {
+          if (r.primaryOutcome === 'COMPLETED') completed++;
+          if (r.primaryOutcome === 'PENDING_PARTS') parts++;
+          if (r.primaryOutcome === 'PENDING_REPAIRS') repairs++;
+        });
+        setSummaryStats({
+          total: res.total || 0,
+          completed,
+          pendingParts: parts,
+          pendingRepairs: repairs,
+        });
+      }
     } catch {
       showToast({ type: 'error', title: 'Error', message: 'Failed to load service reports' });
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [searchTerm, visitTypeFilter, outcomeFilter, startDateFilter, endDateFilter, page, pageSize, showToast]);
+  }, [debouncedSearch, visitTypeFilter, outcomeFilter, startDateFilter, endDateFilter, page, pageSize, showToast]);
 
   useEffect(() => {
     fetchReports();
@@ -98,6 +142,23 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     setIsRefreshing(true);
     fetchReports();
   };
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setDebouncedSearch('');
+    setVisitTypeFilter('ALL');
+    setOutcomeFilter('ALL');
+    setStartDateFilter('');
+    setEndDateFilter('');
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    Boolean(searchTerm) ||
+    visitTypeFilter !== 'ALL' ||
+    outcomeFilter !== 'ALL' ||
+    Boolean(startDateFilter) ||
+    Boolean(endDateFilter);
 
   // Open detail drawer
   const openDetailDrawer = async (reportId: string) => {
@@ -170,130 +231,165 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       showToast({
         type: 'error',
         title: 'Error',
-        message: axiosErr?.response?.data?.error?.message || axiosErr?.message || 'Failed to arrange follow-up',
+        message:
+          axiosErr?.response?.data?.error?.message ||
+          axiosErr?.message ||
+          'Failed to arrange follow-up',
       });
     } finally {
       setIsSubmittingFollowUp(false);
     }
   };
 
-  // Summary counts
-  const summaryCounts = useMemo(() => {
-    let completed = 0;
-    let parts = 0;
-    let repairs = 0;
-
-    reports.forEach((r) => {
-      if (r.primaryOutcome === 'COMPLETED') completed++;
-      if (r.primaryOutcome === 'PENDING_PARTS') parts++;
-      if (r.primaryOutcome === 'PENDING_REPAIRS') repairs++;
-    });
-
-    return { completed, parts, repairs };
-  }, [reports]);
-
   const getOutcomeBadgeClass = (outcome: ServiceVisitOutcome) => {
     switch (outcome) {
       case 'COMPLETED':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200';
       case 'PENDING_PARTS':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
+        return 'bg-amber-50 text-amber-800 border-amber-200';
       case 'PENDING_REPAIRS':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-rose-50 text-rose-800 border-rose-200';
       default:
-        return 'bg-slate-100 text-slate-800 border-slate-200';
+        return 'bg-slate-50 text-slate-800 border-slate-200';
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* 6.1 Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-blue-600" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
+            <FileText className="w-7 h-7 text-blue-600" />
             Service Visit Reports Register
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Authoritative technician on-site execution records, completion logs, and pending parts/repairs management.
+            Authoritative technician on-site execution records, completion logs, and pending parts/repairs register.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={handleRefresh} disabled={isLoading || isRefreshing}>
-            <RefreshCw size={16} className={`mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <Button
+            variant="secondary"
+            onClick={handleRefresh}
+            disabled={isLoading || isRefreshing}
+            className="shadow-2xs"
+          >
+            <RefreshCw size={15} className={`mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           {onNavigate && (
-            <Button variant="primary" onClick={() => onNavigate('service-schedule')}>
-              <Calendar size={16} className="mr-1.5" />
-              Service Schedule
+            <Button
+              variant="primary"
+              onClick={() => onNavigate('service-schedule')}
+              className="shadow-2xs"
+            >
+              <Calendar size={15} className="mr-1.5" />
+              Service Schedule Management
             </Button>
           )}
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Reports</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{totalCount}</div>
-          <div className="text-[11px] text-slate-400 mt-1">Recorded visit reports</div>
+      {/* 6.2 Aligned KPI Cards (4 Compact Responsive Cards) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Reports */}
+        <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Total Reports
+            </div>
+            <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
+              {summaryStats.total}
+            </div>
+            <div className="text-[11px] text-slate-400 mt-0.5">Recorded visit logs</div>
+          </div>
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <FileText className="w-6 h-6" />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-green-200 shadow-sm bg-gradient-to-br from-white to-green-50/30">
-          <div className="text-xs font-semibold text-green-700 uppercase tracking-wider flex items-center gap-1.5">
-            <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-            Service Completed
+        {/* Service Completed */}
+        <div className="bg-white p-4.5 rounded-xl border border-emerald-200 bg-gradient-to-br from-white to-emerald-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+              Service Completed
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-950 mt-1">
+              {summaryStats.completed}
+            </div>
+            <div className="text-[11px] text-emerald-700/70 mt-0.5">Fully resolved on-site</div>
           </div>
-          <div className="text-2xl font-bold text-green-900 mt-1">{summaryCounts.completed}</div>
-          <div className="text-[11px] text-green-700/70 mt-1">Current page completed</div>
+          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm bg-gradient-to-br from-white to-amber-50/30">
-          <div className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Package className="w-3.5 h-3.5 text-amber-600" />
-            Pending for Parts
+        {/* Pending for Parts */}
+        <div className="bg-white p-4.5 rounded-xl border border-amber-200 bg-gradient-to-br from-white to-amber-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
+              Pending for Parts
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-950 mt-1">
+              {summaryStats.pendingParts}
+            </div>
+            <div className="text-[11px] text-amber-700/70 mt-0.5">Awaiting spare parts</div>
           </div>
-          <div className="text-2xl font-bold text-amber-900 mt-1">{summaryCounts.parts}</div>
-          <div className="text-[11px] text-amber-700/70 mt-1">Requires parts procurement</div>
+          <div className="p-3 bg-amber-100 text-amber-700 rounded-xl">
+            <Package className="w-6 h-6" />
+          </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-red-200 shadow-sm bg-gradient-to-br from-white to-red-50/30">
-          <div className="text-xs font-semibold text-red-700 uppercase tracking-wider flex items-center gap-1.5">
-            <Wrench className="w-3.5 h-3.5 text-red-600" />
-            Pending for Repairs
+        {/* Pending for Repairs */}
+        <div className="bg-white p-4.5 rounded-xl border border-rose-200 bg-gradient-to-br from-white to-rose-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold text-rose-800 uppercase tracking-wider">
+              Pending for Repairs
+            </div>
+            <div className="text-2xl font-bold font-mono text-rose-950 mt-1">
+              {summaryStats.pendingRepairs}
+            </div>
+            <div className="text-[11px] text-rose-700/70 mt-0.5">Awaiting revisit / repair</div>
           </div>
-          <div className="text-2xl font-bold text-red-900 mt-1">{summaryCounts.repairs}</div>
-          <div className="text-[11px] text-red-700/70 mt-1">Requires follow-up action</div>
+          <div className="p-3 bg-rose-100 text-rose-700 rounded-xl">
+            <Wrench className="w-6 h-6" />
+          </div>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* Search */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+      {/* 6.3 Coherent Search & Filter Toolbar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Search Input (Debounced) */}
+          <div className="md:col-span-4 relative">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
             <Input
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Search by Report #..."
-              className="pl-9 text-sm"
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by Report #, customer, or code..."
+              className="pl-9 pr-8 text-sm"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                title="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
 
           {/* Visit Type Filter */}
-          <div>
+          <div className="md:col-span-2">
             <select
               value={visitTypeFilter}
               onChange={(e) => {
                 setVisitTypeFilter(e.target.value as 'ALL' | ServiceVisitType);
                 setPage(1);
               }}
-              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">All Visit Types</option>
               <option value="PREVENTIVE">AMC Preventive</option>
@@ -302,14 +398,14 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           </div>
 
           {/* Outcome Filter */}
-          <div>
+          <div className="md:col-span-2">
             <select
               value={outcomeFilter}
               onChange={(e) => {
                 setOutcomeFilter(e.target.value as 'ALL' | ServiceVisitOutcome);
                 setPage(1);
               }}
-              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">All Outcomes</option>
               <option value="COMPLETED">Service Completed</option>
@@ -318,8 +414,8 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             </select>
           </div>
 
-          {/* Date range quick filters */}
-          <div className="flex gap-2">
+          {/* Date range filters */}
+          <div className="md:col-span-3 flex gap-2">
             <Input
               type="date"
               value={startDateFilter}
@@ -327,7 +423,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 setStartDateFilter(e.target.value);
                 setPage(1);
               }}
-              title="Start Date"
+              title="From Date"
+              placeholder="From"
+              className="text-xs"
             />
             <Input
               type="date"
@@ -336,76 +434,117 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 setEndDateFilter(e.target.value);
                 setPage(1);
               }}
-              title="End Date"
+              title="To Date"
+              placeholder="To"
+              className="text-xs"
             />
+          </div>
+
+          {/* Reset Filters button */}
+          <div className="md:col-span-1 flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleResetFilters}
+              disabled={!hasActiveFilters}
+              title="Reset All Filters"
+              className="text-xs text-slate-500 hover:text-slate-800"
+            >
+              <RotateCcw size={14} className="mr-1" /> Reset
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Reports Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 6.4 Reports Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {isLoading ? (
-          <div className="p-12 text-center text-slate-500">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2" />
-            <div>Loading service reports...</div>
+          <div className="p-14 text-center text-slate-500">
+            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2.5" />
+            <div className="font-semibold text-slate-700">Loading service reports...</div>
+            <div className="text-xs text-slate-400 mt-1">Fetching execution records and findings</div>
           </div>
         ) : reports.length === 0 ? (
-          <EmptyState
-            title="No Service Reports Found"
-            description="No visit reports match your selected filter criteria. Create reports from scheduled appointments."
-            icon={<FileText size={48} className="text-slate-400" />}
-          />
+          <div className="p-12 text-center">
+            <EmptyState
+              title="No Service Reports Found"
+              description={
+                hasActiveFilters
+                  ? 'No visit reports match your selected filter criteria. Try adjusting or clearing filters.'
+                  : 'No service visit reports recorded yet. File visit reports from scheduled appointments in Service Schedule Management.'
+              }
+              icon={<FileText size={44} className="text-slate-400" />}
+              actionLabel={hasActiveFilters ? 'Clear All Filters' : undefined}
+              onAction={hasActiveFilters ? handleResetFilters : undefined}
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Report Number</th>
-                  <th className="py-3 px-4">Visit Date</th>
+                  <th className="py-3 px-4">Visit Date & Time</th>
                   <th className="py-3 px-4">Visit Type</th>
                   <th className="py-3 px-4">Customer & Site</th>
                   <th className="py-3 px-4">Technician</th>
-                  <th className="py-3 px-4">Primary Outcome</th>
-                  <th className="py-3 px-4">Linked Appt / Follow-up</th>
+                  <th className="py-3 px-4">Outcome</th>
+                  <th className="py-3 px-4">Appt / Follow-up</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {reports.map((report) => (
                   <tr key={report.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                    {/* Report Number */}
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
                       #{report.reportNumber}
                     </td>
+
+                    {/* Visit Date & Time */}
                     <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
-                      {formatDate(report.serviceDate)}
+                      <div className="font-medium text-slate-900">{formatDate(report.serviceDate)}</div>
                       {report.startTime && (
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                          <Clock size={11} className="text-slate-400" />
                           {report.startTime} - {report.endTime || 'End'}
                         </div>
                       )}
                     </td>
-                    <td className="py-3.5 px-4">
+
+                    {/* Visit Type */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                           report.visitType === 'PREVENTIVE'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-blue-100 text-blue-800'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}
                       >
                         {report.visitType === 'PREVENTIVE' ? 'AMC PM' : 'Service Request'}
                       </span>
                     </td>
+
+                    {/* Customer & Site */}
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-900">{report.customerName || 'N/A'}</div>
-                      <div className="text-xs text-slate-500">{report.siteName}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-xs">{report.siteName}</div>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800">{report.technicianName || 'Unassigned'}</div>
-                      <div className="text-xs text-slate-400">{report.technicianCode}</div>
+
+                    {/* Attending Technician */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="font-semibold text-slate-800 flex items-center gap-1">
+                        <User size={12} className="text-slate-400" />
+                        {report.technicianName || 'Unassigned'}
+                      </div>
+                      <div className="text-xs text-slate-400 font-mono">{report.technicianCode}</div>
                     </td>
-                    <td className="py-3.5 px-4">
+
+                    {/* Outcome Badge */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${getOutcomeBadgeClass(
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getOutcomeBadgeClass(
                           report.primaryOutcome
                         )}`}
                       >
@@ -415,44 +554,52 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                         {report.primaryOutcome.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-xs">
-                      <div className="text-slate-600">Appt: {report.scheduleNumber || 'N/A'}</div>
+
+                    {/* Appointment / Revisit */}
+                    <td className="py-3.5 px-4 text-xs whitespace-nowrap">
+                      <div className="text-slate-600 font-mono">Appt: {report.scheduleNumber || 'N/A'}</div>
                       {report.followUpScheduleId ? (
-                        <div className="text-blue-600 font-semibold mt-0.5">
-                          Revisit: {report.followUpScheduleNumber || 'Scheduled'}
+                        <div className="text-blue-700 font-semibold mt-0.5 flex items-center gap-1">
+                          <Clock size={11} />
+                          <span>Revisit: #{report.followUpScheduleNumber || 'Scheduled'}</span>
                         </div>
                       ) : report.primaryOutcome !== 'COMPLETED' ? (
-                        <span className="text-amber-600 font-semibold block mt-0.5">
-                          Follow-up Needed
+                        <span className="text-amber-700 font-semibold block mt-0.5">
+                          Follow-up Required
                         </span>
                       ) : null}
                     </td>
+
+                    {/* Actions */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex justify-end items-center gap-2">
+                      <div className="flex justify-end items-center gap-1.5">
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => openDetailDrawer(report.id)}
                           title="View Details"
+                          className="h-8 px-2.5 text-xs shadow-2xs"
                         >
-                          <Eye size={14} className="mr-1" /> View
+                          <Eye size={13} className="mr-1" /> View
                         </Button>
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => openPrintView(report)}
-                          title="Print / PDF"
+                          title="Print / Save PDF"
+                          className="h-8 px-2.5 text-xs shadow-2xs"
                         >
-                          <Printer size={14} />
+                          <Printer size={13} />
                         </Button>
                         {report.primaryOutcome !== 'COMPLETED' && !report.followUpScheduleId && (
                           <Button
                             size="sm"
                             variant="primary"
                             onClick={() => openFollowUpModal(report)}
-                            title="Schedule Revisit"
+                            title="Schedule Follow-up Revisit"
+                            className="h-8 px-2.5 text-xs shadow-2xs bg-amber-600 hover:bg-amber-700"
                           >
-                            <Clock size={14} className="mr-1" /> Revisit
+                            <Clock size={13} className="mr-1" /> Revisit
                           </Button>
                         )}
                       </div>
@@ -464,7 +611,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination Bar */}
         {totalCount > pageSize && (
           <div className="flex justify-between items-center px-4 py-3 border-t border-slate-200 bg-slate-50 text-xs text-slate-600">
             <div>
@@ -500,20 +647,22 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           setDetailedReport(null);
         }}
         title={`Service Visit Report #${detailedReport?.reportNumber || ''}`}
-        width="640px"
+        width="660px"
       >
         {isLoadingDetail || !detailedReport ? (
           <div className="p-8 text-center text-slate-500">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
-            Loading full report record...
+            Loading complete report record...
           </div>
         ) : (
           <div className="space-y-6">
             {/* Header info */}
-            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Report Details</div>
-                <div className="text-xl font-bold font-mono text-slate-900">
+                <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                  Report Record
+                </div>
+                <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">
                   #{detailedReport.reportNumber}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
@@ -525,40 +674,51 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 <Button size="sm" variant="secondary" onClick={() => openPrintView(detailedReport)}>
                   <Printer size={14} className="mr-1" /> Print Report
                 </Button>
-                {detailedReport.primaryOutcome !== 'COMPLETED' && !detailedReport.followUpScheduleId && (
-                  <Button size="sm" variant="primary" onClick={() => openFollowUpModal(detailedReport)}>
-                    <Clock size={14} className="mr-1" /> Schedule Revisit
-                  </Button>
-                )}
+                {detailedReport.primaryOutcome !== 'COMPLETED' &&
+                  !detailedReport.followUpScheduleId && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => openFollowUpModal(detailedReport)}
+                    >
+                      <Clock size={14} className="mr-1" /> Schedule Revisit
+                    </Button>
+                  )}
               </div>
             </div>
 
             {/* Outcome Badge */}
-            <div className="p-3 rounded-lg border flex justify-between items-center bg-slate-50">
+            <div className="p-3.5 rounded-xl border flex justify-between items-center bg-slate-50">
               <div>
                 <span className="text-xs text-slate-500 block uppercase font-semibold">Outcome:</span>
-                <span className="font-bold text-sm text-slate-900">{detailedReport.primaryOutcome}</span>
+                <span className="font-bold text-sm text-slate-900">
+                  {detailedReport.primaryOutcome.replace('_', ' ')}
+                </span>
               </div>
               {detailedReport.followUpScheduleNumber && (
-                <div className="text-xs font-semibold text-blue-600">
+                <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
                   Follow-up Revisit: #{detailedReport.followUpScheduleNumber}
                 </div>
               )}
             </div>
 
-            {/* Attribution */}
+            {/* Attribution Details */}
             <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-slate-50 rounded border border-slate-200">
-                <span className="text-slate-500 block font-semibold mb-1">Customer & Site</span>
-                <div className="font-bold text-slate-800">{detailedReport.customerName}</div>
-                <div className="text-slate-600">{detailedReport.siteName}</div>
-                <div className="text-slate-500 text-[11px]">{detailedReport.siteAddress}</div>
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block font-semibold mb-1 flex items-center gap-1">
+                  <Building size={13} className="text-blue-600" /> Customer & Site
+                </span>
+                <div className="font-bold text-slate-900">{detailedReport.customerName}</div>
+                <div className="text-slate-600 mt-0.5">{detailedReport.siteName}</div>
+                <div className="text-slate-500 text-[11px] mt-0.5">{detailedReport.siteAddress}</div>
               </div>
-              <div className="p-3 bg-slate-50 rounded border border-slate-200">
-                <span className="text-slate-500 block font-semibold mb-1">Attending Technician</span>
-                <div className="font-bold text-slate-800">{detailedReport.technicianName}</div>
-                <div className="text-slate-600">Code: {detailedReport.technicianCode}</div>
-                <div className="text-slate-500 text-[11px]">Phone: {detailedReport.technicianPhone}</div>
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block font-semibold mb-1 flex items-center gap-1">
+                  <User size={13} className="text-blue-600" /> Attending Technician
+                </span>
+                <div className="font-bold text-slate-900">{detailedReport.technicianName}</div>
+                <div className="text-slate-600 mt-0.5">Code: {detailedReport.technicianCode}</div>
+                <div className="text-slate-500 text-[11px] mt-0.5">Phone: {detailedReport.technicianPhone}</div>
               </div>
             </div>
 
@@ -567,24 +727,39 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
               <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                 AC Asset Inspection Findings ({detailedReport.assets?.length || 0})
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {detailedReport.assets?.map((asset) => (
-                  <div key={asset.id} className="p-3 border border-slate-200 rounded-lg bg-white space-y-2 text-xs">
+                  <div
+                    key={asset.id}
+                    className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2 text-xs"
+                  >
                     <div className="flex justify-between items-center font-bold text-slate-800">
-                      <span>{asset.assetTag} ({asset.brand} {asset.modelNumber})</span>
-                      <span className="text-slate-500">{asset.finalCondition}</span>
+                      <span className="font-mono text-blue-700">
+                        {asset.assetTag} ({asset.brand} {asset.modelNumber})
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700">
+                        {asset.finalCondition}
+                      </span>
                     </div>
                     {asset.faultReported && (
-                      <div><strong>Reported:</strong> {asset.faultReported}</div>
+                      <div>
+                        <strong>Reported Fault:</strong> {asset.faultReported}
+                      </div>
                     )}
                     {asset.diagnosisFindings && (
-                      <div><strong>Diagnosis:</strong> {asset.diagnosisFindings}</div>
+                      <div>
+                        <strong>Diagnosis:</strong> {asset.diagnosisFindings}
+                      </div>
                     )}
                     {asset.workPerformed && (
-                      <div><strong>Work Done:</strong> {asset.workPerformed}</div>
+                      <div>
+                        <strong>Work Done:</strong> {asset.workPerformed}
+                      </div>
                     )}
                     {asset.refrigerantAdded && (
-                      <div className="text-blue-600">Gas Added: {asset.refrigerantQtyKg} kg</div>
+                      <div className="text-blue-600 font-semibold">
+                        Refrigerant Added: {asset.refrigerantQtyKg} kg
+                      </div>
                     )}
                   </div>
                 ))}
@@ -594,8 +769,10 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             {/* Summary */}
             {detailedReport.workDescription && (
               <div>
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Work Description</div>
-                <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded border border-slate-200 whitespace-pre-line">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Work Description
+                </div>
+                <p className="text-xs text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-200 whitespace-pre-line leading-relaxed">
                   {detailedReport.workDescription}
                 </p>
               </div>
@@ -609,14 +786,25 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 </div>
                 <div className="space-y-2">
                   {detailedReport.items.map((item) => (
-                    <div key={item.id} className="p-3 border border-amber-200 rounded-lg bg-amber-50/40 text-xs space-y-1">
+                    <div
+                      key={item.id}
+                      className="p-3.5 border border-amber-200 rounded-xl bg-amber-50/40 text-xs space-y-1.5"
+                    >
                       <div className="flex justify-between font-bold text-slate-900">
-                        <span>{item.itemName} (Qty: {item.quantity})</span>
-                        <span className="text-amber-800">{item.itemType}</span>
+                        <span>
+                          {item.itemName} (Qty: {item.quantity})
+                        </span>
+                        <span className="text-amber-800 text-[11px] px-2 py-0.5 bg-amber-100 rounded">
+                          {item.itemType}
+                        </span>
                       </div>
-                      <div><strong>Reason:</strong> {item.reason}</div>
+                      <div>
+                        <strong>Reason:</strong> {item.reason}
+                      </div>
                       {item.recommendedAction && (
-                        <div><strong>Recommended Action:</strong> {item.recommendedAction}</div>
+                        <div>
+                          <strong>Recommended Action:</strong> {item.recommendedAction}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -625,7 +813,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             )}
 
             {/* Remarks & Sign-off */}
-            <div className="border-t border-slate-200 pt-3 text-xs space-y-2">
+            <div className="border-t border-slate-200 pt-3.5 text-xs space-y-2">
               {detailedReport.technicianRemarks && (
                 <div>
                   <strong>Technician Remarks:</strong> {detailedReport.technicianRemarks}
@@ -633,12 +821,12 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
               )}
               {detailedReport.customerRepresentative && (
                 <div>
-                  <strong>Client Rep:</strong> {detailedReport.customerRepresentative}
+                  <strong>Customer Representative:</strong> {detailedReport.customerRepresentative}
                 </div>
               )}
               {detailedReport.customerAcknowledgement && (
                 <div>
-                  <strong>Client Feedback:</strong> "{detailedReport.customerAcknowledgement}"
+                  <strong>Customer Feedback:</strong> "{detailedReport.customerAcknowledgement}"
                 </div>
               )}
             </div>
@@ -654,11 +842,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           title={`Arrange Follow-Up Revisit — Report #${followUpReport.reportNumber}`}
         >
           <form onSubmit={handleCreateFollowUp} className="space-y-4">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
               <strong>Pending Reason:</strong> {followUpReport.primaryOutcome.replace('_', ' ')}
               <div className="mt-1 text-slate-600">
-                This will create a new linked service appointment slot in the schedule for revisit execution without
-                erasing the original report history.
+                This will create a new linked service appointment in the schedule for revisit execution without
+                erasing the original report record.
               </div>
             </div>
 
@@ -697,16 +885,18 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Revisit Notes / Instructions</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Revisit Notes / Instructions
+              </label>
               <Input
                 value={followUpNotes}
                 onChange={(e) => setFollowUpNotes(e.target.value)}
-                placeholder="e.g. Carry replacement motor and brazing kit"
+                placeholder="e.g. Carry replacement dual-run capacitor and brazing gear"
                 disabled={isSubmittingFollowUp}
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+            <div className="flex justify-end gap-3 pt-3.5 border-t border-slate-200">
               <Button
                 type="button"
                 variant="secondary"
@@ -733,4 +923,5 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     </div>
   );
 };
+
 export default ServiceReportsManagement;
