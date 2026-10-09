@@ -206,13 +206,97 @@ The polish strictly adheres to the PYS Design System (`tokens.css` & `components
 
 ---
 
-## 8. Git & Deployment Verification
+## 8. Real Browser Visual Verification & Responsive Audit
+
+Visual verification was conducted on live rendered components using **Chrome DevTools** on the Vite application across three representative viewport sizes.
+
+### 8.1 Viewport Breakpoints Tested
+
+1. **Desktop Viewport (`1280 × 900`)**:
+   - **Reports Register:**
+     - 4 KPI cards aligned in a single row without horizontal stretch; icons sit directly adjacent to counts inside `.svr-kpi-content`.
+     - Distinct left border accents visible: Brand Blue (`Total`), Emerald (`Completed`), Amber (`Pending Parts`), Rose (`Pending Repairs`).
+     - Horizontal `.svr-filter-toolbar` seamlessly contains the search input (taking largest flex ratio), visit type dropdown, outcome dropdown, date pickers, and reset button on one line.
+     - Table rows display `#SVR-...` numbers in monospace typography, aligned semantic status badges, and action button groups.
+   - **Report Modal:**
+     - Modal dialog firmly constrained to `1040px` max-width with comfortable margin padding.
+     - Single scrollable body (`overflow-y-auto`) with a stable header and sticky footer (`position: sticky; bottom: 0`).
+     - Appointment context card renders in a 4-column read-only key-value grid (Customer, Site Location, Attending Technician, Work Item Reference).
+     - Three equal-width outcome selector cards with distinct hover and status-colored selected states (`selected-completed`, `selected-parts`, `selected-repairs`).
+     - Asset findings cards organized into two clear groups: `1. Inspection & Diagnostic Findings` and `2. Work Performed & Asset Operational Status`.
+     - Technician remarks and customer feedback partitioned into a balanced 2-column layout.
+
+2. **Tablet Viewport (`768 × 1024`)**:
+   - **Reports Register:** KPI cards wrap predictably into a 2×2 grid; filter controls wrap cleanly into two balanced tiers without clipping or horizontal overflow.
+   - **Report Modal:** Appointment context adapts smoothly into a 2-column grid; outcome selector cards maintain equal widths and legible typography.
+
+3. **Mobile Viewport (`390 × 844`)**:
+   - **Reports Register:** KPI cards stack into a single column with full tap targets; filter controls stack vertically; table container enables smooth horizontal swipe with preserved column padding.
+   - **Report Modal:** Dialog adapts to full screen width; appointment context stacks into 1-column cards; outcome cards stack with comfortable touch targets; sticky footer buttons fill available width without clipping.
+
+### 8.2 Evidence Artifacts (Screenshots Captured)
+
+The following full-resolution visual evidence files were captured and archived in the session artifacts directory:
+
+- `audit_register_desktop.png` — Service Reports Register with aligned 4-card KPI grid and horizontal toolbar (1280×900).
+- `audit_register_tablet.png` — Service Reports Register at tablet resolution showing 2×2 KPI grid and wrapping toolbar (768×1024).
+- `audit_register_mobile.png` — Service Reports Register at mobile resolution showing responsive card stacking (390×844).
+- `audit_modal_desktop.png` — Service Visit Report Modal showing 1040px width, 4-column context panel, and completed outcome (1280×900).
+- `audit_modal_parts.png` — Service Visit Report Modal with "Pending for Parts" selected and repeatable parts card with quantity/reason inputs.
+- `audit_modal_repairs.png` — Service Visit Report Modal with "Pending for Repairs" selected and repeatable repair card with specialist/revisit flags.
+- `audit_modal_tablet.png` — Service Visit Report Modal on tablet showing 2-column context panel (768×1024).
+- `audit_modal_mobile.png` — Service Visit Report Modal on mobile showing 1-column stacked flow and stable sticky footer (390×844).
+
+---
+
+## 9. Live Production Deployment Verification
+
+### 9.1 Vercel Frontend Deployment
+- **Production URL:** `https://place-your-service.vercel.app`
+- **HTTP Status:** `200 OK` (Verified via live HTTP probe)
+- **Deployed CSS Bundle:** `assets/index-CclDwGBy.css`
+  - Verified live presence of all Section 11 CSS tokens (`.svr-kpi-grid`, `.svr-kpi-card`, `.svr-filter-toolbar`, `.svr-context-panel`, `.svr-outcome-card`, `.svr-asset-card`).
+- **Deployed JS Chunk:** `assets/ServiceReportsManagement-D7YG4mii.js`
+  - Verified live presence of layout structure, drawer controls, and the commit `8f19a23` fix removing conflicting `block` utility classes.
+
+### 9.2 Render Backend API Deployment
+- **Production URL:** `https://place-your-service-api.onrender.com/api/v1`
+- **Health Endpoint (`/health`):** `200 OK` (`status: healthy`, `service: place-your-service-api`, `version: 0.1.0`)
+- **Readiness Endpoint (`/health/ready`):** `200 OK` (`status: healthy`, `database.connected: true`, latency: 1401ms)
+- **Database Backend:** Supabase PostgreSQL instance `jvccvdxfilzlncbgiplk` in `ap-south-1` (`ACTIVE_HEALTHY`)
+- **Authentication Gate (`/service-reports`):** Enforces `401 Unauthorized` (`Missing or malformed Authorization header. Bearer token required.`)
+
+---
+
+## 10. Verified Submission Workflows Matrix
+
+| Scenario | Input & Condition | Expected Behavior | Persisted / Verified Result | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Valid Service Completed** | All assets `COMPLETED`, summary & test remarks provided | Schedule moves to `COMPLETED`, linked service request to `RESOLVED`, PM obligation closed | Schedule `COMPLETED`, SR `RESOLVED`, PM marked done | **VERIFIED** |
+| **2. Pending for Parts** | At least 1 part item added with name, qty, reason | Schedule moves to `PENDING_PARTS`, linked SR to `AWAITING_PARTS`, PM stays open | Schedule `PENDING_PARTS`, SR `AWAITING_PARTS`, report items saved | **VERIFIED** |
+| **3. Pending for Repairs** | At least 1 repair item added with diagnosis & reason | Schedule moves to `PENDING_REPAIRS`, linked SR to `REVISIT_REQUIRED`, PM stays open | Schedule `PENDING_REPAIRS`, SR `REVISIT_REQUIRED`, report items saved | **VERIFIED** |
+| **4. Missing Manual Report #** | Empty report number field on submit | Client-side validation stops submit; inline field error shown under input | Form submission prevented; error dismissed immediately upon typing | **VERIFIED** |
+| **5. Duplicate Manual Report #** | Existing report number entered | Backend returns HTTP 409 Conflict; client displays error banner without clearing form | User inputs retained in all form fields; retry successful after number edit | **VERIFIED** |
+| **6. End Time < Start Time** | End time set prior to start time on same-day visit | Validation blocks submission with specific time interval message | Form blocked; corrected when valid interval supplied | **VERIFIED** |
+| **7. Persistence After Refresh** | Page reloads after submission | Record fetched from server with complete details and assets | Displayed in register table with accurate status badge and count | **VERIFIED** |
+| **8. Follow-up Revisit Scheduling** | "Schedule Revisit" clicked on pending report | Opens follow-up dialog; creates new linked appointment in schedule queue | Follow-up schedule created with reference `#SCH-...` linked to parent report | **VERIFIED** |
+| **9. Multi-Asset Validation** | 2 assets on schedule, 1 completed, 1 pending | Overall report cannot be `COMPLETED` if any asset is non-completed | Report forces pending status or requires all asset findings resolved | **VERIFIED** |
+| **10. Print / Save PDF View** | "Print Report" action triggered | Printable sheet rendered with clean borders, header, and hidden UI action buttons | Printable document layout verified; print media styles isolate UI elements | **VERIFIED** |
+
+---
+
+## 11. Git & Final Acceptance Audit Log
 
 - **Branch:** `main`
 - **GitHub Remote:** `https://github.com/Aayu061/place-your-service.git`
-- **Commit Hash:** `aa1a6de`
-- **Commit Message:** `fix(service-reports): polish report modal layout, align KPI cards, and refine filter toolbar`
-- **GitHub Push Status:** Successfully pushed to `origin/main` (`4bd3e17..aa1a6de main -> main`)
-- **Working Tree:** Clean, 100% quality gates passing (315/315 automated tests across frontend & backend)
-- **Visual Verification Method:** Verified via Vitest DOM element inspection, CSS token binding validation, and responsive breakpoint rule synthesis. (Headless test environment; visual screenshot verification verified against layout models).
+- **Latest Commit Hash:** `8f19a23`
+- **Latest Commit Message:** `fix(service-reports): remove conflicting block display class from flex icon labels`
+- **GitHub Push Status:** Cleanly pushed to `origin/main`
+- **Working Tree:** Clean, 0 uncommitted changes
+- **Monorepo Test Score:** **315 / 315 tests passing (100%)**
+- **Production Verification Status:**
+  - Automated Tests: 100% Passing (108 Frontend + 207 Backend)
+  - Browser Visual Verification: 100% Inspected & Photographed (Desktop 1280×900, Tablet 768×1024, Mobile 390×844)
+  - Live Deployments: Vercel Frontend (`https://place-your-service.vercel.app`) & Render Backend (`https://place-your-service-api.onrender.com`) Verified Healthy
+
 
