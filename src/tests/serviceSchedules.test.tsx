@@ -469,4 +469,99 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
 
     unmount();
   });
+
+  it('8. Schedules PM obligation with nullable customerId/siteId without sending null values in payload', async () => {
+    const pmItem: UnscheduledWorkItem = {
+      type: 'PM_OBLIGATION',
+      id: 'pm-ob-999',
+      identifier: 'PM-2026-0099',
+      customerId: null,
+      customerName: 'AMC Client',
+      siteId: null,
+      siteName: 'Covered Site',
+      siteAddress: 'Covered Address',
+      assetId: 'asset-999',
+      assetTag: 'ESSC-9999',
+      brand: 'Daikin',
+      modelNumber: 'FTKF50',
+      acType: 'SPLIT',
+      dueDate: '2026-10-25',
+      amcId: 'amc-999',
+      amcContractNumber: 'AMC-2026-0999',
+      visitNumber: 2,
+      suggestedDurationMinutes: 120,
+    };
+
+    vi.spyOn(scheduleApi, 'getSchedules').mockResolvedValue({
+      schedules: [],
+      total: 0,
+      page: 1,
+      pageSize: 15,
+      totalPages: 0,
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getUnscheduledWork').mockResolvedValue({
+      items: [pmItem],
+    } as never);
+
+    const createSpy = vi.spyOn(scheduleApi, 'createSchedule').mockResolvedValue({
+      schedule: {
+        ...sampleSchedule,
+        id: 'pm-ob-999',
+        pmObligationId: 'pm-ob-999',
+        scheduleNumber: 'PM-2026-0099',
+      },
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getEligibleTechnicians').mockResolvedValue({
+      recommendations: [],
+    } as never);
+
+    const { container, unmount } = await renderComponent();
+
+    // Click "Unscheduled Work" view tab
+    const unscheduledTab = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Unscheduled Work')
+    );
+    expect(unscheduledTab).toBeDefined();
+
+    await act(async () => {
+      unscheduledTab?.click();
+    });
+
+    expect(container.textContent).toContain('PM-2026-0099');
+
+    // Click "Schedule Slot" button
+    const scheduleSlotBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Schedule Slot')
+    );
+    expect(scheduleSlotBtn).toBeDefined();
+
+    await act(async () => {
+      scheduleSlotBtn?.click();
+    });
+
+    // Modal opens, click "Create & Assign Tech"
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Create & Assign Tech')
+    );
+    expect(submitBtn).toBeDefined();
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    const sentPayload = createSpy.mock.calls[0][0];
+
+    // CRITICAL: verify payload does NOT contain customerId: null or siteId: null
+    expect(sentPayload.pmObligationId).toBe('pm-ob-999');
+    expect(sentPayload.amcId).toBe('amc-999');
+    expect(sentPayload.assetId).toBe('asset-999');
+    expect(sentPayload.visitNumber).toBe(2);
+    expect(sentPayload.customerId).toBeUndefined();
+    expect(sentPayload.siteId).toBeUndefined();
+
+    unmount();
+  });
 });

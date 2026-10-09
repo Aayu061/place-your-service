@@ -1355,4 +1355,223 @@ describe('Phase 9: Scheduling & Technician Assignment API (/api/v1/service-sched
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toContain('already assigned to another service');
   });
+
+  // =========================================================================
+  // 6. Regression: Production 422 Diagnostic & Null/Empty Payload Resiliency
+  // =========================================================================
+  it('21. Accepts PM obligation scheduling with null customerId and siteId without returning 422', async () => {
+    const authMock = setupAuth('ADMIN');
+    const samplePmId = '88888888-8888-8888-8888-888888888888';
+    const sampleAmcId = '99999999-9999-9999-9999-999999999999';
+
+    let callCount = 0;
+    const scheduleChain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      neq: vi.fn().mockReturnThis(),
+      not: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            data: {
+              id: samplePmId,
+              schedule_number: 'PM-2026-0001',
+              amc_id: sampleAmcId,
+              asset_id: sampleAssetId,
+              visit_number: 1,
+              customer_id: sampleCustomerId,
+              site_id: sampleSiteId,
+              status: 'PLANNED',
+              technician_id: null,
+              is_system_generated: true,
+              notes: null,
+            },
+            error: null,
+          });
+        }
+        if (callCount === 2) {
+          return Promise.resolve({ data: null, error: null });
+        }
+        return Promise.resolve({
+          data: {
+            ...sampleScheduleRecord,
+            id: samplePmId,
+            schedule_number: 'PM-2026-0001',
+            amc_id: sampleAmcId,
+            status: 'SCHEDULED',
+          },
+          error: null,
+        });
+      }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    };
+
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return scheduleChain;
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const res = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        pmObligationId: samplePmId,
+        amcId: sampleAmcId,
+        customerId: null,
+        siteId: null,
+        scheduledDate: '2026-10-25',
+        startTime: '10:00',
+        endTime: '12:00',
+        durationMinutes: 120,
+        notes: null,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.schedule).toBeDefined();
+  });
+
+  it('22. Accepts empty strings and nulls for optional fields without 422 failure', async () => {
+    const authMock = setupAuth('ADMIN');
+    const dbMock = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_requests') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                id: sampleRequestId,
+                request_number: 'SR-2026-0001',
+                customer_id: sampleCustomerId,
+                site_id: sampleSiteId,
+                status: 'REQUESTED',
+              },
+              error: null,
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        let lastCol = '';
+        const chainable = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockImplementation((col: string) => {
+            lastCol = col;
+            return chainable;
+          }),
+          neq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockImplementation(() => {
+            if (lastCol === 'id') {
+              return Promise.resolve({
+                data: { ...sampleScheduleRecord, id: 'new-sched-id', schedule_number: 'SCH-2026-99999' },
+                error: null,
+              });
+            }
+            return Promise.resolve({ data: null, error: null });
+          }),
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { ...sampleScheduleRecord, id: 'new-sched-id', schedule_number: 'SCH-2026-99999' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+        if (table === 'service_schedules') {
+          return chainable;
+        }
+        if (table === 'service_assignments') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(dbMock as any);
+
+    const res = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        serviceRequestId: sampleRequestId,
+        customerId: '',
+        siteId: '',
+        technicianId: null,
+        scheduledDate: '2026-10-15',
+        startTime: '',
+        notes: null,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('23. Rejects truly malformed UUID format with 422 Validation Error', async () => {
+    const authMock = setupAuth('ADMIN');
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(authMock as any);
+
+    const res = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        serviceRequestId: 'not-a-valid-uuid',
+        scheduledDate: '2026-10-15',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('24. Rejects unlinked schedule creation (no SR, no PM, no Customer+Site) with 422', async () => {
+    const authMock = setupAuth('ADMIN');
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(authMock as any);
+
+    const res = await request(app)
+      .post('/api/v1/service-schedules')
+      .set('Authorization', adminAuthToken)
+      .send({
+        scheduledDate: '2026-10-15',
+        startTime: '09:00',
+        endTime: '11:00',
+        durationMinutes: 120,
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details.some((d: any) => d.message.includes('Schedule must be linked'))).toBe(true);
+  });
 });

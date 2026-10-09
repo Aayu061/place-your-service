@@ -693,10 +693,10 @@ export interface UnscheduledWorkItem {
   type: 'SERVICE_REQUEST' | 'PM_OBLIGATION';
   id: string;
   identifier: string;
-  customerId: string;
+  customerId?: string | null;
   customerName: string;
   customerPhone?: string | null;
-  siteId: string;
+  siteId?: string | null;
   siteName: string;
   siteAddress: string;
   assetId: string | null;

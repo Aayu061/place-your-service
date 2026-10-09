@@ -902,10 +902,10 @@ export interface UnscheduledWorkItem {
   type: 'SERVICE_REQUEST' | 'PM_OBLIGATION';
   id: string;
   identifier: string; // e.g. SR-2026-0001 or PM-2026-0002
-  customerId: string;
+  customerId?: string | null;
   customerName: string;
   customerPhone?: string | null;
-  siteId: string;
+  siteId?: string | null;
   siteName: string;
   siteAddress: string;
   assetId: string | null;

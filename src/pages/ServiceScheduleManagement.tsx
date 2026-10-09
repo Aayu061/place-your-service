@@ -383,26 +383,38 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       return;
     }
 
+    if (!activeUnscheduledItem) {
+      showToast({
+        type: 'error',
+        title: 'Work Item Required',
+        message: 'Please select an unscheduled service request or AMC PM obligation to book an appointment.',
+      });
+      return;
+    }
+
     try {
       setIsSubmittingCreate(true);
       const payload: CreateServiceSchedulePayload = {
         scheduledDate: createForm.scheduledDate,
-        startTime: createForm.startTime,
-        endTime: createForm.endTime,
-        durationMinutes: createForm.durationMinutes,
+        startTime: createForm.startTime || '09:00',
+        endTime: createForm.endTime || '11:00',
+        durationMinutes: createForm.durationMinutes || 120,
         notes: createForm.notes.trim() || undefined,
       };
 
-      if (activeUnscheduledItem) {
-        if (activeUnscheduledItem.type === 'SERVICE_REQUEST') {
-          payload.serviceRequestId = activeUnscheduledItem.id;
-        } else if (activeUnscheduledItem.type === 'PM_OBLIGATION') {
-          payload.pmObligationId = activeUnscheduledItem.id;
-          payload.amcId = activeUnscheduledItem.amcId;
-          payload.assetId = activeUnscheduledItem.assetId || undefined;
-          payload.visitNumber = activeUnscheduledItem.visitNumber ?? undefined;
-        }
+      if (activeUnscheduledItem.type === 'SERVICE_REQUEST') {
+        payload.serviceRequestId = activeUnscheduledItem.id;
+      } else if (activeUnscheduledItem.type === 'PM_OBLIGATION') {
+        payload.pmObligationId = activeUnscheduledItem.id;
+        payload.amcId = activeUnscheduledItem.amcId || undefined;
+        payload.assetId = activeUnscheduledItem.assetId || undefined;
+        payload.visitNumber = activeUnscheduledItem.visitNumber ?? undefined;
+      }
+
+      if (activeUnscheduledItem.customerId) {
         payload.customerId = activeUnscheduledItem.customerId;
+      }
+      if (activeUnscheduledItem.siteId) {
         payload.siteId = activeUnscheduledItem.siteId;
       }
 
@@ -493,14 +505,26 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             variant="primary"
             size="sm"
             onClick={() => {
-              setActiveUnscheduledItem(null);
-              setCreateForm({
-                scheduledDate: selectedDate,
-                startTime: '09:00',
-                endTime: '11:00',
-                durationMinutes: 120,
-                notes: '',
-              });
+              if (unscheduledItems.length > 0) {
+                const first = unscheduledItems[0];
+                setActiveUnscheduledItem(first);
+                setCreateForm({
+                  scheduledDate: first.dueDate || selectedDate,
+                  startTime: '09:00',
+                  endTime: '11:00',
+                  durationMinutes: first.suggestedDurationMinutes || 120,
+                  notes: first.description ? `Source: ${first.identifier} — ${first.description}` : '',
+                });
+              } else {
+                setActiveUnscheduledItem(null);
+                setCreateForm({
+                  scheduledDate: selectedDate,
+                  startTime: '09:00',
+                  endTime: '11:00',
+                  durationMinutes: 120,
+                  notes: '',
+                });
+              }
               setIsCreateModalOpen(true);
             }}
           >
@@ -1387,7 +1411,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         </div>
       </Modal>
 
-      {/* 8. Create Schedule Modal (from Unscheduled Queue) */}
+      {/* 8. Create Schedule Modal (from Unscheduled Queue or New Appointment) */}
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -1395,6 +1419,60 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         maxWidth="520px"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {unscheduledItems.length > 0 ? (
+            <div>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Work Item to Schedule *
+              </label>
+              <select
+                aria-label="Select Work Item to Schedule"
+                style={{
+                  width: '100%',
+                  padding: 'var(--space-2) var(--space-3)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-main)',
+                  fontSize: 'var(--text-sm)',
+                  marginTop: 'var(--space-1)',
+                }}
+                value={activeUnscheduledItem?.id || ''}
+                onChange={(e) => {
+                  const found = unscheduledItems.find((u) => u.id === e.target.value);
+                  if (found) {
+                    setActiveUnscheduledItem(found);
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      scheduledDate: found.dueDate || prev.scheduledDate,
+                      durationMinutes: found.suggestedDurationMinutes || prev.durationMinutes,
+                      notes: found.description ? `Source: ${found.identifier} — ${found.description}` : prev.notes,
+                    }));
+                  }
+                }}
+              >
+                {!activeUnscheduledItem && <option value="">-- Choose pending service ticket or PM obligation --</option>}
+                {unscheduledItems.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    [{u.type === 'SERVICE_REQUEST' ? 'Ticket' : 'AMC PM'}] {u.identifier} — {u.customerName} ({u.siteName})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div
+              style={{
+                backgroundColor: 'var(--bg-warning-subtle, #fffbeb)',
+                border: '1px solid var(--border-warning, #fde68a)',
+                color: 'var(--text-warning, #92400e)',
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--text-xs)',
+              }}
+            >
+              <strong>No Unscheduled Work Pending:</strong> All active service requests and AMC PM obligations are currently scheduled. To book a new appointment, please create a Service Request or AMC Contract first.
+            </div>
+          )}
+
           {activeUnscheduledItem && (
             <div
               style={{
@@ -1453,7 +1531,11 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleConfirmCreate} disabled={isSubmittingCreate}>
+            <Button
+              variant="primary"
+              onClick={handleConfirmCreate}
+              disabled={isSubmittingCreate || !activeUnscheduledItem}
+            >
               {isSubmittingCreate ? 'Creating...' : 'Create & Assign Tech'}
             </Button>
           </div>
