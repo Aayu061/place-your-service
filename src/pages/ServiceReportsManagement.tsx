@@ -255,15 +255,21 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   };
 
   return (
-    <div className="space-y-6">
-      {/* 6.1 Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
+    <div className="svr-space-y-6">
+      {/* 4.1 Page Header */}
+      <div
+        className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4"
+        style={{ borderBottom: '1px solid var(--border-default)' }}
+      >
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
-            <FileText className="w-7 h-7 text-blue-600" />
+          <h1
+            className="text-2xl font-bold tracking-tight flex items-center gap-2.5"
+            style={{ color: 'var(--text-primary)', margin: 0 }}
+          >
+            <FileText size={26} style={{ color: 'var(--color-brand)' }} />
             Service Visit Reports Register
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm" style={{ color: 'var(--text-secondary)', marginTop: '4px', marginBottom: 0 }}>
             Authoritative technician on-site execution records, completion logs, and pending parts/repairs register.
           </p>
         </div>
@@ -272,201 +278,208 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             variant="secondary"
             onClick={handleRefresh}
             disabled={isLoading || isRefreshing}
-            className="shadow-2xs"
           >
-            <RefreshCw size={15} className={`mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            <span>Refresh</span>
           </Button>
           {onNavigate && (
             <Button
               variant="primary"
               onClick={() => onNavigate('service-schedule')}
-              className="shadow-2xs"
             >
-              <Calendar size={15} className="mr-1.5" />
-              Service Schedule Management
+              <Calendar size={14} />
+              <span>Service Schedule Management</span>
             </Button>
           )}
         </div>
       </div>
 
-      {/* 6.2 Aligned KPI Cards (4 Compact Responsive Cards) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 4.2 Aligned KPI Cards (4 Uniform Responsive Cards) */}
+      <div className="svr-kpi-grid">
         {/* Total Reports */}
-        <div className="bg-white p-4.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Reports
-            </div>
-            <div className="text-2xl font-bold font-mono text-slate-900 mt-1">
-              {summaryStats.total}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Recorded visit logs</div>
+        <div className="svr-kpi-card total">
+          <div className="svr-kpi-content">
+            <span className="svr-kpi-label">Total Reports</span>
+            <span className="svr-kpi-value">{summaryStats.total}</span>
+            <span className="svr-kpi-sub">Recorded visit logs</span>
           </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <FileText className="w-6 h-6" />
+          <div className="svr-kpi-icon-wrapper total">
+            <FileText size={22} />
           </div>
         </div>
 
         {/* Service Completed */}
-        <div className="bg-white p-4.5 rounded-xl border border-emerald-200 bg-gradient-to-br from-white to-emerald-50/20 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
-              Service Completed
-            </div>
-            <div className="text-2xl font-bold font-mono text-emerald-950 mt-1">
-              {summaryStats.completed}
-            </div>
-            <div className="text-[11px] text-emerald-700/70 mt-0.5">Fully resolved on-site</div>
+        <div className="svr-kpi-card completed">
+          <div className="svr-kpi-content">
+            <span className="svr-kpi-label">Service Completed</span>
+            <span className="svr-kpi-value">{summaryStats.completed}</span>
+            <span className="svr-kpi-sub">Fully resolved on-site</span>
           </div>
-          <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="svr-kpi-icon-wrapper completed">
+            <CheckCircle2 size={22} />
           </div>
         </div>
 
         {/* Pending for Parts */}
-        <div className="bg-white p-4.5 rounded-xl border border-amber-200 bg-gradient-to-br from-white to-amber-50/20 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-amber-800 uppercase tracking-wider">
-              Pending for Parts
-            </div>
-            <div className="text-2xl font-bold font-mono text-amber-950 mt-1">
-              {summaryStats.pendingParts}
-            </div>
-            <div className="text-[11px] text-amber-700/70 mt-0.5">Awaiting spare parts</div>
+        <div className="svr-kpi-card pending-parts">
+          <div className="svr-kpi-content">
+            <span className="svr-kpi-label">Pending for Parts</span>
+            <span className="svr-kpi-value">{summaryStats.pendingParts}</span>
+            <span className="svr-kpi-sub">Awaiting spare parts</span>
           </div>
-          <div className="p-3 bg-amber-100 text-amber-700 rounded-xl">
-            <Package className="w-6 h-6" />
+          <div className="svr-kpi-icon-wrapper pending-parts">
+            <Package size={22} />
           </div>
         </div>
 
         {/* Pending for Repairs */}
-        <div className="bg-white p-4.5 rounded-xl border border-rose-200 bg-gradient-to-br from-white to-rose-50/20 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-rose-800 uppercase tracking-wider">
-              Pending for Repairs
-            </div>
-            <div className="text-2xl font-bold font-mono text-rose-950 mt-1">
-              {summaryStats.pendingRepairs}
-            </div>
-            <div className="text-[11px] text-rose-700/70 mt-0.5">Awaiting revisit / repair</div>
+        <div className="svr-kpi-card pending-repairs">
+          <div className="svr-kpi-content">
+            <span className="svr-kpi-label">Pending for Repairs</span>
+            <span className="svr-kpi-value">{summaryStats.pendingRepairs}</span>
+            <span className="svr-kpi-sub">Awaiting revisit / repair</span>
           </div>
-          <div className="p-3 bg-rose-100 text-rose-700 rounded-xl">
-            <Wrench className="w-6 h-6" />
+          <div className="svr-kpi-icon-wrapper pending-repairs">
+            <Wrench size={22} />
           </div>
         </div>
       </div>
 
-      {/* 6.3 Coherent Search & Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Search Input (Debounced) */}
-          <div className="md:col-span-4 relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400 pointer-events-none" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by Report #, customer, or code..."
-              className="pl-9 pr-8 text-sm"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                title="Clear search"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
-
-          {/* Visit Type Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={visitTypeFilter}
-              onChange={(e) => {
-                setVisitTypeFilter(e.target.value as 'ALL' | ServiceVisitType);
-                setPage(1);
-              }}
-              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="ALL">All Visit Types</option>
-              <option value="PREVENTIVE">AMC Preventive</option>
-              <option value="SERVICE_REQUEST">Service Request</option>
-            </select>
-          </div>
-
-          {/* Outcome Filter */}
-          <div className="md:col-span-2">
-            <select
-              value={outcomeFilter}
-              onChange={(e) => {
-                setOutcomeFilter(e.target.value as 'ALL' | ServiceVisitOutcome);
-                setPage(1);
-              }}
-              className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="ALL">All Outcomes</option>
-              <option value="COMPLETED">Service Completed</option>
-              <option value="PENDING_PARTS">Pending for Parts</option>
-              <option value="PENDING_REPAIRS">Pending for Repairs</option>
-            </select>
-          </div>
-
-          {/* Date range filters */}
-          <div className="md:col-span-3 flex gap-2">
-            <Input
-              type="date"
-              value={startDateFilter}
-              onChange={(e) => {
-                setStartDateFilter(e.target.value);
-                setPage(1);
-              }}
-              title="From Date"
-              placeholder="From"
-              className="text-xs"
-            />
-            <Input
-              type="date"
-              value={endDateFilter}
-              onChange={(e) => {
-                setEndDateFilter(e.target.value);
-                setPage(1);
-              }}
-              title="To Date"
-              placeholder="To"
-              className="text-xs"
-            />
-          </div>
-
-          {/* Reset Filters button */}
-          <div className="md:col-span-1 flex justify-end">
-            <Button
+      {/* 4.3 Coherent Search & Filter Toolbar */}
+      <div className="svr-filter-toolbar">
+        {/* Search Input (Debounced) */}
+        <div className="svr-filter-search">
+          <Search
+            size={16}
+            style={{
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by Report #, customer, or code..."
+            style={{
+              paddingLeft: '36px',
+              paddingRight: searchTerm ? '32px' : '12px',
+              height: '38px',
+              fontSize: '13px',
+              width: '100%',
+            }}
+          />
+          {searchTerm && (
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleResetFilters}
-              disabled={!hasActiveFilters}
-              title="Reset All Filters"
-              className="text-xs text-slate-500 hover:text-slate-800"
+              onClick={() => setSearchTerm('')}
+              style={{
+                position: 'absolute',
+                right: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+              }}
+              title="Clear search"
             >
-              <RotateCcw size={14} className="mr-1" /> Reset
-            </Button>
-          </div>
+              <X size={15} />
+            </button>
+          )}
+        </div>
+
+        {/* Visit Type Filter */}
+        <select
+          value={visitTypeFilter}
+          onChange={(e) => {
+            setVisitTypeFilter(e.target.value as 'ALL' | ServiceVisitType);
+            setPage(1);
+          }}
+          className="svr-filter-select"
+          title="Filter by Visit Type"
+        >
+          <option value="ALL">All Visit Types</option>
+          <option value="PREVENTIVE">AMC Preventive</option>
+          <option value="SERVICE_REQUEST">Service Request</option>
+        </select>
+
+        {/* Outcome Filter */}
+        <select
+          value={outcomeFilter}
+          onChange={(e) => {
+            setOutcomeFilter(e.target.value as 'ALL' | ServiceVisitOutcome);
+            setPage(1);
+          }}
+          className="svr-filter-select"
+          title="Filter by Outcome"
+        >
+          <option value="ALL">All Outcomes</option>
+          <option value="COMPLETED">Service Completed</option>
+          <option value="PENDING_PARTS">Pending for Parts</option>
+          <option value="PENDING_REPAIRS">Pending for Repairs</option>
+        </select>
+
+        {/* Date range filters */}
+        <div className="svr-filter-dates">
+          <Input
+            type="date"
+            value={startDateFilter}
+            onChange={(e) => {
+              setStartDateFilter(e.target.value);
+              setPage(1);
+            }}
+            title="From Date"
+            placeholder="From"
+            style={{ height: '38px', fontSize: '12px', flex: 1 }}
+          />
+          <Input
+            type="date"
+            value={endDateFilter}
+            onChange={(e) => {
+              setEndDateFilter(e.target.value);
+              setPage(1);
+            }}
+            title="To Date"
+            placeholder="To"
+            style={{ height: '38px', fontSize: '12px', flex: 1 }}
+          />
+        </div>
+
+        {/* Reset Filters button */}
+        <div className="svr-filter-actions">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleResetFilters}
+            disabled={!hasActiveFilters}
+            title="Reset All Filters"
+            style={{ height: '38px' }}
+          >
+            <RotateCcw size={14} />
+            <span>Reset</span>
+          </Button>
         </div>
       </div>
 
-      {/* 6.4 Reports Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        {isLoading ? (
-          <div className="p-14 text-center text-slate-500">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-2.5" />
-            <div className="font-semibold text-slate-700">Loading service reports...</div>
-            <div className="text-xs text-slate-400 mt-1">Fetching execution records and findings</div>
+      {/* 4.4 & 4.5 Reports Table & Loading / Empty States */}
+      <div className="svr-table-container">
+        {isLoading && reports.length === 0 ? (
+          <div className="svr-loading-state">
+            <RefreshCw size={28} className="animate-spin" style={{ color: 'var(--color-brand)' }} />
+            <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginTop: '4px' }}>Loading service reports...</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Fetching execution records and findings</div>
           </div>
         ) : reports.length === 0 ? (
-          <div className="p-12 text-center">
+          <div style={{ padding: 'var(--space-10) var(--space-4)', textAlign: 'center' }}>
             <EmptyState
               title="No Service Reports Found"
               description={
@@ -474,75 +487,104 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                   ? 'No visit reports match your selected filter criteria. Try adjusting or clearing filters.'
                   : 'No service visit reports recorded yet. File visit reports from scheduled appointments in Service Schedule Management.'
               }
-              icon={<FileText size={44} className="text-slate-400" />}
+              icon={<FileText size={40} style={{ color: 'var(--color-neutral-400)' }} />}
               actionLabel={hasActiveFilters ? 'Clear All Filters' : undefined}
               onAction={hasActiveFilters ? handleResetFilters : undefined}
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', textAlign: 'left', fontSize: 'var(--text-sm)', borderCollapse: 'collapse' }}>
+              <thead
+                style={{
+                  backgroundColor: 'var(--color-neutral-50)',
+                  borderBottom: '1px solid var(--border-default)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
                 <tr>
-                  <th className="py-3 px-4">Report Number</th>
-                  <th className="py-3 px-4">Visit Date & Time</th>
-                  <th className="py-3 px-4">Visit Type</th>
-                  <th className="py-3 px-4">Customer & Site</th>
-                  <th className="py-3 px-4">Technician</th>
-                  <th className="py-3 px-4">Outcome</th>
-                  <th className="py-3 px-4">Appt / Follow-up</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th style={{ padding: '12px 16px' }}>Report Number</th>
+                  <th style={{ padding: '12px 16px' }}>Visit Date & Time</th>
+                  <th style={{ padding: '12px 16px' }}>Visit Type</th>
+                  <th style={{ padding: '12px 16px' }}>Customer & Site</th>
+                  <th style={{ padding: '12px 16px' }}>Technician</th>
+                  <th style={{ padding: '12px 16px' }}>Outcome</th>
+                  <th style={{ padding: '12px 16px' }}>Appt / Follow-up</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody style={{ borderTop: '1px solid var(--border-default)' }}>
                 {reports.map((report) => (
-                  <tr key={report.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr
+                    key={report.id}
+                    style={{
+                      borderBottom: '1px solid var(--border-subtle)',
+                      transition: 'background-color 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-neutral-50)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
                     {/* Report Number */}
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
+                    <td style={{ padding: '12px 16px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                       #{report.reportNumber}
                     </td>
 
                     {/* Visit Date & Time */}
-                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap">
-                      <div className="font-medium text-slate-900">{formatDate(report.serviceDate)}</div>
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{formatDate(report.serviceDate)}</div>
                       {report.startTime && (
-                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
-                          <Clock size={11} className="text-slate-400" />
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                          <Clock size={11} style={{ color: 'var(--text-muted)' }} />
                           {report.startTime} - {report.endTime || 'End'}
                         </div>
                       )}
                     </td>
 
                     {/* Visit Type */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                          report.visitType === 'PREVENTIVE'
-                            ? 'bg-purple-50 text-purple-700 border-purple-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                        }`}
+                        style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          backgroundColor: report.visitType === 'PREVENTIVE' ? 'var(--color-amc-bg)' : 'var(--color-info-bg)',
+                          color: report.visitType === 'PREVENTIVE' ? 'var(--color-amc-text)' : 'var(--color-info-text)',
+                          border: `1px solid ${report.visitType === 'PREVENTIVE' ? 'var(--color-amc-border)' : 'var(--color-info-border)'}`,
+                        }}
                       >
                         {report.visitType === 'PREVENTIVE' ? 'AMC PM' : 'Service Request'}
                       </span>
                     </td>
 
                     {/* Customer & Site */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-900">{report.customerName || 'N/A'}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-xs">{report.siteName}</div>
+                    <td style={{ padding: '12px 16px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{report.customerName || 'N/A'}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {report.siteName}
+                      </div>
                     </td>
 
                     {/* Attending Technician */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="font-semibold text-slate-800 flex items-center gap-1">
-                        <User size={12} className="text-slate-400" />
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <User size={12} style={{ color: 'var(--text-muted)' }} />
                         {report.technicianName || 'Unassigned'}
                       </div>
-                      <div className="text-xs text-slate-400 font-mono">{report.technicianCode}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{report.technicianCode}</div>
                     </td>
 
                     {/* Outcome Badge */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <span
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getOutcomeBadgeClass(
                           report.primaryOutcome
@@ -556,38 +598,39 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                     </td>
 
                     {/* Appointment / Revisit */}
-                    <td className="py-3.5 px-4 text-xs whitespace-nowrap">
-                      <div className="text-slate-600 font-mono">Appt: {report.scheduleNumber || 'N/A'}</div>
+                    <td style={{ padding: '12px 16px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                      <div style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Appt: {report.scheduleNumber || 'N/A'}</div>
                       {report.followUpScheduleId ? (
-                        <div className="text-blue-700 font-semibold mt-0.5 flex items-center gap-1">
+                        <div style={{ color: 'var(--color-primary-700)', fontWeight: 600, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <Clock size={11} />
                           <span>Revisit: #{report.followUpScheduleNumber || 'Scheduled'}</span>
                         </div>
                       ) : report.primaryOutcome !== 'COMPLETED' ? (
-                        <span className="text-amber-700 font-semibold block mt-0.5">
+                        <span style={{ color: 'var(--color-warning-text)', fontWeight: 600, display: 'block', marginTop: '2px' }}>
                           Follow-up Required
                         </span>
                       ) : null}
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex justify-end items-center gap-1.5">
+                    <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' }}>
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => openDetailDrawer(report.id)}
                           title="View Details"
-                          className="h-8 px-2.5 text-xs shadow-2xs"
+                          style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
                         >
-                          <Eye size={13} className="mr-1" /> View
+                          <Eye size={13} />
+                          <span>View</span>
                         </Button>
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => openPrintView(report)}
                           title="Print / Save PDF"
-                          className="h-8 px-2.5 text-xs shadow-2xs"
+                          style={{ height: '32px', padding: '0 10px', fontSize: '12px' }}
                         >
                           <Printer size={13} />
                         </Button>
@@ -597,9 +640,16 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                             variant="primary"
                             onClick={() => openFollowUpModal(report)}
                             title="Schedule Follow-up Revisit"
-                            className="h-8 px-2.5 text-xs shadow-2xs bg-amber-600 hover:bg-amber-700"
+                            style={{
+                              height: '32px',
+                              padding: '0 10px',
+                              fontSize: '12px',
+                              backgroundColor: 'var(--color-warning-solid)',
+                              borderColor: 'var(--color-warning-solid)',
+                            }}
                           >
-                            <Clock size={13} className="mr-1" /> Revisit
+                            <Clock size={13} />
+                            <span>Revisit</span>
                           </Button>
                         )}
                       </div>

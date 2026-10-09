@@ -485,14 +485,14 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       onClose={onClose}
       title="Create Service Visit Report"
       description={`Official execution record for Appointment #${schedule.scheduleNumber}`}
-      maxWidth="940px"
+      maxWidth="1040px"
       footer={
-        <div className="flex justify-between items-center w-full">
-          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ShieldCheck size={16} style={{ color: 'var(--color-success-solid)' }} />
             <span>All fields with asterisk (*) are required for persistence</span>
           </div>
-          <div className="flex gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <Button
               type="button"
               variant="secondary"
@@ -522,85 +522,95 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         ref={formRef}
         onSubmit={handleSubmit}
         noValidate
-        className="space-y-6"
+        className="svr-space-y-6"
+        style={{ paddingBottom: 'var(--space-6)' }}
       >
         {/* Global Error Banner */}
         {errorMessage && (
-          <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-sm text-red-800 animate-fade-in shadow-xs">
-            <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-semibold text-red-900">Validation Notice</div>
-              <div className="text-red-800 text-xs mt-0.5">{errorMessage}</div>
+          <div className="svr-error-banner animate-fade-in">
+            <AlertTriangle size={18} style={{ color: 'var(--color-error-solid)', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: 'var(--color-error-text)' }}>Validation Notice</div>
+              <div style={{ fontSize: '12px', marginTop: '2px', color: 'var(--color-error-text)' }}>{errorMessage}</div>
             </div>
           </div>
         )}
 
-        {/* Section 1: Authoritative Appointment Details (Read-Only) */}
-        <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4.5 space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Building className="w-3.5 h-3.5 text-blue-600" />
+        {/* Section 1: Appointment Context Panel (Read-Only) */}
+        <div className="svr-context-panel">
+          <div className="svr-context-header">
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Building size={14} style={{ color: 'var(--color-brand)' }} />
               Appointment Context (Read-Only)
             </span>
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${
-                visitType === 'PREVENTIVE'
-                  ? 'bg-purple-50 text-purple-700 border-purple-200'
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
-              }`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '2px 8px',
+                borderRadius: '9999px',
+                fontSize: '11px',
+                fontWeight: 700,
+                backgroundColor: visitType === 'PREVENTIVE' ? 'var(--color-amc-bg)' : 'var(--color-info-bg)',
+                color: visitType === 'PREVENTIVE' ? 'var(--color-amc-text)' : 'var(--color-info-text)',
+                border: `1px solid ${visitType === 'PREVENTIVE' ? 'var(--color-amc-border)' : 'var(--color-info-border)'}`,
+              }}
             >
               {visitType === 'PREVENTIVE' ? 'AMC Preventive Maintenance' : 'Customer Service Request'}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-              <span className="text-slate-400 block font-medium">Customer</span>
-              <span className="font-semibold text-slate-900 block truncate mt-0.5">
-                {schedule.customerName || 'N/A'}
-              </span>
-              <span className="text-[11px] text-slate-500 font-mono">
+          <div className="svr-context-grid">
+            <div className="svr-context-item">
+              <span className="svr-context-label">Customer</span>
+              <span className="svr-context-value">{schedule.customerName || 'N/A'}</span>
+              <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
                 {schedule.customerCode || 'Code: N/A'}
               </span>
             </div>
 
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-              <span className="text-slate-400 block font-medium">Site Location</span>
-              <span className="font-semibold text-slate-900 block truncate mt-0.5">
-                {schedule.siteName || 'N/A'}
-              </span>
-              <span className="text-[11px] text-slate-500 truncate block">
-                {schedule.siteAddress || 'Address on file'}
-              </span>
+            <div className="svr-context-item">
+              <span className="svr-context-label">Site Location</span>
+              <span className="svr-context-value">{schedule.siteName || 'N/A'}</span>
+              <span className="svr-context-sub">{schedule.siteAddress || 'Address on file'}</span>
             </div>
 
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-              <span className="text-slate-400 block font-medium">Assigned Technician</span>
-              <span className="font-semibold text-blue-800 block truncate mt-0.5 flex items-center gap-1">
-                <User size={12} className="text-blue-600" />
+            <div className="svr-context-item">
+              <span className="svr-context-label">Assigned Technician</span>
+              <span className="svr-context-value" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-brand)' }}>
+                <User size={13} style={{ color: 'var(--color-brand)' }} />
                 {schedule.technicianName || 'Unassigned'}
               </span>
-              <span className="text-[11px] text-slate-500 font-mono">
+              <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
                 [{schedule.technicianCode || 'N/A'}]
               </span>
             </div>
 
-            <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-              <span className="text-slate-400 block font-medium">Work Item Reference</span>
+            <div className="svr-context-item">
+              <span className="svr-context-label">Work Item Reference</span>
               {schedule.amcContractNumber ? (
-                <span className="font-semibold text-purple-700 block truncate mt-0.5">
+                <span className="svr-context-value" style={{ color: 'var(--color-amc-text)' }}>
                   AMC: {schedule.amcContractNumber}
                 </span>
               ) : schedule.serviceRequestNumber ? (
-                <span className="font-semibold text-blue-700 block truncate mt-0.5">
+                <span className="svr-context-value" style={{ color: 'var(--color-info-text)' }}>
                   SR: {schedule.serviceRequestNumber}
                 </span>
               ) : (
-                <span className="font-semibold text-slate-700 block truncate mt-0.5">
-                  General Appointment
-                </span>
+                <span className="svr-context-value">General Appointment</span>
               )}
-              <span className="text-[11px] text-slate-500 font-mono">
+              <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
                 Appt: {schedule.scheduleNumber}
               </span>
             </div>
@@ -608,15 +618,23 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         </div>
 
         {/* Section 2: Report Information (Manual Number & Timing) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
           <div>
             <label
               htmlFor="manual-report-number-input"
-              className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5"
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: 'var(--text-secondary)',
+                marginBottom: '6px',
+              }}
             >
-              Manual Report Number <span className="text-red-500">*</span>
+              Manual Report Number <span style={{ color: 'var(--color-error-solid)' }}>*</span>
             </label>
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <Input
                 id="manual-report-number-input"
                 ref={reportNumberInputRef}
@@ -629,19 +647,33 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 onBlur={() => setReportNumber((prev) => prev.trim())}
                 placeholder="e.g. REP-2026-0042"
                 disabled={isSubmitting}
-                className={`font-mono text-sm tracking-wide ${
-                  reportNumberError ? 'border-red-500 focus:ring-red-400' : ''
-                }`}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '14px',
+                  letterSpacing: '0.03em',
+                  paddingRight: '32px',
+                  borderColor: reportNumberError ? 'var(--color-error-solid)' : undefined,
+                }}
               />
-              <Hash className="w-4 h-4 absolute right-3 top-3 text-slate-400 pointer-events-none" />
+              <Hash
+                size={16}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none',
+                }}
+              />
             </div>
             {reportNumberError ? (
-              <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1">
-                <AlertTriangle size={12} className="flex-shrink-0" />
+              <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <AlertTriangle size={12} style={{ flexShrink: 0 }} />
                 {reportNumberError}
               </p>
             ) : (
-              <span className="text-[11px] text-slate-500 block mt-1">
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                 Physical carbon / booklet serial number
               </span>
             )}
@@ -650,67 +682,84 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           <div>
             <label
               htmlFor="reported-visit-date-input"
-              className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5"
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: 'var(--text-secondary)',
+                marginBottom: '6px',
+              }}
             >
-              Reported Visit Date <span className="text-red-500">*</span>
+              Reported Visit Date <span style={{ color: 'var(--color-error-solid)' }}>*</span>
             </label>
-            <div className="relative">
-              <Input
-                id="reported-visit-date-input"
-                type="date"
-                value={visitDate}
-                onChange={(e) => {
-                  setVisitDate(e.target.value);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                disabled={isSubmitting}
-              />
-            </div>
-            <span className="text-[11px] text-slate-500 block mt-1">
+            <Input
+              id="reported-visit-date-input"
+              type="date"
+              value={visitDate}
+              onChange={(e) => {
+                setVisitDate(e.target.value);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              disabled={isSubmitting}
+              style={{ fontSize: '13px' }}
+            />
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
               Date the visit was performed on-site
             </span>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: 'var(--text-secondary)',
+                marginBottom: '6px',
+              }}
+            >
               Visit Timing (Start & End)
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="relative">
-                <Input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => {
-                    setStartTime(e.target.value);
-                    if (timeError) setTimeError(null);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  disabled={isSubmitting}
-                  title="Visit Start Time"
-                />
-              </div>
-              <div className="relative">
-                <Input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => {
-                    setEndTime(e.target.value);
-                    if (timeError) setTimeError(null);
-                    if (errorMessage) setErrorMessage(null);
-                  }}
-                  disabled={isSubmitting}
-                  title="Visit End Time"
-                  className={timeError ? 'border-red-500' : ''}
-                />
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+              <Input
+                type="time"
+                value={startTime}
+                onChange={(e) => {
+                  setStartTime(e.target.value);
+                  if (timeError) setTimeError(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                disabled={isSubmitting}
+                title="Visit Start Time"
+                style={{ fontSize: '13px' }}
+              />
+              <Input
+                type="time"
+                value={endTime}
+                onChange={(e) => {
+                  setEndTime(e.target.value);
+                  if (timeError) setTimeError(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                disabled={isSubmitting}
+                title="Visit End Time"
+                style={{
+                  fontSize: '13px',
+                  borderColor: timeError ? 'var(--color-error-solid)' : undefined,
+                }}
+              />
             </div>
             {timeError ? (
-              <p className="text-xs text-red-600 font-medium mt-1 flex items-center gap-1">
-                <Clock size={12} className="flex-shrink-0" />
+              <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Clock size={12} style={{ flexShrink: 0 }} />
                 {timeError}
               </p>
             ) : (
-              <span className="text-[11px] text-slate-500 block mt-1">
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                 Actual technician on-site interval
               </span>
             )}
@@ -719,37 +768,37 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
         {/* Section 3: Primary Visit Outcome (3 Equal Cards with Rich Visual Tokens) */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            Primary Visit Outcome <span className="text-red-500">*</span>
+          <label
+            style={{
+              display: 'block',
+              fontSize: '11px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              color: 'var(--text-secondary)',
+              marginBottom: '8px',
+            }}
+          >
+            Primary Visit Outcome <span style={{ color: 'var(--color-error-solid)' }}>*</span>
           </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div className="svr-outcome-grid">
             {/* 1. Service Completed Card */}
             <button
               type="button"
               onClick={() => handleOutcomeChange('COMPLETED')}
-              className={`p-3.5 rounded-xl border-2 text-left transition-all duration-150 flex items-start gap-3 cursor-pointer shadow-2xs ${
-                primaryOutcome === 'COMPLETED'
-                  ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-3 ring-emerald-600/15'
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white text-slate-700'
-              }`}
+              className={`svr-outcome-card ${primaryOutcome === 'COMPLETED' ? 'selected-completed' : ''}`}
             >
-              <div
-                className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${
-                  primaryOutcome === 'COMPLETED'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                <CheckCircle className="w-5 h-5" />
+              <div className="svr-outcome-icon">
+                <CheckCircle size={20} />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm leading-tight flex items-center justify-between">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="svr-outcome-title">
                   <span>Service Completed</span>
                   {primaryOutcome === 'COMPLETED' && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                    <span style={{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: 'var(--color-success-solid)' }} />
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1 leading-snug">
+                <div className="svr-outcome-desc">
                   All work finished on-site and verified functional
                 </div>
               </div>
@@ -759,29 +808,19 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             <button
               type="button"
               onClick={() => handleOutcomeChange('PENDING_PARTS')}
-              className={`p-3.5 rounded-xl border-2 text-left transition-all duration-150 flex items-start gap-3 cursor-pointer shadow-2xs ${
-                primaryOutcome === 'PENDING_PARTS'
-                  ? 'border-amber-600 bg-amber-50/70 text-amber-950 ring-3 ring-amber-600/15'
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white text-slate-700'
-              }`}
+              className={`svr-outcome-card ${primaryOutcome === 'PENDING_PARTS' ? 'selected-parts' : ''}`}
             >
-              <div
-                className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${
-                  primaryOutcome === 'PENDING_PARTS'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                <Package className="w-5 h-5" />
+              <div className="svr-outcome-icon">
+                <Package size={20} />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm leading-tight flex items-center justify-between">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="svr-outcome-title">
                   <span>Pending for Parts</span>
                   {primaryOutcome === 'PENDING_PARTS' && (
-                    <span className="w-2 h-2 rounded-full bg-amber-600" />
+                    <span style={{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: 'var(--color-warning-solid)' }} />
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1 leading-snug">
+                <div className="svr-outcome-desc">
                   Requires procurement of replacement spare parts
                 </div>
               </div>
@@ -791,29 +830,19 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             <button
               type="button"
               onClick={() => handleOutcomeChange('PENDING_REPAIRS')}
-              className={`p-3.5 rounded-xl border-2 text-left transition-all duration-150 flex items-start gap-3 cursor-pointer shadow-2xs ${
-                primaryOutcome === 'PENDING_REPAIRS'
-                  ? 'border-rose-600 bg-rose-50/70 text-rose-950 ring-3 ring-rose-600/15'
-                  : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 bg-white text-slate-700'
-              }`}
+              className={`svr-outcome-card ${primaryOutcome === 'PENDING_REPAIRS' ? 'selected-repairs' : ''}`}
             >
-              <div
-                className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${
-                  primaryOutcome === 'PENDING_REPAIRS'
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-slate-100 text-slate-500'
-                }`}
-              >
-                <Wrench className="w-5 h-5" />
+              <div className="svr-outcome-icon">
+                <Wrench size={20} />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm leading-tight flex items-center justify-between">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="svr-outcome-title">
                   <span>Pending for Repairs</span>
                   {primaryOutcome === 'PENDING_REPAIRS' && (
-                    <span className="w-2 h-2 rounded-full bg-rose-600" />
+                    <span style={{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: 'var(--color-error-solid)' }} />
                   )}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1 leading-snug">
+                <div className="svr-outcome-desc">
                   Requires specialized repair, client approval, or revisit
                 </div>
               </div>
@@ -822,137 +851,184 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         </div>
 
         {/* Section 4: Per-Asset Inspection Findings */}
-        <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-blue-600" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <FileCheck size={16} style={{ color: 'var(--color-brand)' }} />
               AC Asset Findings & Inspection Details ({assets.length}{' '}
               {assets.length === 1 ? 'Unit' : 'Units'})
             </span>
-            <span className="text-xs text-slate-400">
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
               Findings preserved independently per unit
             </span>
           </div>
 
           {assets.map((asset, idx) => (
-            <div
-              key={asset.assetId}
-              className="space-y-3.5 p-4 bg-slate-50/90 rounded-xl border border-slate-200"
-            >
-              <div className="flex justify-between items-center text-xs font-semibold text-slate-800 pb-2 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-mono font-bold">
+            <div key={asset.assetId} className="svr-asset-card">
+              {/* Asset Card Header */}
+              <div className="svr-asset-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      backgroundColor: 'var(--color-primary-50)',
+                      color: 'var(--color-primary-800)',
+                      border: '1px solid var(--color-primary-200)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                    }}
+                  >
                     {asset.assetTag}
                   </span>
-                  <span className="text-slate-700">
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {asset.brand} {asset.modelNumber} — {asset.roomLocation || 'General / Central'}
                   </span>
                 </div>
-                <span className="text-slate-500 text-[11px]">
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                   Unit {idx + 1} of {assets.length}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Fault or Complaint Reported
-                  </label>
-                  <Input
-                    value={asset.faultReported}
-                    onChange={(e) => handleAssetFieldChange(idx, 'faultReported', e.target.value)}
-                    placeholder="e.g. Low cooling, noise from blower"
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Diagnosis / Findings
-                  </label>
-                  <Input
-                    value={asset.diagnosisFindings}
-                    onChange={(e) =>
-                      handleAssetFieldChange(idx, 'diagnosisFindings', e.target.value)
-                    }
-                    placeholder="e.g. Coil choked with dust, pressure normal"
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Work Performed on this Asset{' '}
-                  {primaryOutcome === 'COMPLETED' && (
-                    <span className="text-slate-400 font-normal">
-                      (or describe in overall summary below)
-                    </span>
-                  )}
-                </label>
-                <Input
-                  value={asset.workPerformed}
-                  onChange={(e) => handleAssetFieldChange(idx, 'workPerformed', e.target.value)}
-                  placeholder="e.g. Jet cleaned filters, tested compressor amp"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center pt-1">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Final Asset Condition
-                  </label>
-                  <select
-                    value={asset.finalCondition}
-                    onChange={(e) => handleAssetFieldChange(idx, 'finalCondition', e.target.value)}
-                    className="w-full text-xs rounded-lg border border-slate-300 p-2.5 bg-white font-medium text-slate-800"
-                    disabled={isSubmitting}
-                  >
-                    <option value="Good">Good / Fully Operational</option>
-                    <option value="Fair">Fair / Requires Regular Monitoring</option>
-                    <option value="Poor">Poor / Performance Degraded</option>
-                    <option value="Critical">Critical / Non-Operational</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2 pt-4">
-                  <input
-                    type="checkbox"
-                    id={`ref-add-${idx}`}
-                    checked={asset.refrigerantAdded}
-                    onChange={(e) =>
-                      handleAssetFieldChange(idx, 'refrigerantAdded', e.target.checked)
-                    }
-                    disabled={isSubmitting}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <label
-                    htmlFor={`ref-add-${idx}`}
-                    className="text-xs text-slate-700 font-medium cursor-pointer"
-                  >
-                    Refrigerant Added (Gas Top-Up)
-                  </label>
-                </div>
-
-                {asset.refrigerantAdded && (
+              {/* Group 1: Inspection & Diagnostics */}
+              <div className="svr-group-card">
+                <span className="svr-group-title">
+                  <Wrench size={13} style={{ color: 'var(--color-brand)' }} />
+                  1. Inspection & Diagnostic Findings
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Gas Qty Added (Kg)
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Fault or Complaint Reported
                     </label>
                     <Input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      max="20"
-                      value={asset.refrigerantQtyKg}
-                      onChange={(e) =>
-                        handleAssetFieldChange(idx, 'refrigerantQtyKg', e.target.value)
-                      }
-                      placeholder="e.g. 0.8"
+                      value={asset.faultReported}
+                      onChange={(e) => handleAssetFieldChange(idx, 'faultReported', e.target.value)}
+                      placeholder="e.g. Low cooling, noise from blower"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
-                )}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Diagnosis / Findings
+                    </label>
+                    <Input
+                      value={asset.diagnosisFindings}
+                      onChange={(e) =>
+                        handleAssetFieldChange(idx, 'diagnosisFindings', e.target.value)
+                      }
+                      placeholder="e.g. Coil choked with dust, pressure normal"
+                      disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Group 2: Work Performed & Final Condition */}
+              <div className="svr-group-card">
+                <span className="svr-group-title">
+                  <CheckCircle2 size={13} style={{ color: 'var(--color-success-solid)' }} />
+                  2. Work Performed & Asset Operational Status
+                </span>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Work Performed on this Asset{' '}
+                    {primaryOutcome === 'COMPLETED' && (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                        (or describe in overall summary below)
+                      </span>
+                    )}
+                  </label>
+                  <Input
+                    value={asset.workPerformed}
+                    onChange={(e) => handleAssetFieldChange(idx, 'workPerformed', e.target.value)}
+                    placeholder="e.g. Jet cleaned filters, tested compressor amp"
+                    disabled={isSubmitting}
+                    style={{ fontSize: '12px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', alignItems: 'center' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Final Asset Condition
+                    </label>
+                    <select
+                      value={asset.finalCondition}
+                      onChange={(e) => handleAssetFieldChange(idx, 'finalCondition', e.target.value)}
+                      style={{
+                        width: '100%',
+                        fontSize: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-default)',
+                        padding: '7px 10px',
+                        backgroundColor: 'var(--bg-surface)',
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <option value="Good">Good / Fully Operational</option>
+                      <option value="Fair">Fair / Requires Regular Monitoring</option>
+                      <option value="Poor">Poor / Performance Degraded</option>
+                      <option value="Critical">Critical / Non-Operational</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '16px' }}>
+                    <input
+                      type="checkbox"
+                      id={`ref-add-${idx}`}
+                      checked={asset.refrigerantAdded}
+                      onChange={(e) =>
+                        handleAssetFieldChange(idx, 'refrigerantAdded', e.target.checked)
+                      }
+                      disabled={isSubmitting}
+                      style={{ width: '16px', height: '16px', accentColor: 'var(--color-brand)', cursor: 'pointer' }}
+                    />
+                    <label
+                      htmlFor={`ref-add-${idx}`}
+                      style={{ fontSize: '12px', color: 'var(--text-primary)', fontWeight: 500, cursor: 'pointer' }}
+                    >
+                      Refrigerant Added (Gas Top-Up)
+                    </label>
+                  </div>
+
+                  {asset.refrigerantAdded && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                        Gas Qty Added (Kg)
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        max="20"
+                        value={asset.refrigerantQtyKg}
+                        onChange={(e) =>
+                          handleAssetFieldChange(idx, 'refrigerantQtyKg', e.target.value)
+                        }
+                        placeholder="e.g. 0.8"
+                        disabled={isSubmitting}
+                        style={{ fontSize: '12px' }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -960,14 +1036,35 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
         {/* Section 5A: Outcome Section — Service Completed */}
         {primaryOutcome === 'COMPLETED' && (
-          <div className="space-y-3 p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl">
-            <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs uppercase tracking-wider">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div
+            style={{
+              padding: 'var(--space-4)',
+              backgroundColor: 'var(--color-success-bg)',
+              border: '1px solid var(--color-success-border)',
+              borderRadius: 'var(--radius-xl)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: 'var(--color-success-text)',
+                fontWeight: 700,
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              <CheckCircle2 size={16} style={{ color: 'var(--color-success-solid)' }} />
               Service Completed — Overall Work Summary & Verification
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Summary of Servicing & Testing Performed <span className="text-red-500">*</span>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Summary of Servicing & Testing Performed <span style={{ color: 'var(--color-error-solid)' }}>*</span>
               </label>
               <Textarea
                 value={workDescription}
@@ -979,12 +1076,15 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 rows={3}
                 placeholder="Describe servicing performed, air-flow checks, amperage and operational verification..."
                 disabled={isSubmitting}
-                className={workError ? 'border-red-500' : ''}
+                style={{
+                  fontSize: '13px',
+                  borderColor: workError ? 'var(--color-error-solid)' : undefined,
+                }}
               />
               {workError ? (
-                <p className="text-xs text-red-600 font-medium mt-1">{workError}</p>
+                <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500, marginTop: '4px' }}>{workError}</p>
               ) : (
-                <span className="text-[11px] text-slate-500 block mt-1">
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
                   Required if not already specified in per-asset work performed above
                 </span>
               )}
@@ -994,34 +1094,61 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
         {/* Section 5B: Outcome Section — Pending for Parts */}
         {primaryOutcome === 'PENDING_PARTS' && (
-          <div className="space-y-4 p-4 bg-amber-50/50 border border-amber-200 rounded-xl">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-                <Package className="w-4 h-4 text-amber-600" />
+          <div
+            style={{
+              padding: 'var(--space-4)',
+              backgroundColor: 'var(--color-warning-bg)',
+              border: '1px solid var(--color-warning-border)',
+              borderRadius: 'var(--radius-xl)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3-5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--color-warning-text)',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                <Package size={16} style={{ color: 'var(--color-warning-solid)' }} />
                 Required Parts Specification ({partItems.length}{' '}
                 {partItems.length === 1 ? 'Item' : 'Items'})
               </div>
               <Button type="button" size="sm" variant="secondary" onClick={addPartItem}>
-                <Plus size={14} className="mr-1" /> Add Another Part
+                <Plus size={14} /> <span>Add Another Part</span>
               </Button>
             </div>
 
             {itemError && (
-              <p className="text-xs text-red-600 font-medium">{itemError}</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500 }}>{itemError}</p>
             )}
 
             {partItems.map((item, idx) => (
-              <div
-                key={item.id}
-                className="p-3.5 bg-white border border-amber-200/90 rounded-xl space-y-3 shadow-2xs"
-              >
-                <div className="flex justify-between items-center text-xs font-semibold text-amber-900 pb-1.5 border-b border-amber-100">
+              <div key={item.id} className="svr-repeater-card">
+                <div className="svr-repeater-header" style={{ color: 'var(--color-warning-text)' }}>
                   <span>Part Item #{idx + 1}</span>
                   {partItems.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removePartItem(item.id)}
-                      className="text-red-600 hover:text-red-800 flex items-center gap-1 text-xs cursor-pointer"
+                      style={{
+                        color: 'var(--color-error-solid)',
+                        background: 'transparent',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
                       title="Remove Part"
                     >
                       <Trash2 size={13} />
@@ -1030,20 +1157,21 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Part Name <span className="text-red-500">*</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Part Name <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                     </label>
                     <Input
                       value={item.itemName}
                       onChange={(e) => updatePartItem(item.id, 'itemName', e.target.value)}
                       placeholder="e.g. Dual Run Capacitor 45+5 uF"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                       Part Number (Optional)
                     </label>
                     <Input
@@ -1051,14 +1179,15 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                       onChange={(e) => updatePartItem(item.id, 'partNumber', e.target.value)}
                       placeholder="e.g. CAP-4550"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 'var(--space-3)' }}>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Quantity Required <span className="text-red-500">*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Quantity <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                     </label>
                     <Input
                       type="number"
@@ -1068,23 +1197,25 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         updatePartItem(item.id, 'quantity', parseInt(e.target.value, 10) || 1)
                       }
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Reason Required <span className="text-red-500">*</span>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Reason Required <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                     </label>
                     <Input
                       value={item.reason}
                       onChange={(e) => updatePartItem(item.id, 'reason', e.target.value)}
                       placeholder="e.g. Capacitor blown, preventing compressor starting"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-slate-700 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}>
                     <input
                       type="checkbox"
                       checked={item.isRevisitRequired}
@@ -1092,7 +1223,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         updatePartItem(item.id, 'isRevisitRequired', e.target.checked)
                       }
                       disabled={isSubmitting}
-                      className="w-4 h-4 text-amber-600 rounded"
+                      style={{ width: '15px', height: '15px', accentColor: 'var(--color-warning-solid)', cursor: 'pointer' }}
                     />
                     <span>Requires Revisit for Part Installation</span>
                   </label>
@@ -1104,34 +1235,61 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
         {/* Section 5C: Outcome Section — Pending for Repairs */}
         {primaryOutcome === 'PENDING_REPAIRS' && (
-          <div className="space-y-4 p-4 bg-rose-50/50 border border-rose-200 rounded-xl">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2 text-rose-900 font-bold text-xs uppercase tracking-wider">
-                <Wrench className="w-4 h-4 text-rose-600" />
+          <div
+            style={{
+              padding: 'var(--space-4)',
+              backgroundColor: 'var(--color-error-bg)',
+              border: '1px solid var(--color-error-border)',
+              borderRadius: 'var(--radius-xl)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3-5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: 'var(--color-error-text)',
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                <Wrench size={16} style={{ color: 'var(--color-error-solid)' }} />
                 Required Repairs & Next Action Items ({repairItems.length}{' '}
                 {repairItems.length === 1 ? 'Item' : 'Items'})
               </div>
               <Button type="button" size="sm" variant="secondary" onClick={addRepairItem}>
-                <Plus size={14} className="mr-1" /> Add Another Repair
+                <Plus size={14} /> <span>Add Another Repair</span>
               </Button>
             </div>
 
             {itemError && (
-              <p className="text-xs text-red-600 font-medium">{itemError}</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500 }}>{itemError}</p>
             )}
 
             {repairItems.map((item, idx) => (
-              <div
-                key={item.id}
-                className="p-3.5 bg-white border border-rose-200/90 rounded-xl space-y-3 shadow-2xs"
-              >
-                <div className="flex justify-between items-center text-xs font-semibold text-rose-900 pb-1.5 border-b border-rose-100">
+              <div key={item.id} className="svr-repeater-card">
+                <div className="svr-repeater-header" style={{ color: 'var(--color-error-text)' }}>
                   <span>Repair Item #{idx + 1}</span>
                   {repairItems.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeRepairItem(item.id)}
-                      className="text-red-600 hover:text-red-800 flex items-center gap-1 text-xs cursor-pointer"
+                      style={{
+                        color: 'var(--color-error-solid)',
+                        background: 'transparent',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
                       title="Remove Repair"
                     >
                       <Trash2 size={13} />
@@ -1141,32 +1299,34 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Fault / Repair Description <span className="text-red-500">*</span>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Fault / Repair Description <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                   </label>
                   <Input
                     value={item.itemName}
                     onChange={(e) => updateRepairItem(item.id, 'itemName', e.target.value)}
                     placeholder="e.g. Copper tube brazing and nitrogen leak pressure test"
                     disabled={isSubmitting}
+                    style={{ fontSize: '12px' }}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)' }}>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Reason Pending <span className="text-red-500">*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Reason Pending <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                     </label>
                     <Input
                       value={item.reason}
                       onChange={(e) => updateRepairItem(item.id, 'reason', e.target.value)}
                       placeholder="e.g. Nitrogen cylinder and brazing kit required on site"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Recommended Next Action <span className="text-red-500">*</span>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Recommended Next Action <span style={{ color: 'var(--color-error-solid)' }}>*</span>
                     </label>
                     <Input
                       value={item.recommendedAction}
@@ -1175,12 +1335,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                       }
                       placeholder="e.g. Arrange specialist team revisit with welding equipment"
                       disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
                     />
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-700 pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-4)', fontSize: '12px', paddingTop: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-primary)' }}>
                     <input
                       type="checkbox"
                       checked={item.isApprovalRequired}
@@ -1188,12 +1349,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         updateRepairItem(item.id, 'isApprovalRequired', e.target.checked)
                       }
                       disabled={isSubmitting}
-                      className="w-4 h-4 text-rose-600 rounded"
+                      style={{ width: '15px', height: '15px', accentColor: 'var(--color-error-solid)', cursor: 'pointer' }}
                     />
                     <span>Customer / Management Approval Required</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-primary)' }}>
                     <input
                       type="checkbox"
                       checked={item.isSpecialistRequired}
@@ -1201,12 +1362,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         updateRepairItem(item.id, 'isSpecialistRequired', e.target.checked)
                       }
                       disabled={isSubmitting}
-                      className="w-4 h-4 text-rose-600 rounded"
+                      style={{ width: '15px', height: '15px', accentColor: 'var(--color-error-solid)', cursor: 'pointer' }}
                     />
                     <span>Senior HVAC Specialist Required</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-primary)' }}>
                     <input
                       type="checkbox"
                       checked={item.isRevisitRequired}
@@ -1214,7 +1375,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         updateRepairItem(item.id, 'isRevisitRequired', e.target.checked)
                       }
                       disabled={isSubmitting}
-                      className="w-4 h-4 text-rose-600 rounded"
+                      style={{ width: '15px', height: '15px', accentColor: 'var(--color-error-solid)', cursor: 'pointer' }}
                     />
                     <span>Revisit Required</span>
                   </label>
@@ -1225,9 +1386,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         )}
 
         {/* Section 6: Technician Remarks & Customer Acknowledgement */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-700">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
               General Technician Remarks
             </label>
             <Textarea
@@ -1236,12 +1397,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               rows={3}
               placeholder="Internal operational notes, special tools used, or recommendations..."
               disabled={isSubmitting}
+              style={{ fontSize: '12px' }}
             />
           </div>
 
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 Customer / Site Representative Name
               </label>
               <Input
@@ -1249,10 +1411,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 onChange={(e) => setCustomerRepresentative(e.target.value)}
                 placeholder="e.g. Ramesh Shah (Facility Incharge)"
                 disabled={isSubmitting}
+                style={{ fontSize: '12px' }}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 Customer Feedback / Acknowledgement
               </label>
               <Input
@@ -1260,6 +1423,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 onChange={(e) => setCustomerAcknowledgement(e.target.value)}
                 placeholder="e.g. Satisfied with service, cooling restored"
                 disabled={isSubmitting}
+                style={{ fontSize: '12px' }}
               />
             </div>
           </div>

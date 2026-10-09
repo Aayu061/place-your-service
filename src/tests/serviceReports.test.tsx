@@ -697,4 +697,139 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     unmount();
   });
+
+  it('13. ServiceVisitReportModal renders structured appointment context, outcome selector cards with distinct selection classes, and organized asset inspection groups', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Modal dialog max-width
+    const dialog = container.querySelector('.modal-dialog') as HTMLElement;
+    expect(dialog).toBeDefined();
+    expect(dialog?.style.maxWidth).toBe('1040px');
+
+    // Appointment Context Panel & Responsive Grid
+    const contextPanel = container.querySelector('.svr-context-panel');
+    expect(contextPanel).toBeDefined();
+    expect(contextPanel?.textContent).toContain('Appointment Context (Read-Only)');
+    expect(contextPanel?.textContent).toContain('Customer');
+    expect(contextPanel?.textContent).toContain('Sachin Parekh');
+    expect(contextPanel?.textContent).toContain('Site Location');
+    expect(contextPanel?.textContent).toContain('Residence');
+    expect(contextPanel?.textContent).toContain('Assigned Technician');
+    expect(contextPanel?.textContent).toContain('Raj Patel');
+
+    // 3 Equal Outcome Selector Cards
+    const outcomeCards = container.querySelectorAll('.svr-outcome-card');
+    expect(outcomeCards.length).toBe(3);
+    expect(outcomeCards[0].textContent).toContain('Service Completed');
+    expect(outcomeCards[1].textContent).toContain('Pending for Parts');
+    expect(outcomeCards[2].textContent).toContain('Pending for Repairs');
+
+    // Default outcome is completed -> selected-completed class
+    expect(outcomeCards[0].classList.contains('selected-completed')).toBe(true);
+
+    // Switch to Pending for Parts
+    await act(async () => {
+      (outcomeCards[1] as HTMLButtonElement).click();
+    });
+    expect(outcomeCards[1].classList.contains('selected-parts')).toBe(true);
+    expect(outcomeCards[0].classList.contains('selected-completed')).toBe(false);
+
+    // Asset inspection cards & organized groups
+    const assetCard = container.querySelector('.svr-asset-card');
+    expect(assetCard).toBeDefined();
+    expect(assetCard?.textContent).toContain('ESSC-0001');
+    expect(assetCard?.textContent).toContain('1. Inspection & Diagnostic Findings');
+    expect(assetCard?.textContent).toContain('2. Work Performed & Asset Operational Status');
+
+    // Sticky Footer actions & required label
+    expect(container.textContent).toContain('All fields with asterisk (*) are required for persistence');
+    expect(container.textContent).toContain('Cancel');
+    expect(container.textContent).toContain('Submit Visit Report');
+
+    unmount();
+  });
+
+  it('14. ServiceReportsManagement renders aligned 4-card KPI grid and cohesive horizontal filter toolbar', async () => {
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [mockCompletedReport, mockPendingPartsReport],
+      total: 2,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+      summary: {
+        total: 2,
+        completed: 1,
+        pendingParts: 1,
+        pendingRepairs: 0,
+      },
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    // 4 KPI Cards in .svr-kpi-grid
+    const kpiGrid = container.querySelector('.svr-kpi-grid');
+    expect(kpiGrid).toBeDefined();
+    const kpiCards = container.querySelectorAll('.svr-kpi-card');
+    expect(kpiCards.length).toBe(4);
+    expect(kpiCards[0].classList.contains('total')).toBe(true);
+    expect(kpiCards[1].classList.contains('completed')).toBe(true);
+    expect(kpiCards[2].classList.contains('pending-parts')).toBe(true);
+    expect(kpiCards[3].classList.contains('pending-repairs')).toBe(true);
+
+    // Filter toolbar
+    const toolbar = container.querySelector('.svr-filter-toolbar');
+    expect(toolbar).toBeDefined();
+    expect(toolbar?.querySelector('.svr-filter-search')).toBeDefined();
+    const selects = toolbar?.querySelectorAll('.svr-filter-select');
+    expect(selects?.length).toBe(2); // Visit type + Outcome selects
+    expect(toolbar?.querySelector('.svr-filter-dates')).toBeDefined();
+    expect(toolbar?.querySelector('.svr-filter-actions')).toBeDefined();
+
+    unmount();
+  });
+
+  it('15. ServiceReportsManagement properly renders compact loading and empty states', async () => {
+    // 15A: Loading state when no initial reports
+    let resolveReports: (val: unknown) => void;
+    const pendingPromise = new Promise((resolve) => {
+      resolveReports = resolve;
+    });
+    vi.spyOn(serviceReportApi, 'getReports').mockReturnValue(pendingPromise as unknown as ReturnType<typeof serviceReportApi.getReports>);
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    expect(container.querySelector('.svr-loading-state')).toBeDefined();
+    expect(container.textContent).toContain('Loading service reports...');
+
+    // 15B: Resolve with empty array -> Empty state
+    await act(async () => {
+      resolveReports!({
+        reports: [],
+        total: 0,
+        page: 1,
+        pageSize: 15,
+        totalPages: 1,
+      });
+    });
+
+    expect(container.textContent).toContain('No Service Reports Found');
+    expect(container.textContent).toContain('No service visit reports recorded yet');
+
+    unmount();
+  });
 });
+
