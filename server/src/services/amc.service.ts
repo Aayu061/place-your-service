@@ -135,9 +135,9 @@ export class AmcService {
   }
 
   /**
-   * Generate collision-safe PM schedule number (PM-YYYY-XXXXXX)
+   * Query starting sequence for PM schedule numbers (PM-YYYY-XXXXXX)
    */
-  private async generateScheduleNumber(): Promise<string> {
+  private async getNextScheduleSequence(): Promise<{ prefix: string; nextSeq: number }> {
     const supabase = getSupabaseClient();
     const year = new Date().getFullYear();
     const prefix = `PM-${year}-`;
@@ -165,6 +165,14 @@ export class AmcService {
       }
     }
 
+    return { prefix, nextSeq };
+  }
+
+  /**
+   * Generate collision-safe PM schedule number (PM-YYYY-XXXXXX)
+   */
+  private async generateScheduleNumber(): Promise<string> {
+    const { prefix, nextSeq } = await this.getNextScheduleSequence();
     return `${prefix}${String(nextSeq).padStart(6, '0')}`;
   }
 
@@ -1068,15 +1076,36 @@ export class AmcService {
 
     const today = new Date().toISOString().split('T')[0];
 
+    const { prefix, nextSeq: startSeq } = await this.getNextScheduleSequence();
+    let currentSeq = startSeq;
+
+    // Verify actorId exists in profiles or set null to avoid FK violation
+    let validActorId: string | null = null;
+    if (actorId) {
+      try {
+        const query: any = supabase.from('profiles').select('id').eq('id', actorId);
+        const res = typeof query.maybeSingle === 'function'
+          ? await query.maybeSingle()
+          : typeof query.single === 'function'
+            ? await query.single()
+            : { data: null };
+        if (res && res.data) validActorId = res.data.id;
+      } catch {
+        validActorId = null;
+      }
+    }
+
     const toInsert: Array<{
       schedule_number: string;
       amc_id: string;
       asset_id: string;
+      customer_id: string | null;
+      site_id: string | null;
       scheduled_date: string;
       visit_number: number;
       status: string;
       is_system_generated: boolean;
-      created_by: string;
+      created_by: string | null;
     }> = [];
 
     let existingCount = 0;
@@ -1089,7 +1118,7 @@ export class AmcService {
         if (existingKeySet.has(key)) {
           existingCount++;
         } else {
-          const scheduleNumber = await this.generateScheduleNumber();
+          const scheduleNumber = `${prefix}${String(currentSeq++).padStart(6, '0')}`;
           let status: ServiceScheduleStatus = 'SCHEDULED';
           if (date < today) {
             status = 'OVERDUE';
@@ -1101,11 +1130,13 @@ export class AmcService {
             schedule_number: scheduleNumber,
             amc_id: id,
             asset_id: asset.assetId,
+            customer_id: contract.customerId || null,
+            site_id: asset.siteId || null,
             scheduled_date: date,
             visit_number: i + 1,
             status,
             is_system_generated: true,
-            created_by: actorId,
+            created_by: validActorId,
           });
 
           // Mark key as seen for concurrent asset loop

@@ -141,6 +141,23 @@ export interface AcModel {
   updatedAt: string;
 }
 
+export interface AcModelVariant {
+  id: string;
+  modelId: string;
+  variantCode?: string | null;
+  capacityTons: number;
+  capacityDisplay?: string | null;
+  starRating: string;
+  acType: string;
+  technology: string;
+  refrigerant?: string | null;
+  series?: string | null;
+  sourceProvenance?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AcAsset {
   id: string;
   assetTag: string; // ESSC-XXXX
@@ -153,6 +170,7 @@ export interface AcAsset {
   brandId?: string | null;
   modelNumber?: string | null;
   modelId?: string | null;
+  variantId?: string | null;
   serialNumber?: string | null;
   indoorSerialNumber?: string | null;
   outdoorSerialNumber?: string | null;
@@ -557,6 +575,7 @@ export interface ServiceSchedule {
   id: string;
   scheduleNumber: string;
   scheduleCode?: string; // Compatibility alias
+  scheduleType?: 'PREVENTIVE' | 'SERVICE_REQUEST';
   amcId?: string | null;
   amcContractId?: string | null; // Compatibility alias
   amcContractNumber?: string | null;

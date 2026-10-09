@@ -564,4 +564,101 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
 
     unmount();
   });
+
+  it('9. Filters unscheduled work queue between Preventive Maintenance (AMC) and Service Requests (Breakdown)', async () => {
+    const mixedQueue: UnscheduledWorkItem[] = [
+      {
+        id: 'sr-1',
+        type: 'SERVICE_REQUEST',
+        identifier: 'SR-2026-0001',
+        customerName: 'Customer A',
+        siteName: 'Site A',
+        siteAddress: 'Address A',
+        assetId: 'asset-1',
+        assetTag: 'ESSC-0001',
+        brand: 'Daikin',
+        modelNumber: 'FTKF50TV',
+        acType: 'SPLIT',
+        description: 'AC not cooling',
+        priority: 'HIGH',
+        dueDate: '2026-10-15',
+        suggestedDurationMinutes: 120,
+      },
+      {
+        id: 'pm-1',
+        type: 'PM_OBLIGATION',
+        identifier: 'PM-2026-0001',
+        customerName: 'Customer B',
+        siteName: 'Site B',
+        siteAddress: 'Address B',
+        assetId: 'asset-2',
+        assetTag: 'ESSC-0002',
+        brand: 'Voltas',
+        modelNumber: '185V',
+        acType: 'SPLIT',
+        description: 'Q1 Preventive Maintenance',
+        dueDate: '2026-10-20',
+        suggestedDurationMinutes: 90,
+        amcId: 'amc-1',
+        visitNumber: 1,
+      },
+    ];
+
+    vi.spyOn(scheduleApi, 'getUnscheduledWork').mockResolvedValue({
+      items: mixedQueue,
+    } as never);
+    vi.spyOn(scheduleApi, 'getSchedules').mockResolvedValue({
+      schedules: [],
+      total: 0,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    } as never);
+
+    const { container, unmount } = await renderComponent();
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+
+    // Switch to unscheduled tab
+    const unscheduledTabBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Unscheduled Work')
+    );
+    await act(async () => {
+      unscheduledTabBtn?.click();
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+
+    // Verify both items show in ALL
+    expect(container.textContent).toContain('SR-2026-0001');
+    expect(container.textContent).toContain('PM-2026-0001');
+
+    // Filter to Preventive Maintenance
+    const pmFilterBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Preventive Maintenance')
+    );
+    await act(async () => {
+      pmFilterBtn?.click();
+    });
+
+    expect(container.textContent).toContain('PM-2026-0001');
+    expect(container.textContent).not.toContain('SR-2026-0001');
+
+    // Filter to Service Requests
+    const srFilterBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Service Requests (1)')
+    );
+    await act(async () => {
+      srFilterBtn?.click();
+    });
+
+    expect(container.textContent).toContain('SR-2026-0001');
+    expect(container.textContent).not.toContain('PM-2026-0001');
+
+    unmount();
+  });
 });

@@ -475,4 +475,59 @@ describe('AC Master Data & Asset Upgrade Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('6. Correctly renders independent Warranty (EXPIRED) and AMC (ACTIVE) statuses without discrepancy', async () => {
+    const assetWithActiveAmc: AcAsset = {
+      ...sampleAssets[0],
+      warrantyStatus: 'EXPIRED',
+      currentAmc: {
+        id: 'amc-1',
+        contractNumber: 'AMC-2026-0001',
+        status: 'ACTIVE',
+        startDate: '2026-01-01',
+        endDate: '2027-01-01',
+        frequency: 'Quarterly',
+        totalVisits: 4,
+        completedVisits: 1,
+        remainingVisits: 3,
+      },
+    };
+
+    vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/customers') {
+        return { customers: [sampleCustomer], total: 1, page: 1, pageSize: 20, totalPages: 1 };
+      }
+      if (endpoint.includes('/sites') && !endpoint.includes('/assets')) {
+        return { sites: sampleSites, total: 1 };
+      }
+      if (endpoint.includes('/assets')) {
+        return { assets: [assetWithActiveAmc], total: 1 };
+      }
+      return {};
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement />);
+    });
+
+    const viewCustomerBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+    await act(async () => {
+      viewCustomerBtn?.click();
+    });
+
+    const assetsTabBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('AC Assets (')
+    );
+    await act(async () => {
+      assetsTabBtn?.click();
+    });
+
+    // Assert that asset card renders both Warranty: EXPIRED and AMC: ACTIVE
+    expect(document.body.textContent).toContain('ESSC-0027');
+    expect(document.body.textContent).toContain('EXPIRED');
+    expect(document.body.textContent).toContain('ACTIVE');
+
+    renderResult.cleanup();
+  });
 });

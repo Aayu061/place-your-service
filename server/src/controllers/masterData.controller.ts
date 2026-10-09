@@ -188,6 +188,37 @@ export class MasterDataController {
       next(err);
     }
   }
+
+  // --- VARIANTS ---
+
+  public async listModelVariants(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const modelId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const activeOnly =
+        req.query.activeOnly !== undefined ? String(req.query.activeOnly) === 'true' : true;
+      const variants = await masterDataService.listModelVariants(modelId, activeOnly);
+      res.status(200).json({
+        success: true,
+        data: { variants },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getVariantById(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const variantId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const variant = await masterDataService.getVariantById(variantId);
+      res.status(200).json({
+        success: true,
+        data: { variant },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const masterDataController = new MasterDataController();
+

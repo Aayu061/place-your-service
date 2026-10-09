@@ -8,6 +8,7 @@ import {
   CreateAcModelPayload,
   UpdateAcModelPayload,
   AcModelListQuery,
+  AcModelVariantResponse,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -596,6 +597,77 @@ export class MasterDataService {
       updatedAt: row.updated_at,
     };
   }
+
+  // --- MODEL VARIANTS ---
+
+  public async listModelVariants(modelId: string, activeOnly = true): Promise<AcModelVariantResponse[]> {
+    const supabase = getSupabaseClient();
+    await this.getModelById(modelId);
+
+    let query = supabase
+      .from('ac_model_variants')
+      .select('*')
+      .eq('model_id', modelId);
+
+    if (activeOnly) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query.order('capacity_tons', { ascending: true });
+
+    if (error) {
+      logger.error('Failed to list AC model variants', { modelId, error: error.message });
+      throw new BadRequestError(`Failed to list AC model variants: ${error.message}`);
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      modelId: row.model_id,
+      variantCode: row.variant_code || null,
+      capacityTons: Number(row.capacity_tons),
+      capacityDisplay: row.capacity_display || null,
+      starRating: row.star_rating,
+      acType: row.ac_type,
+      technology: row.technology,
+      refrigerant: row.refrigerant || null,
+      series: row.series || null,
+      sourceProvenance: row.source_provenance || null,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  public async getVariantById(variantId: string): Promise<AcModelVariantResponse> {
+    const supabase = getSupabaseClient();
+    const { data: row, error } = await supabase
+      .from('ac_model_variants')
+      .select('*')
+      .eq('id', variantId)
+      .maybeSingle();
+
+    if (error || !row) {
+      throw new NotFoundError(`AC model variant with ID '${variantId}' not found`);
+    }
+
+    return {
+      id: row.id,
+      modelId: row.model_id,
+      variantCode: row.variant_code || null,
+      capacityTons: Number(row.capacity_tons),
+      capacityDisplay: row.capacity_display || null,
+      starRating: row.star_rating,
+      acType: row.ac_type,
+      technology: row.technology,
+      refrigerant: row.refrigerant || null,
+      series: row.series || null,
+      sourceProvenance: row.source_provenance || null,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
 }
 
 export const masterDataService = new MasterDataService();
+

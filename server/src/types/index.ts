@@ -330,6 +330,23 @@ export interface AcModelListQuery {
   pageSize?: number;
 }
 
+export interface AcModelVariantResponse {
+  id: string;
+  modelId: string;
+  variantCode?: string | null;
+  capacityTons: number;
+  capacityDisplay?: string | null;
+  starRating: string;
+  acType: string;
+  technology: string;
+  refrigerant?: string | null;
+  series?: string | null;
+  sourceProvenance?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AcAssetResponse {
   id: string;
   assetTag: string;
@@ -339,6 +356,7 @@ export interface AcAssetResponse {
   brandId?: string | null;
   modelNumber: string | null;
   modelId?: string | null;
+  variantId?: string | null;
   serialNumber: string | null;
   indoorSerialNumber?: string | null;
   outdoorSerialNumber?: string | null;
@@ -385,6 +403,7 @@ export interface CreateAcAssetPayload {
   brandId?: string;
   modelNumber?: string;
   modelId?: string;
+  variantId?: string;
   serialNumber?: string;
   indoorSerialNumber?: string;
   outdoorSerialNumber?: string;
@@ -410,6 +429,7 @@ export interface UpdateAcAssetPayload {
   brandId?: string;
   modelNumber?: string;
   modelId?: string;
+  variantId?: string;
   serialNumber?: string;
   indoorSerialNumber?: string;
   outdoorSerialNumber?: string;

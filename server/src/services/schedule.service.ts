@@ -421,7 +421,7 @@ export class ScheduleService {
     // 2. Unassigned PM Obligations
     const { data: pmSchedules, error: pmErr } = await supabase
       .from('service_schedules')
-      .select('id, schedule_number, amc_id, asset_id, customer_id, site_id, scheduled_date, visit_number, notes, customers(name, phone), customer_sites(site_name, address), ac_assets(asset_tag, brand, model_number, ac_type), amc_contracts(contract_number)')
+      .select('id, schedule_number, amc_id, asset_id, customer_id, site_id, scheduled_date, visit_number, notes, customers(name, phone), customer_sites(site_name, address), ac_assets(asset_tag, brand, model_number, ac_type, site_id, customer_sites(site_name, address, customer_id, customers(name, phone))), amc_contracts(contract_number, customer_id, customers(name, phone))')
       .not('amc_id', 'is', null)
       .is('technician_id', null)
       .in('status', ['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE'])
@@ -432,16 +432,23 @@ export class ScheduleService {
       logger.warn('Failed to query PM obligations for unscheduled queue', { error: pmErr.message });
     } else if (pmSchedules) {
       for (const p of pmSchedules as any[]) {
+        const resolvedCustomerId = p.customer_id || p.amc_contracts?.customer_id || p.ac_assets?.customer_sites?.customer_id || null;
+        const resolvedCustomerName = p.customers?.name || p.amc_contracts?.customers?.name || p.ac_assets?.customer_sites?.customers?.name || 'AMC Client';
+        const resolvedCustomerPhone = p.customers?.phone || p.amc_contracts?.customers?.phone || p.ac_assets?.customer_sites?.customers?.phone || null;
+        const resolvedSiteId = p.site_id || p.ac_assets?.site_id || null;
+        const resolvedSiteName = p.customer_sites?.site_name || p.ac_assets?.customer_sites?.site_name || 'Covered Site';
+        const resolvedSiteAddress = p.customer_sites?.address || p.ac_assets?.customer_sites?.address || 'Covered Address';
+
         items.push({
           type: 'PM_OBLIGATION',
           id: p.id,
           identifier: p.schedule_number,
-          customerId: p.customer_id,
-          customerName: p.customers?.name || 'AMC Client',
-          customerPhone: p.customers?.phone || null,
-          siteId: p.site_id,
-          siteName: p.customer_sites?.site_name || 'Covered Site',
-          siteAddress: p.customer_sites?.address || 'Covered Address',
+          customerId: resolvedCustomerId,
+          customerName: resolvedCustomerName,
+          customerPhone: resolvedCustomerPhone,
+          siteId: resolvedSiteId,
+          siteName: resolvedSiteName,
+          siteAddress: resolvedSiteAddress,
           assetId: p.asset_id,
           assetTag: p.ac_assets?.asset_tag || null,
           brand: p.ac_assets?.brand || null,
@@ -599,7 +606,7 @@ export class ScheduleService {
             );
           }
 
-          const updateRecord = {
+          const updateRecord: Record<string, any> = {
             scheduled_date: payload.scheduledDate,
             start_time: startTime,
             end_time: endTime,
@@ -609,6 +616,13 @@ export class ScheduleService {
             notes: payload.notes?.trim() || pm.notes || null,
             updated_by: actorId,
           };
+
+          if (!pm.customer_id && targetCustomerId) {
+            updateRecord.customer_id = targetCustomerId;
+          }
+          if (!pm.site_id && targetSiteId) {
+            updateRecord.site_id = targetSiteId;
+          }
 
           const { error: updErr } = await supabase
             .from('service_schedules')

@@ -34,6 +34,7 @@ import {
   WarrantyStatus,
   AcBrand,
   AcModel,
+  AcModelVariant,
   AssetAmcHistoryResponse,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +57,22 @@ const FLOOR_OPTIONS = [
   'Terrace',
   'Other',
 ];
+
+const getAmcBadgeProps = (amc?: { status: string; contractNumber?: string } | null): { variant: 'brand' | 'warning' | 'neutral' | 'danger'; label: string } => {
+  if (!amc || !amc.status) return { variant: 'neutral', label: 'NO AMC' };
+  switch (amc.status) {
+    case 'ACTIVE':
+      return { variant: 'brand', label: 'ACTIVE' };
+    case 'EXPIRING_SOON':
+      return { variant: 'warning', label: 'EXPIRING SOON' };
+    case 'EXPIRED':
+      return { variant: 'neutral', label: 'EXPIRED' };
+    case 'CANCELLED':
+      return { variant: 'danger', label: 'CANCELLED' };
+    default:
+      return { variant: 'neutral', label: amc.status.replace('_', ' ') };
+  }
+};
 
 const ROOM_OPTIONS = [
   'Reception',
@@ -293,14 +310,17 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   // Master data & specs
   const [availableBrands, setAvailableBrands] = useState<AcBrand[]>([]);
   const [availableModels, setAvailableModels] = useState<AcModel[]>([]);
+  const [availableVariants, setAvailableVariants] = useState<AcModelVariant[]>([]);
   const [isLoadingMasterBrands, setIsLoadingMasterBrands] = useState(false);
   const [isLoadingMasterModels, setIsLoadingMasterModels] = useState(false);
+  const [isLoadingMasterVariants, setIsLoadingMasterVariants] = useState(false);
   const [isModelSpecsLocked, setIsModelSpecsLocked] = useState(false);
 
   const [assetFormBrand, setAssetFormBrand] = useState('');
   const [assetFormBrandId, setAssetFormBrandId] = useState('');
   const [assetFormModel, setAssetFormModel] = useState('');
   const [assetFormModelId, setAssetFormModelId] = useState('');
+  const [assetFormVariantId, setAssetFormVariantId] = useState('');
   const [assetFormType, setAssetFormType] = useState<AcType>('Split AC');
   const [assetFormTechnology, setAssetFormTechnology] = useState('Inverter');
   const [assetFormCapacity, setAssetFormCapacity] = useState('1.5');
@@ -827,21 +847,85 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     }
   };
 
-  const handleModelChange = (selectedModelVal: string) => {
+  const handleModelChange = async (selectedModelVal: string) => {
     const found = availableModels.find((m) => m.id === selectedModelVal || m.modelNumber === selectedModelVal);
     if (found) {
       setAssetFormModelId(found.id);
       setAssetFormModel(found.modelNumber);
-      if (found.acType) setAssetFormType(found.acType as AcType);
-      if (found.technology) setAssetFormTechnology(found.technology);
-      if (found.capacityTons) setAssetFormCapacity(String(found.capacityTons));
-      if (found.rating) setAssetFormRating(found.rating);
-      if (found.refrigerant) setAssetFormRefrigerant(found.refrigerant);
-      setIsModelSpecsLocked(true);
+      setAssetFormVariantId('');
+      setAvailableVariants([]);
+      setIsLoadingMasterVariants(true);
+
+      try {
+        const res = await apiClient.get<{ data?: { variants: AcModelVariant[] }; variants?: AcModelVariant[] }>(
+          `/ac-models/${found.id}/variants?activeOnly=true`
+        );
+        const variantList = res.data?.variants || res.variants || [];
+        setAvailableVariants(variantList);
+
+        if (variantList.length === 1) {
+          const single = variantList[0];
+          setAssetFormVariantId(single.id);
+          if (single.acType) setAssetFormType(single.acType as AcType);
+          if (single.technology) setAssetFormTechnology(single.technology);
+          if (single.capacityTons) setAssetFormCapacity(String(single.capacityTons));
+          if (single.starRating) setAssetFormRating(single.starRating);
+          if (single.refrigerant) setAssetFormRefrigerant(single.refrigerant);
+          setIsModelSpecsLocked(true);
+        } else if (variantList.length === 0) {
+          if (found.acType) setAssetFormType(found.acType as AcType);
+          if (found.technology) setAssetFormTechnology(found.technology);
+          if (found.capacityTons) setAssetFormCapacity(String(found.capacityTons));
+          if (found.rating) setAssetFormRating(found.rating);
+          if (found.refrigerant) setAssetFormRefrigerant(found.refrigerant);
+          setIsModelSpecsLocked(true);
+        } else {
+          setIsModelSpecsLocked(false);
+        }
+      } catch {
+        if (found.acType) setAssetFormType(found.acType as AcType);
+        if (found.technology) setAssetFormTechnology(found.technology);
+        if (found.capacityTons) setAssetFormCapacity(String(found.capacityTons));
+        if (found.rating) setAssetFormRating(found.rating);
+        if (found.refrigerant) setAssetFormRefrigerant(found.refrigerant);
+        setIsModelSpecsLocked(true);
+      } finally {
+        setIsLoadingMasterVariants(false);
+      }
     } else {
       setAssetFormModelId('');
       setAssetFormModel('');
+      setAssetFormVariantId('');
+      setAvailableVariants([]);
       setIsModelSpecsLocked(false);
+    }
+  };
+
+  const handleVariantChange = (selectedVariantId: string) => {
+    setAssetFormVariantId(selectedVariantId);
+    const variant = availableVariants.find((v) => v.id === selectedVariantId);
+    if (variant) {
+      if (variant.acType) setAssetFormType(variant.acType as AcType);
+      if (variant.technology) setAssetFormTechnology(variant.technology);
+      if (variant.capacityTons) setAssetFormCapacity(String(variant.capacityTons));
+      if (variant.starRating) setAssetFormRating(variant.starRating);
+      if (variant.refrigerant) setAssetFormRefrigerant(variant.refrigerant);
+      setIsModelSpecsLocked(true);
+    } else {
+      setIsModelSpecsLocked(false);
+    }
+  };
+
+  const handleOpenAssetDrawer = async (asset: AcAsset) => {
+    setViewingAsset(asset);
+    try {
+      const res = await apiClient.get<{ asset?: AcAsset; data?: { asset: AcAsset } }>(`/assets/${asset.id}`);
+      const freshAsset = res.data?.asset || res.asset;
+      if (freshAsset && freshAsset.id === asset.id) {
+        setViewingAsset(freshAsset);
+      }
+    } catch {
+      // Retain in-memory asset state on request failure
     }
   };
 
@@ -876,6 +960,8 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormBrandId('');
     setAssetFormModel('');
     setAssetFormModelId('');
+    setAssetFormVariantId('');
+    setAvailableVariants([]);
     setAssetFormSerial('');
     setAssetFormIndoorSerial('');
     setAssetFormOutdoorSerial('');
@@ -911,6 +997,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormBrandId(asset.brandId || '');
     setAssetFormModel(asset.modelNumber || '');
     setAssetFormModelId(asset.modelId || '');
+    setAssetFormVariantId(asset.variantId || '');
     setAssetFormSerial(asset.serialNumber || '');
     setAssetFormIndoorSerial(asset.indoorSerialNumber || '');
     setAssetFormOutdoorSerial(asset.outdoorSerialNumber || '');
@@ -968,6 +1055,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         brandId: assetFormBrandId || undefined,
         modelNumber: assetFormModel.trim() || undefined,
         modelId: assetFormModelId || undefined,
+        variantId: assetFormVariantId || undefined,
         serialNumber: (isSingle ? assetFormSerial : (assetFormSerial || assetFormIndoorSerial)).trim() || undefined,
         indoorSerialNumber: !isSingle ? assetFormIndoorSerial.trim() || undefined : undefined,
         outdoorSerialNumber: !isSingle ? assetFormOutdoorSerial.trim() || undefined : undefined,
@@ -1027,6 +1115,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         brandId: assetFormBrandId || null,
         modelNumber: assetFormModel.trim() || null,
         modelId: assetFormModelId || null,
+        variantId: assetFormVariantId || null,
         serialNumber: assetFormSerial.trim() || null,
         indoorSerialNumber: assetFormIndoorSerial.trim() || null,
         outdoorSerialNumber: assetFormOutdoorSerial.trim() || null,
@@ -2617,9 +2706,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                             {/* AMC Status (Clean & Concise) */}
                             <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
-                              <Badge variant={asset.currentAmc && asset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
-                                {asset.currentAmc && asset.currentAmc.status === 'ACTIVE' ? 'ACTIVE' : 'NONE'}
-                              </Badge>
+                              {(() => {
+                                const badge = getAmcBadgeProps(asset.currentAmc);
+                                return <Badge variant={badge.variant}>{badge.label}</Badge>;
+                              })()}
                             </span>
                           </div>
                         </div>
@@ -2645,7 +2735,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setViewingAsset(asset)}
+                            onClick={() => handleOpenAssetDrawer(asset)}
                             leftIcon={<Eye size={12} />}
                             aria-label={`View asset ${asset.assetTag}`}
                           >
@@ -2943,12 +3033,42 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     </option>
                     {availableModels.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.modelNumber} {m.capacityTons ? `• ${m.capacityTons} Ton` : ''}
+                        {m.modelNumber}
                       </option>
                     ))}
                   </select>
                 </div>
 
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Model Variant {availableVariants.length > 0 && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>({availableVariants.length} verified)</span>}
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormVariantId}
+                    onChange={(e) => handleVariantChange(e.target.value)}
+                    disabled={!assetFormModelId || isLoadingMasterVariants || availableVariants.length === 0}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                  >
+                    <option value="">
+                      {isLoadingMasterVariants
+                        ? 'Loading variants...'
+                        : !assetFormModelId
+                        ? 'Select model first'
+                        : availableVariants.length === 0
+                        ? 'No variants (Standard Specs)'
+                        : 'Select Model Variant...'}
+                    </option>
+                    {availableVariants.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.capacityTons ? `${v.capacityTons} Ton` : ''} {v.starRating ? `• ${v.starRating}` : ''} {v.acType ? `• ${v.acType}` : ''} {v.technology ? `• ${v.technology}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
                     AC Type * {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked from Master)</span>}
@@ -2974,9 +3094,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
                     Technology {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
@@ -3002,7 +3120,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     ))}
                   </select>
                 </div>
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
                   <Input
                     label={`Capacity (Tons) ${isModelSpecsLocked ? '(Locked)' : ''}`}
@@ -3040,32 +3160,32 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
-                  Refrigerant {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
-                </label>
-                <select
-                  className="select"
-                  value={assetFormRefrigerant}
-                  onChange={(e) => setAssetFormRefrigerant(e.target.value)}
-                  disabled={isModelSpecsLocked}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: 'var(--text-sm)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-default)',
-                    backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
-                  }}
-                >
-                  {REFRIGERANT_OPTIONS.map((ref) => (
-                    <option key={ref} value={ref}>
-                      {ref}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Refrigerant {isModelSpecsLocked && <span style={{ fontSize: '10px', color: 'var(--color-brand)' }}>(Locked)</span>}
+                  </label>
+                  <select
+                    className="select"
+                    value={assetFormRefrigerant}
+                    onChange={(e) => setAssetFormRefrigerant(e.target.value)}
+                    disabled={isModelSpecsLocked}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-sm)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-default)',
+                      backgroundColor: isModelSpecsLocked ? 'var(--bg-surface-subtle)' : undefined,
+                    }}
+                  >
+                    {REFRIGERANT_OPTIONS.map((ref) => (
+                      <option key={ref} value={ref}>
+                        {ref}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -3691,9 +3811,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 </span>
                 <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>AMC:</span>
-                  <Badge variant={viewingAsset.currentAmc && viewingAsset.currentAmc.status === 'ACTIVE' ? 'brand' : 'neutral'}>
-                    {viewingAsset.currentAmc && viewingAsset.currentAmc.status === 'ACTIVE' ? 'ACTIVE' : 'NO AMC'}
-                  </Badge>
+                  {(() => {
+                    const badge = getAmcBadgeProps(viewingAsset.currentAmc);
+                    return <Badge variant={badge.variant}>{badge.label}</Badge>;
+                  })()}
                 </span>
               </div>
             </div>
@@ -3829,11 +3950,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     Current AMC
                   </span>
                 </div>
-                {viewingAsset.currentAmc ? (
-                  <Badge variant="brand">{viewingAsset.currentAmc.status}</Badge>
-                ) : (
-                  <Badge variant="neutral">NO ACTIVE AMC</Badge>
-                )}
+                {(() => {
+                  const badge = getAmcBadgeProps(viewingAsset.currentAmc);
+                  return <Badge variant={badge.variant}>{badge.label}</Badge>;
+                })()}
               </div>
 
               {viewingAsset.currentAmc ? (

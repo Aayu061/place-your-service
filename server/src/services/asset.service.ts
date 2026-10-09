@@ -24,6 +24,7 @@ interface RawAssetJoinRecord {
   brand_id?: string | null;
   model_number: string | null;
   model_id?: string | null;
+  variant_id?: string | null;
   serial_number: string | null;
   indoor_serial_number?: string | null;
   outdoor_serial_number?: string | null;
@@ -133,19 +134,26 @@ export class AssetService {
         return {};
       }
 
-      // Filter for active contracts and map to asset
+      // Filter for active contracts and map to asset based on authoritative state and effective dates
+      const todayStr = new Date().toISOString().split('T')[0];
       const activeContractMap: Record<string, any> = {};
       const amcIdsToFetchSchedules: Set<string> = new Set();
 
       for (const row of coverageRows) {
         const contract = row.amc_contracts as any;
         if (!contract) continue;
+        // Workstream A2 business rules:
+        // - A renewed predecessor (RENEWED) must not be presented as current active contract.
+        // - The successor contract must become the current contract when its state and effective dates permit it.
+        // - Contract must be in ACTIVE or EXPIRING_SOON status, and today must fall within [start_date, end_date].
         if (['ACTIVE', 'EXPIRING_SOON'].includes(contract.status)) {
-          // If multiple, prioritize ACTIVE or latest end_date
-          const existing = activeContractMap[row.asset_id];
-          if (!existing || contract.end_date > existing.end_date) {
-            activeContractMap[row.asset_id] = contract;
-            amcIdsToFetchSchedules.add(contract.id);
+          if (contract.start_date <= todayStr && contract.end_date >= todayStr) {
+            // If multiple, prioritize ACTIVE or latest end_date
+            const existing = activeContractMap[row.asset_id];
+            if (!existing || contract.end_date > existing.end_date) {
+              activeContractMap[row.asset_id] = contract;
+              amcIdsToFetchSchedules.add(contract.id);
+            }
           }
         }
       }
@@ -214,6 +222,7 @@ export class AssetService {
       brandId: record.brand_id || null,
       modelNumber: record.model_number,
       modelId: record.model_id || null,
+      variantId: record.variant_id || null,
       serialNumber: record.serial_number,
       indoorSerialNumber: record.indoor_serial_number || null,
       outdoorSerialNumber: record.outdoor_serial_number || null,
@@ -614,9 +623,10 @@ export class AssetService {
       }
     }
 
-    // 5. Brand and Model linking
+    // 5. Brand, Model, and Variant linking
     let brandId = payload.brandId || null;
     let modelId = payload.modelId || null;
+    let variantId = payload.variantId || null;
 
     if (brandId) {
       const { data: bData } = await supabase.from('ac_brands').select('id, is_active').eq('id', brandId).maybeSingle();
@@ -633,6 +643,33 @@ export class AssetService {
       if (brandId && mData.brand_id !== brandId) {
         throw new BadRequestError('Selected AC model does not belong to the selected brand.');
       }
+    }
+
+    if (variantId) {
+      const { data: vData } = await supabase
+        .from('ac_model_variants')
+        .select('*, ac_models(id, brand_id, model_number, is_active)')
+        .eq('id', variantId)
+        .maybeSingle();
+      if (!vData || !vData.is_active) {
+        throw new BadRequestError('Selected AC model variant is inactive or not found.');
+      }
+      if (modelId && vData.model_id !== modelId) {
+        throw new BadRequestError('Selected AC variant does not belong to the selected model.');
+      }
+      const modelParent = vData.ac_models as any;
+      if (brandId && modelParent?.brand_id && modelParent.brand_id !== brandId) {
+        throw new BadRequestError('Selected AC variant does not belong to the selected brand.');
+      }
+      if (!modelId) modelId = vData.model_id;
+      if (!payload.modelNumber && modelParent?.model_number) {
+        payload.modelNumber = modelParent.model_number;
+      }
+      payload.capacityTons = Number(vData.capacity_tons);
+      payload.starRating = vData.star_rating;
+      payload.acType = (vData.ac_type as AcType) || payload.acType;
+      payload.technology = vData.technology || payload.technology;
+      if (vData.refrigerant) payload.refrigerantType = vData.refrigerant;
     }
 
     // 6. Warranty Status Calculation
@@ -652,6 +689,7 @@ export class AssetService {
         brand_id: brandId,
         model_number: payload.modelNumber?.trim() || null,
         model_id: modelId,
+        variant_id: variantId,
         serial_number: payload.serialNumber?.trim() || null,
         indoor_serial_number: payload.indoorSerialNumber?.trim() || null,
         outdoor_serial_number: payload.outdoorSerialNumber?.trim() || null,
@@ -793,6 +831,28 @@ export class AssetService {
     if (payload.brandId !== undefined) updates.brand_id = payload.brandId || null;
     if (payload.modelNumber !== undefined) updates.model_number = payload.modelNumber?.trim() || null;
     if (payload.modelId !== undefined) updates.model_id = payload.modelId || null;
+    if (payload.variantId !== undefined) {
+      const vId = payload.variantId;
+      if (vId) {
+        const { data: vData } = await supabase
+          .from('ac_model_variants')
+          .select('*, ac_models(id, brand_id, is_active)')
+          .eq('id', vId)
+          .maybeSingle();
+        if (!vData || !vData.is_active) {
+          throw new BadRequestError('Selected AC model variant is inactive or not found.');
+        }
+        updates.variant_id = vId;
+        updates.model_id = vData.model_id;
+        updates.capacity_tons = Number(vData.capacity_tons);
+        updates.star_rating = vData.star_rating;
+        updates.ac_type = vData.ac_type;
+        updates.technology = vData.technology;
+        if (vData.refrigerant) updates.refrigerant_type = vData.refrigerant;
+      } else {
+        updates.variant_id = null;
+      }
+    }
     if (payload.serialNumber !== undefined) updates.serial_number = payload.serialNumber?.trim() || null;
     if (payload.indoorSerialNumber !== undefined) updates.indoor_serial_number = payload.indoorSerialNumber?.trim() || null;
     if (payload.outdoorSerialNumber !== undefined) updates.outdoor_serial_number = payload.outdoorSerialNumber?.trim() || null;

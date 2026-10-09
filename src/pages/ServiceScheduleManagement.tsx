@@ -73,10 +73,12 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   // Unscheduled Work state
   const [unscheduledItems, setUnscheduledItems] = useState<UnscheduledWorkItem[]>([]);
   const [isLoadingUnscheduled, setIsLoadingUnscheduled] = useState<boolean>(false);
+  const [unscheduledTypeFilter, setUnscheduledTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
 
   // Filter states for List View
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceScheduleStatus>('ALL');
+  const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
 
   // Detail Drawer state
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
@@ -876,6 +878,20 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>WORK TYPE:</span>
+              <select
+                className="select"
+                value={scheduleTypeFilter}
+                onChange={(e) => setScheduleTypeFilter(e.target.value as 'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST')}
+                style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-neutral)' }}
+              >
+                <option value="ALL">All Work Types</option>
+                <option value="PREVENTIVE">Preventive Maintenance (PM)</option>
+                <option value="SERVICE_REQUEST">Service Requests (Breakdown)</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>STATUS:</span>
               <select
                 className="select"
@@ -902,12 +918,16 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               <span className="animate-spin" style={{ display: 'inline-block', width: '28px', height: '28px', border: '3px solid var(--color-brand)', borderRightColor: 'transparent', borderRadius: '50%', marginBottom: 'var(--space-2)' }} />
               <div>Loading schedules...</div>
             </div>
-          ) : schedules.length === 0 ? (
+          ) : schedules.filter((s) => {
+              if (scheduleTypeFilter === 'ALL') return true;
+              const isPM = !!s.amcId || s.scheduleType === 'PREVENTIVE';
+              return scheduleTypeFilter === 'PREVENTIVE' ? isPM : !isPM;
+            }).length === 0 ? (
             <div className="card" style={{ padding: 'var(--space-10)', textAlign: 'center' }}>
               <EmptyState
                 icon={<Search style={{ width: '40px', height: '40px' }} />}
                 title="No Matching Schedules"
-                description="Try clearing your search query or changing the status filter."
+                description="Try clearing your search query or changing the type/status filter."
               />
             </div>
           ) : (
@@ -916,6 +936,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-neutral)', backgroundColor: 'var(--bg-canvas)' }}>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>SCHEDULE #</th>
+                    <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>TYPE</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>DATE & TIME</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>CUSTOMER & SITE</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>ASSET</th>
@@ -925,10 +946,19 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   </tr>
                 </thead>
                 <tbody>
-                  {schedules.map((schedule) => (
+                  {schedules.filter((s) => {
+                    if (scheduleTypeFilter === 'ALL') return true;
+                    const isPM = !!s.amcId || s.scheduleType === 'PREVENTIVE';
+                    return scheduleTypeFilter === 'PREVENTIVE' ? isPM : !isPM;
+                  }).map((schedule) => (
                     <tr key={schedule.id} style={{ borderBottom: '1px solid var(--border-neutral)' }}>
                       <td style={{ padding: 'var(--space-3) var(--space-4)', fontFamily: 'monospace', fontWeight: 600 }}>
                         {schedule.scheduleNumber}
+                      </td>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                        <Badge variant={schedule.amcId || schedule.scheduleType === 'PREVENTIVE' ? 'amc' : 'info'}>
+                          {schedule.amcId || schedule.scheduleType === 'PREVENTIVE' ? 'Preventive (PM)' : 'Service Request'}
+                        </Badge>
                       </td>
                       <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                         <div>{formatDate(schedule.scheduledDate)}</div>
@@ -991,7 +1021,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       {/* VIEW D: UNSCHEDULED WORK QUEUE */}
       {activeTab === 'unscheduled' && (
         <div>
-          <div style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
             <div>
               <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
                 Unscheduled Work Queue
@@ -1000,7 +1030,70 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 Pending Service Requests and upcoming Preventive Maintenance obligations that require an appointment slot.
               </p>
             </div>
-            <Badge variant="warning">{unscheduledItems.length} awaiting schedule</Badge>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <Badge variant="amc">
+                {unscheduledItems.filter(i => i.type === 'PM_OBLIGATION').length} PM Visits
+              </Badge>
+              <Badge variant="info">
+                {unscheduledItems.filter(i => i.type === 'SERVICE_REQUEST').length} Breakdown Requests
+              </Badge>
+              <Badge variant="warning">{unscheduledItems.length} Total Awaiting</Badge>
+            </div>
+          </div>
+
+          {/* Workflow Filter Pills */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+            <button
+              type="button"
+              onClick={() => setUnscheduledTypeFilter('ALL')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full, 9999px)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                border: '1px solid',
+                borderColor: unscheduledTypeFilter === 'ALL' ? 'var(--color-brand)' : 'var(--border-default)',
+                backgroundColor: unscheduledTypeFilter === 'ALL' ? 'var(--color-brand-50, rgba(37,99,235,0.1))' : 'var(--bg-surface)',
+                color: unscheduledTypeFilter === 'ALL' ? 'var(--color-brand)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              All Unscheduled ({unscheduledItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnscheduledTypeFilter('PREVENTIVE')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full, 9999px)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                border: '1px solid',
+                borderColor: unscheduledTypeFilter === 'PREVENTIVE' ? 'var(--color-amc-solid, #059669)' : 'var(--border-default)',
+                backgroundColor: unscheduledTypeFilter === 'PREVENTIVE' ? 'rgba(5, 150, 105, 0.1)' : 'var(--bg-surface)',
+                color: unscheduledTypeFilter === 'PREVENTIVE' ? 'var(--color-amc-solid, #059669)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Preventive Maintenance ({unscheduledItems.filter(i => i.type === 'PM_OBLIGATION').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnscheduledTypeFilter('SERVICE_REQUEST')}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full, 9999px)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+                border: '1px solid',
+                borderColor: unscheduledTypeFilter === 'SERVICE_REQUEST' ? 'var(--color-brand)' : 'var(--border-default)',
+                backgroundColor: unscheduledTypeFilter === 'SERVICE_REQUEST' ? 'var(--color-brand-50, rgba(37,99,235,0.1))' : 'var(--bg-surface)',
+                color: unscheduledTypeFilter === 'SERVICE_REQUEST' ? 'var(--color-brand)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              Service Requests ({unscheduledItems.filter(i => i.type === 'SERVICE_REQUEST').length})
+            </button>
           </div>
 
           {isLoadingUnscheduled ? (
@@ -1008,24 +1101,32 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               <span className="animate-spin" style={{ display: 'inline-block', width: '28px', height: '28px', border: '3px solid var(--color-brand)', borderRightColor: 'transparent', borderRadius: '50%', marginBottom: 'var(--space-2)' }} />
               <div>Scanning unscheduled obligations...</div>
             </div>
-          ) : unscheduledItems.length === 0 ? (
+          ) : unscheduledItems.filter((item) => {
+              if (unscheduledTypeFilter === 'PREVENTIVE') return item.type === 'PM_OBLIGATION';
+              if (unscheduledTypeFilter === 'SERVICE_REQUEST') return item.type === 'SERVICE_REQUEST';
+              return true;
+            }).length === 0 ? (
             <div className="card" style={{ padding: 'var(--space-10)', textAlign: 'center' }}>
               <EmptyState
                 icon={<CheckCircle2 style={{ width: '40px', height: '40px' }} />}
-                title="All Work Is Scheduled"
-                description="There are currently no unscheduled service requests or PM obligations in the queue."
+                title={unscheduledTypeFilter === 'ALL' ? 'All Work Is Scheduled' : `No Unscheduled ${unscheduledTypeFilter === 'PREVENTIVE' ? 'Preventive Services' : 'Service Requests'}`}
+                description="There are currently no unscheduled obligations matching this filter in the queue."
               />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {unscheduledItems.map((item) => (
+              {unscheduledItems.filter((item) => {
+                if (unscheduledTypeFilter === 'PREVENTIVE') return item.type === 'PM_OBLIGATION';
+                if (unscheduledTypeFilter === 'SERVICE_REQUEST') return item.type === 'SERVICE_REQUEST';
+                return true;
+              }).map((item) => (
                 <div
                   key={`${item.type}-${item.id}`}
                   className="card"
                   style={{
                     padding: 'var(--space-4)',
                     display: 'grid',
-                    gridTemplateColumns: '130px 1.5fr 1.5fr 1fr 180px',
+                    gridTemplateColumns: '140px 1.5fr 1.5fr 1fr 180px',
                     alignItems: 'center',
                     gap: 'var(--space-4)',
                     borderLeft: item.type === 'SERVICE_REQUEST' ? '4px solid var(--color-brand)' : '4px solid var(--color-amc-solid)',
@@ -1038,7 +1139,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                     </div>
                     <div style={{ marginTop: '4px' }}>
                       <Badge variant={item.type === 'SERVICE_REQUEST' ? 'info' : 'amc'}>
-                        {item.type === 'SERVICE_REQUEST' ? 'Breakdown' : 'PM Visit'}
+                        {item.type === 'SERVICE_REQUEST' ? 'Breakdown' : 'PM Visit (AMC)'}
                       </Badge>
                     </div>
                   </div>

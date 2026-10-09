@@ -109,3 +109,10 @@ export const updateModelStatusSchema = {
     isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
   }),
 };
+
+export const variantIdParamSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid variant UUID identifier'),
+  }),
+};
+

@@ -412,7 +412,7 @@ describe('AC Asset Register API (/api/v1/sites/:siteId/assets & /api/v1/assets)'
       id: 'active-contract-222',
       contract_number: 'AMC-2027-0002',
       status: 'ACTIVE',
-      start_date: '2027-01-01',
+      start_date: '2026-01-01',
       end_date: '2027-12-31',
       plan_name: 'Basic AMC',
       billing_frequency: 'QUARTERLY',
