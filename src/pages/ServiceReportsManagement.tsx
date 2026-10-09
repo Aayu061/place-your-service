@@ -755,7 +755,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             {/* Attribution Details */}
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-500 block font-semibold mb-1 flex items-center gap-1">
+                <span className="text-slate-500 font-semibold mb-1 flex items-center gap-1">
                   <Building size={13} className="text-blue-600" /> Customer & Site
                 </span>
                 <div className="font-bold text-slate-900">{detailedReport.customerName}</div>
@@ -763,7 +763,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 <div className="text-slate-500 text-[11px] mt-0.5">{detailedReport.siteAddress}</div>
               </div>
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-500 block font-semibold mb-1 flex items-center gap-1">
+                <span className="text-slate-500 font-semibold mb-1 flex items-center gap-1">
                   <User size={13} className="text-blue-600" /> Attending Technician
                 </span>
                 <div className="font-bold text-slate-900">{detailedReport.technicianName}</div>
