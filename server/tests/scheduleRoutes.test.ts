@@ -685,6 +685,9 @@ describe('Phase 9: Scheduling & Technician Assignment API (/api/v1/service-sched
         }
         if (table === 'service_requests') {
           return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { status: 'SCHEDULED' }, error: null }),
             update: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ error: null }),
             }),

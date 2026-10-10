@@ -53,6 +53,8 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
   const [brandIsActive, setBrandIsActive] = useState(true);
   const [isSubmittingBrand, setIsSubmittingBrand] = useState(false);
   const [brandFormError, setBrandFormError] = useState<string | null>(null);
+  const [inactiveDuplicateMatch, setInactiveDuplicateMatch] = useState<{ id: string; name: string; code: string } | null>(null);
+  const [isReactivatingBrand, setIsReactivatingBrand] = useState(false);
 
   // Model state
   const [models, setModels] = useState<AcModel[]>([]);
@@ -96,10 +98,10 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
   const fetchBrands = useCallback(async () => {
     setIsLoadingBrands(true);
     try {
-      const activeParam = brandActiveFilter === 'ALL' ? '' : `&activeOnly=${brandActiveFilter === 'ACTIVE'}`;
+      const statusParam = `&status=${brandActiveFilter}`;
       const searchParam = brandSearch.trim() ? `&search=${encodeURIComponent(brandSearch.trim())}` : '';
       const res = await apiClient.get<BrandsApiResponse>(
-        `/ac-brands?page=1&pageSize=100${activeParam}${searchParam}`
+        `/ac-brands?page=1&pageSize=100${statusParam}${searchParam}`
       );
       const brandList = res?.data?.brands || res?.brands || [];
       setBrands(brandList);
@@ -111,15 +113,24 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     }
   }, [brandActiveFilter, brandSearch, showToast]);
 
+  const filteredBrands = React.useMemo(() => {
+    return brands.filter((b) => {
+      if (typeof b.isActive !== 'boolean') return false;
+      if (brandActiveFilter === 'ACTIVE') return b.isActive === true;
+      if (brandActiveFilter === 'INACTIVE') return b.isActive === false;
+      return true;
+    });
+  }, [brands, brandActiveFilter]);
+
   // Load models
   const fetchModels = useCallback(async () => {
     setIsLoadingModels(true);
     try {
       const brandParam = selectedBrandFilter !== 'ALL' ? `&brandId=${selectedBrandFilter}` : '';
-      const activeParam = modelActiveFilter === 'ALL' ? '' : `&activeOnly=${modelActiveFilter === 'ACTIVE'}`;
+      const statusParam = `&status=${modelActiveFilter}`;
       const searchParam = modelSearch.trim() ? `&search=${encodeURIComponent(modelSearch.trim())}` : '';
       const res = await apiClient.get<ModelsApiResponse>(
-        `/ac-models?page=1&pageSize=100${brandParam}${activeParam}${searchParam}`
+        `/ac-models?page=1&pageSize=100${brandParam}${statusParam}${searchParam}`
       );
       const modelList = res?.data?.models || res?.models || [];
       setModels(modelList);
@@ -130,6 +141,15 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
       setIsLoadingModels(false);
     }
   }, [selectedBrandFilter, modelActiveFilter, modelSearch, showToast]);
+
+  const filteredModels = React.useMemo(() => {
+    return models.filter((m) => {
+      if (typeof m.isActive !== 'boolean') return false;
+      if (modelActiveFilter === 'ACTIVE') return m.isActive === true;
+      if (modelActiveFilter === 'INACTIVE') return m.isActive === false;
+      return true;
+    });
+  }, [models, modelActiveFilter]);
 
   useEffect(() => {
     fetchBrands();
@@ -146,6 +166,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setBrandCode('');
     setBrandIsActive(true);
     setBrandFormError(null);
+    setInactiveDuplicateMatch(null);
     setIsBrandModalOpen(true);
   };
 
@@ -155,6 +176,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setBrandCode(brand.code);
     setBrandIsActive(brand.isActive);
     setBrandFormError(null);
+    setInactiveDuplicateMatch(null);
     setIsBrandModalOpen(true);
   };
 
@@ -164,6 +186,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
 
     setIsSubmittingBrand(true);
     setBrandFormError(null);
+    setInactiveDuplicateMatch(null);
 
     try {
       if (editingBrand) {
@@ -186,9 +209,49 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Failed to save brand';
       setBrandFormError(msg);
+      const details = err instanceof ApiError && err.details ? (err.details as { isInactive?: boolean; existingBrandId?: string; brandName?: string; brandCode?: string }) : null;
+      if (details?.isInactive && details?.existingBrandId) {
+        setInactiveDuplicateMatch({
+          id: details.existingBrandId,
+          name: details.brandName || brandName.trim(),
+          code: details.brandCode || brandCode.trim(),
+        });
+      } else if (msg.includes('INACTIVE') || msg.includes('inactive')) {
+        const match = brands.find(
+          (b) =>
+            !b.isActive &&
+            (b.name.toLowerCase() === brandName.trim().toLowerCase() ||
+              b.code.toLowerCase() === (brandCode.trim() || brandName.trim()).toLowerCase())
+        );
+        if (match) {
+          setInactiveDuplicateMatch({ id: match.id, name: match.name, code: match.code });
+        }
+      }
       showToast({ type: 'error', title: 'Error', message: msg });
     } finally {
       setIsSubmittingBrand(false);
+    }
+  };
+
+  const handleReactivateBrand = async () => {
+    if (!inactiveDuplicateMatch) return;
+    try {
+      setIsReactivatingBrand(true);
+      await apiClient.patch(`/ac-brands/${inactiveDuplicateMatch.id}/status`, { isActive: true });
+      showToast({
+        type: 'success',
+        title: 'Brand Reactivated',
+        message: `AC brand '${inactiveDuplicateMatch.name}' reactivated successfully.`,
+      });
+      setIsBrandModalOpen(false);
+      setInactiveDuplicateMatch(null);
+      setBrandFormError(null);
+      await fetchBrands();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to reactivate brand';
+      showToast({ type: 'error', title: 'Error', message: msg });
+    } finally {
+      setIsReactivatingBrand(false);
     }
   };
 
@@ -436,7 +499,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           }}
         >
           <Layers size={16} />
-          AC Brands ({brands.length})
+          AC Brands ({filteredBrands.length})
         </button>
 
         <button
@@ -457,7 +520,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           }}
         >
           <Boxes size={16} />
-          AC Models ({models.length})
+          AC Models ({filteredModels.length})
         </button>
       </div>
 
@@ -497,7 +560,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
             <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
               Loading AC Brands...
             </div>
-          ) : brands.length === 0 ? (
+          ) : filteredBrands.length === 0 ? (
             <EmptyState
               title="No AC Brands Found"
               description="No equipment brands match the filter criteria."
@@ -512,7 +575,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 gap: 'var(--space-4)',
               }}
             >
-              {brands.map((b) => (
+              {filteredBrands.map((b) => (
                 <div
                   key={b.id}
                   className="card"
@@ -623,7 +686,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
             <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
               Loading AC Models...
             </div>
-          ) : models.length === 0 ? (
+          ) : filteredModels.length === 0 ? (
             <EmptyState
               title="No AC Models Found"
               description="No equipment models match the selected filter criteria."
@@ -638,7 +701,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 gap: 'var(--space-4)',
               }}
             >
-              {models.map((m) => (
+              {filteredModels.map((m) => (
                 <div
                   key={m.id}
                   className="card"
@@ -724,9 +787,25 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
       >
         <form onSubmit={handleSaveBrand} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {brandFormError && (
-            <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertCircle size={14} />
-              {brandFormError}
+            <div style={{ padding: 'var(--space-3)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-xs)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={14} />
+                <span>{brandFormError}</span>
+              </div>
+              {inactiveDuplicateMatch && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', marginTop: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                  <span>Inactive match found: <strong>{inactiveDuplicateMatch.name}</strong> ({inactiveDuplicateMatch.code})</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    isLoading={isReactivatingBrand}
+                    onClick={handleReactivateBrand}
+                  >
+                    Reactivate Brand
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -796,7 +875,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 required
                 style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
               >
-                {brands.map((b) => (
+                {brands.filter((b) => b.isActive).map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.code})
                   </option>

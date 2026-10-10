@@ -13,6 +13,7 @@ import {
   TechnicianRecommendationItem,
   UnscheduledWorkItem,
   WeekDay,
+  ServiceRequestStatus,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -1516,20 +1517,28 @@ export class ScheduleService {
         .limit(1)
         .maybeSingle();
 
-      let targetStatus = 'PENDING';
+      let targetStatus: ServiceRequestStatus = 'PENDING';
       if (linkedReport?.primary_outcome === 'PENDING_PARTS') {
         targetStatus = 'AWAITING_PARTS';
       } else if (linkedReport?.primary_outcome === 'PENDING_REPAIRS') {
         targetStatus = 'REVISIT_REQUIRED';
       }
 
-      await supabase
+      const { data: currentSr } = await supabase
         .from('service_requests')
-        .update({
-          status: targetStatus,
-          updated_by: actorId,
-        })
-        .eq('id', existing.serviceRequestId);
+        .select('status')
+        .eq('id', existing.serviceRequestId)
+        .maybeSingle();
+
+      if (currentSr && !['COMPLETED', 'CLOSED', 'RESOLVED'].includes(currentSr.status)) {
+        await supabase
+          .from('service_requests')
+          .update({
+            status: targetStatus,
+            updated_by: actorId,
+          })
+          .eq('id', existing.serviceRequestId);
+      }
     }
 
     await logActivity({

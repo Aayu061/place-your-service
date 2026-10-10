@@ -960,7 +960,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                     </div>
 
                     {/* Operational Actions */}
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -980,6 +980,18 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                         >
                           <UserCheck style={{ width: '14px', height: '14px' }} />
                           {schedule.technicianId ? 'Reassign' : 'Assign'}
+                        </Button>
+                      )}
+
+                      {!isCancelled && !isCompleted && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => openRescheduleModal(schedule)}
+                          title="Reschedule Appointment"
+                        >
+                          <Calendar style={{ width: '14px', height: '14px' }} />
+                          Reschedule
                         </Button>
                       )}
 
@@ -1151,15 +1163,27 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                           <Button variant="secondary" size="sm" onClick={() => openDetailDrawer(schedule.id)} title="View Details">
                             <Eye style={{ width: '14px', height: '14px' }} />
                           </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => openAssignModal(schedule)}
-                            title={schedule.technicianId ? 'Reassign' : 'Assign'}
-                          >
-                            <UserCheck style={{ width: '14px', height: '14px' }} />
-                          </Button>
-                          {(schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
+                          {schedule.status !== 'CANCELLED' && schedule.status !== 'COMPLETED' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openAssignModal(schedule)}
+                              title={schedule.technicianId ? 'Reassign' : 'Assign'}
+                            >
+                              <UserCheck style={{ width: '14px', height: '14px' }} />
+                            </Button>
+                          )}
+                          {schedule.status !== 'CANCELLED' && schedule.status !== 'COMPLETED' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openRescheduleModal(schedule)}
+                              title="Reschedule Appointment"
+                            >
+                              <Calendar style={{ width: '14px', height: '14px' }} />
+                            </Button>
+                          )}
+                          {schedule.status !== 'CANCELLED' && (schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
                             <Button
                               variant="secondary"
                               size="sm"

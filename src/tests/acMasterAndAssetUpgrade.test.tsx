@@ -530,4 +530,89 @@ describe('AC Master Data & Asset Upgrade Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('7. Inactive Brands Only filter displays only inactive brands and updates count immediately', async () => {
+    vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string) => {
+      if (endpoint.includes('/ac-brands')) {
+        return { brands: sampleBrands, total: 3 };
+      }
+      if (endpoint.includes('/ac-models')) {
+        return { models: sampleModels, total: 2 };
+      }
+      return {};
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<AcMasterManagement />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Initially ALL shows 3 brands
+    expect(document.body.textContent).toContain('AC Brands (3)');
+
+    // Select "Inactive Brands Only"
+    const statusSelect = document.body.querySelector('select.select') as HTMLSelectElement;
+    expect(statusSelect).toBeTruthy();
+
+    await act(async () => {
+      statusSelect.value = 'INACTIVE';
+      statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Count updates to (1)
+    expect(document.body.textContent).toContain('AC Brands (1)');
+    // LG is inactive
+    expect(document.body.textContent).toContain('LG');
+    // Daikin and Voltas are active and should not be displayed in cards
+    const brandCards = document.body.querySelectorAll('.card');
+    const brandCardTexts = Array.from(brandCards).map((c) => c.textContent || '');
+    expect(brandCardTexts.some((t) => t.includes('LG'))).toBe(true);
+    expect(brandCardTexts.some((t) => t.includes('Daikin'))).toBe(false);
+    expect(brandCardTexts.some((t) => t.includes('Voltas'))).toBe(false);
+
+    renderResult.cleanup();
+  });
+
+  it('8. Active Brands Only filter displays only active brands and updates count', async () => {
+    vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string) => {
+      if (endpoint.includes('/ac-brands')) {
+        return { brands: sampleBrands, total: 3 };
+      }
+      if (endpoint.includes('/ac-models')) {
+        return { models: sampleModels, total: 2 };
+      }
+      return {};
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<AcMasterManagement />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const statusSelect = document.body.querySelector('select.select') as HTMLSelectElement;
+    await act(async () => {
+      statusSelect.value = 'ACTIVE';
+      statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Count updates to (2)
+    expect(document.body.textContent).toContain('AC Brands (2)');
+    const brandCards = document.body.querySelectorAll('.card');
+    const brandCardTexts = Array.from(brandCards).map((c) => c.textContent || '');
+    expect(brandCardTexts.some((t) => t.includes('Daikin'))).toBe(true);
+    expect(brandCardTexts.some((t) => t.includes('Voltas'))).toBe(true);
+    expect(brandCardTexts.some((t) => t.includes('LG'))).toBe(false);
+
+    renderResult.cleanup();
+  });
 });

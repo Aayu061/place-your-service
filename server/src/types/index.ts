@@ -281,6 +281,7 @@ export interface UpdateAcBrandPayload {
 export interface AcBrandListQuery {
   search?: string;
   activeOnly?: boolean;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
   page?: number;
   pageSize?: number;
 }
@@ -326,6 +327,7 @@ export interface AcModelListQuery {
   brandId?: string;
   search?: string;
   activeOnly?: boolean;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
   page?: number;
   pageSize?: number;
 }

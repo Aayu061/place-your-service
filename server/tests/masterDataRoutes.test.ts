@@ -220,6 +220,113 @@ describe('AC Master Data & Asset Upgrade API (/api/v1/ac-brands, /api/v1/ac-mode
 
       expect(res.status).toBe(409);
       expect(res.body.error.code).toBe('CONFLICT');
+      expect(res.body.error.message).toContain('active');
+    });
+
+    it('identifies duplicate inactive brand and returns 409 Conflict with isInactive details', async () => {
+      const inactiveBrand = {
+        ...sampleBrand,
+        id: '99999999-8888-7777-6666-555555555555',
+        name: 'General',
+        code: 'GENERAL',
+        is_active: false,
+      };
+
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_brands') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              or: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: inactiveBrand, error: null }),
+            };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/ac-brands')
+        .set('Authorization', adminAuthToken)
+        .send({ name: 'General' });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('CONFLICT');
+      expect(res.body.error.message).toMatch(/inactive/i);
+      expect(res.body.error.details.isInactive).toBe(true);
+      expect(res.body.error.details.existingBrandId).toBe(inactiveBrand.id);
+    });
+
+    it('filters brands by status=INACTIVE', async () => {
+      const inactiveBrand = {
+        ...sampleBrand,
+        id: '99999999-8888-7777-6666-555555555555',
+        name: 'General',
+        code: 'GENERAL',
+        is_active: false,
+      };
+
+      const eqMock = vi.fn().mockReturnThis();
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('STAFF')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_brands') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: eqMock,
+              order: vi.fn().mockReturnThis(),
+              range: vi.fn().mockResolvedValue({ data: [inactiveBrand], error: null, count: 1 }),
+            };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .get('/api/v1/ac-brands?status=INACTIVE')
+        .set('Authorization', staffAuthToken);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.brands).toHaveLength(1);
+      expect(res.body.data.brands[0].isActive).toBe(false);
+      expect(eqMock).toHaveBeenCalledWith('is_active', false);
+    });
+
+    it('filters brands by status=ALL without restricting is_active', async () => {
+      const eqMock = vi.fn().mockReturnThis();
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('STAFF')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_brands') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: eqMock,
+              order: vi.fn().mockReturnThis(),
+              range: vi.fn().mockResolvedValue({ data: [sampleBrand], error: null, count: 1 }),
+            };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .get('/api/v1/ac-brands?status=ALL')
+        .set('Authorization', staffAuthToken);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(eqMock).not.toHaveBeenCalledWith('is_active', expect.anything());
     });
   });
 

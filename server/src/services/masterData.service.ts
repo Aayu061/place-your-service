@@ -72,7 +72,13 @@ export class MasterDataService {
       .from('ac_brands')
       .select('*, ac_models(count)', { count: 'exact' });
 
-    if (query.activeOnly !== false) {
+    if (query.status === 'ACTIVE') {
+      q = q.eq('is_active', true);
+    } else if (query.status === 'INACTIVE') {
+      q = q.eq('is_active', false);
+    } else if (query.status === 'ALL') {
+      // Return all brands without is_active restriction
+    } else if (query.activeOnly !== false) {
       q = q.eq('is_active', true);
     }
 
@@ -139,15 +145,35 @@ export class MasterDataService {
     const name = payload.name.trim();
     const code = payload.code?.trim().toUpperCase() || this.generateBrandCode(name);
 
-    // Check duplicate by name or code
+    // Check duplicate by name or code (case-insensitive)
     const { data: existing } = await supabase
       .from('ac_brands')
-      .select('id, name, code')
+      .select('id, name, code, is_active')
       .or(`name.ilike.${name},code.eq.${code}`)
       .maybeSingle();
 
     if (existing) {
-      throw new ConflictError(`An AC brand with name '${name}' or code '${code}' already exists.`);
+      if (existing.is_active === false) {
+        throw new ConflictError(
+          `An AC brand with name '${existing.name}' (code: '${existing.code}') already exists but is currently INACTIVE. You can reactivate this existing brand instead of creating a duplicate.`,
+          {
+            existingBrandId: existing.id,
+            isInactive: true,
+            brandName: existing.name,
+            brandCode: existing.code,
+          }
+        );
+      } else {
+        throw new ConflictError(
+          `An active AC brand with name '${existing.name}' (code: '${existing.code}') already exists. Please select or edit the existing brand record.`,
+          {
+            existingBrandId: existing.id,
+            isInactive: false,
+            brandName: existing.name,
+            brandCode: existing.code,
+          }
+        );
+      }
     }
 
     const { data: created, error } = await supabase
@@ -161,8 +187,30 @@ export class MasterDataService {
       .single();
 
     if (error || !created) {
+      if (
+        (error as any)?.code === '23505' ||
+        error?.message?.includes('duplicate key') ||
+        error?.message?.includes('uq_ac_brands')
+      ) {
+        const { data: dup } = await supabase
+          .from('ac_brands')
+          .select('id, name, code, is_active')
+          .or(`name.ilike.${name},code.eq.${code}`)
+          .maybeSingle();
+
+        if (dup && !dup.is_active) {
+          throw new ConflictError(
+            `An AC brand with name '${dup.name}' (code: '${dup.code}') already exists but is currently INACTIVE. You can reactivate this existing brand instead of creating a duplicate.`,
+            { existingBrandId: dup.id, isInactive: true, brandName: dup.name, brandCode: dup.code }
+          );
+        }
+        throw new ConflictError(
+          `An AC brand with name '${dup?.name || name}' or code '${dup?.code || code}' already exists.`,
+          { existingBrandId: dup?.id, isInactive: false, brandName: dup?.name || name, brandCode: dup?.code || code }
+        );
+      }
       logger.error('Failed to create AC brand', { error: error?.message });
-      throw new BadRequestError(`Failed to create AC brand: ${error?.message}`);
+      throw new BadRequestError('Failed to create AC brand due to a validation or database error.');
     }
 
     await logActivity({
@@ -326,7 +374,13 @@ export class MasterDataService {
       q = q.eq('brand_id', query.brandId);
     }
 
-    if (query.activeOnly !== false) {
+    if (query.status === 'ACTIVE') {
+      q = q.eq('is_active', true);
+    } else if (query.status === 'INACTIVE') {
+      q = q.eq('is_active', false);
+    } else if (query.status === 'ALL') {
+      // Return all models without is_active restriction
+    } else if (query.activeOnly !== false) {
       q = q.eq('is_active', true);
     }
 

@@ -373,15 +373,27 @@ export class ServiceReportService {
       `)
       .eq('report_id', id);
 
-    // Fetch follow-up schedule number if exists
+    // Fetch follow-up schedule number if exists and is active (not cancelled)
     let followUpScheduleNumber: string | null = null;
+    let effectiveFollowUpScheduleId: string | null = row.follow_up_schedule_id;
     if (row.follow_up_schedule_id) {
       const { data: followUpSched } = await supabase
         .from('service_schedules')
-        .select('schedule_number')
+        .select('schedule_number, status')
         .eq('id', row.follow_up_schedule_id)
         .maybeSingle();
-      followUpScheduleNumber = followUpSched?.schedule_number || null;
+
+      if (followUpSched && followUpSched.status !== 'CANCELLED') {
+        followUpScheduleNumber = followUpSched.schedule_number;
+      } else {
+        // Follow-up was cancelled or missing: clear stale reference so parent report is unblocked
+        followUpScheduleNumber = null;
+        effectiveFollowUpScheduleId = null;
+        await supabase
+          .from('service_reports')
+          .update({ follow_up_schedule_id: null, updated_at: new Date().toISOString() })
+          .eq('id', row.id);
+      }
     }
 
     const assets: ServiceReportAssetResponse[] = (rawAssets || []).map((a: any) => ({
@@ -459,7 +471,7 @@ export class ServiceReportService {
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
       status: row.status,
-      followUpScheduleId: row.follow_up_schedule_id,
+      followUpScheduleId: effectiveFollowUpScheduleId,
       followUpScheduleNumber,
       assets,
       items,
@@ -520,7 +532,7 @@ export class ServiceReportService {
         customer_sites (id, site_name, address),
         technicians (id, name, technician_code, phone),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
-        follow_up_schedules:service_schedules!service_reports_follow_up_schedule_id_fkey (id, schedule_number),
+        follow_up_schedules:service_schedules!service_reports_follow_up_schedule_id_fkey (id, schedule_number, status),
         service_requests (id, request_number),
         amc_contracts (id, contract_number),
         profiles!service_reports_created_by_fkey (id, full_name)
@@ -607,8 +619,12 @@ export class ServiceReportService {
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
       status: row.status,
-      followUpScheduleId: row.follow_up_schedule_id,
-      followUpScheduleNumber: (row.follow_up_schedules as any)?.schedule_number || null,
+      followUpScheduleId:
+        (row.follow_up_schedules as any)?.status !== 'CANCELLED' ? row.follow_up_schedule_id : null,
+      followUpScheduleNumber:
+        (row.follow_up_schedules as any)?.status !== 'CANCELLED'
+          ? (row.follow_up_schedules as any)?.schedule_number || null
+          : null,
       assets: [],
       items: [],
       createdBy: row.created_by,
@@ -780,9 +796,17 @@ export class ServiceReportService {
     }
 
     if (report.followUpScheduleId) {
-      throw new ConflictError(
-        `A follow-up revisit appointment (#${report.followUpScheduleNumber || report.followUpScheduleId}) has already been scheduled for this report.`
-      );
+      const { data: existingFollowUp } = await supabase
+        .from('service_schedules')
+        .select('id, schedule_number, status')
+        .eq('id', report.followUpScheduleId)
+        .maybeSingle();
+
+      if (existingFollowUp && existingFollowUp.status !== 'CANCELLED') {
+        throw new ConflictError(
+          `A follow-up revisit appointment (#${existingFollowUp.schedule_number || report.followUpScheduleId}) has already been scheduled for this report.`
+        );
+      }
     }
 
     const isPm = report.visitType === 'PREVENTIVE';

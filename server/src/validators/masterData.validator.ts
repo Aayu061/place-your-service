@@ -17,8 +17,10 @@ export const listBrandsQuerySchema = {
     search: z.string().trim().optional(),
     activeOnly: z
       .union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1')])
-      .optional()
-      .default(true),
+      .optional(),
+    status: z
+      .enum(['ALL', 'ACTIVE', 'INACTIVE', 'all', 'active', 'inactive'])
+      .optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     pageSize: z.coerce.number().int().min(1).max(100).optional().default(50),
   }),
@@ -62,8 +64,10 @@ export const listModelsQuerySchema = {
     search: z.string().trim().optional(),
     activeOnly: z
       .union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1')])
-      .optional()
-      .default(true),
+      .optional(),
+    status: z
+      .enum(['ALL', 'ACTIVE', 'INACTIVE', 'all', 'active', 'inactive'])
+      .optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     pageSize: z.coerce.number().int().min(1).max(100).optional().default(50),
   }),

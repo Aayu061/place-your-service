@@ -1355,4 +1355,247 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  // =========================================================================
+  // 6. Follow-up Revisit Lifecycle & Cancellation Synchronization
+  // =========================================================================
+  it('18. Rejects follow-up creation on an already COMPLETED visit report with 400', async () => {
+    const authMock = setupAuth('ADMIN');
+    const completedReport = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      primary_outcome: 'COMPLETED',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: completedReport, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post(`/api/v1/service-reports/${sampleReportId}/follow-up`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        scheduledDate: '2026-10-25',
+        startTime: '10:00',
+        endTime: '12:00',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('already completed');
+  });
+
+  it('19. Rejects follow-up creation when an active follow-up schedule already exists with 409 Conflict', async () => {
+    const authMock = setupAuth('ADMIN');
+    const pendingReportWithActiveFollowUp = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      primary_outcome: 'PENDING_PARTS',
+      follow_up_schedule_id: 'active-sched-id-1234',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: pendingReportWithActiveFollowUp, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: { id: 'active-sched-id-1234', schedule_number: 'SCH-2026-ACTIVE', status: 'SCHEDULED' },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post(`/api/v1/service-reports/${sampleReportId}/follow-up`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        scheduledDate: '2026-10-25',
+        startTime: '10:00',
+        endTime: '12:00',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('already been scheduled');
+  });
+
+  it('20. Allows replacement follow-up schedule creation when previous follow-up was CANCELLED', async () => {
+    const authMock = setupAuth('ADMIN');
+    const pendingReportWithCancelledFollowUp = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      primary_outcome: 'PENDING_REPAIRS',
+      follow_up_schedule_id: 'cancelled-sched-id-5678',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const newFollowUpSchedule = {
+      id: 'new-follow-up-id-9999',
+      schedule_number: 'SCH-2026-9999',
+      status: 'SCHEDULED',
+      scheduled_date: '2026-10-26',
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockImplementation(() =>
+                  Promise.resolve({ data: { ...pendingReportWithCancelledFollowUp }, error: null })
+                ),
+              }),
+            }),
+            update: vi.fn().mockImplementation((updates: any) => {
+              Object.assign(pendingReportWithCancelledFollowUp, updates);
+              return {
+                eq: vi.fn().mockResolvedValue({ error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockImplementation(() => ({
+              eq: vi.fn().mockImplementation((col: string, val: string) => {
+                if (col === 'id' && val === 'cancelled-sched-id-5678') {
+                  return {
+                    maybeSingle: vi.fn().mockResolvedValue({
+                      data: { id: 'cancelled-sched-id-5678', schedule_number: 'SCH-2026-CANC', status: 'CANCELLED' },
+                      error: null,
+                    }),
+                  };
+                }
+                if (col === 'id' && val === 'new-follow-up-id-9999') {
+                  return {
+                    maybeSingle: vi.fn().mockResolvedValue({
+                      data: { id: 'new-follow-up-id-9999', schedule_number: 'SCH-2026-9999', status: 'SCHEDULED' },
+                      error: null,
+                    }),
+                  };
+                }
+                return {
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                };
+              }),
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { schedule_number: 'SCH-2026-00010' }, error: null }),
+                }),
+              }),
+            })),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: newFollowUpSchedule, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'service_requests') {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post(`/api/v1/service-reports/${sampleReportId}/follow-up`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        scheduledDate: '2026-10-26',
+        startTime: '10:00',
+        endTime: '12:00',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.report.followUpScheduleId).toBe('new-follow-up-id-9999');
+  });
 });

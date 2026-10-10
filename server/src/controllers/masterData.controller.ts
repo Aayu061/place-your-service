@@ -6,14 +6,18 @@ export class MasterDataController {
 
   public async listBrands(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const activeOnly =
-        req.query.activeOnly !== undefined
-          ? String(req.query.activeOnly) === 'true'
-          : true;
+      let resolvedStatus: 'ALL' | 'ACTIVE' | 'INACTIVE' = 'ACTIVE';
+      const rawStatus = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+      if (rawStatus === 'ALL' || rawStatus === 'ACTIVE' || rawStatus === 'INACTIVE') {
+        resolvedStatus = rawStatus as 'ALL' | 'ACTIVE' | 'INACTIVE';
+      } else if (req.query.activeOnly !== undefined) {
+        resolvedStatus = String(req.query.activeOnly) === 'true' ? 'ACTIVE' : 'ALL';
+      }
 
       const result = await masterDataService.listBrands({
         search: req.query.search as string | undefined,
-        activeOnly,
+        status: resolvedStatus,
+        activeOnly: resolvedStatus === 'ACTIVE',
         page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
         pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 50,
       });
@@ -99,15 +103,19 @@ export class MasterDataController {
 
   public async listModels(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const activeOnly =
-        req.query.activeOnly !== undefined
-          ? String(req.query.activeOnly) === 'true'
-          : true;
+      let resolvedStatus: 'ALL' | 'ACTIVE' | 'INACTIVE' = 'ACTIVE';
+      const rawStatus = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+      if (rawStatus === 'ALL' || rawStatus === 'ACTIVE' || rawStatus === 'INACTIVE') {
+        resolvedStatus = rawStatus as 'ALL' | 'ACTIVE' | 'INACTIVE';
+      } else if (req.query.activeOnly !== undefined) {
+        resolvedStatus = String(req.query.activeOnly) === 'true' ? 'ACTIVE' : 'ALL';
+      }
 
       const result = await masterDataService.listModels({
         brandId: req.query.brandId as string | undefined,
         search: req.query.search as string | undefined,
-        activeOnly,
+        status: resolvedStatus,
+        activeOnly: resolvedStatus === 'ACTIVE',
         page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
         pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string, 10) : 50,
       });
