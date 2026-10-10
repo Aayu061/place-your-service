@@ -321,6 +321,22 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   // -------------------------------------------------------------------------
 
   const openRescheduleModal = (schedule: ServiceSchedule) => {
+    if (schedule.status === 'COMPLETED') {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Reschedule',
+        message: 'Completed service visits cannot be rescheduled. Please schedule a follow-up revisit instead.',
+      });
+      return;
+    }
+    if (schedule.status === 'CANCELLED') {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Reschedule',
+        message: 'Cancelled appointments cannot be rescheduled.',
+      });
+      return;
+    }
     setScheduleToAssign(schedule);
     setRescheduleDate(schedule.scheduledDate);
     setRescheduleStart(schedule.startTime || '09:00');
@@ -1942,14 +1958,16 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
             {/* Actions Footer in Drawer */}
             <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', paddingTop: 'var(--space-2)' }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => openRescheduleModal(detailSchedule)}
-              >
-                <Calendar style={{ width: '14px', height: '14px' }} />
-                Reschedule
-              </Button>
+              {detailSchedule.status !== 'CANCELLED' && detailSchedule.status !== 'COMPLETED' && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => openRescheduleModal(detailSchedule)}
+                >
+                  <Calendar style={{ width: '14px', height: '14px' }} />
+                  Reschedule
+                </Button>
+              )}
 
               {detailSchedule.status !== 'CANCELLED' && detailSchedule.status !== 'COMPLETED' && (
                 <Button

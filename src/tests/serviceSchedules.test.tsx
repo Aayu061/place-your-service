@@ -661,4 +661,48 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
 
     unmount();
   });
+
+  it('10. ServiceScheduleManagement hides Reschedule button in detail drawer for COMPLETED schedules', async () => {
+    const completedSchedule: ServiceSchedule = {
+      ...sampleAssignedSchedule,
+      id: 'sched-completed-1',
+      status: 'COMPLETED',
+    };
+
+    vi.spyOn(scheduleApi, 'getSchedules').mockResolvedValue({
+      schedules: [completedSchedule],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getUnscheduledWork').mockResolvedValue({
+      items: [],
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getScheduleById').mockResolvedValue({
+      schedule: completedSchedule,
+    } as never);
+
+    const { container, unmount } = await renderComponent();
+
+    const detailsBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Details')
+    );
+    expect(detailsBtn).toBeDefined();
+
+    await act(async () => {
+      detailsBtn?.click();
+    });
+
+    expect(container.textContent).toContain('PHYSICAL AC ASSET & LOCATION');
+    // Verify Reschedule button is NOT present in the drawer footer for completed schedule
+    const rescheduleBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Reschedule')
+    );
+    expect(rescheduleBtn).toBeUndefined();
+
+    unmount();
+  });
 });

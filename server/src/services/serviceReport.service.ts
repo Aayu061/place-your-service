@@ -674,7 +674,7 @@ export class ServiceReportService {
         .maybeSingle();
 
       if (conflict) {
-        throw new ConflictError(`Report number "${trimmedNumber}" already exists.`);
+        throw new ConflictError(`Report number "${trimmedNumber}" is already used by another visit report.`);
       }
     }
 
@@ -684,6 +684,7 @@ export class ServiceReportService {
     };
 
     if (payload.reportNumber) updates.report_number = payload.reportNumber.trim();
+    if (payload.serviceDate !== undefined) updates.service_date = payload.serviceDate;
     if (payload.startTime !== undefined) updates.start_time = payload.startTime;
     if (payload.endTime !== undefined) updates.end_time = payload.endTime;
     if (payload.workDescription !== undefined) updates.work_description = payload.workDescription;
@@ -699,9 +700,63 @@ export class ServiceReportService {
       throw new BadRequestError('Failed to update service report.');
     }
 
+    // Update asset findings if supplied
+    if (payload.assets && payload.assets.length > 0) {
+      await supabase.from('service_report_assets').delete().eq('report_id', id);
+      const assetInserts = payload.assets.map((a) => ({
+        report_id: id,
+        asset_id: a.assetId,
+        fault_reported: a.faultReported || null,
+        diagnosis_findings: a.diagnosisFindings || null,
+        work_performed: a.workPerformed || null,
+        asset_outcome: a.assetOutcome,
+        final_condition: a.finalCondition || null,
+        refrigerant_added: a.refrigerantAdded ?? false,
+        refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
+        notes: a.notes || null,
+      }));
+      const { error: aErr } = await supabase.from('service_report_assets').insert(assetInserts);
+      if (aErr) {
+        logger.error('Failed to update service report assets', { error: aErr, id });
+        throw new BadRequestError('Failed to update asset inspection findings.');
+      }
+    }
+
+    // Update outcome items if supplied
+    if (payload.items !== undefined) {
+      await supabase.from('service_report_items').delete().eq('report_id', id);
+      if (payload.items.length > 0) {
+        const itemInserts = payload.items.map((item) => ({
+          report_id: id,
+          asset_id: item.assetId || null,
+          item_type: item.itemType,
+          item_name: item.itemName,
+          part_number: item.partNumber || null,
+          quantity: item.quantity || 1,
+          reason: item.reason,
+          diagnosis: item.diagnosis || null,
+          work_completed: item.workCompleted || null,
+          recommended_action: item.recommendedAction || null,
+          is_approval_required: item.isApprovalRequired ?? false,
+          is_specialist_required: item.isSpecialistRequired ?? false,
+          is_revisit_required: item.isRevisitRequired ?? true,
+          ac_condition: item.acCondition || null,
+          follow_up_notes: item.followUpNotes || null,
+          is_resolved: false,
+        }));
+        const { error: iErr } = await supabase.from('service_report_items').insert(itemInserts);
+        if (iErr) {
+          logger.error('Failed to update service report items', { error: iErr, id });
+          throw new BadRequestError('Failed to update parts and repair items.');
+        }
+      }
+    }
+
     await this.recordAudit(actorId, 'SERVICE_REPORT_UPDATED', id, {
       reportNumber: updates.report_number || existing.reportNumber,
       updatedFields: Object.keys(updates),
+      assetCount: payload.assets?.length ?? existing.assets.length,
+      itemCount: payload.items?.length ?? existing.items.length,
     });
 
     return this.getReportById(id);
@@ -730,6 +785,9 @@ export class ServiceReportService {
 
     const isPm = report.visitType === 'PREVENTIVE';
     const scheduleNumber = await this.generateScheduleNumber(isPm);
+    const effectiveTechId = payload.technicianId || report.technicianId || null;
+    const startTime = payload.startTime || '09:00';
+    const endTime = payload.endTime || '11:00';
 
     const { data: newSched, error: schedErr } = await supabase
       .from('service_schedules')
@@ -742,11 +800,12 @@ export class ServiceReportService {
         site_id: report.siteId,
         asset_id: report.assets[0]?.assetId || null,
         scheduled_date: payload.scheduledDate,
-        start_time: payload.startTime || '09:00',
-        end_time: payload.endTime || '11:00',
+        start_time: startTime,
+        end_time: endTime,
         duration_minutes: payload.durationMinutes || 120,
-        technician_id: payload.technicianId || report.technicianId,
-        status: payload.technicianId || report.technicianId ? 'ASSIGNED' : 'SCHEDULED',
+        technician_id: effectiveTechId,
+        rescheduled_from_id: report.scheduleId || null,
+        status: effectiveTechId ? 'ASSIGNED' : 'SCHEDULED',
         is_system_generated: false,
         notes: `Follow-up revisit for Report #${report.reportNumber}: ${report.primaryOutcome}${
           payload.notes ? ` - ${payload.notes}` : ''
@@ -759,7 +818,45 @@ export class ServiceReportService {
 
     if (schedErr || !newSched) {
       logger.error('Failed to create follow-up schedule', { error: schedErr, reportId });
-      throw new BadRequestError('Failed to create follow-up appointment.');
+      if (
+        schedErr?.code === '23P01' ||
+        schedErr?.message?.includes('TECHNICIAN_OVERLAP_CONFLICT')
+      ) {
+        throw new ConflictError(
+          'Technician is already booked for another service during this time window. Overlapping assignments are prohibited.',
+          { error: schedErr.message }
+        );
+      }
+      if (
+        schedErr?.code === '23505' ||
+        schedErr?.message?.includes('duplicate key') ||
+        schedErr?.message?.includes('idx_active_schedule')
+      ) {
+        throw new ConflictError(
+          'An active schedule already exists for this service request or PM obligation.',
+          { error: schedErr.message }
+        );
+      }
+      throw new BadRequestError(`Failed to create follow-up appointment: ${schedErr?.message || 'Database error'}`);
+    }
+
+    // Create assignment if technician assigned
+    if (effectiveTechId) {
+      const scheduledStart = `${payload.scheduledDate}T${startTime}:00Z`;
+      const scheduledEnd = `${payload.scheduledDate}T${endTime}:00Z`;
+      const assignmentQuery = supabase.from('service_assignments');
+      if (assignmentQuery && typeof assignmentQuery.insert === 'function') {
+        await assignmentQuery.insert({
+          service_schedule_id: newSched.id,
+          service_request_id: report.serviceRequestId || null,
+          technician_id: effectiveTechId,
+          assigned_by: actorId || null,
+          assigned_at: new Date().toISOString(),
+          scheduled_start_time: scheduledStart,
+          scheduled_end_time: scheduledEnd,
+          status: 'ASSIGNED',
+        });
+      }
     }
 
     // Link follow_up_schedule_id back to service_reports
@@ -772,12 +869,13 @@ export class ServiceReportService {
       })
       .eq('id', report.id);
 
-    // If Service Request visit, advance status to SCHEDULED
+    // If Service Request visit, advance status
     if (report.serviceRequestId) {
+      const targetSrStatus = effectiveTechId ? 'ASSIGNED' : 'SCHEDULED';
       await supabase
         .from('service_requests')
         .update({
-          status: 'SCHEDULED',
+          status: targetSrStatus,
           notes: `Follow-up revisit scheduled (#${scheduleNumber}) from Report #${report.reportNumber}`,
           updated_by: actorId || null,
           updated_at: new Date().toISOString(),

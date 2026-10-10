@@ -4,6 +4,7 @@ import {
   ServiceVisitType,
   ServiceVisitOutcome,
   CreateServiceReportPayload,
+  ServiceVisitReport,
 } from '@/domain/types';
 import { serviceReportApi } from '@/services/serviceReportApi';
 import { ApiError } from '@/services/api/client';
@@ -26,12 +27,16 @@ import {
   Hash,
   ShieldCheck,
   FileCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
-interface ServiceVisitReportModalProps {
+export interface ServiceVisitReportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  schedule: ServiceSchedule | null;
+  schedule?: ServiceSchedule | null;
+  initialReport?: ServiceVisitReport | null;
+  mode?: 'create' | 'edit';
   onSuccess: () => void;
 }
 
@@ -69,7 +74,6 @@ interface RepairItemState {
   reason: string;
   diagnosis: string;
   workCompleted: string;
-  recommendedAction: string;
   isApprovalRequired: boolean;
   isSpecialistRequired: boolean;
   isRevisitRequired: boolean;
@@ -81,6 +85,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   isOpen,
   onClose,
   schedule,
+  initialReport,
+  mode = 'create',
   onSuccess,
 }) => {
   const { showToast } = useToast();
@@ -107,6 +113,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [technicianRemarks, setTechnicianRemarks] = useState<string>('');
   const [customerRepresentative, setCustomerRepresentative] = useState<string>('');
   const [customerAcknowledgement, setCustomerAcknowledgement] = useState<string>('');
+  const [isAdditionalOpen, setIsAdditionalOpen] = useState<boolean>(false);
 
   // Asset Finding States
   const [assets, setAssets] = useState<AssetReportState[]>([]);
@@ -131,65 +138,165 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       reason: '',
       diagnosis: '',
       workCompleted: '',
-      recommendedAction: '',
       isApprovalRequired: false,
       isSpecialistRequired: false,
       isRevisitRequired: true,
     },
   ]);
 
-  // Reset & initialize prefilled data whenever schedule changes
+  // Reset & initialize prefilled data whenever schedule or initialReport changes
   useEffect(() => {
-    if (schedule && isOpen) {
-      setReportNumber('');
-      setVisitDate(schedule.scheduledDate || new Date().toISOString().slice(0, 10));
-      setStartTime(schedule.startTime || '09:30');
-      setEndTime(schedule.endTime || '11:45');
-      setPrimaryOutcome('COMPLETED');
-      setWorkDescription('');
-      setTechnicianRemarks('');
-      setCustomerRepresentative('');
-      setCustomerAcknowledgement('');
-      setErrorMessage(null);
-      setReportNumberError(null);
-      setTimeError(null);
-      setWorkError(null);
-      setItemError(null);
-      setFormStatus('IDLE');
+    if (isOpen) {
+      if (mode === 'edit' && initialReport) {
+        setReportNumber(initialReport.reportNumber || '');
+        setVisitDate(initialReport.serviceDate || '');
+        setStartTime(initialReport.startTime || '09:30');
+        setEndTime(initialReport.endTime || '11:45');
+        setPrimaryOutcome(initialReport.primaryOutcome || 'COMPLETED');
+        setWorkDescription(initialReport.workDescription || '');
+        setTechnicianRemarks(initialReport.technicianRemarks || '');
+        setCustomerRepresentative(initialReport.customerRepresentative || '');
+        setCustomerAcknowledgement(initialReport.customerAcknowledgement || '');
+        setErrorMessage(null);
+        setReportNumberError(null);
+        setTimeError(null);
+        setWorkError(null);
+        setItemError(null);
+        setFormStatus('IDLE');
 
-      // Setup initial asset findings
-      if (schedule.assetId) {
-        setAssets([
-          {
-            assetId: schedule.assetId,
-            assetTag: schedule.assetTag || 'Assigned AC Asset',
-            brand: schedule.brand || '',
-            modelNumber: schedule.modelNumber || '',
-            roomLocation: schedule.roomLocation || '',
-            faultReported: schedule.serviceRequestType ? `Fault: ${schedule.serviceRequestType}` : '',
-            diagnosisFindings: '',
-            workPerformed: '',
-            assetOutcome: 'COMPLETED',
-            finalCondition: 'Good',
-            refrigerantAdded: false,
-            refrigerantQtyKg: '',
-            notes: '',
-          },
-        ]);
-      } else {
-        setAssets([]);
+        if (
+          initialReport.technicianRemarks ||
+          initialReport.customerRepresentative ||
+          initialReport.customerAcknowledgement
+        ) {
+          setIsAdditionalOpen(true);
+        } else {
+          setIsAdditionalOpen(false);
+        }
+
+        if (initialReport.assets && initialReport.assets.length > 0) {
+          setAssets(
+            initialReport.assets.map((a) => ({
+              assetId: a.assetId,
+              assetTag: a.assetTag || 'Assigned AC Asset',
+              brand: a.brand || '',
+              modelNumber: a.modelNumber || '',
+              roomLocation: a.roomLocation || '',
+              faultReported: a.faultReported || '',
+              diagnosisFindings: a.diagnosisFindings || '',
+              workPerformed: a.workPerformed || '',
+              assetOutcome: a.assetOutcome || initialReport.primaryOutcome,
+              finalCondition: a.finalCondition || 'Good',
+              refrigerantAdded: Boolean(a.refrigerantAdded),
+              refrigerantQtyKg: a.refrigerantQtyKg != null ? String(a.refrigerantQtyKg) : '',
+              notes: a.notes || '',
+            }))
+          );
+        } else if (schedule?.assetId) {
+          setAssets([
+            {
+              assetId: schedule.assetId,
+              assetTag: schedule.assetTag || 'Assigned AC Asset',
+              brand: schedule.brand || '',
+              modelNumber: schedule.modelNumber || '',
+              roomLocation: schedule.roomLocation || '',
+              faultReported: '',
+              diagnosisFindings: '',
+              workPerformed: '',
+              assetOutcome: initialReport.primaryOutcome,
+              finalCondition: 'Good',
+              refrigerantAdded: false,
+              refrigerantQtyKg: '',
+              notes: '',
+            },
+          ]);
+        }
+
+        const parts = (initialReport.items || []).filter((i) => i.itemType === 'PART_REQUIRED');
+        if (parts.length > 0) {
+          setPartItems(
+            parts.map((p, idx) => ({
+              id: p.id || `part-${idx + 1}`,
+              assetId: p.assetId || undefined,
+              itemName: p.itemName,
+              partNumber: p.partNumber || '',
+              quantity: p.quantity || 1,
+              reason: p.reason,
+              acCondition: p.acCondition || 'Fair',
+              isRevisitRequired: p.isRevisitRequired ?? true,
+            }))
+          );
+        }
+
+        const repairs = (initialReport.items || []).filter((i) => i.itemType === 'REPAIR_REQUIRED');
+        if (repairs.length > 0) {
+          setRepairItems(
+            repairs.map((r, idx) => ({
+              id: r.id || `repair-${idx + 1}`,
+              assetId: r.assetId || undefined,
+              itemName: r.itemName,
+              reason: r.reason,
+              diagnosis: r.diagnosis || '',
+              workCompleted: r.workCompleted || '',
+              isApprovalRequired: r.isApprovalRequired ?? false,
+              isSpecialistRequired: r.isSpecialistRequired ?? false,
+              isRevisitRequired: r.isRevisitRequired ?? true,
+            }))
+          );
+        }
+      } else if (schedule) {
+        setReportNumber('');
+        setVisitDate(schedule.scheduledDate || new Date().toISOString().slice(0, 10));
+        setStartTime(schedule.startTime || '09:30');
+        setEndTime(schedule.endTime || '11:45');
+        setPrimaryOutcome('COMPLETED');
+        setWorkDescription('');
+        setTechnicianRemarks('');
+        setCustomerRepresentative('');
+        setCustomerAcknowledgement('');
+        setIsAdditionalOpen(false);
+        setErrorMessage(null);
+        setReportNumberError(null);
+        setTimeError(null);
+        setWorkError(null);
+        setItemError(null);
+        setFormStatus('IDLE');
+
+        // Setup initial asset findings
+        if (schedule.assetId) {
+          setAssets([
+            {
+              assetId: schedule.assetId,
+              assetTag: schedule.assetTag || 'Assigned AC Asset',
+              brand: schedule.brand || '',
+              modelNumber: schedule.modelNumber || '',
+              roomLocation: schedule.roomLocation || '',
+              faultReported: schedule.serviceRequestType ? `Fault: ${schedule.serviceRequestType}` : '',
+              diagnosisFindings: '',
+              workPerformed: '',
+              assetOutcome: 'COMPLETED',
+              finalCondition: 'Good',
+              refrigerantAdded: false,
+              refrigerantQtyKg: '',
+              notes: '',
+            },
+          ]);
+        } else {
+          setAssets([]);
+        }
       }
     }
-  }, [schedule, isOpen]);
+  }, [schedule, initialReport, mode, isOpen]);
 
-  if (!schedule) return null;
+  if (!schedule && !initialReport) return null;
 
   const isSubmitting = formStatus === 'VALIDATING' || formStatus === 'SUBMITTING';
 
   const visitType: ServiceVisitType =
-    schedule.scheduleType === 'PREVENTIVE' || schedule.amcId || schedule.pmObligationId
+    initialReport?.visitType ||
+    (schedule?.scheduleType === 'PREVENTIVE' || schedule?.amcId || schedule?.pmObligationId
       ? 'PREVENTIVE'
-      : 'SERVICE_REQUEST';
+      : 'SERVICE_REQUEST');
 
   const handleOutcomeChange = (newOutcome: ServiceVisitOutcome) => {
     setPrimaryOutcome(newOutcome);
@@ -268,7 +375,6 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         reason: '',
         diagnosis: '',
         workCompleted: '',
-        recommendedAction: '',
         isApprovalRequired: false,
         isSpecialistRequired: false,
         isRevisitRequired: true,
@@ -377,11 +483,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       }
     } else if (primaryOutcome === 'PENDING_REPAIRS') {
       const invalidRepair = repairItems.find(
-        (r) => !r.itemName.trim() || !r.reason.trim() || !r.recommendedAction.trim()
+        (r) => !r.itemName.trim() || !r.reason.trim()
       );
       if (invalidRepair) {
         const msg =
-          'All repair items must have a Fault/Repair Description, Reason Pending, and Recommended Action.';
+          'All repair items must have a Fault/Repair Description and Reason Pending.';
         setItemError(msg);
         setErrorMessage(msg);
         setFormStatus('ERROR');
@@ -392,9 +498,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
     try {
       setFormStatus('SUBMITTING');
 
+      const targetScheduleId = schedule?.id || initialReport?.scheduleId || '';
+
       const payload: CreateServiceReportPayload = {
         reportNumber: trimmedNumber,
-        scheduleId: schedule.id,
+        scheduleId: targetScheduleId,
         visitType,
         serviceDate: visitDate,
         startTime: startTime || null,
@@ -433,7 +541,6 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 reason: r.reason.trim(),
                 diagnosis: r.diagnosis.trim() || null,
                 workCompleted: r.workCompleted.trim() || null,
-                recommendedAction: r.recommendedAction.trim(),
                 isApprovalRequired: r.isApprovalRequired,
                 isSpecialistRequired: r.isSpecialistRequired,
                 isRevisitRequired: r.isRevisitRequired,
@@ -441,39 +548,64 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             : [],
       };
 
-      await serviceReportApi.createReport(payload);
+      if (mode === 'edit' && initialReport) {
+        await serviceReportApi.updateReport(initialReport.id, {
+          reportNumber: trimmedNumber,
+          serviceDate: visitDate,
+          startTime: startTime || null,
+          endTime: endTime || null,
+          workDescription: workDescription.trim() || null,
+          technicianRemarks: technicianRemarks.trim() || null,
+          customerRepresentative: customerRepresentative.trim() || null,
+          customerAcknowledgement: customerAcknowledgement.trim() || null,
+          assets: payload.assets,
+          items: payload.items,
+        });
 
-      setFormStatus('SUCCESS');
-      showToast({
-        type: 'success',
-        title: 'Visit Report Saved',
-        message: `Service Visit Report #${trimmedNumber} persisted successfully (${primaryOutcome})`,
-      });
+        setFormStatus('SUCCESS');
+        showToast({
+          type: 'success',
+          title: 'Visit Report Updated',
+          message: `Service Visit Report #${trimmedNumber} updated successfully`,
+        });
+      } else {
+        await serviceReportApi.createReport(payload);
+
+        setFormStatus('SUCCESS');
+        showToast({
+          type: 'success',
+          title: 'Visit Report Saved',
+          message: `Service Visit Report #${trimmedNumber} persisted successfully (${primaryOutcome})`,
+        });
+      }
+
       onSuccess();
       onClose();
     } catch (err: unknown) {
       setFormStatus('ERROR');
       if (err instanceof ApiError) {
         if (err.statusCode === 409) {
-          const msg = `Report number "${trimmedNumber}" already exists in the system. Please enter a distinct report number.`;
+          const msg = `Report number "${trimmedNumber}" is already in use by another report. Please enter a distinct report number.`;
           setReportNumberError(msg);
           setErrorMessage(msg);
           reportNumberInputRef.current?.focus();
         } else {
-          setErrorMessage(err.message || 'Failed to persist visit report.');
+          setErrorMessage(err.message || (mode === 'edit' ? 'Failed to update visit report.' : 'Failed to persist visit report.'));
         }
       } else {
         const fallbackMsg =
-          (err as Error)?.message || 'An unexpected error occurred while saving the report.';
+          (err as Error)?.message || (mode === 'edit' ? 'An unexpected error occurred while updating the report.' : 'An unexpected error occurred while saving the report.');
         setErrorMessage(fallbackMsg);
       }
 
       showToast({
         type: 'error',
-        title: 'Submission Failed',
+        title: mode === 'edit' ? 'Update Failed' : 'Submission Failed',
         message:
           err instanceof ApiError
             ? err.message
+            : mode === 'edit'
+            ? 'Could not update the service report. Please check the inputs.'
             : 'Could not save the service report. Please check the inputs.',
       });
     }
@@ -483,8 +615,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create Service Visit Report"
-      description={`Official execution record for Appointment #${schedule.scheduleNumber}`}
+      title={mode === 'edit' ? `Edit Service Visit Report #${initialReport?.reportNumber || ''}` : 'Create Service Visit Report'}
+      description={
+        mode === 'edit'
+          ? `Amend or correct inspection findings for Report #${initialReport?.reportNumber || ''}`
+          : `Official execution record for Appointment #${schedule?.scheduleNumber || ''}`
+      }
       maxWidth="1040px"
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
@@ -508,9 +644,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               disabled={isSubmitting}
             >
               {formStatus === 'SUBMITTING'
-                ? 'Saving Visit Report...'
+                ? mode === 'edit'
+                  ? 'Updating Report...'
+                  : 'Saving Visit Report...'
                 : formStatus === 'VALIDATING'
                 ? 'Validating Details...'
+                : mode === 'edit'
+                ? 'Update Visit Report'
                 : 'Submit Visit Report'}
             </Button>
           </div>
@@ -574,44 +714,44 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           <div className="svr-context-grid">
             <div className="svr-context-item">
               <span className="svr-context-label">Customer</span>
-              <span className="svr-context-value">{schedule.customerName || 'N/A'}</span>
+              <span className="svr-context-value">{schedule?.customerName || initialReport?.customerName || 'N/A'}</span>
               <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
-                {schedule.customerCode || 'Code: N/A'}
+                {schedule?.customerCode || initialReport?.customerCode || 'Code: N/A'}
               </span>
             </div>
 
             <div className="svr-context-item">
               <span className="svr-context-label">Site Location</span>
-              <span className="svr-context-value">{schedule.siteName || 'N/A'}</span>
-              <span className="svr-context-sub">{schedule.siteAddress || 'Address on file'}</span>
+              <span className="svr-context-value">{schedule?.siteName || initialReport?.siteName || 'N/A'}</span>
+              <span className="svr-context-sub">{schedule?.siteAddress || initialReport?.siteAddress || 'Address on file'}</span>
             </div>
 
             <div className="svr-context-item">
               <span className="svr-context-label">Assigned Technician</span>
               <span className="svr-context-value" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-brand)' }}>
                 <User size={13} style={{ color: 'var(--color-brand)' }} />
-                {schedule.technicianName || 'Unassigned'}
+                {schedule?.technicianName || initialReport?.technicianName || 'Unassigned'}
               </span>
               <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
-                [{schedule.technicianCode || 'N/A'}]
+                [{schedule?.technicianCode || initialReport?.technicianCode || 'N/A'}]
               </span>
             </div>
 
             <div className="svr-context-item">
               <span className="svr-context-label">Work Item Reference</span>
-              {schedule.amcContractNumber ? (
+              {schedule?.amcContractNumber || initialReport?.amcContractNumber ? (
                 <span className="svr-context-value" style={{ color: 'var(--color-amc-text)' }}>
-                  AMC: {schedule.amcContractNumber}
+                  AMC: {schedule?.amcContractNumber || initialReport?.amcContractNumber}
                 </span>
-              ) : schedule.serviceRequestNumber ? (
+              ) : schedule?.serviceRequestNumber || initialReport?.serviceRequestNumber ? (
                 <span className="svr-context-value" style={{ color: 'var(--color-info-text)' }}>
-                  SR: {schedule.serviceRequestNumber}
+                  SR: {schedule?.serviceRequestNumber || initialReport?.serviceRequestNumber}
                 </span>
               ) : (
                 <span className="svr-context-value">General Appointment</span>
               )}
               <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
-                Appt: {schedule.scheduleNumber}
+                Appt: {schedule?.scheduleNumber || initialReport?.scheduleNumber || 'N/A'}
               </span>
             </div>
           </div>
@@ -1311,33 +1451,17 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                      Reason Pending <span style={{ color: 'var(--color-error-solid)' }}>*</span>
-                    </label>
-                    <Input
-                      value={item.reason}
-                      onChange={(e) => updateRepairItem(item.id, 'reason', e.target.value)}
-                      placeholder="e.g. Nitrogen cylinder and brazing kit required on site"
-                      disabled={isSubmitting}
-                      style={{ fontSize: '12px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                      Recommended Next Action <span style={{ color: 'var(--color-error-solid)' }}>*</span>
-                    </label>
-                    <Input
-                      value={item.recommendedAction}
-                      onChange={(e) =>
-                        updateRepairItem(item.id, 'recommendedAction', e.target.value)
-                      }
-                      placeholder="e.g. Arrange specialist team revisit with welding equipment"
-                      disabled={isSubmitting}
-                      style={{ fontSize: '12px' }}
-                    />
-                  </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Reason Pending <span style={{ color: 'var(--color-error-solid)' }}>*</span>
+                  </label>
+                  <Input
+                    value={item.reason}
+                    onChange={(e) => updateRepairItem(item.id, 'reason', e.target.value)}
+                    placeholder="e.g. Nitrogen cylinder and brazing kit required on site"
+                    disabled={isSubmitting}
+                    style={{ fontSize: '12px' }}
+                  />
                 </div>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-4)', fontSize: '12px', paddingTop: '4px' }}>
@@ -1385,48 +1509,105 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           </div>
         )}
 
-        {/* Section 6: Technician Remarks & Customer Acknowledgement */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              General Technician Remarks
-            </label>
-            <Textarea
-              value={technicianRemarks}
-              onChange={(e) => setTechnicianRemarks(e.target.value)}
-              rows={3}
-              placeholder="Internal operational notes, special tools used, or recommendations..."
-              disabled={isSubmitting}
-              style={{ fontSize: '12px' }}
-            />
-          </div>
+        {/* Section 6: Additional Details & Customer Feedback (Progressive Disclosure) */}
+        <div style={{ marginTop: 'var(--space-2)' }}>
+          <button
+            type="button"
+            className="svr-disclosure-toggle"
+            aria-expanded={isAdditionalOpen}
+            onClick={() => setIsAdditionalOpen((prev) => !prev)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              backgroundColor: 'var(--bg-canvas)',
+              border: '1px solid var(--border-default)',
+              borderRadius: isAdditionalOpen ? 'var(--radius-lg) var(--radius-lg) 0 0' : 'var(--radius-lg)',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '12px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <User size={14} style={{ color: 'var(--color-brand)' }} />
+              Additional Details & Customer Remarks (Optional)
+              {(technicianRemarks || customerRepresentative || customerAcknowledgement) && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: 'var(--color-brand-100)',
+                    color: 'var(--color-brand-800)',
+                    padding: '1px 6px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  Recorded
+                </span>
+              )}
+            </span>
+            {isAdditionalOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Customer / Site Representative Name
-              </label>
-              <Input
-                value={customerRepresentative}
-                onChange={(e) => setCustomerRepresentative(e.target.value)}
-                placeholder="e.g. Ramesh Shah (Facility Incharge)"
-                disabled={isSubmitting}
-                style={{ fontSize: '12px' }}
-              />
+          {isAdditionalOpen && (
+            <div
+              className="svr-disclosure-content"
+              style={{
+                padding: 'var(--space-4)',
+                border: '1px solid var(--border-default)',
+                borderTop: 'none',
+                borderRadius: '0 0 var(--radius-lg) var(--radius-lg)',
+                backgroundColor: 'var(--bg-surface)',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: 'var(--space-4)',
+              }}
+            >
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  General Technician Remarks
+                </label>
+                <Textarea
+                  value={technicianRemarks}
+                  onChange={(e) => setTechnicianRemarks(e.target.value)}
+                  rows={3}
+                  placeholder="Internal operational notes, special tools used, or recommendations..."
+                  disabled={isSubmitting}
+                  style={{ fontSize: '12px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Customer / Site Representative Name
+                  </label>
+                  <Input
+                    value={customerRepresentative}
+                    onChange={(e) => setCustomerRepresentative(e.target.value)}
+                    placeholder="e.g. Ramesh Shah (Facility Incharge)"
+                    disabled={isSubmitting}
+                    style={{ fontSize: '12px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Customer Feedback / Acknowledgement
+                  </label>
+                  <Input
+                    value={customerAcknowledgement}
+                    onChange={(e) => setCustomerAcknowledgement(e.target.value)}
+                    placeholder="e.g. Satisfied with service, cooling restored"
+                    disabled={isSubmitting}
+                    style={{ fontSize: '12px' }}
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Customer Feedback / Acknowledgement
-              </label>
-              <Input
-                value={customerAcknowledgement}
-                onChange={(e) => setCustomerAcknowledgement(e.target.value)}
-                placeholder="e.g. Satisfied with service, cooling restored"
-                disabled={isSubmitting}
-                style={{ fontSize: '12px' }}
-              />
-            </div>
-          </div>
+          )}
         </div>
       </form>
     </Modal>

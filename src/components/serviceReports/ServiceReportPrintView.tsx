@@ -463,22 +463,21 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             <table className="pys-table">
               <thead>
                 <tr>
-                  <th>Fault / Repair Required</th>
-                  <th>Reason Pending</th>
-                  <th>Recommended Next Action</th>
-                  <th>Approvals</th>
+                  <th style={{ width: '35%' }}>Fault / Repair Required</th>
+                  <th style={{ width: '40%' }}>Reason Pending</th>
+                  <th style={{ width: '25%' }}>Approvals & Requirements</th>
                 </tr>
               </thead>
               <tbody>
                 {report.items.map((item, idx) => (
                   <tr key={item.id || idx}>
-                    <td style={{ fontWeight: 600 }}>{item.itemName}</td>
+                    <td style={{ fontWeight: 600 }}>{item.itemName || item.diagnosis || '-'}</td>
                     <td>{item.reason}</td>
-                    <td>{item.recommendedAction || '-'}</td>
                     <td>
                       {item.isApprovalRequired && <span style={{ color: '#d97706' }}>Approval Required; </span>}
-                      {item.isSpecialistRequired && <span style={{ color: '#6366f1' }}>Specialist Required</span>}
-                      {!item.isApprovalRequired && !item.isSpecialistRequired && 'Standard Revisit'}
+                      {item.isSpecialistRequired && <span style={{ color: '#6366f1' }}>Specialist Required; </span>}
+                      {item.isRevisitRequired && <span style={{ color: '#2563eb' }}>Revisit Required</span>}
+                      {!item.isApprovalRequired && !item.isSpecialistRequired && !item.isRevisitRequired && 'Standard Revisit'}
                     </td>
                   </tr>
                 ))}

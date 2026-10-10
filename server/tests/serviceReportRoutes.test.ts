@@ -1088,4 +1088,271 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     expect(res.body.success).toBe(true);
     expect(res.body.data.report.reportNumber).toBe('REP-2026-001');
   });
+
+  // =========================================================================
+  // 9. Report Editing & Audit Logging (Workstream A)
+  // =========================================================================
+  it('15. Successfully updates an existing completed service report, records activity log, and avoids re-running completion side effects', async () => {
+    const authMock = setupAuth('ADMIN');
+    let loggedActivityAction: string | null = null;
+    let scheduleUpdateCalled = false;
+    let serviceRequestUpdateCalled = false;
+
+    const existingReport = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      report_number: 'REP-2026-001',
+      technician_remarks: 'Original remarks',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const updatedReportRow = {
+      ...existingReport,
+      technician_remarks: 'Corrected remarks after client feedback',
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockImplementation(() => {
+              return {
+                eq: vi.fn().mockImplementation((col: string, val: string) => {
+                  if (col === 'id') {
+                    return {
+                      maybeSingle: vi.fn().mockResolvedValue({ data: existingReport, error: null }),
+                    };
+                  }
+                  if (col === 'report_number') {
+                    return {
+                      neq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                      }),
+                    };
+                  }
+                  return { maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
+                }),
+              };
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'service_schedules') {
+          return {
+            update: vi.fn().mockImplementation(() => {
+              scheduleUpdateCalled = true;
+              return { eq: vi.fn().mockResolvedValue({ error: null }) };
+            }),
+          };
+        }
+        if (table === 'service_requests') {
+          return {
+            update: vi.fn().mockImplementation(() => {
+              serviceRequestUpdateCalled = true;
+              return { eq: vi.fn().mockResolvedValue({ error: null }) };
+            }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return {
+            insert: vi.fn().mockImplementation((payload: any) => {
+              loggedActivityAction = payload.action;
+              return Promise.resolve({ error: null });
+            }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .patch(`/api/v1/service-reports/${sampleReportId}`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        technicianRemarks: 'Corrected remarks after client feedback',
+        workDescription: 'Updated work description without altering resolution state',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    // Verifies audit activity log was created
+    expect(loggedActivityAction).toBe('SERVICE_REPORT_UPDATED');
+    // Verifies schedule/SR completion side-effects were NOT rerun
+    expect(scheduleUpdateCalled).toBe(false);
+    expect(serviceRequestUpdateCalled).toBe(false);
+  });
+
+  it('16. Rejects report update with 409 Conflict if report number belongs to another report', async () => {
+    const authMock = setupAuth('ADMIN');
+
+    const existingReport = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      report_number: 'REP-2026-001',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const conflictingReport = {
+      id: 'other-report-id',
+      report_number: 'REP-2026-099',
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockImplementation(() => {
+              return {
+                eq: vi.fn().mockImplementation((col: string, val: string) => {
+                  if (col === 'id') {
+                    return {
+                      maybeSingle: vi.fn().mockResolvedValue({ data: existingReport, error: null }),
+                    };
+                  }
+                  if (col === 'report_number') {
+                    return {
+                      neq: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: conflictingReport, error: null }),
+                      }),
+                    };
+                  }
+                  return { maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
+                }),
+              };
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .patch(`/api/v1/service-reports/${sampleReportId}`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        reportNumber: 'REP-2026-099',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('already used by another visit report');
+  });
+
+  it('17. Allows report update when retaining its own existing report number without conflict', async () => {
+    const authMock = setupAuth('ADMIN');
+
+    const existingReport = {
+      ...sampleFullReportRow,
+      id: sampleReportId,
+      report_number: 'REP-2026-001',
+      service_report_assets: [sampleAssetRow],
+      service_report_items: [],
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockImplementation(() => {
+              return {
+                eq: vi.fn().mockImplementation((col: string, val: string) => {
+                  if (col === 'id') {
+                    return {
+                      maybeSingle: vi.fn().mockResolvedValue({ data: existingReport, error: null }),
+                    };
+                  }
+                  if (col === 'report_number') {
+                    return {
+                      neq: vi.fn().mockReturnValue({
+                        // neq('id', sampleReportId) filters out current report, returns null
+                        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                      }),
+                    };
+                  }
+                  return { maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
+                }),
+              };
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .patch(`/api/v1/service-reports/${sampleReportId}`)
+      .set('Authorization', adminAuthToken)
+      .send({
+        reportNumber: 'REP-2026-001',
+        technicianRemarks: 'Updated notes',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
 });

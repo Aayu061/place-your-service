@@ -293,10 +293,109 @@ The following full-resolution visual evidence files were captured and archived i
 - **Latest Commit Message:** `fix(service-reports): remove conflicting block display class from flex icon labels`
 - **GitHub Push Status:** Cleanly pushed to `origin/main`
 - **Working Tree:** Clean, 0 uncommitted changes
-- **Monorepo Test Score:** **315 / 315 tests passing (100%)**
+- **Monorepo Test Score:** **324 / 324 tests passing (100%)**
 - **Production Verification Status:**
-  - Automated Tests: 100% Passing (108 Frontend + 207 Backend)
+  - Automated Tests: 100% Passing (114 Frontend + 210 Backend)
   - Browser Visual Verification: 100% Inspected & Photographed (Desktop 1280×900, Tablet 768×1024, Mobile 390×844)
   - Live Deployments: Vercel Frontend (`https://place-your-service.vercel.app`) & Render Backend (`https://place-your-service-api.onrender.com`) Verified Healthy
+
+---
+
+## 12. Completion Report Addendum: Workflow Bug Fixes, Report Editing & Minimal Form UX
+
+### 12.1 Confirmed Root Cause of Failed Follow-up Revisit Creation (HTTP 400)
+
+**Observed Symptom:** Follow-up modal displayed *"Failed to create follow-up appointment"* (HTTP 400 Bad Request in Chrome DevTools network tab).
+
+**Investigation & Confirmed Root Cause:**
+1. The database schema in `supabase/migrations/20261009100000_service_schedules_table.sql` created three partial unique indexes:
+   - `idx_active_schedule_per_request ON service_schedules(service_request_id) WHERE status != 'CANCELLED';`
+   - `idx_active_schedule_per_pm_obligation ON service_schedules(pm_obligation_id) WHERE status NOT IN ('CANCELLED', 'RESCHEDULED');`
+   - `idx_active_schedule_per_amc_asset_visit ON service_schedules(amc_id, asset_id, visit_number) WHERE status NOT IN ('CANCELLED', 'RESCHEDULED');`
+2. When a service visit concluded on-site, the schedule transitioned to `COMPLETED`.
+3. When the visit outcome was `PENDING_PARTS` or `PENDING_REPAIRS`, a follow-up revisit was needed for the same work item (`service_request_id` or `pm_obligation_id`).
+4. Attempting to insert a follow-up appointment violated these unique indexes because the initial schedule had `status = 'COMPLETED'`, which was **not** excluded by the index filter.
+5. PostgreSQL threw error code `23505` (`unique_violation`), which the API caught and returned as a generic HTTP 400 error.
+
+**Implemented Resolution:**
+1. Created and applied migration `supabase/migrations/20261010020000_allow_followup_schedules_after_completion.sql`:
+   - Replaced all three indexes to enforce uniqueness only among active pending visits with `WHERE status NOT IN ('CANCELLED', 'RESCHEDULED', 'COMPLETED', 'SKIPPED')`.
+   - Verified live PostgreSQL index definitions directly in Supabase instance `jvccvdxfilzlncbgiplk`.
+2. Updated `createFollowUp()` in `server/src/services/serviceReport.service.ts`:
+   - Links `rescheduled_from_id: report.scheduleId`.
+   - Persists technician assignment into `service_assignments` table if a technician is designated.
+   - Inspects PostgreSQL error codes `23P01` (technician overlap) and `23505` (duplicate active schedule), returning specific `ConflictError` messages rather than swallowing into generic 400s.
+
+---
+
+### 12.2 Confirmed Root Cause of Invalid Rescheduling Attempt (HTTP 400)
+
+**Observed Symptom:** Reschedule modal displayed *"Cannot reschedule a service in 'COMPLETED' status"*.
+
+**Investigation & Confirmed Root Cause:**
+1. In `src/pages/ServiceScheduleManagement.tsx`, the detail drawer footer rendered the "Reschedule" button unconditionally for all appointments, including visits in `COMPLETED` status.
+2. In the application state machine, a `COMPLETED` appointment represents historical on-site attendance that has already concluded. Attempting to reopen or move a completed appointment violates auditability and contract fulfillment tracking.
+3. The backend schedule service rightly rejected the operation with HTTP 400.
+
+**Implemented Resolution:**
+1. In `src/pages/ServiceScheduleManagement.tsx`, wrapped the Reschedule button in the drawer footer with `{detailSchedule.status !== 'CANCELLED' && detailSchedule.status !== 'COMPLETED' && ...}`.
+2. Added a defensive client guard in `openRescheduleModal`: if triggered on a `COMPLETED` schedule, it displays a warning toast advising that completed visits requiring further work must use the Follow-up Revisit workflow.
+
+---
+
+### 12.3 Workstream A — Editable Completed Service Reports
+
+1. **Detail Drawer Action:** Added an "Edit Report" button (`Pencil` icon, `title="Edit Report"`) in `ServiceReportsManagement.tsx` detail drawer header.
+2. **Modal Form Reuse:** Reuses `ServiceVisitReportModal.tsx` in `mode="edit"`, passing `initialReport`.
+3. **Data Pre-filling:** Pre-fills manual report number, visit timings, asset inspection findings, parts, and repair items.
+4. **Number Uniqueness & Conflict Protection:**
+   - Client and server permit retaining the report's own number (`neq('id', id)`).
+   - Conflicts with other reports return HTTP 409 Conflict with an actionable message without clearing user-entered data.
+5. **State Machine Safeguards:**
+   - Server route `PATCH /api/v1/service-reports/:id` updates report data, assets findings, and outcome items.
+   - Does **not** rerun schedule completion side-effects or duplicate AMC PM fulfillment.
+   - Logs an audit entry to `activity_logs` with action `SERVICE_REPORT_UPDATED`, recording the actor ID and updated field counts.
+
+---
+
+### 12.4 Workstream B — Complete Removal of "Recommended Next Action"
+
+1. **Pending Repairs Form:** Removed `recommendedAction` input, repeater state, and payload mapping from `ServiceVisitReportModal.tsx`.
+2. **Detail Drawer:** Removed `recommendedAction` display from `ServiceReportsManagement.tsx`.
+3. **Print / PDF View:** Removed `<th>Recommended Next Action</th>` and `<td>{item.recommendedAction}</td>` from `ServiceReportPrintView.tsx`. Rebalanced remaining columns:
+   - Fault / Repair Required: **35%**
+   - Reason Pending: **40%**
+   - Approvals & Requirements: **25%**
+4. **Backend Validation:** Cleaned refinement error messages in `server/src/validators/serviceReport.validator.ts`.
+
+---
+
+### 12.5 Workstream C — Minimal Form UX & Progressive Disclosure
+
+1. **Essential Visible Fields:**
+   - Manual Report Number (with uppercase normalization and validation).
+   - AC Asset and Location context card.
+   - Inspection & Diagnostic Findings.
+   - Work Performed on unit.
+   - Final Asset Condition / Operational Status.
+   - Primary Visit Outcome (Completed, Pending Parts, Pending Repairs).
+2. **Progressive Disclosure Accordion:**
+   - Tucked Section 6 ("Additional Details & Customer Remarks (Optional)") behind a collapsible accordion toggle (`.svr-disclosure-toggle`, `aria-expanded`).
+   - Displays a "Recorded" badge when remarks or customer feedback exist.
+3. **Multi-Asset Reports:** Inspection cards preserve independent unit findings and outcome aggregation.
+
+---
+
+### 12.6 Workstream E — Tests & Verification Summary
+
+- **Frontend Tests (`npm test`):** **114 / 114 passed** (15 test suites).
+  - Added tests 16–20 to `src/tests/serviceReports.test.tsx` (edit prefill, 409 preservation, absent recommended action, progressive disclosure, drawer edit button).
+  - Added test 10 to `src/tests/serviceSchedules.test.tsx` (hides reschedule button on completed appointments).
+- **Backend Tests (`npm test` in `server`):** **210 / 210 passed** (20 test suites).
+  - Added tests 15–17 to `server/tests/serviceReportRoutes.test.ts` (PATCH update, audit logging, side-effect isolation, 409 conflict, self-number retention).
+- **Typecheck & Lint:**
+  - `npm run typecheck`: 0 errors (frontend & server).
+  - `npm run lint`: 0 errors.
+  - `npm run build`: Production builds completed cleanly in frontend (Vite) and server (tsc).
 
 

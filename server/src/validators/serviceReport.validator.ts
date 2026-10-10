@@ -96,7 +96,7 @@ export const createServiceReportSchema = {
         if (repairs.length === 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'Pending for Repairs requires at least one repair item with reason and recommended action.',
+            message: 'Pending for Repairs requires at least one repair item with description and reason pending.',
             path: ['items'],
           });
         }
@@ -126,6 +126,10 @@ export const updateServiceReportSchema = {
       .min(2, 'Report number must have at least 2 characters')
       .max(50, 'Report number cannot exceed 50 characters')
       .regex(/^[A-Za-z0-9_\-\/\.\s]+$/, 'Report number may only contain alphanumeric characters, spaces, dashes, slashes, and periods')
+      .optional(),
+    serviceDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Service date must be in YYYY-MM-DD format')
       .optional(),
     startTime: optionalTime,
     endTime: optionalTime,

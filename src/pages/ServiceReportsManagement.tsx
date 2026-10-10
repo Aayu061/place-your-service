@@ -17,6 +17,7 @@ import {
   X,
   Building,
   User,
+  Pencil,
 } from 'lucide-react';
 import {
   ServiceVisitReport,
@@ -34,6 +35,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
 import { ServiceReportPrintView } from '@/components/serviceReports/ServiceReportPrintView';
+import { ServiceVisitReportModal } from '@/components/serviceReports/ServiceVisitReportModal';
 
 interface ServiceReportsManagementProps {
   onNavigate?: (module: string) => void;
@@ -80,6 +82,10 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   const [detailedReport, setDetailedReport] = useState<ServiceVisitReport | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
   const [reportToPrint, setReportToPrint] = useState<ServiceVisitReport | null>(null);
+
+  // Edit Report Modal State
+  const [reportToEdit, setReportToEdit] = useState<ServiceVisitReport | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
 
   // Follow-up Revisit Modal State
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState<boolean>(false);
@@ -224,21 +230,23 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
         openDetailDrawer(followUpReport.id);
       }
     } catch (err: unknown) {
-      const axiosErr = err as {
-        response?: { data?: { error?: { message?: string } } };
-        message?: string;
-      };
+      const message =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || 'Failed to arrange follow-up';
       showToast({
         type: 'error',
-        title: 'Error',
-        message:
-          axiosErr?.response?.data?.error?.message ||
-          axiosErr?.message ||
-          'Failed to arrange follow-up',
+        title: 'Follow-up Failed',
+        message,
       });
     } finally {
       setIsSubmittingFollowUp(false);
     }
+  };
+
+  const handleOpenEditModal = (report: ServiceVisitReport) => {
+    setReportToEdit(report);
+    setIsEditModalOpen(true);
   };
 
   const getOutcomeBadgeClass = (outcome: ServiceVisitOutcome) => {
@@ -721,6 +729,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={() => handleOpenEditModal(detailedReport)} title="Edit Report">
+                  <Pencil size={14} className="mr-1" /> Edit Report
+                </Button>
                 <Button size="sm" variant="secondary" onClick={() => openPrintView(detailedReport)}>
                   <Printer size={14} className="mr-1" /> Print Report
                 </Button>
@@ -851,11 +862,6 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                       <div>
                         <strong>Reason:</strong> {item.reason}
                       </div>
-                      {item.recommendedAction && (
-                        <div>
-                          <strong>Recommended Action:</strong> {item.recommendedAction}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -961,6 +967,25 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Edit Service Report Modal */}
+      {reportToEdit && (
+        <ServiceVisitReportModal
+          isOpen={isEditModalOpen}
+          mode="edit"
+          initialReport={reportToEdit}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setReportToEdit(null);
+          }}
+          onSuccess={() => {
+            fetchReports();
+            if (selectedReportId) {
+              openDetailDrawer(selectedReportId);
+            }
+          }}
+        />
       )}
 
       {/* Print View Modal */}

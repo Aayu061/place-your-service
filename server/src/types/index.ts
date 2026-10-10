@@ -1182,6 +1182,7 @@ export interface CreateServiceReportPayload {
 
 export interface UpdateServiceReportPayload {
   reportNumber?: string;
+  serviceDate?: string;
   startTime?: string | null;
   endTime?: string | null;
   workDescription?: string | null;

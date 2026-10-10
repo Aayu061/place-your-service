@@ -831,5 +831,233 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     unmount();
   });
+
+  it('16. ServiceVisitReportModal in edit mode pre-fills existing report data and submits updateReport', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    vi.spyOn(serviceReportApi, 'updateReport').mockResolvedValue({
+      report: {
+        ...mockCompletedReport,
+        technicianRemarks: 'Updated technician remarks after inspection review.',
+      },
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        mode="edit"
+        initialReport={mockCompletedReport}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Verify Edit header & prefilled values
+    expect(container.textContent).toContain('Edit Service Visit Report #SVR-2026-9001');
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    expect(reportNumInput.value).toBe('SVR-2026-9001');
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Update Visit Report')
+    );
+    expect(submitBtn).toBeDefined();
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(serviceReportApi.updateReport).toHaveBeenCalledWith('rep-001', expect.objectContaining({
+      reportNumber: 'SVR-2026-9001',
+      serviceDate: '2026-10-10',
+    }));
+    expect(handleSuccess).toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it('17. ServiceVisitReportModal in edit mode handles 409 conflict and preserves form fields', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    vi.spyOn(serviceReportApi, 'updateReport').mockRejectedValue(
+      new ApiError(409, 'CONFLICT', 'Report number SVR-2026-9001 is already in use by another report')
+    );
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        mode="edit"
+        initialReport={mockCompletedReport}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Update Visit Report')
+    );
+    expect(submitBtn).toBeDefined();
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(container.textContent).toContain('already in use by another report');
+    expect(handleClose).not.toHaveBeenCalled();
+
+    // Field value still preserved
+    const reportNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    expect(reportNumInput.value).toBe('SVR-2026-9001');
+
+    unmount();
+  });
+
+  it('18. Verifies complete absence of Recommended Next Action in modal and ServiceReportPrintView', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    // 18A: In ServiceVisitReportModal when switched to Pending for Repairs
+    const { container: modalContainer, unmount: unmountModal } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    const pendingRepairsCard = Array.from(modalContainer.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Pending for Repairs')
+    );
+    await act(async () => {
+      pendingRepairsCard?.click();
+    });
+
+    expect(modalContainer.textContent).not.toContain('Recommended Next Action');
+    unmountModal();
+
+    // 18B: In ServiceReportPrintView
+    const reportWithRepair: ServiceVisitReport = {
+      ...mockCompletedReport,
+      primaryOutcome: 'PENDING_REPAIRS',
+      items: [
+        {
+          id: 'item-repair-1',
+          reportId: 'rep-001',
+          assetId: 'asset-101',
+          itemType: 'REPAIR_REQUIRED',
+          itemName: 'Cracked suction discharge pipe joint',
+          partNumber: null,
+          quantity: 1,
+          reason: 'Awaiting high-pressure copper piping replacement',
+          diagnosis: 'Cracked suction discharge pipe joint',
+          workCompleted: 'Leak detection completed',
+          recommendedAction: null,
+          acCondition: 'Inoperative',
+          isApprovalRequired: true,
+          isSpecialistRequired: true,
+          isRevisitRequired: true,
+          isResolved: false,
+          createdAt: '2026-10-10T11:45:00Z',
+          updatedAt: '2026-10-10T11:45:00Z',
+        },
+      ],
+    };
+
+    const { container: printContainer, unmount: unmountPrint } = await renderComponent(
+      <ServiceReportPrintView
+        report={reportWithRepair}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(printContainer.textContent).toContain('Pending Repairs & Action Items');
+    expect(printContainer.textContent).toContain('Cracked suction discharge pipe joint');
+    expect(printContainer.textContent).not.toContain('Recommended Next Action');
+
+    unmountPrint();
+  });
+
+  it('19. Progressive disclosure expands and collapses Additional Details & Customer Remarks section', async () => {
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={vi.fn()}
+        schedule={sampleSchedule}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    const toggleBtn = container.querySelector('.svr-disclosure-toggle') as HTMLButtonElement;
+    expect(toggleBtn).toBeDefined();
+    expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+
+    // Section 6 content is hidden initially
+    expect(container.querySelector('.svr-disclosure-content')).toBeNull();
+
+    // Click to expand
+    await act(async () => {
+      toggleBtn.click();
+    });
+
+    expect(toggleBtn.getAttribute('aria-expanded')).toBe('true');
+    const content = container.querySelector('.svr-disclosure-content');
+    expect(content).toBeDefined();
+    expect(content?.textContent).toContain('General Technician Remarks');
+    expect(content?.textContent).toContain('Customer / Site Representative Name');
+
+    // Click again to collapse
+    await act(async () => {
+      toggleBtn.click();
+    });
+
+    expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('.svr-disclosure-content')).toBeNull();
+
+    unmount();
+  });
+
+  it('20. ServiceReportsManagement detail drawer provides Edit Report action opening edit modal', async () => {
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [mockCompletedReport],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    });
+
+    vi.spyOn(serviceReportApi, 'getReportById').mockResolvedValue({
+      report: mockCompletedReport,
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    // Click View to open drawer
+    const viewButton = container.querySelector('button[title="View Details"]') as HTMLButtonElement;
+    await act(async () => {
+      viewButton?.click();
+    });
+
+    // Detail drawer header contains Edit Report button
+    const editBtn = container.querySelector('button[title="Edit Report"]') as HTMLButtonElement;
+    expect(editBtn).toBeDefined();
+    expect(editBtn.textContent).toContain('Edit Report');
+
+    // Clicking Edit Report opens edit modal
+    await act(async () => {
+      editBtn.click();
+    });
+
+    expect(container.textContent).toContain('Edit Service Visit Report #SVR-2026-9001');
+
+    unmount();
+  });
 });
 
