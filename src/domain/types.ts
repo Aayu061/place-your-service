@@ -762,7 +762,16 @@ export interface ServiceReportAsset {
   assetTag?: string | null;
   brand?: string | null;
   modelNumber?: string | null;
+  indoorSerialNumber?: string | null;
+  outdoorSerialNumber?: string | null;
+  serialNumber?: string | null;
+  floorLocation?: string | null;
   roomLocation?: string | null;
+  acType?: string | null;
+  technology?: string | null;
+  capacityTons?: number | null;
+  starRating?: string | null;
+  refrigerantType?: string | null;
   faultReported?: string | null;
   diagnosisFindings?: string | null;
   workPerformed?: string | null;
@@ -863,6 +872,19 @@ export interface CreateServiceReportPayload {
   customerSignatureUrl?: string | null;
   assets: {
     assetId: string;
+    assetTag?: string | null;
+    brand?: string | null;
+    modelNumber?: string | null;
+    indoorSerialNumber?: string | null;
+    outdoorSerialNumber?: string | null;
+    serialNumber?: string | null;
+    floorLocation?: string | null;
+    roomLocation?: string | null;
+    acType?: string | null;
+    technology?: string | null;
+    capacityTons?: number | null;
+    starRating?: string | null;
+    refrigerantType?: string | null;
     faultReported?: string | null;
     diagnosisFindings?: string | null;
     workPerformed?: string | null;

@@ -96,6 +96,19 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     id: 'asset-rep-id-1',
     report_id: sampleReportId,
     asset_id: sampleAssetId,
+    asset_tag: 'ESSC-0001',
+    brand: 'Daikin',
+    model_number: 'FTKF50',
+    indoor_serial_number: 'DK-IN-98765',
+    outdoor_serial_number: 'DK-OUT-43210',
+    serial_number: null,
+    ac_type: 'Split AC',
+    technology: 'Inverter',
+    capacity_tons: 1.5,
+    star_rating: '5 Star',
+    refrigerant_type: 'R-32',
+    floor_location: '1st Floor',
+    room_location: 'Hall',
     fault_reported: 'Not cooling',
     diagnosis_findings: 'Dirty filter and dusty condenser coil',
     work_performed: 'Cleaned coil, inspected blower, checked gas pressure',
@@ -106,7 +119,22 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     notes: 'No abnormal noise',
     created_at: '2026-10-15T12:00:00Z',
     updated_at: '2026-10-15T12:00:00Z',
-    ac_assets: { id: sampleAssetId, asset_tag: 'AC-001', brand: 'Daikin', model_number: 'FTKF50', room_location: 'Hall' },
+    ac_assets: {
+      id: sampleAssetId,
+      asset_tag: 'ESSC-0001',
+      brand: 'Daikin',
+      model_number: 'FTKF50',
+      indoor_serial_number: 'DK-IN-98765',
+      outdoor_serial_number: 'DK-OUT-43210',
+      serial_number: null,
+      ac_type: 'Split AC',
+      technology: 'Inverter',
+      capacity_tons: 1.5,
+      star_rating: '5 Star',
+      refrigerant_type: 'R-32',
+      floor_location: '1st Floor',
+      room_location: 'Hall',
+    },
   };
 
   beforeEach(() => {
@@ -1597,5 +1625,62 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.report.followUpScheduleId).toBe('new-follow-up-id-9999');
+  });
+
+  // =========================================================================
+  // 11. Equipment Snapshot & Specification Integrity Verification
+  // =========================================================================
+  it('21. Returns full equipment identification snapshot including IDU and ODU serial numbers, technical specs, and locations', async () => {
+    const authMock = setupAuth('ADMIN');
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleFullReportRow, error: null }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get(`/api/v1/service-reports/${sampleReportId}`)
+      .set('Authorization', adminAuthToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.report.assets).toHaveLength(1);
+
+    const asset = res.body.data.report.assets[0];
+    expect(asset.assetTag).toBe('ESSC-0001');
+    expect(asset.brand).toBe('Daikin');
+    expect(asset.modelNumber).toBe('FTKF50');
+    expect(asset.indoorSerialNumber).toBe('DK-IN-98765');
+    expect(asset.outdoorSerialNumber).toBe('DK-OUT-43210');
+    expect(asset.acType).toBe('Split AC');
+    expect(asset.technology).toBe('Inverter');
+    expect(asset.capacityTons).toBe(1.5);
+    expect(asset.starRating).toBe('5 Star');
+    expect(asset.refrigerantType).toBe('R-32');
+    expect(asset.floorLocation).toBe('1st Floor');
+    expect(asset.roomLocation).toBe('Hall');
   });
 });

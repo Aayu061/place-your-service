@@ -1059,5 +1059,95 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     unmount();
   });
+
+  it('21. ServiceReportPrintView displays distinct IDU & ODU serial numbers, technical specs, and handles multiple assets without mixing data', async () => {
+    const handleClose = vi.fn();
+
+    const multiAssetReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      reportNumber: 'SVR-2026-MULTI',
+      assets: [
+        {
+          id: 'rep-asset-101',
+          reportId: 'rep-multi',
+          assetId: 'asset-101',
+          assetTag: 'ESSC-0003',
+          brand: 'Voltas',
+          modelNumber: '185V Vectra',
+          indoorSerialNumber: 'VT-IDU-78901',
+          outdoorSerialNumber: 'VT-ODU-23456',
+          floorLocation: '2nd Floor',
+          roomLocation: 'Conference Room',
+          acType: 'Split AC',
+          technology: 'Inverter',
+          capacityTons: 1.5,
+          starRating: '5 Star',
+          refrigerantType: 'R-32',
+          faultReported: null,
+          diagnosisFindings: 'Routine inspection passed',
+          workPerformed: 'Filter cleaning and pressure check',
+          assetOutcome: 'COMPLETED',
+          finalCondition: 'Excellent',
+          refrigerantAdded: true,
+          refrigerantQtyKg: 0.25,
+          notes: 'Operating at optimal delta-T',
+          createdAt: '2026-10-10T12:00:00Z',
+          updatedAt: '2026-10-10T12:00:00Z',
+        },
+        {
+          id: 'rep-asset-102',
+          reportId: 'rep-multi',
+          assetId: 'asset-102',
+          assetTag: 'ESSC-0004',
+          brand: 'Mitsubishi',
+          modelNumber: 'MSY-GR18V',
+          indoorSerialNumber: null, // Test absent serial fallback
+          outdoorSerialNumber: null,
+          floorLocation: 'Ground Floor',
+          roomLocation: 'Reception',
+          acType: 'Split AC',
+          technology: 'Inverter',
+          capacityTons: 1.8,
+          starRating: '3 Star',
+          refrigerantType: 'R-410A',
+          faultReported: 'Noise from indoor blower',
+          diagnosisFindings: 'Blower bearing dry',
+          workPerformed: 'Lubricated blower bearings',
+          assetOutcome: 'COMPLETED',
+          finalCondition: 'Good',
+          refrigerantAdded: false,
+          refrigerantQtyKg: null,
+          notes: null,
+          createdAt: '2026-10-10T12:00:00Z',
+          updatedAt: '2026-10-10T12:00:00Z',
+        },
+      ],
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportPrintView report={multiAssetReport} onClose={handleClose} />
+    );
+
+    // Asset 1 verification:
+    expect(container.textContent).toContain('ESSC-0003');
+    expect(container.textContent).toContain('Voltas 185V Vectra');
+    expect(container.textContent).toContain('2nd Floor • Conference Room');
+    expect(container.textContent).toContain('VT-IDU-78901');
+    expect(container.textContent).toContain('VT-ODU-23456');
+    expect(container.textContent).toContain('1.5 TR • 5 Star');
+    expect(container.textContent).toContain('R-32');
+    expect(container.textContent).toContain('Gas Top-up Added: 0.25 kg');
+
+    // Asset 2 verification:
+    expect(container.textContent).toContain('ESSC-0004');
+    expect(container.textContent).toContain('Mitsubishi MSY-GR18V');
+    expect(container.textContent).toContain('Ground Floor • Reception');
+    expect(container.textContent).toContain('1.8 TR • 3 Star');
+    expect(container.textContent).toContain('R-410A');
+    // Absent serial numbers safely render 'Not recorded'
+    expect(container.textContent).toContain('Not recorded');
+
+    unmount();
+  });
 });
 

@@ -11,9 +11,10 @@ import {
   ServiceReportSummaryCounts,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
-import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { scheduleService } from './schedule.service.js';
+import { normalizeTechnology } from '../utils/technology.js';
+import { logActivity } from './audit.service.js';
 
 export class ServiceReportService {
   /**
@@ -201,19 +202,60 @@ export class ServiceReportService {
       throw new BadRequestError('Failed to save service visit report.');
     }
 
-    // 7. Insert Per-Asset Report Details
-    const assetInserts = payload.assets.map((a) => ({
-      report_id: newReport.id,
-      asset_id: a.assetId,
-      fault_reported: a.faultReported || null,
-      diagnosis_findings: a.diagnosisFindings || null,
-      work_performed: a.workPerformed || null,
-      asset_outcome: a.assetOutcome,
-      final_condition: a.finalCondition || null,
-      refrigerant_added: a.refrigerantAdded ?? false,
-      refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
-      notes: a.notes || null,
-    }));
+    // 7. Insert Per-Asset Report Details with immutable equipment snapshot
+    const assetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
+    let assetMap: Record<string, any> = {};
+    if (assetIds.length > 0) {
+      try {
+        const query = supabase.from('ac_assets');
+        if (query && typeof query.select === 'function') {
+          const { data: matchedAssets } = await query
+            .select(`
+              id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+              ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
+            `)
+            .in('id', assetIds);
+          if (matchedAssets) {
+            assetMap = matchedAssets.reduce((acc, curr) => {
+              acc[curr.id] = curr;
+              return acc;
+            }, {} as Record<string, any>);
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to pre-fetch ac_assets for service report snapshot', { err });
+      }
+    }
+
+    const assetInserts = payload.assets.map((a) => {
+      const snap = assetMap[a.assetId] || {};
+      const tech = a.technology || snap.technology;
+      return {
+        report_id: newReport.id,
+        asset_id: a.assetId,
+        asset_tag: a.assetTag ?? snap.asset_tag ?? null,
+        brand: a.brand ?? snap.brand ?? null,
+        model_number: a.modelNumber ?? snap.model_number ?? null,
+        indoor_serial_number: a.indoorSerialNumber ?? snap.indoor_serial_number ?? null,
+        outdoor_serial_number: a.outdoorSerialNumber ?? snap.outdoor_serial_number ?? null,
+        serial_number: a.serialNumber ?? snap.serial_number ?? null,
+        ac_type: a.acType ?? snap.ac_type ?? null,
+        technology: tech ? normalizeTechnology(tech) : null,
+        capacity_tons: a.capacityTons ?? (snap.capacity_tons != null ? Number(snap.capacity_tons) : null),
+        star_rating: a.starRating ?? snap.star_rating ?? null,
+        refrigerant_type: a.refrigerantType ?? snap.refrigerant_type ?? null,
+        floor_location: a.floorLocation ?? snap.floor_location ?? null,
+        room_location: a.roomLocation ?? snap.room_location ?? null,
+        fault_reported: a.faultReported || null,
+        diagnosis_findings: a.diagnosisFindings || null,
+        work_performed: a.workPerformed || null,
+        asset_outcome: a.assetOutcome,
+        final_condition: a.finalCondition || null,
+        refrigerant_added: a.refrigerantAdded ?? false,
+        refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
+        notes: a.notes || null,
+      };
+    });
 
     const { error: assetErr } = await supabase.from('service_report_assets').insert(assetInserts);
     if (assetErr) {
@@ -350,14 +392,20 @@ export class ServiceReportService {
       throw new NotFoundError(`Service report with ID "${id}" not found.`);
     }
 
-    // Fetch assets
+    // Fetch assets with snapshot columns and joined ac_assets fallback
     const { data: rawAssets } = await supabase
       .from('service_report_assets')
       .select(`
-        id, report_id, asset_id, fault_reported, diagnosis_findings,
+        id, report_id, asset_id,
+        asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+        ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location,
+        fault_reported, diagnosis_findings,
         work_performed, asset_outcome, final_condition,
         refrigerant_added, refrigerant_qty_kg, notes, created_at, updated_at,
-        ac_assets (id, asset_tag, brand, model_number, room_location)
+        ac_assets (
+          id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+          ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
+        )
       `)
       .eq('report_id', id);
 
@@ -396,25 +444,38 @@ export class ServiceReportService {
       }
     }
 
-    const assets: ServiceReportAssetResponse[] = (rawAssets || []).map((a: any) => ({
-      id: a.id,
-      reportId: a.report_id,
-      assetId: a.asset_id,
-      assetTag: a.ac_assets?.asset_tag || null,
-      brand: a.ac_assets?.brand || null,
-      modelNumber: a.ac_assets?.model_number || null,
-      roomLocation: a.ac_assets?.room_location || null,
-      faultReported: a.fault_reported,
-      diagnosisFindings: a.diagnosis_findings,
-      workPerformed: a.work_performed,
-      assetOutcome: a.asset_outcome as ServiceVisitOutcome,
-      finalCondition: a.final_condition,
-      refrigerantAdded: a.refrigerant_added,
-      refrigerantQtyKg: a.refrigerant_qty_kg ? Number(a.refrigerant_qty_kg) : null,
-      notes: a.notes,
-      createdAt: a.created_at,
-      updatedAt: a.updated_at,
-    }));
+    const assets: ServiceReportAssetResponse[] = (rawAssets || []).map((a: any) => {
+      const live = a.ac_assets || {};
+      const tech = a.technology || live.technology;
+      return {
+        id: a.id,
+        reportId: a.report_id,
+        assetId: a.asset_id,
+        assetTag: a.asset_tag || live.asset_tag || null,
+        brand: a.brand || live.brand || null,
+        modelNumber: a.model_number || live.model_number || null,
+        indoorSerialNumber: a.indoor_serial_number || live.indoor_serial_number || null,
+        outdoorSerialNumber: a.outdoor_serial_number || live.outdoor_serial_number || null,
+        serialNumber: a.serial_number || live.serial_number || null,
+        acType: a.ac_type || live.ac_type || null,
+        technology: tech ? normalizeTechnology(tech) : null,
+        capacityTons: a.capacity_tons != null ? Number(a.capacity_tons) : (live.capacity_tons != null ? Number(live.capacity_tons) : null),
+        starRating: a.star_rating || live.star_rating || null,
+        refrigerantType: a.refrigerant_type || live.refrigerant_type || null,
+        floorLocation: a.floor_location || live.floor_location || null,
+        roomLocation: a.room_location || live.room_location || null,
+        faultReported: a.fault_reported,
+        diagnosisFindings: a.diagnosis_findings,
+        workPerformed: a.work_performed,
+        assetOutcome: a.asset_outcome as ServiceVisitOutcome,
+        finalCondition: a.final_condition,
+        refrigerantAdded: a.refrigerant_added,
+        refrigerantQtyKg: a.refrigerant_qty_kg ? Number(a.refrigerant_qty_kg) : null,
+        notes: a.notes,
+        createdAt: a.created_at,
+        updatedAt: a.updated_at,
+      };
+    });
 
     const items: ServiceReportItemResponse[] = (rawItems || []).map((i: any) => ({
       id: i.id,
@@ -718,21 +779,62 @@ export class ServiceReportService {
       throw new BadRequestError('Failed to update service report.');
     }
 
-    // Update asset findings if supplied
+    // Update asset findings if supplied with immutable equipment snapshot
     if (payload.assets && payload.assets.length > 0) {
       await supabase.from('service_report_assets').delete().eq('report_id', id);
-      const assetInserts = payload.assets.map((a) => ({
-        report_id: id,
-        asset_id: a.assetId,
-        fault_reported: a.faultReported || null,
-        diagnosis_findings: a.diagnosisFindings || null,
-        work_performed: a.workPerformed || null,
-        asset_outcome: a.assetOutcome,
-        final_condition: a.finalCondition || null,
-        refrigerant_added: a.refrigerantAdded ?? false,
-        refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
-        notes: a.notes || null,
-      }));
+      const updateAssetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
+      let updateAssetMap: Record<string, any> = {};
+      if (updateAssetIds.length > 0) {
+        try {
+          const query = supabase.from('ac_assets');
+          if (query && typeof query.select === 'function') {
+            const { data: matchedAssets } = await query
+              .select(`
+                id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+                ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
+              `)
+              .in('id', updateAssetIds);
+            if (matchedAssets) {
+              updateAssetMap = matchedAssets.reduce((acc, curr) => {
+                acc[curr.id] = curr;
+                return acc;
+              }, {} as Record<string, any>);
+            }
+          }
+        } catch (err) {
+          logger.warn('Failed to pre-fetch ac_assets for service report update snapshot', { err });
+        }
+      }
+
+      const assetInserts = payload.assets.map((a) => {
+        const snap = updateAssetMap[a.assetId] || {};
+        const tech = a.technology || snap.technology;
+        return {
+          report_id: id,
+          asset_id: a.assetId,
+          asset_tag: a.assetTag ?? snap.asset_tag ?? null,
+          brand: a.brand ?? snap.brand ?? null,
+          model_number: a.modelNumber ?? snap.model_number ?? null,
+          indoor_serial_number: a.indoorSerialNumber ?? snap.indoor_serial_number ?? null,
+          outdoor_serial_number: a.outdoorSerialNumber ?? snap.outdoor_serial_number ?? null,
+          serial_number: a.serialNumber ?? snap.serial_number ?? null,
+          ac_type: a.acType ?? snap.ac_type ?? null,
+          technology: tech ? normalizeTechnology(tech) : null,
+          capacity_tons: a.capacityTons ?? (snap.capacity_tons != null ? Number(snap.capacity_tons) : null),
+          star_rating: a.starRating ?? snap.star_rating ?? null,
+          refrigerant_type: a.refrigerantType ?? snap.refrigerant_type ?? null,
+          floor_location: a.floorLocation ?? snap.floor_location ?? null,
+          room_location: a.roomLocation ?? snap.room_location ?? null,
+          fault_reported: a.faultReported || null,
+          diagnosis_findings: a.diagnosisFindings || null,
+          work_performed: a.workPerformed || null,
+          asset_outcome: a.assetOutcome,
+          final_condition: a.finalCondition || null,
+          refrigerant_added: a.refrigerantAdded ?? false,
+          refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
+          notes: a.notes || null,
+        };
+      });
       const { error: aErr } = await supabase.from('service_report_assets').insert(assetInserts);
       if (aErr) {
         logger.error('Failed to update service report assets', { error: aErr, id });

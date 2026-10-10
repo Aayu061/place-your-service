@@ -23,6 +23,11 @@ import {
   Plus,
   Star,
   Snowflake,
+  Copy,
+  Check,
+  Hash,
+  Cpu,
+  ShieldCheck,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import {
@@ -293,6 +298,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState<boolean>(false);
   const [editingAsset, setEditingAsset] = useState<AcAsset | null>(null);
   const [viewingAsset, setViewingAsset] = useState<AcAsset | null>(null);
+  const [copiedSerialKey, setCopiedSerialKey] = useState<string | null>(null);
   const [assetAmcHistory, setAssetAmcHistory] = useState<AssetAmcHistoryResponse | null>(null);
   const [isLoadingAssetAmcHistory, setIsLoadingAssetAmcHistory] = useState(false);
   const [showAssetAmcHistory, setShowAssetAmcHistory] = useState(false);
@@ -872,6 +878,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
   const handleOpenAssetDrawer = async (asset: AcAsset) => {
     setViewingAsset(asset);
+    setCopiedSerialKey(null);
     try {
       const res = await apiClient.get<{ asset?: AcAsset; data?: { asset: AcAsset } }>(`/assets/${asset.id}`);
       const freshAsset = res.data?.asset || res.asset;
@@ -880,6 +887,21 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       }
     } catch {
       // Retain in-memory asset state on request failure
+    }
+  };
+
+  const handleCopySerial = async (serial: string, key: 'idu' | 'odu') => {
+    try {
+      await navigator.clipboard.writeText(serial);
+      setCopiedSerialKey(key);
+      showToast({
+        type: 'success',
+        title: 'Copied to Clipboard',
+        message: `${key === 'idu' ? 'Indoor Unit (IDU)' : 'Outdoor Unit (ODU)'} serial number copied.`,
+      });
+      setTimeout(() => setCopiedSerialKey((curr) => (curr === key ? null : curr)), 2000);
+    } catch {
+      showToast({ type: 'error', title: 'Copy Failed', message: 'Unable to copy serial number to clipboard.' });
     }
   };
 
@@ -1066,9 +1088,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         modelNumber: assetFormModel.trim() || null,
         modelId: assetFormModelId || null,
         variantId: assetFormVariantId || null,
-        serialNumber: assetFormSerial.trim() || null,
-        indoorSerialNumber: assetFormIndoorSerial.trim() || null,
-        outdoorSerialNumber: assetFormOutdoorSerial.trim() || null,
+        serialNumber: (assetFormHasSingleSerial ? assetFormSerial : (assetFormSerial || assetFormIndoorSerial)).trim() || null,
+        indoorSerialNumber: !assetFormHasSingleSerial ? assetFormIndoorSerial.trim() || null : null,
+        outdoorSerialNumber: !assetFormHasSingleSerial ? assetFormOutdoorSerial.trim() || null : null,
         acType: assetFormType,
         technology: assetFormTechnology ? normalizeTechnology(assetFormTechnology) : null,
         capacityTons: assetFormCapacity ? parseFloat(assetFormCapacity) : null,
@@ -3712,17 +3734,34 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           setViewingAsset(null);
           setShowAssetAmcHistory(false);
           setAssetAmcHistory(null);
+          setCopiedSerialKey(null);
         }}
         title={`Asset Specifications: ${viewingAsset?.assetTag || ''}`}
         description={`${viewingAsset?.brand || ''} ${viewingAsset?.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}`}
       >
         {viewingAsset && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto' }}>
-            {/* Top Identity & Status Summary */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+            {/* SECTION A: ASSET IDENTITY & OPERATIONAL STATUSES */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 'var(--space-3)',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                flexWrap: 'wrap',
+                gap: 'var(--space-2)',
+              }}
+            >
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Asset Identity</span>
-                <div style={{ fontSize: 'var(--text-md)', fontWeight: 700, color: 'var(--color-brand)' }}>{viewingAsset.assetTag}</div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                  Permanent Asset Code
+                </span>
+                <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-brand)', fontFamily: 'var(--font-mono)' }}>
+                  {viewingAsset.assetTag}
+                </div>
                 <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                   {viewingAsset.brand} {viewingAsset.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}
                 </div>
@@ -3766,82 +3805,187 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               </div>
             </div>
 
-            {/* 1. ASSET SPECIFICATIONS */}
-            <div className="card" style={{ padding: 'var(--space-3)' }}>
-              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
-                Asset
+            {/* SECTION B: EQUIPMENT IDENTIFICATION (HIGHEST PRIORITY) */}
+            <div
+              className="card"
+              style={{
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                backgroundColor: 'var(--bg-surface)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-3)' }}>
+                <Hash size={16} style={{ color: 'var(--color-brand)' }} />
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                  Equipment Identification (Unit Serial Numbers)
+                </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-3)' }}>
+                {/* Indoor Unit Serial */}
+                <div
+                  style={{
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Indoor Unit Serial (IDU)
+                    </span>
+                    {viewingAsset.indoorSerialNumber ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopySerial(viewingAsset.indoorSerialNumber!, 'idu')}
+                        title="Copy Indoor Unit Serial Number"
+                        style={{ height: '24px', padding: '0 6px', fontSize: '11px' }}
+                      >
+                        {copiedSerialKey === 'idu' ? <Check size={12} style={{ color: 'var(--color-success-solid, #10b981)' }} /> : <Copy size={12} />}
+                        <span style={{ marginLeft: '4px' }}>{copiedSerialKey === 'idu' ? 'Copied' : 'Copy'}</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, fontFamily: 'var(--font-mono)', color: viewingAsset.indoorSerialNumber ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {viewingAsset.indoorSerialNumber || (viewingAsset.serialNumber ? `${viewingAsset.serialNumber} (Single)` : 'Not recorded')}
+                  </div>
+                </div>
+
+                {/* Outdoor Unit Serial */}
+                <div
+                  style={{
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+                      Outdoor Unit Serial (ODU)
+                    </span>
+                    {viewingAsset.outdoorSerialNumber ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopySerial(viewingAsset.outdoorSerialNumber!, 'odu')}
+                        title="Copy Outdoor Unit Serial Number"
+                        style={{ height: '24px', padding: '0 6px', fontSize: '11px' }}
+                      >
+                        {copiedSerialKey === 'odu' ? <Check size={12} style={{ color: 'var(--color-success-solid, #10b981)' }} /> : <Copy size={12} />}
+                        <span style={{ marginLeft: '4px' }}>{copiedSerialKey === 'odu' ? 'Copied' : 'Copy'}</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, fontFamily: 'var(--font-mono)', color: viewingAsset.outdoorSerialNumber ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {viewingAsset.outdoorSerialNumber || 'Not recorded'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Model Number & Manufacturer context */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', marginTop: 'var(--space-3)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-subtle)', fontSize: 'var(--text-xs)' }}>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Status</div>
+                  <span style={{ color: 'var(--text-muted)' }}>Brand / Manufacturer</span>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.brand}</div>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Parent Model Number</span>
+                  <div style={{ fontWeight: 600, marginTop: '2px', fontFamily: 'var(--font-mono)' }}>{viewingAsset.modelNumber || 'Not recorded'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION C: TECHNICAL SPECIFICATIONS */}
+            <div className="card" style={{ padding: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-2)' }}>
+                <Cpu size={16} style={{ color: 'var(--color-brand)' }} />
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                  Technical Specifications
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>AC Configuration</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.acType}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Compressor Technology</div>
                   <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.assetStatus ? viewingAsset.assetStatus.toUpperCase() : viewingAsset.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    {viewingAsset.technology ? normalizeTechnology(viewingAsset.technology) : 'Standard'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Condition</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Cooling Capacity</div>
                   <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.assetCondition ? viewingAsset.assetCondition.toUpperCase() : 'GOOD'}
+                    {viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Ton` : 'Not recorded'}
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Type & Technology</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.acType} {viewingAsset.technology ? `• ${viewingAsset.technology}` : ''}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Capacity & Rating</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.capacityTons ? `${viewingAsset.capacityTons} Ton` : 'Capacity N/A'}
-                    {viewingAsset.starRating ? ` • ${viewingAsset.starRating}` : ''}
-                  </div>
+                  <div style={{ color: 'var(--text-muted)' }}>Energy Efficiency Rating</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.starRating || 'Not recorded'}</div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--text-muted)' }}>Refrigerant Gas</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Unknown'}</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.refrigerantType || 'Not recorded'}</div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Indoor Serial Number</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.indoorSerialNumber || viewingAsset.serialNumber || 'N/A'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Outdoor Serial Number</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
-                    {viewingAsset.outdoorSerialNumber || 'N/A (Single Unit)'}
-                  </div>
+                  <div style={{ color: 'var(--text-muted)' }}>Operating Condition</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.assetCondition || 'Good'}</div>
                 </div>
               </div>
             </div>
 
-            {/* 2. LOCATION */}
+            {/* SECTION D: INSTALLATION AND LOCATION */}
             <div className="card" style={{ padding: 'var(--space-3)' }}>
-              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
-                Location
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 'var(--space-2)' }}>
+                <MapPin size={16} style={{ color: 'var(--color-brand)' }} />
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                  Installation & Location Details
+                </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 'var(--space-3)', fontSize: 'var(--text-xs)' }}>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Site</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Customer Account</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>
+                    {viewingAsset.customerName || selectedCustomer?.name || 'Customer'}
+                    {viewingAsset.customerCode ? ` (${viewingAsset.customerCode})` : selectedCustomer?.customerCode ? ` (${selectedCustomer.customerCode})` : ''}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Installation Site</div>
                   <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.siteName || 'Residence'}</div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Floor</div>
-                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.floorLocation || 'Ground Floor / N/A'}</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Floor Level</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.floorLocation || 'Ground Floor'}</div>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-muted)' }}>Location / Room</div>
+                  <div style={{ color: 'var(--text-muted)' }}>Room / Cabin Location</div>
                   <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.roomLocation || 'General Area'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>Equipment Purchase Date</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.purchaseDate || 'Not recorded'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--text-muted)' }}>On-site Commissioning Date</div>
+                  <div style={{ fontWeight: 600, marginTop: '2px' }}>{viewingAsset.installationDate || 'Not recorded'}</div>
                 </div>
               </div>
             </div>
 
-            {/* 3. WARRANTY */}
+            {/* SECTION E: WARRANTY COVERAGE */}
             <div className="card" style={{ padding: 'var(--space-3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-                  Warranty
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldCheck size={16} style={{ color: 'var(--color-brand)' }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                    Manufacturer Warranty
+                  </span>
                 </div>
                 <span style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Status:</span>
@@ -3869,11 +4013,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     ? `Expires: ${viewingAsset.warrantyEndDate}`
                     : 'No warranty dates registered'}
                 </div>
-                {viewingAsset.purchaseDate && (
-                  <div style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '11px' }}>
-                    Purchased: {viewingAsset.purchaseDate} {viewingAsset.installationDate ? `• Installed: ${viewingAsset.installationDate}` : ''}
-                  </div>
-                )}
+                <div style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '11px' }}>
+                  Warranty and AMC are independent contracts; expired warranty does not imply an inactive AMC contract.
+                </div>
               </div>
             </div>
 

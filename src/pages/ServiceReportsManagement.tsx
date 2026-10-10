@@ -802,6 +802,46 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                         {asset.finalCondition}
                       </span>
                     </div>
+
+                    {/* Equipment Serial Numbers */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 text-[11px]">
+                      <div>
+                        <span className="text-slate-500 font-semibold block text-[10px] uppercase">IDU Serial #</span>
+                        <span className="font-mono text-slate-900 font-semibold">
+                          {asset.indoorSerialNumber || (asset.serialNumber && !asset.outdoorSerialNumber ? asset.serialNumber : 'Not recorded')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 font-semibold block text-[10px] uppercase">ODU Serial #</span>
+                        <span className="font-mono text-slate-900 font-semibold">
+                          {asset.outdoorSerialNumber || 'Not recorded'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Technical Specs & Location */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+                      {(asset.floorLocation || asset.roomLocation) && (
+                        <span>
+                          <strong>Location:</strong> {[asset.floorLocation, asset.roomLocation].filter(Boolean).join(' • ')}
+                        </span>
+                      )}
+                      {(asset.acType || asset.technology) && (
+                        <span>
+                          <strong>Type:</strong> {[asset.acType, asset.technology].filter(Boolean).join(' • ')}
+                        </span>
+                      )}
+                      {(asset.capacityTons || asset.starRating) && (
+                        <span>
+                          <strong>Capacity:</strong> {[asset.capacityTons ? `${asset.capacityTons} TR` : null, asset.starRating].filter(Boolean).join(' • ')}
+                        </span>
+                      )}
+                      {asset.refrigerantType && (
+                        <span>
+                          <strong>Refrigerant:</strong> {asset.refrigerantType}
+                        </span>
+                      )}
+                    </div>
                     {asset.faultReported && (
                       <div>
                         <strong>Reported Fault:</strong> {asset.faultReported}

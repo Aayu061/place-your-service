@@ -193,6 +193,151 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           color: #1e293b;
         }
 
+        .pys-asset-cards-container {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 10px;
+        }
+
+        .pys-asset-print-card {
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          background: #ffffff;
+          overflow: hidden;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        .pys-asset-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #f8fafc;
+          padding: 8px 12px;
+          border-bottom: 1px solid #e2e8f0;
+          gap: 8px;
+        }
+
+        .pys-asset-card-tag {
+          font-family: monospace, ui-monospace;
+          font-weight: 700;
+          color: #0284c7;
+          font-size: 13px;
+        }
+
+        .pys-asset-card-model {
+          font-weight: 600;
+          color: #0f172a;
+          font-size: 13px;
+        }
+
+        .pys-asset-location-pill {
+          font-size: 11px;
+          background: #f1f5f9;
+          color: #475569;
+          padding: 2px 8px;
+          border-radius: 4px;
+          border: 1px solid #e2e8f0;
+        }
+
+        .pys-asset-outcome-pill {
+          font-size: 11px;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 4px;
+          border: 1px solid;
+          white-space: nowrap;
+        }
+
+        .pys-asset-condition-pill {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #f1f5f9;
+          color: #475569;
+          white-space: nowrap;
+        }
+
+        .pys-asset-card-body {
+          padding: 10px 12px;
+        }
+
+        .pys-serial-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+
+        .pys-serial-box {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          padding: 6px 10px;
+        }
+
+        .pys-serial-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: #64748b;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
+        }
+
+        .pys-serial-val {
+          font-family: monospace, ui-monospace;
+          font-size: 12px;
+          font-weight: 600;
+          color: #0f172a;
+          word-break: break-all;
+        }
+
+        .pys-asset-specs-bar {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          background: #f1f5f9;
+          padding: 6px 10px;
+          border-radius: 4px;
+          font-size: 11px;
+          margin-bottom: 8px;
+          border: 1px solid #e2e8f0;
+        }
+
+        .pys-spec-item {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .pys-spec-k {
+          color: #64748b;
+          font-weight: 600;
+          text-transform: uppercase;
+          font-size: 10px;
+        }
+
+        .pys-spec-v {
+          color: #1e293b;
+          font-weight: 600;
+        }
+
+        .pys-asset-findings-box {
+          padding-top: 2px;
+          font-size: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .pys-finding-row {
+          line-height: 1.4;
+          color: #334155;
+        }
+
         .pys-signature-box {
           margin-top: 36px;
           padding-top: 16px;
@@ -200,6 +345,8 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 40px;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
 
         .pys-sig-line {
@@ -241,6 +388,14 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             box-shadow: none !important;
             padding: 20px !important;
             border-radius: 0 !important;
+          }
+          .pys-asset-print-card {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .pys-signature-box {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
       `}</style>
@@ -351,63 +506,109 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
         {/* Covered AC Assets */}
         <div className="pys-section-title">AC Assets & Inspection Findings</div>
         {report.assets && report.assets.length > 0 ? (
-          <table className="pys-table">
-            <thead>
-              <tr>
-                <th>Asset Tag</th>
-                <th>Brand / Model</th>
-                <th>Location</th>
-                <th>Findings / Work Performed</th>
-                <th>Outcome</th>
-                <th>Condition</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.assets.map((asset, idx) => (
-                <tr key={asset.id || idx}>
-                  <td style={{ fontWeight: 600 }}>{asset.assetTag || 'N/A'}</td>
-                  <td>
-                    {asset.brand} {asset.modelNumber || ''}
-                  </td>
-                  <td>{asset.roomLocation || '-'}</td>
-                  <td>
-                    {asset.faultReported && (
-                      <div style={{ fontSize: '11px', color: '#dc2626' }}>
-                        <strong>Reported:</strong> {asset.faultReported}
-                      </div>
+          <div className="pys-asset-cards-container">
+            {report.assets.map((asset, idx) => (
+              <div key={asset.id || idx} className="pys-asset-print-card">
+                <div className="pys-asset-card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span className="pys-asset-card-tag">{asset.assetTag || 'N/A'}</span>
+                    <span className="pys-asset-card-model">
+                      {asset.brand} {asset.modelNumber || ''}
+                    </span>
+                    {(asset.floorLocation || asset.roomLocation) && (
+                      <span className="pys-asset-location-pill">
+                        {[asset.floorLocation, asset.roomLocation].filter(Boolean).join(' • ')}
+                      </span>
                     )}
-                    {asset.diagnosisFindings && (
-                      <div style={{ fontSize: '11px', color: '#475569' }}>
-                        <strong>Diagnosis:</strong> {asset.diagnosisFindings}
-                      </div>
-                    )}
-                    {asset.workPerformed && (
-                      <div style={{ fontSize: '12px' }}>
-                        <strong>Work:</strong> {asset.workPerformed}
-                      </div>
-                    )}
-                    {asset.refrigerantAdded && (
-                      <div style={{ fontSize: '11px', color: '#0284c7' }}>
-                        Gas Added: {asset.refrigerantQtyKg} kg
-                      </div>
-                    )}
-                  </td>
-                  <td>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span
+                      className="pys-asset-outcome-pill"
                       style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
+                        backgroundColor: `${getOutcomeColor(asset.assetOutcome)}15`,
                         color: getOutcomeColor(asset.assetOutcome),
+                        borderColor: `${getOutcomeColor(asset.assetOutcome)}40`,
                       }}
                     >
                       {asset.assetOutcome}
                     </span>
-                  </td>
-                  <td>{asset.finalCondition || 'Normal'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {asset.finalCondition && (
+                      <span className="pys-asset-condition-pill">
+                        Condition: {asset.finalCondition}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pys-asset-card-body">
+                  {/* Equipment Identification (Highest Priority) */}
+                  <div className="pys-serial-grid">
+                    <div className="pys-serial-box">
+                      <div className="pys-serial-label">Indoor Unit (IDU) Serial #</div>
+                      <div className="pys-serial-val">
+                        {asset.indoorSerialNumber || (asset.serialNumber && !asset.outdoorSerialNumber ? asset.serialNumber : 'Not recorded')}
+                      </div>
+                    </div>
+                    <div className="pys-serial-box">
+                      <div className="pys-serial-label">Outdoor Unit (ODU) Serial #</div>
+                      <div className="pys-serial-val">
+                        {asset.outdoorSerialNumber || 'Not recorded'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technical Specifications Bar */}
+                  <div className="pys-asset-specs-bar">
+                    <div className="pys-spec-item">
+                      <span className="pys-spec-k">Type / Tech:</span>
+                      <span className="pys-spec-v">
+                        {[asset.acType, asset.technology].filter(Boolean).join(' • ') || 'Standard AC'}
+                      </span>
+                    </div>
+                    <div className="pys-spec-item">
+                      <span className="pys-spec-k">Capacity / Rating:</span>
+                      <span className="pys-spec-v">
+                        {[asset.capacityTons ? `${asset.capacityTons} TR` : null, asset.starRating].filter(Boolean).join(' • ') || '-'}
+                      </span>
+                    </div>
+                    <div className="pys-spec-item">
+                      <span className="pys-spec-k">Refrigerant:</span>
+                      <span className="pys-spec-v">{asset.refrigerantType || '-'}</span>
+                    </div>
+                  </div>
+
+                  {/* Findings and Work Performed */}
+                  <div className="pys-asset-findings-box">
+                    {asset.faultReported && (
+                      <div className="pys-finding-row">
+                        <strong style={{ color: '#dc2626' }}>Reported Complaint:</strong> {asset.faultReported}
+                      </div>
+                    )}
+                    {asset.diagnosisFindings && (
+                      <div className="pys-finding-row">
+                        <strong>Inspection Diagnosis:</strong> {asset.diagnosisFindings}
+                      </div>
+                    )}
+                    {asset.workPerformed && (
+                      <div className="pys-finding-row">
+                        <strong>Work Performed:</strong> {asset.workPerformed}
+                      </div>
+                    )}
+                    {asset.refrigerantAdded && (
+                      <div className="pys-finding-row" style={{ color: '#0284c7', fontWeight: 600 }}>
+                        Gas Top-up Added: {asset.refrigerantQtyKg ?? 0} kg
+                      </div>
+                    )}
+                    {asset.notes && (
+                      <div className="pys-finding-row" style={{ color: '#64748b', fontStyle: 'italic' }}>
+                        <strong>Notes:</strong> {asset.notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{ fontSize: '13px', color: '#64748b' }}>No asset-specific details recorded.</div>
         )}

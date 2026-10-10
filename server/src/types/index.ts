@@ -1121,6 +1121,19 @@ export type ServiceVisitOutcome = 'COMPLETED' | 'PENDING_PARTS' | 'PENDING_REPAI
 
 export interface ServiceReportAssetInput {
   assetId: string;
+  assetTag?: string | null;
+  brand?: string | null;
+  modelNumber?: string | null;
+  indoorSerialNumber?: string | null;
+  outdoorSerialNumber?: string | null;
+  serialNumber?: string | null;
+  acType?: string | null;
+  technology?: string | null;
+  capacityTons?: number | null;
+  starRating?: string | null;
+  refrigerantType?: string | null;
+  floorLocation?: string | null;
+  roomLocation?: string | null;
   faultReported?: string | null;
   diagnosisFindings?: string | null;
   workPerformed?: string | null;
@@ -1138,6 +1151,15 @@ export interface ServiceReportAssetResponse {
   assetTag?: string | null;
   brand?: string | null;
   modelNumber?: string | null;
+  indoorSerialNumber?: string | null;
+  outdoorSerialNumber?: string | null;
+  serialNumber?: string | null;
+  acType?: string | null;
+  technology?: string | null;
+  capacityTons?: number | null;
+  starRating?: string | null;
+  refrigerantType?: string | null;
+  floorLocation?: string | null;
   roomLocation?: string | null;
   faultReported?: string | null;
   diagnosisFindings?: string | null;

@@ -327,5 +327,150 @@ describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
 
       renderResult.cleanup();
     });
+
+    it('Asset Specification Modal renders distinct IDU & ODU serial numbers, copy buttons, and full 6-section technical architecture', async () => {
+      const sampleAsset = {
+        id: 'asset-test-99',
+        siteId: 'site-1',
+        assetTag: 'ESSC-0003',
+        brand: 'Voltas',
+        modelNumber: '185V Vectra',
+        indoorSerialNumber: 'VT-IDU-1001',
+        outdoorSerialNumber: 'VT-ODU-2002',
+        serialNumber: null,
+        acType: 'Split AC',
+        technology: 'Inverter',
+        capacityTons: 1.5,
+        starRating: '5 Star',
+        refrigerantType: 'R-32',
+        floorLocation: '2nd Floor',
+        roomLocation: 'IT Server Room',
+        purchaseDate: '2025-01-15',
+        installationDate: '2025-01-20',
+        warrantyStartDate: '2025-01-20',
+        warrantyEndDate: '2026-01-19',
+        warrantyStatus: 'ACTIVE',
+        assetStatus: 'ACTIVE',
+        assetCondition: 'EXCELLENT',
+        isActive: true,
+        createdAt: '2025-01-20T10:00:00Z',
+        updatedAt: '2025-01-20T10:00:00Z',
+        siteName: 'Headquarters',
+        customerName: 'Aarti Sharma',
+        customerCode: 'CUST-001',
+      };
+
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+
+      vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/customers' || (endpoint.startsWith('/customers') && !endpoint.includes('/sites'))) {
+          return { customers: [sampleCustomer], total: 1, page: 1, pageSize: 20, totalPages: 1 };
+        }
+        if (endpoint.includes('/sites') && !endpoint.includes('/assets')) {
+          return { sites: sampleSites, total: 1 };
+        }
+        if (endpoint.includes('/assets')) {
+          return { assets: [sampleAsset], total: 1 };
+        }
+        if (endpoint.includes('/ac-brands')) {
+          return { brands: sampleBrands, total: 2 };
+        }
+        if (endpoint.includes('/ac-models')) {
+          return { models: sampleModels, total: 2 };
+        }
+        if (endpoint.includes('/amc/history')) {
+          return { currentAmc: null, history: [] };
+        }
+        return {};
+      });
+
+      let renderResult!: ReturnType<typeof renderWithProviders>;
+      await act(async () => {
+        renderResult = renderWithProviders(<CustomerManagement />);
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // View customer
+      const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+      await act(async () => {
+        viewBtn?.click();
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Switch to AC Assets tab
+      const assetsTabBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('AC Assets (')
+      );
+      await act(async () => {
+        assetsTabBtn?.click();
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Click View on asset ESSC-0003 to open Asset Specification Modal
+      const viewAssetBtn = document.body.querySelector('button[aria-label="View asset ESSC-0003"]') as HTMLButtonElement;
+      expect(viewAssetBtn).toBeTruthy();
+
+      await act(async () => {
+        viewAssetBtn.click();
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Section A: Asset Identity
+      expect(document.body.textContent).toContain('ESSC-0003');
+      expect(document.body.textContent).toContain('Voltas • 185V Vectra');
+      expect(document.body.textContent).toContain('Asset:ACTIVE');
+      expect(document.body.textContent).toContain('Condition:EXCELLENT');
+
+      // Section B: Equipment Identification (Highest Priority)
+      expect(document.body.textContent).toContain('Equipment Identification (Unit Serial Numbers)');
+      expect(document.body.textContent).toContain('Indoor Unit Serial (IDU)');
+      expect(document.body.textContent).toContain('VT-IDU-1001');
+      expect(document.body.textContent).toContain('Outdoor Unit Serial (ODU)');
+      expect(document.body.textContent).toContain('VT-ODU-2002');
+
+      // Test copy serial button
+      const copyButtons = Array.from(document.body.querySelectorAll('button')).filter((b) =>
+        b.getAttribute('title')?.includes('Copy')
+      );
+      expect(copyButtons.length).toBeGreaterThanOrEqual(2);
+
+      await act(async () => {
+        copyButtons[0].click();
+      });
+      expect(writeTextMock).toHaveBeenCalledWith('VT-IDU-1001');
+
+      // Section C: Technical Specifications
+      expect(document.body.textContent).toContain('Technical Specifications');
+      expect(document.body.textContent).toContain('1.5 Ton');
+      expect(document.body.textContent).toContain('5 Star');
+      expect(document.body.textContent).toContain('R-32');
+
+      // Section D: Installation & Location
+      expect(document.body.textContent).toContain('Installation & Location Details');
+      expect(document.body.textContent).toContain('2nd Floor');
+      expect(document.body.textContent).toContain('IT Server Room');
+
+      // Section E: Warranty Coverage
+      expect(document.body.textContent).toContain('Manufacturer Warranty');
+
+      renderResult.cleanup();
+    });
   });
 });
