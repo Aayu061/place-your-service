@@ -15,6 +15,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { normalizeTechnology } from '../utils/technology.js';
 
 interface RawAssetJoinRecord {
   id: string;
@@ -227,7 +228,7 @@ export class AssetService {
       indoorSerialNumber: record.indoor_serial_number || null,
       outdoorSerialNumber: record.outdoor_serial_number || null,
       acType: record.ac_type,
-      technology: record.technology || null,
+      technology: record.technology ? normalizeTechnology(record.technology) || null : null,
       capacityTons: record.capacity_tons ? Number(record.capacity_tons) : null,
       starRating: record.star_rating || null,
       installationDate: record.installation_date,
@@ -665,11 +666,22 @@ export class AssetService {
       if (!payload.modelNumber && modelParent?.model_number) {
         payload.modelNumber = modelParent.model_number;
       }
-      payload.capacityTons = Number(vData.capacity_tons);
-      payload.starRating = vData.star_rating;
-      payload.acType = (vData.ac_type as AcType) || payload.acType;
-      payload.technology = vData.technology || payload.technology;
-      if (vData.refrigerant) payload.refrigerantType = vData.refrigerant;
+      // Prefill catalogue defaults ONLY for omitted / undefined fields (do not overwrite user input):
+      if (payload.capacityTons === undefined && vData.capacity_tons !== null && vData.capacity_tons !== undefined) {
+        payload.capacityTons = Number(vData.capacity_tons);
+      }
+      if (payload.starRating === undefined && vData.star_rating) {
+        payload.starRating = vData.star_rating;
+      }
+      if (payload.acType === undefined && vData.ac_type) {
+        payload.acType = vData.ac_type as AcType;
+      }
+      if (payload.technology === undefined && vData.technology) {
+        payload.technology = normalizeTechnology(vData.technology);
+      }
+      if (payload.refrigerantType === undefined && vData.refrigerant) {
+        payload.refrigerantType = vData.refrigerant;
+      }
     }
 
     // 6. Warranty Status Calculation
@@ -694,7 +706,7 @@ export class AssetService {
         indoor_serial_number: payload.indoorSerialNumber?.trim() || null,
         outdoor_serial_number: payload.outdoorSerialNumber?.trim() || null,
         ac_type: payload.acType,
-        technology: payload.technology?.trim() || null,
+        technology: payload.technology ? normalizeTechnology(payload.technology) || null : null,
         capacity_tons: payload.capacityTons || null,
         star_rating: payload.starRating?.trim() || null,
         installation_date: payload.installationDate || null,
@@ -843,12 +855,22 @@ export class AssetService {
           throw new BadRequestError('Selected AC model variant is inactive or not found.');
         }
         updates.variant_id = vId;
-        updates.model_id = vData.model_id;
-        updates.capacity_tons = Number(vData.capacity_tons);
-        updates.star_rating = vData.star_rating;
-        updates.ac_type = vData.ac_type;
-        updates.technology = vData.technology;
-        if (vData.refrigerant) updates.refrigerant_type = vData.refrigerant;
+        if (payload.modelId === undefined) updates.model_id = vData.model_id;
+        if (payload.capacityTons === undefined && vData.capacity_tons !== null && vData.capacity_tons !== undefined) {
+          updates.capacity_tons = Number(vData.capacity_tons);
+        }
+        if (payload.starRating === undefined && vData.star_rating) {
+          updates.star_rating = vData.star_rating;
+        }
+        if (payload.acType === undefined && vData.ac_type) {
+          updates.ac_type = vData.ac_type;
+        }
+        if (payload.technology === undefined && vData.technology) {
+          updates.technology = normalizeTechnology(vData.technology) || null;
+        }
+        if (payload.refrigerantType === undefined && vData.refrigerant) {
+          updates.refrigerant_type = vData.refrigerant;
+        }
       } else {
         updates.variant_id = null;
       }
@@ -857,7 +879,9 @@ export class AssetService {
     if (payload.indoorSerialNumber !== undefined) updates.indoor_serial_number = payload.indoorSerialNumber?.trim() || null;
     if (payload.outdoorSerialNumber !== undefined) updates.outdoor_serial_number = payload.outdoorSerialNumber?.trim() || null;
     if (payload.acType !== undefined) updates.ac_type = payload.acType;
-    if (payload.technology !== undefined) updates.technology = payload.technology?.trim() || null;
+    if (payload.technology !== undefined) {
+      updates.technology = payload.technology ? normalizeTechnology(payload.technology) || null : null;
+    }
     if (payload.capacityTons !== undefined) updates.capacity_tons = payload.capacityTons || null;
     if (payload.starRating !== undefined) updates.star_rating = payload.starRating?.trim() || null;
     if (payload.purchaseDate !== undefined) updates.purchase_date = payload.purchaseDate || null;

@@ -390,9 +390,16 @@ describe('AC Master Data & Asset Upgrade Suite', () => {
       modelSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    // Verify specifications are locked from master
-    expect(document.body.textContent).toContain('(Locked from Master)');
+    // Verify specifications are prefilled from parent model without variant dropdown or locking
+    expect(document.body.textContent).not.toContain('(Locked from Master)');
+    expect(document.body.textContent).not.toContain('Model Variant');
     expect(document.body.textContent).toContain('Calculated Status:');
+
+    // Verify specifications are prefilled and remain unlocked/editable
+    const capacityInput = document.body.querySelector('input[placeholder="e.g. 1.5"]') as HTMLInputElement;
+    expect(capacityInput).toBeTruthy();
+    expect(capacityInput.value).toBe('1.5');
+    expect(capacityInput.disabled).toBe(false);
 
     renderResult.cleanup();
   });

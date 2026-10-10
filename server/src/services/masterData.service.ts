@@ -15,6 +15,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { normalizeTechnology } from '../utils/technology.js';
 
 interface RawBrandRow {
   id: string;
@@ -398,7 +399,7 @@ export class MasterDataService {
       brandCode: row.ac_brands?.code || null,
       modelNumber: row.model_number,
       acType: row.ac_type,
-      technology: row.technology,
+      technology: row.technology ? normalizeTechnology(row.technology) || null : null,
       capacityTons: row.capacity_tons ? Number(row.capacity_tons) : null,
       rating: row.rating,
       refrigerant: row.refrigerant,
@@ -433,7 +434,7 @@ export class MasterDataService {
       brandCode: row.ac_brands?.code || null,
       modelNumber: row.model_number,
       acType: row.ac_type,
-      technology: row.technology,
+      technology: row.technology ? normalizeTechnology(row.technology) || null : null,
       capacityTons: row.capacity_tons ? Number(row.capacity_tons) : null,
       rating: row.rating,
       refrigerant: row.refrigerant,
@@ -655,7 +656,7 @@ export class MasterDataService {
       capacityDisplay: row.capacity_display || null,
       starRating: row.star_rating,
       acType: row.ac_type,
-      technology: row.technology,
+      technology: row.technology ? normalizeTechnology(row.technology) : row.technology,
       refrigerant: row.refrigerant || null,
       series: row.series || null,
       sourceProvenance: row.source_provenance || null,
@@ -685,7 +686,7 @@ export class MasterDataService {
       capacityDisplay: row.capacity_display || null,
       starRating: row.star_rating,
       acType: row.ac_type,
-      technology: row.technology,
+      technology: row.technology ? normalizeTechnology(row.technology) : row.technology,
       refrigerant: row.refrigerant || null,
       series: row.series || null,
       sourceProvenance: row.source_provenance || null,
@@ -772,7 +773,7 @@ export class MasterDataService {
       capacityDisplay: created.capacity_display || null,
       starRating: created.star_rating,
       acType: created.ac_type,
-      technology: created.technology,
+      technology: created.technology ? normalizeTechnology(created.technology) : created.technology,
       refrigerant: created.refrigerant || null,
       series: created.series || null,
       sourceProvenance: created.source_provenance || null,
@@ -869,7 +870,7 @@ export class MasterDataService {
       capacityDisplay: updated.capacity_display || null,
       starRating: updated.star_rating,
       acType: updated.ac_type,
-      technology: updated.technology,
+      technology: updated.technology ? normalizeTechnology(updated.technology) : updated.technology,
       refrigerant: updated.refrigerant || null,
       series: updated.series || null,
       sourceProvenance: updated.source_provenance || null,

@@ -19,6 +19,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
+import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
 
 interface AcMasterManagementProps {
   onNavigate?: (route: string) => void;
@@ -294,7 +295,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setModelBrandId(model.brandId);
     setModelNumber(model.modelNumber);
     setModelAcType(model.acType || 'Split AC');
-    setModelTechnology(model.technology || 'Inverter');
+    setModelTechnology(model.technology ? normalizeTechnology(model.technology) : '');
     setModelCapacityTons(model.capacityTons ? String(model.capacityTons) : '1.5');
     setModelRating(model.rating || '5 Star');
     setModelRefrigerant(model.refrigerant || 'R32');
@@ -401,7 +402,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setVariantCapacityDisplay(model.capacityTons ? `${model.capacityTons} Ton` : '1.5 Ton');
     setVariantStarRating(model.rating || '5 Star');
     setVariantAcType(model.acType || 'Split AC');
-    setVariantTechnology(model.technology || 'Inverter');
+    setVariantTechnology(model.technology ? normalizeTechnology(model.technology) : 'Inverter');
     setVariantRefrigerant(model.refrigerant || 'R32');
     setVariantSeries('');
     setVariantFormError(null);
@@ -941,11 +942,17 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 onChange={(e) => setModelTechnology(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
               >
-                <option value="Inverter">Inverter</option>
-                <option value="Non-Inverter">Non-Inverter</option>
-                <option value="Fixed Speed">Fixed Speed</option>
-                <option value="Variable Speed">Variable Speed</option>
-                <option value="Unknown">Unknown</option>
+                <option value="">Select Technology...</option>
+                {TECHNOLOGY_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+                {modelTechnology && !(TECHNOLOGY_OPTIONS as readonly string[]).includes(modelTechnology) && (
+                  <option key={modelTechnology} value={modelTechnology}>
+                    {modelTechnology}
+                  </option>
+                )}
               </select>
             </div>
           </div>
@@ -1163,11 +1170,17 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                     onChange={(e) => setVariantTechnology(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
                   >
-                    <option value="Inverter">Inverter</option>
-                    <option value="Non-Inverter">Non-Inverter</option>
-                    <option value="Fixed Speed">Fixed Speed</option>
-                    <option value="Variable Speed">Variable Speed</option>
-                    <option value="Unknown">Unknown</option>
+                    <option value="">Select Technology...</option>
+                    {TECHNOLOGY_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                    {variantTechnology && !(TECHNOLOGY_OPTIONS as readonly string[]).includes(variantTechnology) && (
+                      <option key={variantTechnology} value={variantTechnology}>
+                        {variantTechnology}
+                      </option>
+                    )}
                   </select>
                 </div>
               </div>
