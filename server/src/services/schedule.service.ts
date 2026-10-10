@@ -1101,7 +1101,7 @@ export class ScheduleService {
   /**
    * Validates technician assignment rules, working hours, and schedule conflicts.
    */
-  private async validateTechnicianAssignment(
+  public async validateTechnicianAssignment(
     technicianId: string,
     scheduledDate: string,
     startTime: string,
@@ -1496,12 +1496,37 @@ export class ScheduleService {
       .eq('service_schedule_id', scheduleId)
       .in('status', ['ASSIGNED', 'IN_PROGRESS']);
 
-    // If linked to service request, return service request to PENDING so it can be rescheduled later
+    // If this schedule was a follow-up appointment for a service report, clear follow_up_schedule_id so operator can reschedule
+    await supabase
+      .from('service_reports')
+      .update({
+        follow_up_schedule_id: null,
+        updated_by: actorId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('follow_up_schedule_id', scheduleId);
+
+    // If linked to service request, preserve meaningful prior status rather than blindly overwriting to PENDING
     if (existing.serviceRequestId) {
+      const { data: linkedReport } = await supabase
+        .from('service_reports')
+        .select('primary_outcome')
+        .eq('service_request_id', existing.serviceRequestId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let targetStatus = 'PENDING';
+      if (linkedReport?.primary_outcome === 'PENDING_PARTS') {
+        targetStatus = 'AWAITING_PARTS';
+      } else if (linkedReport?.primary_outcome === 'PENDING_REPAIRS') {
+        targetStatus = 'REVISIT_REQUIRED';
+      }
+
       await supabase
         .from('service_requests')
         .update({
-          status: 'PENDING',
+          status: targetStatus,
           updated_by: actorId,
         })
         .eq('id', existing.serviceRequestId);

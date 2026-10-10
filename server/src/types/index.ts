@@ -347,6 +347,32 @@ export interface AcModelVariantResponse {
   updatedAt: string;
 }
 
+export interface CreateAcModelVariantPayload {
+  variantCode?: string;
+  capacityTons: number;
+  capacityDisplay?: string;
+  starRating?: string;
+  acType?: string;
+  technology?: string;
+  refrigerant?: string;
+  series?: string;
+  sourceProvenance?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateAcModelVariantPayload {
+  variantCode?: string;
+  capacityTons?: number;
+  capacityDisplay?: string;
+  starRating?: string;
+  acType?: string;
+  technology?: string;
+  refrigerant?: string;
+  series?: string;
+  sourceProvenance?: string;
+  isActive?: boolean;
+}
+
 export interface AcAssetResponse {
   id: string;
   assetTag: string;

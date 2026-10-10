@@ -690,6 +690,18 @@ describe('Phase 9: Scheduling & Technician Assignment API (/api/v1/service-sched
             }),
           };
         }
+        if (table === 'service_reports') {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            limit: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          };
+        }
         if (table === 'activity_logs') {
           return { insert: vi.fn().mockResolvedValue({ error: null }) };
         }

@@ -15,6 +15,9 @@ import {
   updateModelSchema,
   updateModelStatusSchema,
   variantIdParamSchema,
+  createVariantSchema,
+  updateVariantSchema,
+  updateVariantStatusSchema,
 } from '../validators/masterData.validator.js';
 
 export const brandRouter = Router();
@@ -121,6 +124,15 @@ modelRouter.get(
   masterDataController.listModelVariants.bind(masterDataController)
 );
 
+// Create Variant under Model: ADMIN only
+modelRouter.post(
+  '/:id/variants',
+  requireAuth,
+  requireRole('ADMIN'),
+  validate(createVariantSchema),
+  masterDataController.createVariant.bind(masterDataController)
+);
+
 // ============================================================================
 // AC MODEL VARIANTS ROUTES (/api/v1/ac-variants)
 // ============================================================================
@@ -133,5 +145,21 @@ variantRouter.get(
   requireRole('ADMIN', 'STAFF'),
   validate(variantIdParamSchema),
   masterDataController.getVariantById.bind(masterDataController)
+);
+
+variantRouter.patch(
+  '/:id',
+  requireAuth,
+  requireRole('ADMIN'),
+  validate(updateVariantSchema),
+  masterDataController.updateVariant.bind(masterDataController)
+);
+
+variantRouter.patch(
+  '/:id/status',
+  requireAuth,
+  requireRole('ADMIN'),
+  validate(updateVariantStatusSchema),
+  masterDataController.updateVariantStatus.bind(masterDataController)
 );
 

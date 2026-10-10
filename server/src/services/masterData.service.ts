@@ -9,6 +9,8 @@ import {
   UpdateAcModelPayload,
   AcModelListQuery,
   AcModelVariantResponse,
+  CreateAcModelVariantPayload,
+  UpdateAcModelVariantPayload,
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -235,7 +237,7 @@ export class MasterDataService {
       .update(updates)
       .eq('id', brandId)
       .select('*, ac_models(count)')
-      .single();
+      .maybeSingle();
 
     if (error || !updated) {
       logger.error('Failed to update AC brand', { brandId, error: error?.message });
@@ -277,7 +279,7 @@ export class MasterDataService {
       .update({ is_active: isActive, updated_at: new Date().toISOString() })
       .eq('id', brandId)
       .select('*, ac_models(count)')
-      .single();
+      .maybeSingle();
 
     if (error || !updated) {
       throw new BadRequestError(`Failed to update AC brand status: ${error?.message}`);
@@ -517,7 +519,7 @@ export class MasterDataService {
       .update(updates)
       .eq('id', modelId)
       .select('*, ac_brands(name, code)')
-      .single();
+      .maybeSingle();
 
     if (error || !updated) {
       logger.error('Failed to update AC model', { modelId, error: error?.message });
@@ -565,7 +567,7 @@ export class MasterDataService {
       .update({ is_active: isActive, updated_at: new Date().toISOString() })
       .eq('id', modelId)
       .select('*, ac_brands(name, code)')
-      .single();
+      .maybeSingle();
 
     if (error || !updated) {
       throw new BadRequestError(`Failed to update AC model status: ${error?.message}`);
@@ -665,6 +667,233 @@ export class MasterDataService {
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  public async createVariant(
+    modelId: string,
+    payload: CreateAcModelVariantPayload,
+    actorProfileId: string,
+    ipAddress?: string
+  ): Promise<AcModelVariantResponse> {
+    const supabase = getSupabaseClient();
+    const model = await this.getModelById(modelId);
+
+    const capacityTons = Number(payload.capacityTons);
+    const starRating = payload.starRating?.trim() || '3 Star';
+    const acType = payload.acType?.trim() || model.acType || 'Split AC';
+    const technology = payload.technology?.trim() || model.technology || 'Inverter';
+    const capacityDisplay = payload.capacityDisplay?.trim() || `${capacityTons} TR`;
+
+    // Check duplicate by uq_ac_model_variants_spec: (model_id, capacity_tons, star_rating, ac_type, technology)
+    const { data: existing } = await supabase
+      .from('ac_model_variants')
+      .select('id')
+      .eq('model_id', modelId)
+      .eq('capacity_tons', capacityTons)
+      .eq('star_rating', starRating)
+      .eq('ac_type', acType)
+      .eq('technology', technology)
+      .maybeSingle();
+
+    if (existing) {
+      throw new ConflictError(
+        `A variant with capacity ${capacityTons} TR, ${starRating}, ${acType}, ${technology} already exists for this model.`
+      );
+    }
+
+    const { data: created, error } = await supabase
+      .from('ac_model_variants')
+      .insert({
+        model_id: modelId,
+        variant_code: payload.variantCode?.trim() || null,
+        capacity_tons: capacityTons,
+        capacity_display: capacityDisplay,
+        star_rating: starRating,
+        ac_type: acType,
+        technology: technology,
+        refrigerant: payload.refrigerant?.trim() || model.refrigerant || null,
+        series: payload.series?.trim() || null,
+        source_provenance: payload.sourceProvenance?.trim() || 'ADMIN_SPEC',
+        is_active: payload.isActive !== false,
+      })
+      .select('*')
+      .maybeSingle();
+
+    if (error || !created) {
+      logger.error('Failed to create AC model variant', { error: error?.message });
+      throw new BadRequestError(`Failed to create AC model variant: ${error?.message}`);
+    }
+
+    await logActivity({
+      actorProfileId,
+      action: 'AC_MODEL_VARIANT_CREATED',
+      entityType: 'ac_model_variant',
+      entityId: created.id,
+      details: {
+        modelId,
+        modelNumber: model.modelNumber,
+        capacityTons,
+        starRating,
+      },
+      ipAddress,
+    });
+
+    return {
+      id: created.id,
+      modelId: created.model_id,
+      variantCode: created.variant_code || null,
+      capacityTons: Number(created.capacity_tons),
+      capacityDisplay: created.capacity_display || null,
+      starRating: created.star_rating,
+      acType: created.ac_type,
+      technology: created.technology,
+      refrigerant: created.refrigerant || null,
+      series: created.series || null,
+      sourceProvenance: created.source_provenance || null,
+      isActive: created.is_active,
+      createdAt: created.created_at,
+      updatedAt: created.updated_at,
+    };
+  }
+
+  public async updateVariant(
+    variantId: string,
+    payload: UpdateAcModelVariantPayload,
+    actorProfileId: string,
+    ipAddress?: string
+  ): Promise<AcModelVariantResponse> {
+    const supabase = getSupabaseClient();
+    const existing = await this.getVariantById(variantId);
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (payload.variantCode !== undefined) updates.variant_code = payload.variantCode?.trim() || null;
+    if (payload.capacityTons !== undefined) updates.capacity_tons = Number(payload.capacityTons);
+    if (payload.capacityDisplay !== undefined) updates.capacity_display = payload.capacityDisplay?.trim() || null;
+    if (payload.starRating !== undefined) updates.star_rating = payload.starRating.trim();
+    if (payload.acType !== undefined) updates.ac_type = payload.acType.trim();
+    if (payload.technology !== undefined) updates.technology = payload.technology.trim();
+    if (payload.refrigerant !== undefined) updates.refrigerant = payload.refrigerant?.trim() || null;
+    if (payload.series !== undefined) updates.series = payload.series?.trim() || null;
+    if (payload.sourceProvenance !== undefined) updates.source_provenance = payload.sourceProvenance?.trim() || null;
+    if (payload.isActive !== undefined) updates.is_active = payload.isActive;
+
+    // If spec changed, check uniqueness
+    const targetCapacity = updates.capacity_tons !== undefined ? updates.capacity_tons : existing.capacityTons;
+    const targetRating = updates.star_rating !== undefined ? updates.star_rating : existing.starRating;
+    const targetAcType = updates.ac_type !== undefined ? updates.ac_type : existing.acType;
+    const targetTech = updates.technology !== undefined ? updates.technology : existing.technology;
+
+    if (
+      updates.capacity_tons !== undefined ||
+      updates.star_rating !== undefined ||
+      updates.ac_type !== undefined ||
+      updates.technology !== undefined
+    ) {
+      const { data: dup } = await supabase
+        .from('ac_model_variants')
+        .select('id')
+        .eq('model_id', existing.modelId)
+        .eq('capacity_tons', targetCapacity)
+        .eq('star_rating', targetRating)
+        .eq('ac_type', targetAcType)
+        .eq('technology', targetTech)
+        .neq('id', variantId)
+        .maybeSingle();
+
+      if (dup) {
+        throw new ConflictError(
+          `Another variant with this specification already exists for this model.`
+        );
+      }
+    }
+
+    const { data: updated, error } = await supabase
+      .from('ac_model_variants')
+      .update(updates)
+      .eq('id', variantId)
+      .select('*')
+      .maybeSingle();
+
+    if (error || !updated) {
+      logger.error('Failed to update AC model variant', { variantId, error: error?.message });
+      throw new BadRequestError(`Failed to update AC model variant: ${error?.message}`);
+    }
+
+    await logActivity({
+      actorProfileId,
+      action: 'AC_MODEL_VARIANT_UPDATED',
+      entityType: 'ac_model_variant',
+      entityId: variantId,
+      details: { updatedFields: Object.keys(updates) },
+      ipAddress,
+    });
+
+    return {
+      id: updated.id,
+      modelId: updated.model_id,
+      variantCode: updated.variant_code || null,
+      capacityTons: Number(updated.capacity_tons),
+      capacityDisplay: updated.capacity_display || null,
+      starRating: updated.star_rating,
+      acType: updated.ac_type,
+      technology: updated.technology,
+      refrigerant: updated.refrigerant || null,
+      series: updated.series || null,
+      sourceProvenance: updated.source_provenance || null,
+      isActive: updated.is_active,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+    };
+  }
+
+  public async updateVariantStatus(
+    variantId: string,
+    isActive: boolean,
+    actorProfileId: string,
+    ipAddress?: string
+  ): Promise<AcModelVariantResponse> {
+    const supabase = getSupabaseClient();
+    await this.getVariantById(variantId);
+
+    const { data: updated, error } = await supabase
+      .from('ac_model_variants')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', variantId)
+      .select('*')
+      .maybeSingle();
+
+    if (error || !updated) {
+      throw new BadRequestError(`Failed to update AC model variant status: ${error?.message}`);
+    }
+
+    await logActivity({
+      actorProfileId,
+      action: 'AC_MODEL_VARIANT_STATUS_CHANGED',
+      entityType: 'ac_model_variant',
+      entityId: variantId,
+      details: { isActive },
+      ipAddress,
+    });
+
+    return {
+      id: updated.id,
+      modelId: updated.model_id,
+      variantCode: updated.variant_code || null,
+      capacityTons: Number(updated.capacity_tons),
+      capacityDisplay: updated.capacity_display || null,
+      starRating: updated.star_rating,
+      acType: updated.ac_type,
+      technology: updated.technology,
+      refrigerant: updated.refrigerant || null,
+      series: updated.series || null,
+      sourceProvenance: updated.source_provenance || null,
+      isActive: updated.is_active,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
     };
   }
 }

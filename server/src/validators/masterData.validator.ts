@@ -116,3 +116,52 @@ export const variantIdParamSchema = {
   }),
 };
 
+export const createVariantSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid model UUID identifier'),
+  }),
+  body: z.object({
+    variantCode: z.string().max(100).trim().optional(),
+    capacityTons: z.coerce.number().positive('Capacity must be greater than 0 tons').max(100),
+    capacityDisplay: z.string().max(50).trim().optional(),
+    starRating: z.string().max(50).trim().optional().default('3 Star'),
+    acType: z.string().max(100).trim().optional().default('Split AC'),
+    technology: z.string().max(50).trim().optional().default('Inverter'),
+    refrigerant: z.string().max(50).trim().optional().nullable(),
+    series: z.string().max(100).trim().optional().nullable(),
+    sourceProvenance: z.string().max(100).trim().optional().default('ADMIN_SPEC'),
+    isActive: z.boolean().optional().default(true),
+  }),
+};
+
+export const updateVariantSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid variant UUID identifier'),
+  }),
+  body: z
+    .object({
+      variantCode: z.string().max(100).trim().optional().nullable(),
+      capacityTons: z.coerce.number().positive('Capacity must be greater than 0 tons').max(100).optional(),
+      capacityDisplay: z.string().max(50).trim().optional().nullable(),
+      starRating: z.string().max(50).trim().optional(),
+      acType: z.string().max(100).trim().optional(),
+      technology: z.string().max(50).trim().optional(),
+      refrigerant: z.string().max(50).trim().optional().nullable(),
+      series: z.string().max(100).trim().optional().nullable(),
+      sourceProvenance: z.string().max(100).trim().optional().nullable(),
+      isActive: z.boolean().optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'At least one field must be provided for update',
+    }),
+};
+
+export const updateVariantStatusSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid variant UUID identifier'),
+  }),
+  body: z.object({
+    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+  }),
+};
+

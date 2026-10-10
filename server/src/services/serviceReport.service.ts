@@ -13,6 +13,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { scheduleService } from './schedule.service.js';
 
 export class ServiceReportService {
   /**
@@ -519,6 +520,7 @@ export class ServiceReportService {
         customer_sites (id, site_name, address),
         technicians (id, name, technician_code, phone),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
+        follow_up_schedules:service_schedules!service_reports_follow_up_schedule_id_fkey (id, schedule_number),
         service_requests (id, request_number),
         amc_contracts (id, contract_number),
         profiles!service_reports_created_by_fkey (id, full_name)
@@ -606,7 +608,7 @@ export class ServiceReportService {
       customerSignatureUrl: row.customer_signature_url,
       status: row.status,
       followUpScheduleId: row.follow_up_schedule_id,
-      followUpScheduleNumber: null,
+      followUpScheduleNumber: (row.follow_up_schedules as any)?.schedule_number || null,
       assets: [],
       items: [],
       createdBy: row.created_by,
@@ -785,9 +787,23 @@ export class ServiceReportService {
 
     const isPm = report.visitType === 'PREVENTIVE';
     const scheduleNumber = await this.generateScheduleNumber(isPm);
-    const effectiveTechId = payload.technicianId || report.technicianId || null;
+    const effectiveTechId = payload.technicianId || null;
     const startTime = payload.startTime || '09:00';
     const endTime = payload.endTime || '11:00';
+
+    // Pre-validate technician assignment if technician is assigned
+    if (effectiveTechId) {
+      await scheduleService.validateTechnicianAssignment(
+        effectiveTechId,
+        payload.scheduledDate,
+        startTime,
+        endTime,
+        report.siteId,
+        report.assets[0]?.assetId || null,
+        false,
+        undefined
+      );
+    }
 
     const { data: newSched, error: schedErr } = await supabase
       .from('service_schedules')

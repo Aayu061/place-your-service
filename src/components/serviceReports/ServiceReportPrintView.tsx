@@ -332,7 +332,6 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
               {report.technicianName || 'N/A'}{' '}
               {report.technicianCode && <span style={{ color: '#64748b' }}>[{report.technicianCode}]</span>}
             </div>
-            <div style={{ fontSize: '12px', color: '#64748b' }}>Contact: {report.technicianPhone || 'N/A'}</div>
 
             {report.amcContractNumber && (
               <div style={{ marginTop: '8px' }}>

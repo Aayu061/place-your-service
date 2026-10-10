@@ -5,9 +5,10 @@ import {
   ServiceVisitOutcome,
   CreateServiceReportPayload,
   ServiceVisitReport,
+  AcAsset,
 } from '@/domain/types';
 import { serviceReportApi } from '@/services/serviceReportApi';
-import { ApiError } from '@/services/api/client';
+import { apiClient, ApiError } from '@/services/api/client';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -117,6 +118,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
   // Asset Finding States
   const [assets, setAssets] = useState<AssetReportState[]>([]);
+  const [siteAssets, setSiteAssets] = useState<AcAsset[]>([]);
+  const [isLoadingSiteAssets, setIsLoadingSiteAssets] = useState<boolean>(false);
 
   // Outcome-Specific Items (retained across outcome switching)
   const [partItems, setPartItems] = useState<PartItemState[]>([
@@ -287,6 +290,51 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       }
     }
   }, [schedule, initialReport, mode, isOpen]);
+
+  // Asynchronously load site assets if schedule has siteId but no specific assetId
+  useEffect(() => {
+    if (isOpen && schedule?.siteId && !schedule?.assetId && mode === 'create') {
+      let isMounted = true;
+      setIsLoadingSiteAssets(true);
+      apiClient
+        .get<{ assets?: AcAsset[]; data?: { assets?: AcAsset[] } }>(`/sites/${schedule.siteId}/assets`)
+        .then((res) => {
+          if (!isMounted) return;
+          const found = res?.data?.assets || res?.assets || [];
+          setSiteAssets(found);
+          if (found.length === 1) {
+            const a = found[0];
+            setAssets([
+              {
+                assetId: a.id,
+                assetTag: a.assetTag || 'Site AC Unit',
+                brand: a.brand || '',
+                modelNumber: a.modelNumber || '',
+                roomLocation: a.roomLocation || '',
+                faultReported: schedule.serviceRequestType ? `Fault: ${schedule.serviceRequestType}` : '',
+                diagnosisFindings: '',
+                workPerformed: '',
+                assetOutcome: primaryOutcome,
+                finalCondition: 'Good',
+                refrigerantAdded: false,
+                refrigerantQtyKg: '',
+                notes: '',
+              },
+            ]);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setSiteAssets([]);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingSiteAssets(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [isOpen, schedule, mode, primaryOutcome]);
 
   if (!schedule && !initialReport) return null;
 
@@ -1013,6 +1061,95 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               Findings preserved independently per unit
             </span>
           </div>
+
+          {assets.length === 0 && (
+            <div
+              style={{
+                padding: 'var(--space-6)',
+                border: '1px dashed var(--border-default, #cbd5e1)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-muted, #f8fafc)',
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                No AC asset is linked to this visit schedule. Select an existing unit from the customer site or add an inspection unit.
+              </p>
+              {isLoadingSiteAssets ? (
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Loading site assets...</span>
+              ) : siteAssets.length > 0 ? (
+                <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    id="select-site-asset-picker"
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: 'var(--text-sm)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      background: '#fff',
+                    }}
+                    onChange={(e) => {
+                      const selected = siteAssets.find((a) => a.id === e.target.value);
+                      if (selected) {
+                        setAssets([
+                          {
+                            assetId: selected.id,
+                            assetTag: selected.assetTag || 'Site AC Unit',
+                            brand: selected.brand || '',
+                            modelNumber: selected.modelNumber || '',
+                            roomLocation: selected.roomLocation || '',
+                            faultReported: schedule?.serviceRequestType ? `Fault: ${schedule.serviceRequestType}` : '',
+                            diagnosisFindings: '',
+                            workPerformed: '',
+                            assetOutcome: primaryOutcome,
+                            finalCondition: 'Good',
+                            refrigerantAdded: false,
+                            refrigerantQtyKg: '',
+                            notes: '',
+                          },
+                        ]);
+                      }
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Select Site Asset --</option>
+                    {siteAssets.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.assetTag} — {a.brand || ''} {a.modelNumber || ''} ({a.roomLocation || 'General'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAssets([
+                      {
+                        assetId: 'generic-site-unit',
+                        assetTag: 'General / Central AC',
+                        brand: schedule?.brand || 'Site Unit',
+                        modelNumber: schedule?.modelNumber || '',
+                        roomLocation: schedule?.roomLocation || 'Central',
+                        faultReported: schedule?.serviceRequestType ? `Fault: ${schedule.serviceRequestType}` : '',
+                        diagnosisFindings: '',
+                        workPerformed: '',
+                        assetOutcome: primaryOutcome,
+                        finalCondition: 'Good',
+                        refrigerantAdded: false,
+                        refrigerantQtyKg: '',
+                        notes: '',
+                      },
+                    ]);
+                  }}
+                >
+                  <Plus size={14} className="mr-1" /> Add Inspection Unit
+                </Button>
+              )}
+            </div>
+          )}
 
           {assets.map((asset, idx) => (
             <div key={asset.assetId} className="svr-asset-card">

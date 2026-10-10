@@ -393,4 +393,193 @@ describe('AC Master Data & Asset Upgrade API (/api/v1/ac-brands, /api/v1/ac-mode
       expect(res.body.data.assets[0].assetTag).toBe('ESSC-0001');
     });
   });
+
+  // =========================================================================
+  // 4. AC Model Variants Operations
+  // =========================================================================
+  describe('4. AC Model Variants Operations', () => {
+    const sampleVariantId = '33333333-4444-5555-6666-777777777777';
+    const sampleVariant = {
+      id: sampleVariantId,
+      model_id: sampleModelId,
+      variant_code: 'FTKF50TV-1.5TR',
+      capacity_tons: 1.5,
+      capacity_display: '1.5 TR',
+      star_rating: '5 Star',
+      ac_type: 'Split AC',
+      technology: 'Inverter',
+      refrigerant: 'R32',
+      series: 'FTKF Series',
+      source_provenance: 'ADMIN_SPEC',
+      is_active: true,
+      created_at: '2026-10-10T00:00:00Z',
+      updated_at: '2026-10-10T00:00:00Z',
+    };
+
+    it('allows ADMIN to create a variant under a model', async () => {
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: sampleModel, error: null }),
+            };
+          }
+          if (table === 'ac_model_variants') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              insert: vi.fn().mockReturnThis(),
+            };
+          }
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          }
+          return {};
+        }),
+      };
+      // Mock the insert chain to return sampleVariant
+      (mockSupabase.from as any).mockImplementation((table: string) => {
+        const auth = setupAuthMock('ADMIN')(table);
+        if (auth.select) return auth;
+        if (table === 'ac_models') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleModel, error: null }),
+          };
+        }
+        if (table === 'ac_model_variants') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: sampleVariant, error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        }
+        return {};
+      });
+
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post(`/api/v1/ac-models/${sampleModelId}/variants`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          capacityTons: 1.5,
+          starRating: '5 Star',
+          acType: 'Split AC',
+          technology: 'Inverter',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.variant.capacityTons).toBe(1.5);
+    });
+
+    it('rejects STAFF from creating a variant with 403 Forbidden', async () => {
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => setupAuthMock('STAFF')(table)),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post(`/api/v1/ac-models/${sampleModelId}/variants`)
+        .set('Authorization', staffAuthToken)
+        .send({
+          capacityTons: 1.5,
+        });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('allows ADMIN to update a variant', async () => {
+      const updatedVariant = { ...sampleVariant, star_rating: '4 Star' };
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_model_variants') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              neq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockImplementation(() => {
+                // Return sampleVariant for getVariantById (first call), then null for dup check
+                return Promise.resolve({ data: null, error: null });
+              }),
+              update: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  select: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: updatedVariant, error: null }),
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          }
+          return {};
+        }),
+      };
+      // Provide custom mock to distinguish getVariantById from dup check
+      (mockSupabase.from as any).mockImplementation((table: string) => {
+        const auth = setupAuthMock('ADMIN')(table);
+        if (auth.select) return auth;
+        if (table === 'ac_model_variants') {
+          let hasNeq = false;
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockImplementation(() => {
+              hasNeq = true;
+              return { maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) };
+            }),
+            maybeSingle: vi.fn().mockImplementation(() => {
+              if (hasNeq) return Promise.resolve({ data: null, error: null });
+              return Promise.resolve({ data: sampleVariant, error: null });
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: updatedVariant, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+        }
+        return {};
+      });
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-variants/${sampleVariantId}`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          starRating: '4 Star',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.variant.starRating).toBe('4 Star');
+    });
+  });
 });

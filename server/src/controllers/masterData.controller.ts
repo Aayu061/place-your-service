@@ -218,6 +218,63 @@ export class MasterDataController {
       next(err);
     }
   }
+
+  public async createVariant(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const modelId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const variant = await masterDataService.createVariant(
+        modelId,
+        req.body,
+        req.user?.profileId || 'system',
+        req.ip
+      );
+      res.status(201).json({
+        success: true,
+        message: 'AC model variant created successfully',
+        data: { variant },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async updateVariant(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const variantId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const variant = await masterDataService.updateVariant(
+        variantId,
+        req.body,
+        req.user?.profileId || 'system',
+        req.ip
+      );
+      res.status(200).json({
+        success: true,
+        message: 'AC model variant updated successfully',
+        data: { variant },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async updateVariantStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const variantId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const variant = await masterDataService.updateVariantStatus(
+        variantId,
+        req.body.isActive,
+        req.user?.profileId || 'system',
+        req.ip
+      );
+      res.status(200).json({
+        success: true,
+        message: `AC model variant ${variant.isActive ? 'activated' : 'deactivated'} successfully`,
+        data: { variant },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const masterDataController = new MasterDataController();

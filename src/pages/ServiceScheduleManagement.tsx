@@ -83,8 +83,19 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
   // Filter states for List View
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceScheduleStatus>('ALL');
   const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
+  const [hideCancelledInDaily, setHideCancelledInDaily] = useState<boolean>(true);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   // Detail Drawer state
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
@@ -117,6 +128,8 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const [rescheduleStart, setRescheduleStart] = useState<string>('09:00');
   const [rescheduleEnd, setRescheduleEnd] = useState<string>('11:00');
   const [rescheduleReason, setRescheduleReason] = useState<string>('');
+  const [rescheduleIsOverride, setRescheduleIsOverride] = useState<boolean>(false);
+  const [rescheduleOverrideReason, setRescheduleOverrideReason] = useState<string>('');
   const [isSubmittingReschedule, setIsSubmittingReschedule] = useState<boolean>(false);
 
   // Cancel Modal state
@@ -164,7 +177,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         setTotalCount(list.length);
       } else if (activeTab === 'list') {
         const res = await scheduleApi.getSchedules({
-          search: searchTerm.trim() || undefined,
+          search: debouncedSearchTerm.trim() || undefined,
           status: statusFilter !== 'ALL' ? statusFilter : undefined,
           page,
           pageSize,
@@ -179,7 +192,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [activeTab, selectedDate, searchTerm, statusFilter, page, showToast]);
+  }, [activeTab, selectedDate, debouncedSearchTerm, statusFilter, page, showToast]);
 
   const fetchUnscheduledWork = useCallback(async () => {
     try {
@@ -199,8 +212,10 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   }, [fetchSchedules]);
 
   useEffect(() => {
-    fetchUnscheduledWork();
-  }, [fetchUnscheduledWork]);
+    if (activeTab === 'unscheduled') {
+      fetchUnscheduledWork();
+    }
+  }, [activeTab, fetchUnscheduledWork]);
 
   // Load schedule details when drawer opens
   const openDetailDrawer = async (scheduleId: string) => {
@@ -296,13 +311,37 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
     try {
       setIsSubmittingAssignment(true);
-      await scheduleApi.assignTechnician(scheduleToAssign.id, {
-        technicianId: selectedTechId,
-        isOverride,
-        overrideReason: isOverride ? overrideReason.trim() : undefined,
-      });
+      const isReassignment = Boolean(scheduleToAssign.technicianId);
+      if (isReassignment) {
+        await scheduleApi.reassignTechnician(scheduleToAssign.id, {
+          technicianId: selectedTechId,
+          scheduledStartTime: assignSlotStart,
+          scheduledEndTime: assignSlotEnd,
+          isOverride,
+          overrideReason: isOverride ? overrideReason.trim() : undefined,
+        });
 
-      showToast({ type: 'success', title: 'Technician Assigned', message: `Technician assigned successfully to ${scheduleToAssign.scheduleNumber}` });
+        showToast({
+          type: 'success',
+          title: 'Technician Reassigned',
+          message: `Technician reassigned successfully for ${scheduleToAssign.scheduleNumber}`,
+        });
+      } else {
+        await scheduleApi.assignTechnician(scheduleToAssign.id, {
+          technicianId: selectedTechId,
+          scheduledStartTime: assignSlotStart,
+          scheduledEndTime: assignSlotEnd,
+          isOverride,
+          overrideReason: isOverride ? overrideReason.trim() : undefined,
+        });
+
+        showToast({
+          type: 'success',
+          title: 'Technician Assigned',
+          message: `Technician assigned successfully to ${scheduleToAssign.scheduleNumber}`,
+        });
+      }
+
       setIsAssignModalOpen(false);
       fetchSchedules();
       fetchUnscheduledWork();
@@ -342,12 +381,23 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     setRescheduleStart(schedule.startTime || '09:00');
     setRescheduleEnd(schedule.endTime || '11:00');
     setRescheduleReason('');
+    setRescheduleIsOverride(false);
+    setRescheduleOverrideReason('');
     setIsRescheduleModalOpen(true);
   };
 
   const handleConfirmReschedule = async () => {
     if (!scheduleToAssign || !rescheduleDate) {
       showToast({ type: 'error', title: 'Validation Error', message: 'Please select a new scheduled date' });
+      return;
+    }
+
+    if (rescheduleIsOverride && (!rescheduleOverrideReason || rescheduleOverrideReason.trim().length < 3)) {
+      showToast({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'A valid supervisor override reason (at least 3 characters) is required when override is enabled',
+      });
       return;
     }
 
@@ -358,16 +408,29 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         startTime: rescheduleStart,
         endTime: rescheduleEnd,
         reason: rescheduleReason.trim() || undefined,
+        isOverride: rescheduleIsOverride,
+        overrideReason: rescheduleIsOverride ? rescheduleOverrideReason.trim() : undefined,
       });
 
-      showToast({ type: 'success', title: 'Rescheduled', message: `Schedule ${scheduleToAssign.scheduleNumber} rescheduled to ${formatDate(rescheduleDate)}` });
+      showToast({
+        type: 'success',
+        title: 'Rescheduled',
+        message: `Schedule ${scheduleToAssign.scheduleNumber} rescheduled to ${formatDate(rescheduleDate)}`,
+      });
       setIsRescheduleModalOpen(false);
       fetchSchedules();
       if (selectedScheduleId === scheduleToAssign.id) {
         openDetailDrawer(scheduleToAssign.id);
       }
     } catch (err: unknown) {
-      showToast({ type: 'error', title: 'Rescheduling Failed', message: getErrorMessage(err, 'Rescheduling failed. Check technician conflicts.') });
+      const msg = getErrorMessage(err, 'Rescheduling failed. Check technician conflicts.');
+      showToast({
+        type: 'error',
+        title: 'Rescheduling Failed',
+        message: msg.includes('conflict') || msg.includes('Conflict') || msg.includes('prohibited')
+          ? `${msg} You can enable 'Supervisor Override' with reason to proceed.`
+          : msg,
+      });
     } finally {
       setIsSubmittingReschedule(false);
     }
@@ -486,8 +549,8 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     const list = Array.isArray(schedules) ? schedules : [];
     const queue = Array.isArray(unscheduledItems) ? unscheduledItems : [];
     const todayStr = new Date().toISOString().slice(0, 10);
-    const todayJobs = list.filter((s) => s.scheduledDate === todayStr);
-    const assignedJobs = list.filter((s) => Boolean(s.technicianId));
+    const todayJobs = list.filter((s) => s.scheduledDate === todayStr && s.status !== 'CANCELLED');
+    const assignedJobs = list.filter((s) => Boolean(s.technicianId) && s.status !== 'CANCELLED');
     const unassignedJobs = list.filter((s) => !s.technicianId && s.status !== 'CANCELLED');
 
     return {
@@ -497,6 +560,15 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       unassignedCount: unassignedJobs.length,
     };
   }, [schedules, unscheduledItems]);
+
+  const visibleSchedules = useMemo(() => {
+    if (activeTab === 'today' || activeTab === 'calendar') {
+      if (hideCancelledInDaily) {
+        return schedules.filter((s) => s.status !== 'CANCELLED');
+      }
+    }
+    return schedules;
+  }, [schedules, activeTab, hideCancelledInDaily]);
 
   // Date stepper
   const handleDateShift = (days: number) => {
@@ -767,13 +839,23 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       {/* VIEW A & B: TODAY / CALENDAR (Daily Operations View) */}
       {(activeTab === 'today' || activeTab === 'calendar') && (
         <div>
-          <div style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: 'var(--space-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
             <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
               {activeTab === 'today' ? `Operations on ${formatDate(selectedDate)}` : `Day Slots for ${formatDate(selectedDate)}`}
             </h2>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              {schedules.length} {schedules.length === 1 ? 'service scheduled' : 'services scheduled'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <label style={{ fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hideCancelledInDaily}
+                  onChange={(e) => setHideCancelledInDaily(e.target.checked)}
+                />
+                Hide Cancelled
+              </label>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                {visibleSchedules.length} {visibleSchedules.length === 1 ? 'service scheduled' : 'services scheduled'}
+              </span>
+            </div>
           </div>
 
           {isLoading ? (
@@ -781,131 +863,144 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               <span className="animate-spin" style={{ display: 'inline-block', width: '28px', height: '28px', border: '3px solid var(--color-brand)', borderRightColor: 'transparent', borderRadius: '50%', marginBottom: 'var(--space-2)' }} />
               <div>Loading schedule appointments...</div>
             </div>
-          ) : schedules.length === 0 ? (
+          ) : visibleSchedules.length === 0 ? (
             <div className="card" style={{ padding: 'var(--space-10)', textAlign: 'center' }}>
               <EmptyState
                 icon={<CalendarDays style={{ width: '40px', height: '40px' }} />}
                 title="No Services Scheduled For This Date"
-                description={`There are currently no scheduled appointments for ${formatDate(selectedDate)}.`}
+                description={`There are currently no active appointments for ${formatDate(selectedDate)}.`}
                 actionLabel="Schedule from Queue"
                 onAction={() => setActiveTab('unscheduled')}
               />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {schedules.map((schedule) => (
-                <div
-                  key={schedule.id}
-                  className="card"
-                  style={{
-                    padding: 'var(--space-4)',
-                    display: 'grid',
-                    gridTemplateColumns: '140px 1.5fr 1.5fr 1fr 180px',
-                    alignItems: 'center',
-                    gap: 'var(--space-4)',
-                    borderLeft: schedule.technicianId ? '4px solid var(--color-success-solid)' : '4px solid var(--color-warning-solid)',
-                  }}
-                >
-                  {/* Slot Time */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontWeight: 700, color: 'var(--text-main)', fontSize: 'var(--text-base)' }}>
-                      <Clock style={{ width: '16px', height: '16px', color: 'var(--color-brand)' }} />
-                      {schedule.startTime} – {schedule.endTime}
-                    </div>
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      {schedule.durationMinutes} mins
-                    </div>
-                  </div>
+              {visibleSchedules.map((schedule) => {
+                const isCancelled = schedule.status === 'CANCELLED';
+                const isCompleted = schedule.status === 'COMPLETED';
 
-                  {/* Customer & Physical Site */}
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: 'var(--text-sm)' }}>
-                      {schedule.customerName || 'Customer'}
+                return (
+                  <div
+                    key={schedule.id}
+                    className="card"
+                    style={{
+                      padding: 'var(--space-4)',
+                      display: 'grid',
+                      gridTemplateColumns: '140px 1.5fr 1.5fr 1fr 180px',
+                      alignItems: 'center',
+                      gap: 'var(--space-4)',
+                      borderLeft: isCancelled
+                        ? '4px solid var(--border-default, #94a3b8)'
+                        : schedule.technicianId
+                        ? '4px solid var(--color-success-solid)'
+                        : '4px solid var(--color-warning-solid)',
+                      opacity: isCancelled ? 0.65 : 1,
+                      backgroundColor: isCancelled ? 'var(--bg-muted, #f8fafc)' : undefined,
+                    }}
+                  >
+                    {/* Slot Time */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontWeight: 700, color: 'var(--text-main)', fontSize: 'var(--text-base)' }}>
+                        <Clock style={{ width: '16px', height: '16px', color: 'var(--color-brand)' }} />
+                        {schedule.startTime} – {schedule.endTime}
+                      </div>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {schedule.durationMinutes} mins
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      <MapPin style={{ width: '12px', height: '12px' }} />
-                      {schedule.siteName} • {schedule.siteAddress || 'Site Address'}
-                    </div>
-                  </div>
 
-                  {/* Asset & Source */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--color-brand)' }}>
-                        {schedule.assetTag || 'Site-level Service'}
-                      </span>
-                      {schedule.brand && (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                          {schedule.brand} {schedule.modelNumber}
+                    {/* Customer & Physical Site */}
+                    <div>
+                      <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: 'var(--text-sm)' }}>
+                        {schedule.customerName || 'Customer'}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        <MapPin style={{ width: '12px', height: '12px' }} />
+                        {schedule.siteName} • {schedule.siteAddress || 'Site Address'}
+                      </div>
+                    </div>
+
+                    {/* Asset & Source */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--color-brand)' }}>
+                          {schedule.assetTag || 'Site-level Service'}
                         </span>
-                      )}
+                        {schedule.brand && (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                            {schedule.brand} {schedule.modelNumber}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {schedule.serviceRequestNumber ? (
+                          <span>Ticket: <strong>{schedule.serviceRequestNumber}</strong> ({schedule.serviceRequestType || 'General'})</span>
+                        ) : schedule.amcContractNumber ? (
+                          <span>AMC: <strong>{schedule.amcContractNumber}</strong> (Visit #{schedule.visitNumber || 1})</span>
+                        ) : (
+                          <span>Ref: {schedule.scheduleNumber}</span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      {schedule.serviceRequestNumber ? (
-                        <span>Ticket: <strong>{schedule.serviceRequestNumber}</strong> ({schedule.serviceRequestType || 'General'})</span>
-                      ) : schedule.amcContractNumber ? (
-                        <span>AMC: <strong>{schedule.amcContractNumber}</strong> (Visit #{schedule.visitNumber || 1})</span>
+
+                    {/* Assigned Technician & Status */}
+                    <div>
+                      <div style={{ marginBottom: 'var(--space-1)' }}>
+                        <StatusBadge status={schedule.status} />
+                      </div>
+                      {schedule.technicianName ? (
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-main)', fontWeight: 600 }}>
+                          Tech: {schedule.technicianName} ({schedule.technicianCode})
+                        </div>
                       ) : (
-                        <span>Ref: {schedule.scheduleNumber}</span>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning-solid)', fontWeight: 600 }}>
+                          {isCancelled ? '—' : '⚠ Unassigned'}
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  {/* Assigned Technician & Status */}
-                  <div>
-                    <div style={{ marginBottom: 'var(--space-1)' }}>
-                      <StatusBadge status={schedule.status} />
-                    </div>
-                    {schedule.technicianName ? (
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-main)', fontWeight: 600 }}>
-                        Tech: {schedule.technicianName} ({schedule.technicianCode})
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning-solid)', fontWeight: 600 }}>
-                        ⚠ Unassigned
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Operational Actions */}
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openDetailDrawer(schedule.id)}
-                      title="View Details"
-                    >
-                      <Eye style={{ width: '14px', height: '14px' }} />
-                      Details
-                    </Button>
-
-                    <Button
-                      variant={schedule.technicianId ? 'secondary' : 'primary'}
-                      size="sm"
-                      onClick={() => openAssignModal(schedule)}
-                      title={schedule.technicianId ? 'Reassign' : 'Assign Technician'}
-                    >
-                      <UserCheck style={{ width: '14px', height: '14px' }} />
-                      {schedule.technicianId ? 'Reassign' : 'Assign'}
-                    </Button>
-
-                    {(schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
+                    {/* Operational Actions */}
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => {
-                          setScheduleForReport(schedule);
-                          setIsReportModalOpen(true);
-                        }}
-                        title="Create / Record Visit Report"
+                        onClick={() => openDetailDrawer(schedule.id)}
+                        title="View Details"
                       >
-                        <FileText style={{ width: '14px', height: '14px' }} />
-                        Report
+                        <Eye style={{ width: '14px', height: '14px' }} />
+                        Details
                       </Button>
-                    )}
+
+                      {!isCancelled && !isCompleted && (
+                        <Button
+                          variant={schedule.technicianId ? 'secondary' : 'primary'}
+                          size="sm"
+                          onClick={() => openAssignModal(schedule)}
+                          title={schedule.technicianId ? 'Reassign' : 'Assign Technician'}
+                        >
+                          <UserCheck style={{ width: '14px', height: '14px' }} />
+                          {schedule.technicianId ? 'Reassign' : 'Assign'}
+                        </Button>
+                      )}
+
+                      {!isCancelled && (schedule.technicianId || schedule.status === 'ASSIGNED' || schedule.status === 'IN_PROGRESS' || schedule.status === 'COMPLETED') && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setScheduleForReport(schedule);
+                            setIsReportModalOpen(true);
+                          }}
+                          title="Create / Record Visit Report"
+                        >
+                          <FileText style={{ width: '14px', height: '14px' }} />
+                          Report
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1498,6 +1593,21 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         maxWidth="500px"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          {scheduleToAssign?.technicianName && (
+            <div
+              style={{
+                padding: 'var(--space-2) var(--space-3)',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--color-brand-50, #eff6ff)',
+                color: 'var(--color-brand-800, #1e40af)',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 600,
+              }}
+            >
+              Assigned Technician: {scheduleToAssign.technicianName} ({scheduleToAssign.technicianCode || 'Active'})
+            </div>
+          )}
+
           <div>
             <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>New Date</label>
             <Input
@@ -1532,8 +1642,31 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               placeholder="e.g. Customer requested afternoon visit due to office hours..."
               value={rescheduleReason}
               onChange={(e) => setRescheduleReason(e.target.value)}
-              rows={3}
+              rows={2}
             />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', borderTop: '1px solid var(--border-default)', paddingTop: 'var(--space-3)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={rescheduleIsOverride}
+                onChange={(e) => setRescheduleIsOverride(e.target.checked)}
+              />
+              Supervisor Override (Force schedule past interval or working hours constraints)
+            </label>
+            {rescheduleIsOverride && (
+              <div>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Override Justification Reason *
+                </label>
+                <Input
+                  placeholder="e.g. Approved emergency shift adjustment by dispatcher..."
+                  value={rescheduleOverrideReason}
+                  onChange={(e) => setRescheduleOverrideReason(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
