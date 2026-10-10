@@ -18,11 +18,16 @@ import {
   Building,
   User,
   Pencil,
+  AlertTriangle,
+  Link2,
 } from 'lucide-react';
 import {
   ServiceVisitReport,
   ServiceVisitType,
   ServiceVisitOutcome,
+  PlannedServiceType,
+  PerformedServiceType,
+  ServiceResolutionStatus,
   CreateFollowUpSchedulePayload,
   ServiceReportSummaryCounts,
 } from '@/domain/types';
@@ -65,6 +70,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [visitTypeFilter, setVisitTypeFilter] = useState<'ALL' | ServiceVisitType>('ALL');
   const [outcomeFilter, setOutcomeFilter] = useState<'ALL' | ServiceVisitOutcome>('ALL');
+  const [resolutionStatusFilter, setResolutionStatusFilter] = useState<'ALL' | ServiceResolutionStatus>('ALL');
   const [startDateFilter, setStartDateFilter] = useState<string>('');
   const [endDateFilter, setEndDateFilter] = useState<string>('');
 
@@ -103,6 +109,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
         search: debouncedSearch.trim() || undefined,
         visitType: visitTypeFilter !== 'ALL' ? visitTypeFilter : undefined,
         outcome: outcomeFilter !== 'ALL' ? outcomeFilter : undefined,
+        resolutionStatus: resolutionStatusFilter !== 'ALL' ? resolutionStatusFilter : undefined,
         startDate: startDateFilter || undefined,
         endDate: endDateFilter || undefined,
         page,
@@ -138,7 +145,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [debouncedSearch, visitTypeFilter, outcomeFilter, startDateFilter, endDateFilter, page, pageSize, showToast]);
+  }, [debouncedSearch, visitTypeFilter, outcomeFilter, resolutionStatusFilter, startDateFilter, endDateFilter, page, pageSize, showToast]);
 
   useEffect(() => {
     fetchReports();
@@ -154,6 +161,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     setDebouncedSearch('');
     setVisitTypeFilter('ALL');
     setOutcomeFilter('ALL');
+    setResolutionStatusFilter('ALL');
     setStartDateFilter('');
     setEndDateFilter('');
     setPage(1);
@@ -163,6 +171,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     Boolean(searchTerm) ||
     visitTypeFilter !== 'ALL' ||
     outcomeFilter !== 'ALL' ||
+    resolutionStatusFilter !== 'ALL' ||
     Boolean(startDateFilter) ||
     Boolean(endDateFilter);
 
@@ -262,6 +271,183 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     }
   };
 
+  const getServiceTypeBadge = (type?: PlannedServiceType | PerformedServiceType | null) => {
+    switch (type) {
+      case 'DRY_SERVICE':
+        return { label: 'Dry Service', bg: 'var(--color-neutral-100, #f1f5f9)', text: 'var(--color-neutral-800, #1e293b)', border: 'var(--color-neutral-300, #cbd5e1)' };
+      case 'JET_SERVICE':
+        return { label: 'Jet Service', bg: 'var(--color-primary-50, #eff6ff)', text: 'var(--color-primary-700, #1d4ed8)', border: 'var(--color-primary-200, #bfdbfe)' };
+      case 'PUMPDOWN_SERVICE':
+        return { label: 'Pumpdown Service', bg: 'var(--color-warning-50, #fffbeb)', text: 'var(--color-warning-700, #b45309)', border: 'var(--color-warning-200, #fde68a)' };
+      default:
+        return { label: 'Not specified', bg: 'var(--color-neutral-50, #f8fafc)', text: 'var(--text-muted, #94a3b8)', border: 'var(--border-subtle, #e2e8f0)' };
+    }
+  };
+
+  const renderResolutionBadge = (report: ServiceVisitReport) => {
+    // If this report had pending items that have since been resolved by a follow-up revisit
+    if (report.resolvingReportNumber) {
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (report.resolvingReportId) openDetailDrawer(report.resolvingReportId);
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '2px 8px',
+            borderRadius: '9999px',
+            fontSize: '11px',
+            fontWeight: 600,
+            backgroundColor: 'var(--color-success-bg, #f0fdf4)',
+            color: 'var(--color-success-text, #166534)',
+            border: '1px solid var(--color-success-border, #bbf7d0)',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+          title={`Click to view resolving report #${report.resolvingReportNumber}`}
+        >
+          <CheckCircle size={11} />
+          <span>Resolved by #{report.resolvingReportNumber}</span>
+        </button>
+      );
+    }
+
+    // If this report is itself a follow-up revisit resolving an earlier originating report
+    if (report.originatingReportNumber) {
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (report.originatingReportId) openDetailDrawer(report.originatingReportId);
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '2px 8px',
+            borderRadius: '9999px',
+            fontSize: '11px',
+            fontWeight: 600,
+            backgroundColor: 'var(--color-info-bg, #eff6ff)',
+            color: 'var(--color-info-text, #1e40af)',
+            border: '1px solid var(--color-info-border, #bfdbfe)',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+          title={`Click to view original pending report #${report.originatingReportNumber}`}
+        >
+          <Link2 size={11} />
+          <span>Follow-up for #{report.originatingReportNumber}</span>
+        </button>
+      );
+    }
+
+    // Active unresolved parts
+    if (report.primaryOutcome === 'PENDING_PARTS' || report.resolutionStatus === 'AWAITING_PARTS') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontWeight: 600,
+              backgroundColor: '#fffbeb',
+              color: '#b45309',
+              border: '1px solid #fde68a',
+              width: 'fit-content',
+            }}
+          >
+            <Package size={11} />
+            <span>Awaiting Parts</span>
+          </span>
+          {report.followUpScheduleNumber ? (
+            <span style={{ fontSize: '11px', color: 'var(--color-primary-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Clock size={10} /> Appt #{report.followUpScheduleNumber}
+            </span>
+          ) : (
+            <span style={{ fontSize: '10px', color: 'var(--color-warning-text)', fontWeight: 600 }}>
+              Revisit Required
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Active unresolved repairs
+    if (report.primaryOutcome === 'PENDING_REPAIRS' || report.resolutionStatus === 'AWAITING_REPAIR') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontWeight: 600,
+              backgroundColor: '#fff1f2',
+              color: '#be123c',
+              border: '1px solid #fecdd3',
+              width: 'fit-content',
+            }}
+          >
+            <Wrench size={11} />
+            <span>Awaiting Repair</span>
+          </span>
+          {report.followUpScheduleNumber ? (
+            <span style={{ fontSize: '11px', color: 'var(--color-primary-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Clock size={10} /> Appt #{report.followUpScheduleNumber}
+            </span>
+          ) : (
+            <span style={{ fontSize: '10px', color: 'var(--color-danger-text)', fontWeight: 600 }}>
+              Revisit Required
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Completed on-site without separate follow-up
+    if (report.primaryOutcome === 'COMPLETED') {
+      return (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '2px 8px',
+            borderRadius: '9999px',
+            fontSize: '11px',
+            fontWeight: 600,
+            backgroundColor: 'var(--color-success-bg, #f0fdf4)',
+            color: 'var(--color-success-text, #166534)',
+            border: '1px solid var(--color-success-border, #bbf7d0)',
+            width: 'fit-content',
+          }}
+        >
+          <CheckCircle size={11} />
+          <span>Resolved on-site</span>
+        </span>
+      );
+    }
+
+    return (
+      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+        {report.resolutionStatus || 'N/A'}
+      </span>
+    );
+  };
+
   return (
     <div className="svr-space-y-6">
       {/* 4.1 Page Header */}
@@ -333,7 +519,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           <div className="svr-kpi-content">
             <span className="svr-kpi-label">Pending for Parts</span>
             <span className="svr-kpi-value">{summaryStats.pendingParts}</span>
-            <span className="svr-kpi-sub">Awaiting spare parts</span>
+            <span className="svr-kpi-sub">Distinct active unresolved parts</span>
           </div>
           <div className="svr-kpi-icon-wrapper pending-parts">
             <Package size={22} />
@@ -345,7 +531,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           <div className="svr-kpi-content">
             <span className="svr-kpi-label">Pending for Repairs</span>
             <span className="svr-kpi-value">{summaryStats.pendingRepairs}</span>
-            <span className="svr-kpi-sub">Awaiting revisit / repair</span>
+            <span className="svr-kpi-sub">Distinct active unresolved repairs</span>
           </div>
           <div className="svr-kpi-icon-wrapper pending-repairs">
             <Wrench size={22} />
@@ -435,6 +621,24 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
           <option value="PENDING_REPAIRS">Pending for Repairs</option>
         </select>
 
+        {/* Resolution Status Filter */}
+        <select
+          value={resolutionStatusFilter}
+          onChange={(e) => {
+            setResolutionStatusFilter(e.target.value as 'ALL' | ServiceResolutionStatus);
+            setPage(1);
+          }}
+          className="svr-filter-select"
+          title="Filter by Resolution Status"
+        >
+          <option value="ALL">All Resolution States</option>
+          <option value="OPEN">Open</option>
+          <option value="AWAITING_PARTS">Awaiting Parts</option>
+          <option value="AWAITING_REPAIR">Awaiting Repair</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+
         {/* Date range filters */}
         <div className="svr-filter-dates">
           <Input
@@ -518,10 +722,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                   <th style={{ padding: '12px 16px' }}>Report Number</th>
                   <th style={{ padding: '12px 16px' }}>Visit Date & Time</th>
                   <th style={{ padding: '12px 16px' }}>Visit Type</th>
+                  <th style={{ padding: '12px 16px' }}>Planned & Performed Service</th>
                   <th style={{ padding: '12px 16px' }}>Customer & Site</th>
                   <th style={{ padding: '12px 16px' }}>Technician</th>
                   <th style={{ padding: '12px 16px' }}>Outcome</th>
-                  <th style={{ padding: '12px 16px' }}>Appt / Follow-up</th>
+                  <th style={{ padding: '12px 16px' }}>Resolution / Follow-up</th>
                   <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -574,6 +779,66 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                       </span>
                     </td>
 
+                    {/* Planned & Performed Service */}
+                    <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, width: '42px' }}>Plan:</span>
+                          <span
+                            style={{
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: getServiceTypeBadge(report.plannedServiceType).bg,
+                              color: getServiceTypeBadge(report.plannedServiceType).text,
+                              border: `1px solid ${getServiceTypeBadge(report.plannedServiceType).border}`,
+                            }}
+                          >
+                            {getServiceTypeBadge(report.plannedServiceType).label}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', fontWeight: 600, width: '42px' }}>Done:</span>
+                          <span
+                            style={{
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: getServiceTypeBadge(report.performedServiceType).bg,
+                              color: getServiceTypeBadge(report.performedServiceType).text,
+                              border: `1px solid ${getServiceTypeBadge(report.performedServiceType).border}`,
+                            }}
+                          >
+                            {getServiceTypeBadge(report.performedServiceType).label}
+                          </span>
+                        </div>
+                        {report.serviceTypeDeviationReason && (
+                          <span
+                            title={`Deviation Reason: ${report.serviceTypeDeviationReason}`}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '10px',
+                              fontWeight: 600,
+                              color: 'var(--color-warning-700, #b45309)',
+                              backgroundColor: 'var(--color-warning-50, #fffbeb)',
+                              padding: '1px 5px',
+                              borderRadius: '3px',
+                              border: '1px solid var(--color-warning-200, #fde68a)',
+                              width: 'fit-content',
+                              marginTop: '2px',
+                            }}
+                          >
+                            <AlertTriangle size={10} />
+                            <span>Deviated</span>
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
                     {/* Customer & Site */}
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{report.customerName || 'N/A'}</div>
@@ -605,19 +870,12 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                       </span>
                     </td>
 
-                    {/* Appointment / Revisit */}
+                    {/* Resolution / Follow-up */}
                     <td style={{ padding: '12px 16px', fontSize: '12px', whiteSpace: 'nowrap' }}>
-                      <div style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Appt: {report.scheduleNumber || 'N/A'}</div>
-                      {report.followUpScheduleId ? (
-                        <div style={{ color: 'var(--color-primary-700)', fontWeight: 600, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={11} />
-                          <span>Revisit: #{report.followUpScheduleNumber || 'Scheduled'}</span>
-                        </div>
-                      ) : report.primaryOutcome !== 'COMPLETED' ? (
-                        <span style={{ color: 'var(--color-warning-text)', fontWeight: 600, display: 'block', marginTop: '2px' }}>
-                          Follow-up Required
-                        </span>
-                      ) : null}
+                      <div style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', marginBottom: '3px' }}>
+                        Appt: {report.scheduleNumber || 'N/A'}
+                      </div>
+                      {renderResolutionBadge(report)}
                     </td>
 
                     {/* Actions */}
@@ -748,17 +1006,156 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
               </div>
             </div>
 
-            {/* Outcome Badge */}
-            <div className="p-3.5 rounded-xl border flex justify-between items-center bg-slate-50">
+            {/* Outcome & Resolution Status Banner */}
+            <div className="p-3.5 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50">
               <div>
-                <span className="text-xs text-slate-500 block uppercase font-semibold">Outcome:</span>
-                <span className="font-bold text-sm text-slate-900">
-                  {detailedReport.primaryOutcome.replace('_', ' ')}
-                </span>
+                <span className="text-xs text-slate-500 block uppercase font-semibold">Outcome & Resolution:</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="font-bold text-sm text-slate-900">
+                    {detailedReport.primaryOutcome.replace('_', ' ')}
+                  </span>
+                  <span
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      backgroundColor:
+                        detailedReport.resolutionStatus === 'RESOLVED'
+                          ? 'var(--color-success-bg, #f0fdf4)'
+                          : detailedReport.resolutionStatus === 'AWAITING_PARTS'
+                          ? '#fffbeb'
+                          : detailedReport.resolutionStatus === 'AWAITING_REPAIR'
+                          ? '#fff1f2'
+                          : 'var(--color-neutral-100, #f1f5f9)',
+                      color:
+                        detailedReport.resolutionStatus === 'RESOLVED'
+                          ? 'var(--color-success-text, #166534)'
+                          : detailedReport.resolutionStatus === 'AWAITING_PARTS'
+                          ? '#b45309'
+                          : detailedReport.resolutionStatus === 'AWAITING_REPAIR'
+                          ? '#be123c'
+                          : 'var(--text-secondary, #475569)',
+                      border: `1px solid ${
+                        detailedReport.resolutionStatus === 'RESOLVED'
+                          ? 'var(--color-success-border, #bbf7d0)'
+                          : detailedReport.resolutionStatus === 'AWAITING_PARTS'
+                          ? '#fde68a'
+                          : detailedReport.resolutionStatus === 'AWAITING_REPAIR'
+                          ? '#fecdd3'
+                          : 'var(--border-subtle, #cbd5e1)'
+                      }`,
+                    }}
+                  >
+                    Status: {detailedReport.resolutionStatus || 'OPEN'}
+                  </span>
+                </div>
               </div>
+
               {detailedReport.followUpScheduleNumber && (
                 <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
                   Follow-up Revisit: #{detailedReport.followUpScheduleNumber}
+                </div>
+              )}
+            </div>
+
+            {/* Bidirectional Report Resolution Links */}
+            {(detailedReport.originatingReportNumber || detailedReport.resolvingReportNumber) && (
+              <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-xl space-y-2 text-xs">
+                {detailedReport.originatingReportNumber && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-blue-900">
+                      This visit is a <strong>follow-up revisit</strong> addressing pending items from:
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => detailedReport.originatingReportId && openDetailDrawer(detailedReport.originatingReportId)}
+                      style={{ height: '26px', fontSize: '11px', padding: '0 8px' }}
+                    >
+                      <Link2 size={12} className="mr-1" />
+                      View Original #{detailedReport.originatingReportNumber}
+                    </Button>
+                  </div>
+                )}
+                {detailedReport.resolvingReportNumber && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-900">
+                      Pending issues from this report were <strong>resolved</strong> by:
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => detailedReport.resolvingReportId && openDetailDrawer(detailedReport.resolvingReportId)}
+                      style={{ height: '26px', fontSize: '11px', padding: '0 8px' }}
+                    >
+                      <CheckCircle size={12} className="mr-1 text-emerald-600" />
+                      View Resolving #{detailedReport.resolvingReportNumber}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Service Execution & Planned Alignment */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              <span className="text-xs text-slate-500 block uppercase font-semibold">
+                Service Type Execution & Planned Alignment
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[11px] mb-1">Planned Service Type</span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      backgroundColor: getServiceTypeBadge(detailedReport.plannedServiceType).bg,
+                      color: getServiceTypeBadge(detailedReport.plannedServiceType).text,
+                      border: `1px solid ${getServiceTypeBadge(detailedReport.plannedServiceType).border}`,
+                    }}
+                  >
+                    {getServiceTypeBadge(detailedReport.plannedServiceType).label}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px] mb-1">Performed Service Type</span>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      backgroundColor: getServiceTypeBadge(detailedReport.performedServiceType).bg,
+                      color: getServiceTypeBadge(detailedReport.performedServiceType).text,
+                      border: `1px solid ${getServiceTypeBadge(detailedReport.performedServiceType).border}`,
+                    }}
+                  >
+                    {getServiceTypeBadge(detailedReport.performedServiceType).label}
+                  </span>
+                </div>
+              </div>
+
+              {detailedReport.serviceTypeDeviationReason && (
+                <div
+                  style={{
+                    backgroundColor: 'var(--color-warning-50, #fffbeb)',
+                    border: '1px solid var(--color-warning-200, #fde68a)',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    padding: '8px 12px',
+                    marginTop: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--color-warning-800, #92400e)', fontSize: '11px' }}>
+                    <AlertTriangle size={13} style={{ color: 'var(--color-warning-600, #d97706)' }} />
+                    Deviation Justification Note:
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-warning-900, #78350f)', marginTop: '4px', fontStyle: 'italic', lineHeight: 1.4 }}>
+                    &ldquo;{detailedReport.serviceTypeDeviationReason}&rdquo;
+                  </div>
                 </div>
               )}
             </div>

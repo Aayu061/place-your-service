@@ -40,6 +40,19 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
     }
   };
 
+  const getServiceTypeLabel = (type?: string | null) => {
+    switch (type) {
+      case 'DRY_SERVICE':
+        return 'Dry Service';
+      case 'JET_SERVICE':
+        return 'Jet Service';
+      case 'PUMPDOWN_SERVICE':
+        return 'Pumpdown Service';
+      default:
+        return 'Not specified';
+    }
+  };
+
   return (
     <div className="pys-print-modal-overlay">
       <style>{`
@@ -433,6 +446,16 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
                 Ref Appt: {report.scheduleNumber}
               </div>
             )}
+            <div style={{ marginTop: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-end' }}>
+              <div>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Planned Service: </span>
+                <span style={{ fontWeight: 700, color: '#334155' }}>{getServiceTypeLabel(report.plannedServiceType)}</span>
+              </div>
+              <div>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Performed Service: </span>
+                <span style={{ fontWeight: 700, color: '#0284c7' }}>{getServiceTypeLabel(report.performedServiceType)}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -465,6 +488,57 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             </div>
           )}
         </div>
+
+        {/* Originating / Resolving Follow-up Linkage Banner */}
+        {(report.originatingReportNumber || report.resolvingReportNumber) && (
+          <div
+            style={{
+              margin: '8px 0 16px 0',
+              padding: '8px 14px',
+              borderRadius: '6px',
+              backgroundColor: '#f0f9ff',
+              border: '1px solid #bae6fd',
+              fontSize: '12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            {report.originatingReportNumber && (
+              <div>
+                <span style={{ color: '#0369a1', fontWeight: 700 }}>Follow-up Revisit: </span>
+                <span style={{ color: '#0c4a6e' }}>Addresses pending items from Report #{report.originatingReportNumber}</span>
+              </div>
+            )}
+            {report.resolvingReportNumber && (
+              <div>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>Resolved by Revisit: </span>
+                <span style={{ color: '#14532d' }}>Report #{report.resolvingReportNumber}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Service Type Deviation Justification */}
+        {report.serviceTypeDeviationReason && (
+          <div
+            style={{
+              margin: '12px 0 16px 0',
+              padding: '12px 16px',
+              borderRadius: '6px',
+              backgroundColor: '#fffbeb',
+              border: '1px solid #fde68a',
+              borderLeft: '4px solid #d97706',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#b45309', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Service Type Deviation Justification
+            </div>
+            <div style={{ fontSize: '12px', color: '#78350f', marginTop: '4px', fontStyle: 'italic', lineHeight: 1.5 }}>
+              &ldquo;{report.serviceTypeDeviationReason}&rdquo;
+            </div>
+          </div>
+        )}
 
         {/* Customer & Technician Details */}
         <div className="pys-section-title">Customer & Service Attribution</div>

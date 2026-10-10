@@ -55,6 +55,9 @@ export const reportItemInputSchema = z.object({
   followUpNotes: optionalTrimmedString,
 });
 
+export const plannedServiceTypeEnum = z.enum(['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE']);
+export const resolutionStatusEnum = z.enum(['ALL', 'OPEN', 'AWAITING_PARTS', 'AWAITING_REPAIR', 'RESOLVED', 'CANCELLED']);
+
 export const createServiceReportSchema = {
   body: z
     .object({
@@ -72,6 +75,10 @@ export const createServiceReportSchema = {
       startTime: optionalTime,
       endTime: optionalTime,
       primaryOutcome: primaryOutcomeEnum,
+      plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
+      performedServiceType: plannedServiceTypeEnum.nullable().optional(),
+      serviceTypeDeviationReason: optionalTrimmedString,
+      originatingReportId: optionalUuid,
       workDescription: optionalTrimmedString,
       technicianRemarks: optionalTrimmedString,
       customerRepresentative: optionalTrimmedString,
@@ -81,6 +88,21 @@ export const createServiceReportSchema = {
       items: z.array(reportItemInputSchema).optional().default([]),
     })
     .superRefine((data, ctx) => {
+      // Validate deviation reason if performed differs from planned
+      if (
+        data.performedServiceType &&
+        data.plannedServiceType &&
+        data.performedServiceType !== data.plannedServiceType
+      ) {
+        if (!data.serviceTypeDeviationReason || data.serviceTypeDeviationReason.trim().length < 2) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'A deviation reason is mandatory when performed service type differs from planned service type.',
+            path: ['serviceTypeDeviationReason'],
+          });
+        }
+      }
+
       // Conditional validation based on primaryOutcome
       if (data.primaryOutcome === 'PENDING_PARTS') {
         const parts = (data.items || []).filter((i) => i.itemType === 'PART_REQUIRED');
@@ -133,6 +155,9 @@ export const updateServiceReportSchema = {
       .optional(),
     startTime: optionalTime,
     endTime: optionalTime,
+    plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
+    performedServiceType: plannedServiceTypeEnum.nullable().optional(),
+    serviceTypeDeviationReason: optionalTrimmedString,
     workDescription: optionalTrimmedString,
     technicianRemarks: optionalTrimmedString,
     customerRepresentative: optionalTrimmedString,
@@ -160,6 +185,7 @@ export const listServiceReportsSchema = {
     search: optionalTrimmedString,
     visitType: z.preprocess((v) => (v === null || v === '' ? undefined : v), z.enum(['ALL', 'PREVENTIVE', 'SERVICE_REQUEST']).default('ALL')),
     outcome: z.preprocess((v) => (v === null || v === '' ? undefined : v), z.enum(['ALL', 'COMPLETED', 'PENDING_PARTS', 'PENDING_REPAIRS']).default('ALL')),
+    resolutionStatus: z.preprocess((v) => (v === null || v === '' ? undefined : v), resolutionStatusEnum.default('ALL')),
     technicianId: optionalUuid,
     customerId: optionalUuid,
     siteId: optionalUuid,
@@ -184,6 +210,7 @@ export const createFollowUpScheduleSchema = {
       (val) => (val === null || val === '' || val === undefined ? 120 : Number(val)),
       z.number().int().positive().default(120)
     ),
+    plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
     technicianId: optionalUuid,
     notes: optionalTrimmedString,
   }),

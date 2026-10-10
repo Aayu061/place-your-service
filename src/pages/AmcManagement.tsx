@@ -22,6 +22,7 @@ import {
   AmcStatus,
   Customer,
   AcAsset,
+  PlannedServiceType,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -74,6 +75,7 @@ interface PmSchedulesApiResponse {
     scheduledDate: string;
     visitNumber: number | null;
     status: string;
+    plannedServiceType?: PlannedServiceType | null;
     isSystemGenerated: boolean;
     notes: string | null;
   }>;
@@ -1354,7 +1356,53 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                           </div>
                         </div>
 
-                        <div>{renderScheduleBadge(sch.status)}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {sch.plannedServiceType ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                backgroundColor:
+                                  sch.plannedServiceType === 'JET_SERVICE'
+                                    ? 'var(--color-primary-50, #eff6ff)'
+                                    : sch.plannedServiceType === 'PUMPDOWN_SERVICE'
+                                    ? 'var(--color-warning-50, #fffbeb)'
+                                    : 'var(--color-neutral-100, #f1f5f9)',
+                                color:
+                                  sch.plannedServiceType === 'JET_SERVICE'
+                                    ? 'var(--color-primary-700, #1d4ed8)'
+                                    : sch.plannedServiceType === 'PUMPDOWN_SERVICE'
+                                    ? 'var(--color-warning-700, #b45309)'
+                                    : 'var(--color-neutral-700, #334155)',
+                                border: `1px solid ${
+                                  sch.plannedServiceType === 'JET_SERVICE'
+                                    ? 'var(--color-primary-200, #bfdbfe)'
+                                    : sch.plannedServiceType === 'PUMPDOWN_SERVICE'
+                                    ? 'var(--color-warning-200, #fde68a)'
+                                    : 'var(--color-neutral-300, #cbd5e1)'
+                                }`,
+                              }}
+                            >
+                              {sch.plannedServiceType === 'DRY_SERVICE' && 'Dry Service'}
+                              {sch.plannedServiceType === 'JET_SERVICE' && 'Jet Service'}
+                              {sch.plannedServiceType === 'PUMPDOWN_SERVICE' && 'Pumpdown Service'}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                color: 'var(--text-muted, #94a3b8)',
+                              }}
+                            >
+                              Not specified
+                            </span>
+                          )}
+                          {renderScheduleBadge(sch.status)}
+                        </div>
                       </div>
                     ))}
                   </div>

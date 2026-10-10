@@ -34,6 +34,7 @@ interface RawScheduleJoinRecord {
   duration_minutes: number | null;
   visit_number: number | null;
   status: string;
+  planned_service_type?: string | null;
   is_system_generated: boolean;
   notes: string | null;
   cancellation_reason: string | null;
@@ -150,6 +151,7 @@ export class ScheduleService {
       durationMinutes: record.duration_minutes || 120,
       visitNumber: record.visit_number,
       status: record.status as any,
+      plannedServiceType: (record.planned_service_type as any) || null,
       isSystemGenerated: record.is_system_generated,
       technicianId: record.technician_id,
       technicianName: record.technicians?.name || activeAssignment?.technicianName || null,
@@ -483,6 +485,15 @@ export class ScheduleService {
     const endTime = payload.endTime || '11:00';
     const durationMinutes = payload.durationMinutes || 120;
 
+    if (
+      payload.plannedServiceType &&
+      !['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE'].includes(payload.plannedServiceType)
+    ) {
+      throw new BadRequestError(
+        `Invalid planned service type '${payload.plannedServiceType}'. Supported types are DRY_SERVICE, JET_SERVICE, PUMPDOWN_SERVICE.`
+      );
+    }
+
     let targetCustomerId = payload.customerId || null;
     let targetSiteId = payload.siteId || null;
     let targetAssetId = payload.assetId || null;
@@ -618,6 +629,9 @@ export class ScheduleService {
             updated_by: actorId,
           };
 
+          if (payload.plannedServiceType !== undefined) {
+            updateRecord.planned_service_type = payload.plannedServiceType;
+          }
           if (!pm.customer_id && targetCustomerId) {
             updateRecord.customer_id = targetCustomerId;
           }
@@ -801,6 +815,7 @@ export class ScheduleService {
       end_time: endTime,
       duration_minutes: durationMinutes,
       status: initialStatus,
+      planned_service_type: payload.plannedServiceType || null,
       is_system_generated: false,
       notes: payload.notes?.trim() || null,
       created_by: actorId,
@@ -878,6 +893,68 @@ export class ScheduleService {
     });
 
     return this.getScheduleById(inserted.id);
+  }
+
+  /**
+   * Updates an existing schedule's timing, notes, or planned service type.
+   */
+  public async updateSchedule(
+    scheduleId: string,
+    payload: UpdateServiceSchedulePayload,
+    actorId: string,
+    ipAddress?: string
+  ): Promise<ServiceScheduleResponse> {
+    const supabase = getSupabaseClient();
+    const existing = await this.getScheduleById(scheduleId);
+
+    if (existing.status === 'CANCELLED' || existing.status === 'COMPLETED') {
+      throw new BadRequestError(`Cannot edit service schedule in terminal status '${existing.status}'`);
+    }
+
+    if (
+      payload.plannedServiceType &&
+      !['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE'].includes(payload.plannedServiceType)
+    ) {
+      throw new BadRequestError(
+        `Invalid planned service type '${payload.plannedServiceType}'. Supported types are DRY_SERVICE, JET_SERVICE, PUMPDOWN_SERVICE.`
+      );
+    }
+
+    const updates: Record<string, any> = {
+      updated_by: actorId,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (payload.scheduledDate !== undefined) updates.scheduled_date = payload.scheduledDate;
+    if (payload.startTime !== undefined) updates.start_time = payload.startTime;
+    if (payload.endTime !== undefined) updates.end_time = payload.endTime;
+    if (payload.durationMinutes !== undefined) updates.duration_minutes = payload.durationMinutes;
+    if (payload.plannedServiceType !== undefined) updates.planned_service_type = payload.plannedServiceType;
+    if (payload.notes !== undefined) updates.notes = payload.notes?.trim() || null;
+
+    const { error: updErr } = await supabase
+      .from('service_schedules')
+      .update(updates)
+      .eq('id', scheduleId);
+
+    if (updErr) {
+      logger.error('Failed to update service schedule', { error: updErr, scheduleId });
+      throw new BadRequestError(`Failed to update service schedule: ${updErr.message}`);
+    }
+
+    await logActivity({
+      actorProfileId: actorId,
+      action: 'SCHEDULE_UPDATED',
+      entityType: 'service_schedule',
+      entityId: scheduleId,
+      details: {
+        scheduleNumber: existing.scheduleNumber,
+        updatedFields: Object.keys(updates),
+      },
+      ipAddress,
+    });
+
+    return this.getScheduleById(scheduleId);
   }
 
   /**

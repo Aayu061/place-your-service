@@ -79,6 +79,8 @@ export const calendarSchedulesSchema = {
   }),
 };
 
+export const plannedServiceTypeEnum = z.enum(['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE']);
+
 export const createScheduleSchema = {
   body: z.object({
     serviceRequestId: optionalUuid,
@@ -95,6 +97,7 @@ export const createScheduleSchema = {
       (val) => (val === null || val === '' || val === undefined ? 120 : Number(val)),
       z.number().int().positive().optional().default(120)
     ),
+    plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
     notes: optionalTrimmedString,
     technicianId: optionalUuid,
     isOverride: optionalBoolean,
@@ -116,6 +119,7 @@ export const updateScheduleSchema = {
     startTime: optionalTime,
     endTime: optionalTime,
     durationMinutes: optionalPositiveInt,
+    plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
     notes: optionalTrimmedString,
   }),
 };

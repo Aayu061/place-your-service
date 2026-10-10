@@ -377,7 +377,10 @@ export class AmcService {
 
       const { data: schedulesData } = await supabase
         .from('service_schedules')
-        .select('amc_id, scheduled_date, status')
+        .select(`
+          amc_id, scheduled_date, status, rescheduled_from_id,
+          service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome)
+        `)
         .in('amc_id', contractIds)
         .order('scheduled_date', { ascending: true });
 
@@ -387,8 +390,21 @@ export class AmcService {
           if (!acc[curr.amc_id]) {
             acc[curr.amc_id] = { total: 0, completed: 0, nextDate: null };
           }
-          acc[curr.amc_id].total++;
-          if (['COMPLETED', 'RESOLVED'].includes(curr.status)) {
+          const isFollowUp = Boolean(curr.rescheduled_from_id);
+          if (!isFollowUp) {
+            acc[curr.amc_id].total++;
+          }
+
+          const reportList = Array.isArray(curr.service_reports)
+            ? curr.service_reports
+            : curr.service_reports
+              ? [curr.service_reports]
+              : [];
+          const hasPendingReport = reportList.some(
+            (r: any) => r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS'
+          );
+
+          if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(curr.status) && !hasPendingReport) {
             acc[curr.amc_id].completed++;
           } else if (!acc[curr.amc_id].nextDate && curr.scheduled_date >= today && curr.status !== 'CANCELLED') {
             acc[curr.amc_id].nextDate = curr.scheduled_date;
@@ -517,7 +533,10 @@ export class AmcService {
     // Fetch schedules
     const { data: schedulesRows } = await supabase
       .from('service_schedules')
-      .select('id, status, scheduled_date')
+      .select(`
+        id, status, scheduled_date, rescheduled_from_id,
+        service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome)
+      `)
       .eq('amc_id', id);
 
     const today = new Date().toISOString().split('T')[0];
@@ -527,7 +546,17 @@ export class AmcService {
     let nextPmDate: string | null = null;
 
     (schedulesRows || []).forEach((s: any) => {
-      if (['COMPLETED', 'RESOLVED'].includes(s.status)) {
+      const isFollowUp = Boolean(s.rescheduled_from_id);
+      const reportList = Array.isArray(s.service_reports)
+        ? s.service_reports
+        : s.service_reports
+          ? [s.service_reports]
+          : [];
+      const hasPendingReport = reportList.some(
+        (r: any) => r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS'
+      );
+
+      if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(s.status) && !hasPendingReport) {
         completedVisitsCount++;
       } else if (!nextPmDate && s.scheduled_date >= today && s.status !== 'CANCELLED') {
         nextPmDate = s.scheduled_date;
@@ -1134,6 +1163,7 @@ export class AmcService {
             site_id: asset.siteId || null,
             scheduled_date: date,
             visit_number: i + 1,
+            planned_service_type: (i + 1) % 2 === 0 ? 'JET_SERVICE' : 'DRY_SERVICE',
             status,
             is_system_generated: true,
             created_by: validActorId,
@@ -1187,7 +1217,8 @@ export class AmcService {
       .select(
         `
         id, schedule_number, amc_id, asset_id, scheduled_date, visit_number,
-        status, is_system_generated, notes, created_by, updated_by, created_at, updated_at,
+        planned_service_type, status, is_system_generated, notes,
+        created_by, updated_by, created_at, updated_at,
         ac_assets (
           asset_tag, brand, model_number, room_location,
           customer_sites (site_name)
@@ -1229,6 +1260,7 @@ export class AmcService {
         roomLocation: ac?.room_location || null,
         scheduledDate: row.scheduled_date,
         visitNumber: row.visit_number,
+        plannedServiceType: row.planned_service_type || null,
         status,
         isSystemGenerated: row.is_system_generated,
         notes: row.notes,

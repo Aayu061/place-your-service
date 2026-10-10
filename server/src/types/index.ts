@@ -780,6 +780,10 @@ export interface ServiceAssignmentSummary {
   createdAt: string;
 }
 
+export type PlannedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
+export type PerformedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
+export type ServiceResolutionStatus = 'OPEN' | 'AWAITING_PARTS' | 'AWAITING_REPAIR' | 'RESOLVED' | 'CANCELLED';
+
 export interface ServiceScheduleResponse {
   id: string;
   scheduleNumber: string;
@@ -808,6 +812,7 @@ export interface ServiceScheduleResponse {
   durationMinutes?: number | null;
   visitNumber: number | null;
   status: ServiceScheduleStatus;
+  plannedServiceType?: PlannedServiceType | null;
   isSystemGenerated: boolean;
   technicianId?: string | null;
   technicianName?: string | null;
@@ -843,6 +848,7 @@ export interface CreateServiceSchedulePayload {
   startTime?: string;    // HH:mm (default 09:00)
   endTime?: string;      // HH:mm (default 11:00)
   durationMinutes?: number;
+  plannedServiceType?: PlannedServiceType | null;
   notes?: string;
   technicianId?: string;
   isOverride?: boolean;
@@ -854,6 +860,7 @@ export interface UpdateServiceSchedulePayload {
   startTime?: string;
   endTime?: string;
   durationMinutes?: number;
+  plannedServiceType?: PlannedServiceType | null;
   notes?: string;
 }
 
@@ -1221,6 +1228,10 @@ export interface CreateServiceReportPayload {
   startTime?: string | null;
   endTime?: string | null;
   primaryOutcome: ServiceVisitOutcome;
+  plannedServiceType?: PlannedServiceType | null;
+  performedServiceType?: PerformedServiceType | null;
+  serviceTypeDeviationReason?: string | null;
+  originatingReportId?: string | null;
   workDescription?: string | null;
   technicianRemarks?: string | null;
   customerRepresentative?: string | null;
@@ -1235,6 +1246,9 @@ export interface UpdateServiceReportPayload {
   serviceDate?: string;
   startTime?: string | null;
   endTime?: string | null;
+  plannedServiceType?: PlannedServiceType | null;
+  performedServiceType?: PerformedServiceType | null;
+  serviceTypeDeviationReason?: string | null;
   workDescription?: string | null;
   technicianRemarks?: string | null;
   customerRepresentative?: string | null;
@@ -1270,6 +1284,15 @@ export interface ServiceVisitReportResponse {
   startTime?: string | null;
   endTime?: string | null;
   primaryOutcome: ServiceVisitOutcome;
+  plannedServiceType?: PlannedServiceType | null;
+  performedServiceType?: PerformedServiceType | null;
+  serviceTypeDeviationReason?: string | null;
+  originatingReportId?: string | null;
+  originatingReportNumber?: string | null;
+  resolvingReportId?: string | null;
+  resolvingReportNumber?: string | null;
+  resolvedAt?: string | null;
+  resolutionStatus: ServiceResolutionStatus;
   workDescription?: string | null;
   technicianRemarks?: string | null;
   customerRepresentative?: string | null;
@@ -1298,6 +1321,7 @@ export interface ServiceReportListQuery {
   search?: string;
   visitType?: 'ALL' | ServiceVisitType;
   outcome?: 'ALL' | ServiceVisitOutcome;
+  resolutionStatus?: 'ALL' | ServiceResolutionStatus;
   technicianId?: string;
   customerId?: string;
   siteId?: string;
@@ -1312,6 +1336,7 @@ export interface CreateFollowUpSchedulePayload {
   startTime?: string;
   endTime?: string;
   durationMinutes?: number;
+  plannedServiceType?: PlannedServiceType | null;
   technicianId?: string;
   notes?: string;
 }

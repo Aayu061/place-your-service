@@ -62,6 +62,13 @@ scheduleRouter.get(
   scheduleController.getScheduleById.bind(scheduleController)
 );
 
+// 6b. Update schedule details
+scheduleRouter.patch(
+  '/:id',
+  validate(updateScheduleSchema),
+  scheduleController.updateSchedule.bind(scheduleController)
+);
+
 // 7. Assign technician
 scheduleRouter.post(
   '/:id/assign',

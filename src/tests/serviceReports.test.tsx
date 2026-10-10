@@ -44,6 +44,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     startTime: '10:00',
     endTime: '11:45',
     primaryOutcome: 'COMPLETED',
+    resolutionStatus: 'RESOLVED',
     status: 'COMPLETED',
     technicianRemarks: 'Comprehensive coil cleaning and electrical terminal tightening completed successfully.',
     customerRepresentative: 'Sachin Parekh',
@@ -100,6 +101,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     startTime: '13:00',
     endTime: '14:30',
     primaryOutcome: 'PENDING_PARTS',
+    resolutionStatus: 'AWAITING_PARTS',
     status: 'PENDING_PARTS',
     technicianRemarks: 'Outdoor fan motor failed open-circuit. Replacement required.',
     customerRepresentative: 'Office Manager',
@@ -793,7 +795,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(toolbar).toBeDefined();
     expect(toolbar?.querySelector('.svr-filter-search')).toBeDefined();
     const selects = toolbar?.querySelectorAll('.svr-filter-select');
-    expect(selects?.length).toBe(2); // Visit type + Outcome selects
+    expect(selects?.length).toBe(3); // Visit type + Outcome + Resolution Status selects
     expect(toolbar?.querySelector('.svr-filter-dates')).toBeDefined();
     expect(toolbar?.querySelector('.svr-filter-actions')).toBeDefined();
 
@@ -1146,6 +1148,242 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(container.textContent).toContain('R-410A');
     // Absent serial numbers safely render 'Not recorded'
     expect(container.textContent).toContain('Not recorded');
+
+    unmount();
+  });
+
+  it('22. ServiceVisitReportModal validates required deviation justification when performed service type diverges from planned', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+    const createSpy = vi.spyOn(serviceReportApi, 'createReport').mockResolvedValue({
+      report: mockCompletedReport,
+    });
+
+    const plannedDrySchedule: ServiceSchedule = {
+      ...sampleSchedule,
+      plannedServiceType: 'DRY_SERVICE',
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        mode="create"
+        schedule={plannedDrySchedule}
+        onClose={handleClose}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Context displays planned service type
+    expect(container.textContent).toContain('Planned Service:');
+    expect(container.textContent).toContain('Dry Service');
+
+    // Initially performed service is initialized to planned DRY_SERVICE
+    const performedSelect = container.querySelector('#performed-service-type-select') as HTMLSelectElement;
+    expect(performedSelect).toBeDefined();
+    expect(performedSelect.value).toBe('DRY_SERVICE');
+
+    // No deviation textarea when matching
+    expect(container.querySelector('#service-deviation-reason-input')).toBeNull();
+
+    // Fill basic required report number
+    const repNumInput = container.querySelector('#manual-report-number-input') as HTMLInputElement;
+    setInputValue(repNumInput, 'SVR-2026-DEV01');
+
+    // Change performed service type to JET_SERVICE
+    await act(async () => {
+      performedSelect.value = 'JET_SERVICE';
+      performedSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Deviation justification textarea must now be rendered
+    const deviationTextarea = container.querySelector('#service-deviation-reason-input') as HTMLTextAreaElement;
+    expect(deviationTextarea).toBeDefined();
+    expect(container.textContent).toContain('Service Type Deviation Justification Required');
+    expect(container.textContent).toContain('differs from the planned visit');
+
+    // Attempt submission without deviation note
+    const submitBtn = container.querySelector('button[type="submit"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    // Validates deviation reason is required
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('A deviation reason is mandatory when performed service type differs from planned service type');
+
+    // Enter deviation justification note
+    await act(async () => {
+      setInputValue(deviationTextarea, 'Thick industrial grease and soot required high pressure water jet cleaning.');
+    });
+
+    // Enter work performed on asset to satisfy COMPLETED outcome requirement
+    const workInput = container.querySelector('input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]') as HTMLInputElement;
+    if (workInput) {
+      await act(async () => {
+        setInputValue(workInput, 'High pressure jet cleaning executed thoroughly.');
+      });
+    }
+
+    // Now submit
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportNumber: 'SVR-2026-DEV01',
+        plannedServiceType: 'DRY_SERVICE',
+        performedServiceType: 'JET_SERVICE',
+        serviceTypeDeviationReason: 'Thick industrial grease and soot required high pressure water jet cleaning.',
+      })
+    );
+
+    unmount();
+  });
+
+  it('23. ServiceReportsManagement renders Planned & Performed Service column, Deviation tag, and Resolution badges', async () => {
+    const reportWithDeviation: ServiceVisitReport = {
+      ...mockCompletedReport,
+      id: 'rep-dev-1',
+      reportNumber: 'SVR-2026-8801',
+      plannedServiceType: 'DRY_SERVICE',
+      performedServiceType: 'JET_SERVICE',
+      serviceTypeDeviationReason: 'High silt levels on coils',
+      primaryOutcome: 'COMPLETED',
+      resolutionStatus: 'RESOLVED',
+    };
+
+    const reportResolvedByFollowUp: ServiceVisitReport = {
+      ...mockPendingPartsReport,
+      id: 'rep-parts-orig',
+      reportNumber: 'SVR-2026-8802',
+      plannedServiceType: 'DRY_SERVICE',
+      performedServiceType: 'DRY_SERVICE',
+      primaryOutcome: 'PENDING_PARTS',
+      resolutionStatus: 'RESOLVED',
+      resolvingReportId: 'rep-resolving-1',
+      resolvingReportNumber: 'SVR-2026-8803',
+      resolvedAt: '2026-10-11T10:00:00Z',
+    };
+
+    const followUpResolvingReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      id: 'rep-resolving-1',
+      reportNumber: 'SVR-2026-8803',
+      plannedServiceType: 'DRY_SERVICE',
+      performedServiceType: 'DRY_SERVICE',
+      primaryOutcome: 'COMPLETED',
+      resolutionStatus: 'RESOLVED',
+      originatingReportId: 'rep-parts-orig',
+      originatingReportNumber: 'SVR-2026-8802',
+    };
+
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [reportWithDeviation, reportResolvedByFollowUp, followUpResolvingReport],
+      total: 3,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+      summary: {
+        total: 3,
+        completed: 2,
+        pendingParts: 0, // distinct currently unresolved count
+        pendingRepairs: 0,
+      },
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    // Verify table headers
+    expect(container.textContent).toContain('Planned & Performed Service');
+    expect(container.textContent).toContain('Resolution / Follow-up');
+
+    // Report 1 checks
+    expect(container.textContent).toContain('SVR-2026-8801');
+    expect(container.textContent).toContain('Deviated');
+
+    // Report 2 checks: resolved by follow-up button
+    expect(container.textContent).toContain('SVR-2026-8802');
+    expect(container.textContent).toContain('Resolved by #SVR-2026-8803');
+
+    // Report 3 checks: follow-up for originating report button
+    expect(container.textContent).toContain('SVR-2026-8803');
+    expect(container.textContent).toContain('Follow-up for #SVR-2026-8802');
+
+    // KPI sublabels convey distinct active unresolved work
+    expect(container.textContent).toContain('Distinct active unresolved parts');
+    expect(container.textContent).toContain('Distinct active unresolved repairs');
+
+    unmount();
+  });
+
+  it('24. ServiceReportsManagement allows filtering by resolution status', async () => {
+    const getSpy = vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [mockPendingPartsReport],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+      summary: {
+        total: 1,
+        completed: 0,
+        pendingParts: 1,
+        pendingRepairs: 0,
+      },
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportsManagement />
+    );
+
+    // Selects are: Visit Type (index 0), Outcome (index 1), Resolution Status (index 2)
+    const selects = container.querySelectorAll('.svr-filter-select');
+    expect(selects.length).toBe(3);
+    const resolutionSelect = selects[2] as HTMLSelectElement;
+
+    await act(async () => {
+      resolutionSelect.value = 'AWAITING_PARTS';
+      resolutionSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(getSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resolutionStatus: 'AWAITING_PARTS',
+      })
+    );
+
+    unmount();
+  });
+
+  it('25. ServiceReportPrintView renders planned, performed service types and formal deviation justification block', async () => {
+    const handleClose = vi.fn();
+    const deviatedReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      reportNumber: 'SVR-2026-PRINT-DEV',
+      plannedServiceType: 'DRY_SERVICE',
+      performedServiceType: 'PUMPDOWN_SERVICE',
+      serviceTypeDeviationReason: 'Refrigerant line compromised during initial check; unit required pumpdown isolation.',
+      originatingReportNumber: 'SVR-2026-ORIG-01',
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportPrintView report={deviatedReport} onClose={handleClose} />
+    );
+
+    // Header metadata verification
+    expect(container.textContent).toContain('Planned Service: Dry Service');
+    expect(container.textContent).toContain('Performed Service: Pumpdown Service');
+
+    // Follow-up linkage banner
+    expect(container.textContent).toContain('Follow-up Revisit:');
+    expect(container.textContent).toContain('Addresses pending items from Report #SVR-2026-ORIG-01');
+
+    // Formal deviation justification box
+    expect(container.textContent).toContain('Service Type Deviation Justification');
+    expect(container.textContent).toContain('Refrigerant line compromised during initial check; unit required pumpdown isolation.');
 
     unmount();
   });

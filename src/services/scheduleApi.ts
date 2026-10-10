@@ -2,6 +2,7 @@ import { apiClient } from '@/services/api/client';
 import {
   ServiceSchedule,
   CreateServiceSchedulePayload,
+  UpdateServiceSchedulePayload,
   AssignTechnicianPayload,
   ReassignTechnicianPayload,
   ReschedulePayload,
@@ -36,6 +37,9 @@ export const scheduleApi = {
 
   createSchedule: (payload: CreateServiceSchedulePayload) =>
     apiClient.post<{ schedule: ServiceSchedule }>('/service-schedules', payload),
+
+  updateSchedule: (id: string, payload: UpdateServiceSchedulePayload) =>
+    apiClient.patch<{ schedule: ServiceSchedule }>(`/service-schedules/${id}`, payload),
 
   getEligibleTechnicians: (scheduleId: string, date?: string, startTime?: string, endTime?: string) =>
     apiClient.get<{ recommendations: TechnicianRecommendationItem[] }>(

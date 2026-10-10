@@ -705,4 +705,70 @@ describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', ()
 
     unmount();
   });
+
+  it('11. ServiceScheduleManagement displays planned service type badge and includes it in creation', async () => {
+    const jetSchedule: ServiceSchedule = {
+      ...sampleSchedule,
+      id: 'sched-jet-1',
+      plannedServiceType: 'JET_SERVICE',
+    };
+
+    const unspecifiedSchedule: ServiceSchedule = {
+      ...sampleSchedule,
+      id: 'sched-none-1',
+      scheduleNumber: 'SCH-2026-00099',
+      plannedServiceType: null,
+    };
+
+    vi.spyOn(scheduleApi, 'getSchedules').mockResolvedValue({
+      schedules: [jetSchedule, unspecifiedSchedule],
+      total: 2,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getUnscheduledWork').mockResolvedValue({
+      items: [],
+    } as never);
+
+    vi.spyOn(scheduleApi, 'getScheduleById').mockResolvedValue({
+      schedule: jetSchedule,
+    } as never);
+
+    const { container, unmount } = await renderComponent();
+
+    // In today's card view, Planned Service badge 'Jet' is visible
+    expect(container.textContent).toContain('Jet');
+
+    // Switch to 'All Schedules' list view
+    const allSchedulesTab = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('All Schedules')
+    );
+    await act(async () => {
+      allSchedulesTab?.click();
+    });
+
+    // Verify list view table header for planned service
+    expect(container.textContent).toContain('PLANNED SERVICE');
+
+    // Verify badges for Jet Service and Not specified
+    expect(container.textContent).toContain('Jet Service');
+    expect(container.textContent).toContain('Not specified');
+
+    // Open detail drawer for jetSchedule
+    const detailsBtn = (container.querySelector('button[title="View Details"]') ||
+      Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes('Details'))) as HTMLButtonElement;
+    expect(detailsBtn).toBeDefined();
+
+    await act(async () => {
+      detailsBtn.click();
+    });
+
+    // Detail drawer renders planned service type
+    expect(container.textContent).toContain('PLANNED SERVICE TYPE');
+    expect(container.textContent).toContain('Jet Service');
+
+    unmount();
+  });
 });

@@ -21,6 +21,7 @@ import {
 import {
   ServiceSchedule,
   ServiceScheduleStatus,
+  PlannedServiceType,
   TechnicianRecommendationItem,
   UnscheduledWorkItem,
   CreateServiceSchedulePayload,
@@ -145,12 +146,14 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     startTime: string;
     endTime: string;
     durationMinutes: number;
+    plannedServiceType: PlannedServiceType | '';
     notes: string;
   }>({
     scheduledDate: new Date().toISOString().slice(0, 10),
     startTime: '09:00',
     endTime: '11:00',
     durationMinutes: 120,
+    plannedServiceType: '',
     notes: '',
   });
   const [isSubmittingCreate, setIsSubmittingCreate] = useState<boolean>(false);
@@ -479,6 +482,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       startTime: '09:00',
       endTime: '11:00',
       durationMinutes: item.suggestedDurationMinutes || 120,
+      plannedServiceType: item.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : '',
       notes: item.description ? `Source: ${item.identifier} — ${item.description}` : '',
     });
     setIsCreateModalOpen(true);
@@ -506,6 +510,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
         startTime: createForm.startTime || '09:00',
         endTime: createForm.endTime || '11:00',
         durationMinutes: createForm.durationMinutes || 120,
+        plannedServiceType: (createForm.plannedServiceType as PlannedServiceType) || undefined,
         notes: createForm.notes.trim() || undefined,
       };
 
@@ -629,6 +634,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   startTime: '09:00',
                   endTime: '11:00',
                   durationMinutes: first.suggestedDurationMinutes || 120,
+                  plannedServiceType: (first.plannedServiceType || (first.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : '')) as '' | PlannedServiceType,
                   notes: first.description ? `Source: ${first.identifier} — ${first.description}` : '',
                 });
               } else {
@@ -638,6 +644,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   startTime: '09:00',
                   endTime: '11:00',
                   durationMinutes: 120,
+                  plannedServiceType: '' as '' | PlannedServiceType,
                   notes: '',
                 });
               }
@@ -945,8 +952,13 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
                     {/* Assigned Technician & Status */}
                     <div>
-                      <div style={{ marginBottom: 'var(--space-1)' }}>
+                      <div style={{ marginBottom: 'var(--space-1)', display: 'flex', gap: 'var(--space-1)', alignItems: 'center', flexWrap: 'wrap' }}>
                         <StatusBadge status={schedule.status} />
+                        {schedule.plannedServiceType && (
+                          <Badge variant={schedule.plannedServiceType === 'JET_SERVICE' ? 'info' : schedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
+                            {schedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry' : schedule.plannedServiceType === 'JET_SERVICE' ? 'Jet' : 'Pumpdown'}
+                          </Badge>
+                        )}
                       </div>
                       {schedule.technicianName ? (
                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-main)', fontWeight: 600 }}>
@@ -1101,6 +1113,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   <tr style={{ borderBottom: '1px solid var(--border-neutral)', backgroundColor: 'var(--bg-canvas)' }}>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>SCHEDULE #</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>TYPE</th>
+                    <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>PLANNED SERVICE</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>DATE & TIME</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>CUSTOMER & SITE</th>
                     <th style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left' }}>ASSET</th>
@@ -1123,6 +1136,15 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                         <Badge variant={schedule.amcId || schedule.scheduleType === 'PREVENTIVE' ? 'amc' : 'info'}>
                           {schedule.amcId || schedule.scheduleType === 'PREVENTIVE' ? 'Preventive (PM)' : 'Service Request'}
                         </Badge>
+                      </td>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                        {schedule.plannedServiceType ? (
+                          <Badge variant={schedule.plannedServiceType === 'JET_SERVICE' ? 'info' : schedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
+                            {schedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : schedule.plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown'}
+                          </Badge>
+                        ) : (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Not specified</span>
+                        )}
                       </td>
                       <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                         <div>{formatDate(schedule.scheduledDate)}</div>
@@ -1846,6 +1868,30 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
           </div>
 
           <div>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Planned Service Type {activeUnscheduledItem?.type === 'PM_OBLIGATION' ? '*' : '(Optional)'}
+            </label>
+            <select
+              style={{
+                width: '100%',
+                padding: 'var(--space-2) var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-neutral, #cbd5e1)',
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-main)',
+                fontSize: 'var(--text-sm)',
+              }}
+              value={createForm.plannedServiceType}
+              onChange={(e) => setCreateForm({ ...createForm, plannedServiceType: e.target.value as PlannedServiceType })}
+            >
+              <option value="">Select planned service...</option>
+              <option value="DRY_SERVICE">Dry Service (Routine filter & coil dust cleaning)</option>
+              <option value="JET_SERVICE">Jet Service (High-pressure wet wash & coil deep clean)</option>
+              <option value="PUMPDOWN_SERVICE">Pumpdown Service (Refrigerant recovery & major overhaul)</option>
+            </select>
+          </div>
+
+          <div>
             <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>Notes</label>
             <Textarea
               placeholder="Optional notes or instructions for the technician..."
@@ -1909,6 +1955,33 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-brand)', fontWeight: 600 }}>
                   {detailSchedule.startTime} – {detailSchedule.endTime} ({detailSchedule.durationMinutes} mins)
                 </div>
+              </div>
+            </div>
+
+            {/* Planned Service Type Card */}
+            <div className="card" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                PLANNED SERVICE TYPE
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                {detailSchedule.plannedServiceType ? (
+                  <>
+                    <Badge variant={detailSchedule.plannedServiceType === 'JET_SERVICE' ? 'info' : detailSchedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
+                      {detailSchedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : detailSchedule.plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown Service'}
+                    </Badge>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      {detailSchedule.plannedServiceType === 'DRY_SERVICE'
+                        ? 'Filter cleaning, electrical test & dry coil dust removal'
+                        : detailSchedule.plannedServiceType === 'JET_SERVICE'
+                        ? 'High-pressure water jet washing & indoor/outdoor coil clean'
+                        : 'Refrigerant recovery, pumpdown & deep system overhaul'}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    Not specified for this visit
+                  </span>
+                )}
               </div>
             </div>
 

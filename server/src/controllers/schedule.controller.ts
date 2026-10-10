@@ -69,6 +69,20 @@ export class ScheduleController {
     }
   }
 
+  public async updateSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const schedule = await scheduleService.updateSchedule(
+        req.params.id as string,
+        req.body,
+        req.user?.profileId as string,
+        req.ip
+      );
+      sendSuccess(res, { schedule });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async getEligibleTechnicians(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const date = req.query.date as string | undefined;

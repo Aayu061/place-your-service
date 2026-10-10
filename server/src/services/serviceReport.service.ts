@@ -105,7 +105,8 @@ export class ServiceReportService {
       .select(`
         id, schedule_number, status, scheduled_date, start_time, end_time,
         amc_id, service_request_id, pm_obligation_id,
-        customer_id, site_id, asset_id, technician_id
+        customer_id, site_id, asset_id, technician_id,
+        planned_service_type, rescheduled_from_id
       `)
       .eq('id', payload.scheduleId)
       .maybeSingle();
@@ -165,6 +166,56 @@ export class ServiceReportService {
       );
     }
 
+    // Resolve planned and performed service types
+    const plannedServiceType = payload.plannedServiceType || schedule.planned_service_type || null;
+    const performedServiceType = payload.performedServiceType || plannedServiceType || null;
+    const serviceTypeDeviationReason = payload.serviceTypeDeviationReason?.trim() || null;
+
+    if (
+      performedServiceType &&
+      plannedServiceType &&
+      performedServiceType !== plannedServiceType &&
+      (!serviceTypeDeviationReason || serviceTypeDeviationReason.length < 2)
+    ) {
+      throw new BadRequestError(
+        'A deviation reason is mandatory when performed service type differs from planned service type.'
+      );
+    }
+
+    // Resolve originating report if this visit is a follow-up
+    let originatingReportId = payload.originatingReportId || null;
+    if (!originatingReportId && schedule.id) {
+      const { data: parentReport } = await supabase
+        .from('service_reports')
+        .select('id, report_number')
+        .eq('follow_up_schedule_id', schedule.id)
+        .maybeSingle();
+      if (parentReport) {
+        originatingReportId = parentReport.id;
+      } else if (schedule.rescheduled_from_id) {
+        const { data: priorReport } = await supabase
+          .from('service_reports')
+          .select('id, report_number')
+          .eq('service_schedule_id', schedule.rescheduled_from_id)
+          .maybeSingle();
+        if (priorReport) {
+          originatingReportId = priorReport.id;
+        }
+      }
+    }
+
+    // Determine initial resolution status
+    let resolutionStatus: 'OPEN' | 'AWAITING_PARTS' | 'AWAITING_REPAIR' | 'RESOLVED' | 'CANCELLED' = 'OPEN';
+    let resolvedAt: string | null = null;
+    if (payload.primaryOutcome === 'COMPLETED') {
+      resolutionStatus = 'RESOLVED';
+      resolvedAt = new Date().toISOString();
+    } else if (payload.primaryOutcome === 'PENDING_PARTS') {
+      resolutionStatus = 'AWAITING_PARTS';
+    } else if (payload.primaryOutcome === 'PENDING_REPAIRS') {
+      resolutionStatus = 'AWAITING_REPAIR';
+    }
+
     // 6. Insert Report Header
     const { data: newReport, error: insertErr } = await supabase
       .from('service_reports')
@@ -182,6 +233,12 @@ export class ServiceReportService {
         start_time: payload.startTime || schedule.start_time || null,
         end_time: payload.endTime || schedule.end_time || null,
         primary_outcome: payload.primaryOutcome,
+        planned_service_type: plannedServiceType,
+        performed_service_type: performedServiceType,
+        service_type_deviation_reason: serviceTypeDeviationReason,
+        originating_report_id: originatingReportId,
+        resolution_status: resolutionStatus,
+        resolved_at: resolvedAt,
         work_description: payload.workDescription || null,
         technician_remarks: payload.technicianRemarks || null,
         customer_representative: payload.customerRepresentative || null,
@@ -297,7 +354,56 @@ export class ServiceReportService {
 
     // 9. State Machine Transitions
 
-    // 9a. Update the schedule: The visit has been attended by the technician on-site
+    // 9a. If this report follows up on an earlier pending issue, update originating report resolution state
+    if (originatingReportId) {
+      if (payload.primaryOutcome === 'COMPLETED') {
+        await supabase
+          .from('service_reports')
+          .update({
+            resolving_report_id: newReport.id,
+            resolved_at: new Date().toISOString(),
+            resolution_status: 'RESOLVED',
+            updated_by: actorId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', originatingReportId);
+
+        // Mark parts and repair items on originating report as resolved
+        await supabase
+          .from('service_report_items')
+          .update({
+            is_resolved: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('report_id', originatingReportId);
+
+        await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
+          resolvingReportId: newReport.id,
+          resolvingReportNumber: trimmedReportNumber,
+          primaryOutcome: payload.primaryOutcome,
+        });
+      } else if (payload.primaryOutcome === 'PENDING_PARTS') {
+        await supabase
+          .from('service_reports')
+          .update({
+            resolution_status: 'AWAITING_PARTS',
+            updated_by: actorId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', originatingReportId);
+      } else if (payload.primaryOutcome === 'PENDING_REPAIRS') {
+        await supabase
+          .from('service_reports')
+          .update({
+            resolution_status: 'AWAITING_REPAIR',
+            updated_by: actorId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', originatingReportId);
+      }
+    }
+
+    // 9b. Update the schedule: The visit has been attended by the technician on-site
     await supabase
       .from('service_schedules')
       .update({
@@ -374,6 +480,8 @@ export class ServiceReportService {
         id, report_number, visit_type, service_schedule_id, service_request_id,
         amc_id, pm_obligation_id, customer_id, site_id, technician_id,
         service_date, start_time, end_time, primary_outcome,
+        planned_service_type, performed_service_type, service_type_deviation_reason,
+        originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
@@ -390,6 +498,27 @@ export class ServiceReportService {
 
     if (error || !row) {
       throw new NotFoundError(`Service report with ID "${id}" not found.`);
+    }
+
+    // Fetch originating & resolving report numbers if linked
+    let originatingReportNumber: string | null = null;
+    if (row.originating_report_id) {
+      const { data: orig } = await supabase
+        .from('service_reports')
+        .select('report_number')
+        .eq('id', row.originating_report_id)
+        .maybeSingle();
+      if (orig) originatingReportNumber = orig.report_number;
+    }
+
+    let resolvingReportNumber: string | null = null;
+    if (row.resolving_report_id) {
+      const { data: res } = await supabase
+        .from('service_reports')
+        .select('report_number')
+        .eq('id', row.resolving_report_id)
+        .maybeSingle();
+      if (res) resolvingReportNumber = res.report_number;
     }
 
     // Fetch assets with snapshot columns and joined ac_assets fallback
@@ -526,6 +655,15 @@ export class ServiceReportService {
       startTime: row.start_time,
       endTime: row.end_time,
       primaryOutcome: row.primary_outcome as ServiceVisitOutcome,
+      plannedServiceType: row.planned_service_type || null,
+      performedServiceType: row.performed_service_type || null,
+      serviceTypeDeviationReason: row.service_type_deviation_reason || null,
+      originatingReportId: row.originating_report_id || null,
+      originatingReportNumber,
+      resolvingReportId: row.resolving_report_id || null,
+      resolvingReportNumber,
+      resolvedAt: row.resolved_at || null,
+      resolutionStatus: row.resolution_status || 'OPEN',
       workDescription: row.work_description,
       technicianRemarks: row.technician_remarks,
       customerRepresentative: row.customer_representative,
@@ -586,6 +724,8 @@ export class ServiceReportService {
         id, report_number, visit_type, service_schedule_id, service_request_id,
         amc_id, pm_obligation_id, customer_id, site_id, technician_id,
         service_date, start_time, end_time, primary_outcome,
+        planned_service_type, performed_service_type, service_type_deviation_reason,
+        originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
@@ -607,6 +747,10 @@ export class ServiceReportService {
 
     if (query.outcome && query.outcome !== 'ALL') {
       dbQuery = dbQuery.eq('primary_outcome', query.outcome);
+    }
+
+    if (query.resolutionStatus && query.resolutionStatus !== 'ALL') {
+      dbQuery = dbQuery.eq('resolution_status', query.resolutionStatus);
     }
 
     if (query.technicianId) {
@@ -647,6 +791,32 @@ export class ServiceReportService {
     const total = count || 0;
     const totalPages = Math.ceil(total / pageSize) || 1;
 
+    // Batch-resolve originating & resolving report numbers for the page
+    const linkedIds = Array.from(
+      new Set(
+        (rows || [])
+          .flatMap((r: any) => [r.originating_report_id, r.resolving_report_id])
+          .filter((id: any): id is string => Boolean(id))
+      )
+    );
+    let linkedReportNumberMap: Record<string, string> = {};
+    if (linkedIds.length > 0) {
+      try {
+        const { data: linkedRows } = await supabase
+          .from('service_reports')
+          .select('id, report_number')
+          .in('id', linkedIds);
+        if (linkedRows) {
+          linkedReportNumberMap = linkedRows.reduce((acc, curr) => {
+            acc[curr.id] = curr.report_number;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      } catch (err) {
+        logger.warn('Failed to batch-resolve linked service report numbers', { err });
+      }
+    }
+
     // Fast-map reports for list view
     const reports: ServiceVisitReportResponse[] = (rows || []).map((row: any) => ({
       id: row.id,
@@ -674,6 +844,19 @@ export class ServiceReportService {
       startTime: row.start_time,
       endTime: row.end_time,
       primaryOutcome: row.primary_outcome as ServiceVisitOutcome,
+      plannedServiceType: row.planned_service_type || null,
+      performedServiceType: row.performed_service_type || null,
+      serviceTypeDeviationReason: row.service_type_deviation_reason || null,
+      originatingReportId: row.originating_report_id || null,
+      originatingReportNumber: row.originating_report_id
+        ? linkedReportNumberMap[row.originating_report_id] || null
+        : null,
+      resolvingReportId: row.resolving_report_id || null,
+      resolvingReportNumber: row.resolving_report_id
+        ? linkedReportNumberMap[row.resolving_report_id] || null
+        : null,
+      resolvedAt: row.resolved_at || null,
+      resolutionStatus: row.resolution_status || 'OPEN',
       workDescription: row.work_description,
       technicianRemarks: row.technician_remarks,
       customerRepresentative: row.customer_representative,
@@ -696,6 +879,7 @@ export class ServiceReportService {
     }));
 
     // Server-wide aggregate counts
+    // Pending counts strictly measure distinct currently unresolved issues (not historically resolved ones)
     let totalAll = total;
     let completedAll = 0;
     let pendingPartsAll = 0;
@@ -710,8 +894,16 @@ export class ServiceReportService {
       ] = await Promise.all([
         supabase.from('service_reports').select('id', { count: 'exact', head: true }),
         supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'COMPLETED'),
-        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'PENDING_PARTS'),
-        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'PENDING_REPAIRS'),
+        supabase
+          .from('service_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('resolution_status', 'AWAITING_PARTS')
+          .is('resolving_report_id', null),
+        supabase
+          .from('service_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('resolution_status', 'AWAITING_REPAIR')
+          .is('resolving_report_id', null),
       ]);
       totalAll = cTotal ?? total;
       completedAll = cCompleted ?? 0;
@@ -757,6 +949,19 @@ export class ServiceReportService {
       }
     }
 
+    const effPlanned = payload.plannedServiceType !== undefined ? payload.plannedServiceType : existing.plannedServiceType;
+    const effPerformed = payload.performedServiceType !== undefined ? payload.performedServiceType : existing.performedServiceType;
+    const effDeviation = payload.serviceTypeDeviationReason !== undefined ? payload.serviceTypeDeviationReason : existing.serviceTypeDeviationReason;
+
+    if (
+      effPlanned &&
+      effPerformed &&
+      effPlanned !== effPerformed &&
+      (!effDeviation || effDeviation.trim().length < 2)
+    ) {
+      throw new BadRequestError('A deviation reason is mandatory when performed service type differs from planned service type.');
+    }
+
     const updates: Record<string, unknown> = {
       updated_by: actorId || null,
       updated_at: new Date().toISOString(),
@@ -766,6 +971,11 @@ export class ServiceReportService {
     if (payload.serviceDate !== undefined) updates.service_date = payload.serviceDate;
     if (payload.startTime !== undefined) updates.start_time = payload.startTime;
     if (payload.endTime !== undefined) updates.end_time = payload.endTime;
+    if (payload.plannedServiceType !== undefined) updates.planned_service_type = payload.plannedServiceType;
+    if (payload.performedServiceType !== undefined) updates.performed_service_type = payload.performedServiceType;
+    if (payload.serviceTypeDeviationReason !== undefined) {
+      updates.service_type_deviation_reason = payload.serviceTypeDeviationReason ? payload.serviceTypeDeviationReason.trim() : null;
+    }
     if (payload.workDescription !== undefined) updates.work_description = payload.workDescription;
     if (payload.technicianRemarks !== undefined) updates.technician_remarks = payload.technicianRemarks;
     if (payload.customerRepresentative !== undefined) updates.customer_representative = payload.customerRepresentative;
@@ -947,6 +1157,7 @@ export class ServiceReportService {
         duration_minutes: payload.durationMinutes || 120,
         technician_id: effectiveTechId,
         rescheduled_from_id: report.scheduleId || null,
+        planned_service_type: payload.plannedServiceType || report.plannedServiceType || null,
         status: effectiveTechId ? 'ASSIGNED' : 'SCHEDULED',
         is_system_generated: false,
         notes: `Follow-up revisit for Report #${report.reportNumber}: ${report.primaryOutcome}${

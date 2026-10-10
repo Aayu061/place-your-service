@@ -825,5 +825,108 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
 
     unmount();
   });
+
+  it('11. Displays planned service type badges on PM obligations in contract detail drawer', async () => {
+    const mockSchedules = [
+      {
+        id: 'sch-pm-1',
+        scheduleNumber: 'SCH-2026-PM01',
+        amcId: sampleContract.id,
+        assetId: 'asset-101',
+        assetTag: 'ESSC-0001',
+        brand: 'Mitsubishi Heavy',
+        modelNumber: 'SRK24CW',
+        siteName: 'Panvel Residence',
+        roomLocation: 'Living Room',
+        scheduledDate: '2026-03-01',
+        visitNumber: 1,
+        status: 'SCHEDULED',
+        plannedServiceType: 'DRY_SERVICE' as const,
+        isSystemGenerated: true,
+        notes: null,
+      },
+      {
+        id: 'sch-pm-2',
+        scheduleNumber: 'SCH-2026-PM02',
+        amcId: sampleContract.id,
+        assetId: 'asset-101',
+        assetTag: 'ESSC-0001',
+        brand: 'Mitsubishi Heavy',
+        modelNumber: 'SRK24CW',
+        siteName: 'Panvel Residence',
+        roomLocation: 'Living Room',
+        scheduledDate: '2026-06-01',
+        visitNumber: 2,
+        status: 'SCHEDULED',
+        plannedServiceType: 'JET_SERVICE' as const,
+        isSystemGenerated: true,
+        notes: null,
+      },
+      {
+        id: 'sch-pm-3',
+        scheduleNumber: 'SCH-2026-PM03',
+        amcId: sampleContract.id,
+        assetId: 'asset-101',
+        assetTag: 'ESSC-0001',
+        brand: 'Mitsubishi Heavy',
+        modelNumber: 'SRK24CW',
+        siteName: 'Panvel Residence',
+        roomLocation: 'Living Room',
+        scheduledDate: '2026-09-01',
+        visitNumber: 3,
+        status: 'SCHEDULED',
+        plannedServiceType: null,
+        isSystemGenerated: true,
+        notes: null,
+      },
+    ];
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/metrics')) {
+        return { metrics: { activeContracts: 1, expiringSoonContracts: 0, expiredContracts: 0, coveredAssetsCount: 1, upcomingPmCount: 3, overduePmCount: 0 } } as never;
+      }
+      if (url.includes('/plans')) {
+        return { plans: [samplePlan] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/schedules`)) {
+        return { schedules: mockSchedules } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/assets`)) {
+        return { assets: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}`)) {
+        return { contract: sampleContract } as never;
+      }
+      if (url.includes('/amc-contracts')) {
+        return { contracts: [sampleContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+      }
+      return {} as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    // Open detail drawer
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    // Switch to PM Obligations tab
+    const pmTab = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('PM Obligations')
+    );
+    await act(async () => {
+      pmTab?.click();
+    });
+
+    // Verify presence of planned service type badges
+    expect(container.textContent).toContain('Dry Service');
+    expect(container.textContent).toContain('Jet Service');
+    expect(container.textContent).toContain('Not specified');
+
+    unmount();
+  });
 });
 

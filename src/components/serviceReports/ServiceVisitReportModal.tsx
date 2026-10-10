@@ -3,6 +3,8 @@ import {
   ServiceSchedule,
   ServiceVisitType,
   ServiceVisitOutcome,
+  PlannedServiceType,
+  PerformedServiceType,
   CreateServiceReportPayload,
   ServiceVisitReport,
   AcAsset,
@@ -116,6 +118,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [customerAcknowledgement, setCustomerAcknowledgement] = useState<string>('');
   const [isAdditionalOpen, setIsAdditionalOpen] = useState<boolean>(false);
 
+  // Service Execution Type & Deviation States
+  const [plannedServiceType, setPlannedServiceType] = useState<PlannedServiceType | null>(null);
+  const [performedServiceType, setPerformedServiceType] = useState<PerformedServiceType | ''>('');
+  const [serviceTypeDeviationReason, setServiceTypeDeviationReason] = useState<string>('');
+  const [deviationError, setDeviationError] = useState<string | null>(null);
+  const [originatingReportId, setOriginatingReportId] = useState<string | null>(null);
+
   // Asset Finding States
   const [assets, setAssets] = useState<AssetReportState[]>([]);
   const [siteAssets, setSiteAssets] = useState<AcAsset[]>([]);
@@ -160,6 +169,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setTechnicianRemarks(initialReport.technicianRemarks || '');
         setCustomerRepresentative(initialReport.customerRepresentative || '');
         setCustomerAcknowledgement(initialReport.customerAcknowledgement || '');
+        setPlannedServiceType(initialReport.plannedServiceType || schedule?.plannedServiceType || null);
+        setPerformedServiceType(initialReport.performedServiceType || initialReport.plannedServiceType || '');
+        setServiceTypeDeviationReason(initialReport.serviceTypeDeviationReason || '');
+        setOriginatingReportId(initialReport.originatingReportId || null);
+        setDeviationError(null);
         setErrorMessage(null);
         setReportNumberError(null);
         setTimeError(null);
@@ -253,6 +267,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setStartTime(schedule.startTime || '09:30');
         setEndTime(schedule.endTime || '11:45');
         setPrimaryOutcome('COMPLETED');
+        const initialPlanned = schedule.plannedServiceType || null;
+        setPlannedServiceType(initialPlanned);
+        setPerformedServiceType(initialPlanned || (schedule.amcId ? 'DRY_SERVICE' : ''));
+        setServiceTypeDeviationReason('');
+        setOriginatingReportId(null);
+        setDeviationError(null);
         setWorkDescription('');
         setTechnicianRemarks('');
         setCustomerRepresentative('');
@@ -508,6 +528,20 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       return;
     }
 
+    // Service Type Deviation Validation
+    if (
+      plannedServiceType &&
+      performedServiceType &&
+      plannedServiceType !== performedServiceType &&
+      (!serviceTypeDeviationReason.trim() || serviceTypeDeviationReason.trim().length < 2)
+    ) {
+      const msg = 'A deviation reason is mandatory when performed service type differs from planned service type.';
+      setDeviationError(msg);
+      setErrorMessage(msg);
+      setFormStatus('ERROR');
+      return;
+    }
+
     // Outcome-specific client validation
     if (primaryOutcome === 'COMPLETED') {
       const hasAssetWork = assets.some((a) => a.workPerformed.trim().length > 0);
@@ -556,6 +590,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         startTime: startTime || null,
         endTime: endTime || null,
         primaryOutcome,
+        plannedServiceType: plannedServiceType || null,
+        performedServiceType: (performedServiceType as PerformedServiceType) || null,
+        serviceTypeDeviationReason:
+          plannedServiceType && performedServiceType && plannedServiceType !== performedServiceType
+            ? serviceTypeDeviationReason.trim()
+            : null,
+        originatingReportId: originatingReportId || null,
         workDescription: workDescription.trim() || null,
         technicianRemarks: technicianRemarks.trim() || null,
         customerRepresentative: customerRepresentative.trim() || null,
@@ -602,6 +643,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           serviceDate: visitDate,
           startTime: startTime || null,
           endTime: endTime || null,
+          plannedServiceType: plannedServiceType || null,
+          performedServiceType: (performedServiceType as PerformedServiceType) || null,
+          serviceTypeDeviationReason:
+            plannedServiceType && performedServiceType && plannedServiceType !== performedServiceType
+              ? serviceTypeDeviationReason.trim()
+              : null,
           workDescription: workDescription.trim() || null,
           technicianRemarks: technicianRemarks.trim() || null,
           customerRepresentative: customerRepresentative.trim() || null,
@@ -952,6 +999,172 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               </span>
             )}
           </div>
+        </div>
+
+        {/* Section 2B: Service Execution Type & Planned Alignment */}
+        <div
+          style={{
+            backgroundColor: 'var(--bg-canvas, #f8fafc)',
+            border: '1px solid var(--border-neutral, #e2e8f0)',
+            borderRadius: 'var(--radius-md, 8px)',
+            padding: 'var(--space-4, 16px)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3, 12px)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <Wrench size={14} style={{ color: 'var(--color-brand)' }} />
+                Service Execution Type
+              </span>
+              <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Identify the planned procedure and record the actual service performed on-site.
+              </p>
+            </div>
+
+            {/* Planned Type Context Badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>Planned Service:</span>
+              {plannedServiceType ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: plannedServiceType === 'JET_SERVICE' ? 'var(--color-info-bg, #eff6ff)' : plannedServiceType === 'PUMPDOWN_SERVICE' ? 'var(--color-warning-bg, #fffbeb)' : 'var(--color-neutral-bg, #f1f5f9)',
+                    color: plannedServiceType === 'JET_SERVICE' ? 'var(--color-info-text, #1d4ed8)' : plannedServiceType === 'PUMPDOWN_SERVICE' ? 'var(--color-warning-text, #b45309)' : 'var(--text-main, #334155)',
+                    border: '1px solid var(--border-neutral, #cbd5e1)',
+                  }}
+                >
+                  {plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown Service'}
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Not specified
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Performed Service Selection */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-3)' }}>
+            <div>
+              <label
+                htmlFor="performed-service-type-select"
+                style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '6px',
+                }}
+              >
+                Performed Service Type <span style={{ color: 'var(--color-error-solid)' }}>*</span>
+              </label>
+              <select
+                id="performed-service-type-select"
+                value={performedServiceType}
+                onChange={(e) => {
+                  setPerformedServiceType(e.target.value as PerformedServiceType);
+                  if (deviationError) setDeviationError(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                disabled={isSubmitting}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 'var(--radius-md, 6px)',
+                  border: '1px solid var(--border-neutral, #cbd5e1)',
+                  backgroundColor: 'var(--bg-surface, #ffffff)',
+                  color: 'var(--text-main)',
+                  fontSize: '13px',
+                }}
+              >
+                <option value="">Select Performed Service Type...</option>
+                <option value="DRY_SERVICE">Dry Service (Routine filter clean & dry coil dust sweep)</option>
+                <option value="JET_SERVICE">Jet Service (High-pressure wet wash & coil deep cleanse)</option>
+                <option value="PUMPDOWN_SERVICE">Pumpdown Service (Refrigerant recovery & major overhaul)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Deviation Alert & Justification Textarea */}
+          {plannedServiceType && performedServiceType && plannedServiceType !== performedServiceType && (
+            <div
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid var(--color-warning-border, #fcd34d)',
+                borderRadius: 'var(--radius-md, 6px)',
+                padding: 'var(--space-3, 12px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-warning-solid, #d97706)', fontWeight: 600, fontSize: '13px' }}>
+                <AlertTriangle size={16} />
+                <span>Service Type Deviation Justification Required</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                The service performed (<strong>{performedServiceType.replace('_', ' ')}</strong>) differs from the planned visit (<strong>{plannedServiceType.replace('_', ' ')}</strong>). Please enter an operational justification for management and client records.
+              </p>
+              <div>
+                <label
+                  htmlFor="service-deviation-reason-input"
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '4px',
+                  }}
+                >
+                  Deviation Note <span style={{ color: 'var(--color-error-solid)' }}>*</span>
+                </label>
+                <Textarea
+                  id="service-deviation-reason-input"
+                  value={serviceTypeDeviationReason}
+                  onChange={(e) => {
+                    setServiceTypeDeviationReason(e.target.value);
+                    if (deviationError) setDeviationError(null);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  placeholder="e.g. Heavy mold & dust build-up found on indoor blower coil requiring high-pressure jet wash instead of dry service..."
+                  rows={2}
+                  disabled={isSubmitting}
+                  style={{
+                    fontSize: '13px',
+                    borderColor: deviationError ? 'var(--color-error-solid)' : undefined,
+                  }}
+                />
+                {deviationError && (
+                  <p style={{ fontSize: '12px', color: 'var(--color-error-text)', fontWeight: 500, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertTriangle size={12} style={{ flexShrink: 0 }} />
+                    {deviationError}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Section 3: Primary Visit Outcome (3 Equal Cards with Rich Visual Tokens) */}
