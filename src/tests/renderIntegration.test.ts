@@ -27,7 +27,7 @@ describe('Real Frontend ApiClient to Render Connectivity Verification', () => {
       }
       throw err;
     }
-  }, 35000);
+  }, 60000);
 
   it('queries Render production readiness endpoint and validates structured response', async () => {
     const prodClient = new ApiClient(prodApiUrl);

@@ -17,6 +17,7 @@ import {
   AmcFrequency,
   AmcStatus,
   ServiceScheduleStatus,
+  PlannedServiceType,
 } from '../types/index.js';
 import {
   NotFoundError,
@@ -75,6 +76,53 @@ export function calculateScheduleDatesUtc(
   }
 
   return dates;
+}
+
+/**
+ * Deterministic service type generator matching the contract's PM allocation across Dry, Jet, and Pumpdown visits.
+ */
+export function computePlannedServiceTypes(
+  totalVisits: number,
+  dryVisits: number | null | undefined,
+  jetVisits: number | null | undefined,
+  pumpdownVisits: number | null | undefined
+): PlannedServiceType[] {
+  // If no allocation configured (legacy contract), retain existing alternating fallback
+  if (dryVisits == null && jetVisits == null && pumpdownVisits == null) {
+    return Array.from({ length: totalVisits }, (_, i) =>
+      (i + 1) % 2 === 0 ? 'JET_SERVICE' : 'DRY_SERVICE'
+    );
+  }
+
+  const dry = dryVisits ?? 0;
+  const jet = jetVisits ?? 0;
+  const pumpdown = pumpdownVisits ?? 0;
+
+  const remainingCounts: Record<PlannedServiceType, number> = {
+    DRY_SERVICE: dry,
+    JET_SERVICE: jet,
+    PUMPDOWN_SERVICE: pumpdown,
+  };
+
+  const typesInOrder: PlannedServiceType[] = ['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE'];
+  const result: PlannedServiceType[] = [];
+
+  while (result.length < totalVisits) {
+    let addedInRound = false;
+    for (const t of typesInOrder) {
+      if (remainingCounts[t] > 0 && result.length < totalVisits) {
+        result.push(t);
+        remainingCounts[t]--;
+        addedInRound = true;
+      }
+    }
+    if (!addedInRound) {
+      // Fallback in case sum was less than totalVisits
+      result.push('DRY_SERVICE');
+    }
+  }
+
+  return result;
 }
 
 export class AmcService {
@@ -306,7 +354,8 @@ export class AmcService {
       .select(
         `
         id, contract_number, customer_id, plan_id, start_date, end_date, frequency,
-        total_amount, total_visits, status, notes, cancellation_reason, cancelled_at,
+        total_amount, total_visits, dry_service_visits, jet_service_visits, pumpdown_service_visits,
+        status, notes, cancellation_reason, cancelled_at,
         cancelled_by, previous_contract_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone),
         amc_plans (id, name, plan_code)
@@ -438,6 +487,9 @@ export class AmcService {
         frequency: row.frequency as AmcFrequency,
         totalAmount: Number(row.total_amount),
         totalVisits: row.total_visits,
+        dryServiceVisits: row.dry_service_visits != null ? Number(row.dry_service_visits) : null,
+        jetServiceVisits: row.jet_service_visits != null ? Number(row.jet_service_visits) : null,
+        pumpdownServiceVisits: row.pumpdown_service_visits != null ? Number(row.pumpdown_service_visits) : null,
         status: row.status as AmcStatus,
         notes: row.notes,
         cancellationReason: row.cancellation_reason,
@@ -477,7 +529,8 @@ export class AmcService {
       .select(
         `
         id, contract_number, customer_id, plan_id, start_date, end_date, frequency,
-        total_amount, total_visits, status, notes, cancellation_reason, cancelled_at,
+        total_amount, total_visits, dry_service_visits, jet_service_visits, pumpdown_service_visits,
+        status, notes, cancellation_reason, cancelled_at,
         cancelled_by, previous_contract_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone),
         amc_plans (id, name, plan_code)
@@ -581,6 +634,9 @@ export class AmcService {
       frequency: row.frequency as AmcFrequency,
       totalAmount: Number(row.total_amount),
       totalVisits: row.total_visits,
+      dryServiceVisits: row.dry_service_visits != null ? Number(row.dry_service_visits) : null,
+      jetServiceVisits: row.jet_service_visits != null ? Number(row.jet_service_visits) : null,
+      pumpdownServiceVisits: row.pumpdown_service_visits != null ? Number(row.pumpdown_service_visits) : null,
       status: row.status as AmcStatus,
       notes: row.notes,
       cancellationReason: row.cancellation_reason,
@@ -724,6 +780,22 @@ export class AmcService {
 
     const contractNumber = await this.generateContractNumber();
 
+    // Validate allocation if provided
+    let dryVisits = payload.dryServiceVisits != null ? Number(payload.dryServiceVisits) : null;
+    let jetVisits = payload.jetServiceVisits != null ? Number(payload.jetServiceVisits) : null;
+    let pumpdownVisits = payload.pumpdownServiceVisits != null ? Number(payload.pumpdownServiceVisits) : null;
+
+    if (dryVisits != null || jetVisits != null || pumpdownVisits != null) {
+      const d = dryVisits ?? 0;
+      const j = jetVisits ?? 0;
+      const p = pumpdownVisits ?? 0;
+      if (d + j + p !== payload.totalVisits) {
+        throw new BadRequestError(
+          `Total PM service allocation (${d + j + p}) must exactly equal included visits (${payload.totalVisits}).`
+        );
+      }
+    }
+
     // 4. Insert contract
     const { data: inserted, error: iErr } = await supabase
       .from('amc_contracts')
@@ -736,6 +808,9 @@ export class AmcService {
         frequency: payload.frequency,
         total_amount: payload.totalAmount,
         total_visits: payload.totalVisits,
+        dry_service_visits: dryVisits,
+        jet_service_visits: jetVisits,
+        pumpdown_service_visits: pumpdownVisits,
         status: payload.status || 'ACTIVE',
         notes: payload.notes || null,
         created_by: actorId,
@@ -827,6 +902,9 @@ export class AmcService {
     if (payload.frequency) updatePayload.frequency = payload.frequency;
     if (payload.totalAmount !== undefined) updatePayload.total_amount = payload.totalAmount;
     if (payload.totalVisits !== undefined) updatePayload.total_visits = payload.totalVisits;
+    if (payload.dryServiceVisits !== undefined) updatePayload.dry_service_visits = payload.dryServiceVisits;
+    if (payload.jetServiceVisits !== undefined) updatePayload.jet_service_visits = payload.jetServiceVisits;
+    if (payload.pumpdownServiceVisits !== undefined) updatePayload.pumpdown_service_visits = payload.pumpdownServiceVisits;
     if (payload.notes !== undefined) updatePayload.notes = payload.notes;
 
     const { error } = await supabase.from('amc_contracts').update(updatePayload).eq('id', id);
@@ -1088,6 +1166,14 @@ export class AmcService {
       contract.frequency
     );
 
+    // Compute planned service types matching the contract's stored allocation
+    const plannedTypes = computePlannedServiceTypes(
+      dates.length,
+      contract.dryServiceVisits,
+      contract.jetServiceVisits,
+      contract.pumpdownServiceVisits
+    );
+
     // Fetch existing schedules for this contract to guarantee idempotency
     const { data: existingSchedules, error: sErr } = await supabase
       .from('service_schedules')
@@ -1132,6 +1218,7 @@ export class AmcService {
       site_id: string | null;
       scheduled_date: string;
       visit_number: number;
+      planned_service_type: PlannedServiceType;
       status: string;
       is_system_generated: boolean;
       created_by: string | null;
@@ -1163,7 +1250,7 @@ export class AmcService {
             site_id: asset.siteId || null,
             scheduled_date: date,
             visit_number: i + 1,
-            planned_service_type: (i + 1) % 2 === 0 ? 'JET_SERVICE' : 'DRY_SERVICE',
+            planned_service_type: plannedTypes[i] || 'DRY_SERVICE',
             status,
             is_system_generated: true,
             created_by: validActorId,

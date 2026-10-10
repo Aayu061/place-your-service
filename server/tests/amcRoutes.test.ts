@@ -5,6 +5,7 @@ import * as supabaseLib from '../src/lib/supabase.js';
 import {
   calculateScheduleDatesUtc,
   addMonthsSafeUtc,
+  computePlannedServiceTypes,
 } from '../src/services/amc.service.js';
 
 describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', () => {
@@ -750,5 +751,48 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
     expect(dates[0]).toBe('2026-01-15');
     expect(dates[1]).toBe('2026-04-15');
     // Month 7 would be July 15, which is strictly > June 15, so omitted
+  });
+
+  it('26. Pure Algorithm: computePlannedServiceTypes deterministically distributes configured service visits', () => {
+    // 4 visits: 2 dry, 1 jet, 1 pumpdown
+    const dist4 = computePlannedServiceTypes(4, 2, 1, 1);
+    expect(dist4).toEqual(['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE', 'DRY_SERVICE']);
+
+    // 6 visits: 4 dry, 2 jet, 0 pumpdown
+    const dist6 = computePlannedServiceTypes(6, 4, 2, 0);
+    expect(dist6).toEqual(['DRY_SERVICE', 'JET_SERVICE', 'DRY_SERVICE', 'JET_SERVICE', 'DRY_SERVICE', 'DRY_SERVICE']);
+
+    // 3 visits: all dry
+    const allDry = computePlannedServiceTypes(3, 3, 0, 0);
+    expect(allDry).toEqual(['DRY_SERVICE', 'DRY_SERVICE', 'DRY_SERVICE']);
+  });
+
+  it('27. Pure Algorithm: computePlannedServiceTypes falls back to alternating Dry/Jet for legacy contracts with null allocation', () => {
+    const legacy4 = computePlannedServiceTypes(4, null, null, null);
+    expect(legacy4).toEqual(['DRY_SERVICE', 'JET_SERVICE', 'DRY_SERVICE', 'JET_SERVICE']);
+
+    const legacyUndefined = computePlannedServiceTypes(2, undefined, undefined, undefined);
+    expect(legacyUndefined).toEqual(['DRY_SERVICE', 'JET_SERVICE']);
+  });
+
+  it('28. API Validation: Rejects AMC contract creation when dry + jet + pumpdown does not equal totalVisits', async () => {
+    const res = await request(app)
+      .post('/api/v1/amc-contracts')
+      .set('Authorization', adminAuthToken)
+      .send({
+        customerId: sampleCustomerId,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        frequency: 'QUARTERLY',
+        totalAmount: 25000,
+        totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 0, // 2 + 1 + 0 = 3 !== 4
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(JSON.stringify(res.body.error.details || res.body.error)).toContain('must exactly equal total included visits');
   });
 });

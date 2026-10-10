@@ -355,6 +355,9 @@ export interface AmcContract {
   frequency: AmcFrequency;
   totalVisits: number;
   includedVisits?: number; // Compatibility alias
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
   totalAmount: number;
   contractAmount: number; // Compatibility alias
   status: AmcStatus;
@@ -375,6 +378,35 @@ export interface AmcContract {
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateAmcContractPayload {
+  customerId: string;
+  planId?: string | null;
+  startDate: string;
+  endDate: string;
+  frequency: AmcFrequency;
+  totalAmount: number;
+  totalVisits: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
+  coveredAssetIds?: string[];
+  status?: AmcStatus;
+  notes?: string | null;
+}
+
+export interface UpdateAmcContractPayload {
+  planId?: string | null;
+  startDate?: string;
+  endDate?: string;
+  frequency?: AmcFrequency;
+  totalAmount?: number;
+  totalVisits?: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
+  notes?: string | null;
 }
 
 

@@ -153,10 +153,18 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [formFrequency, setFormFrequency] = useState<AmcFrequency>('QUARTERLY');
   const [formTotalAmount, setFormTotalAmount] = useState<number>(0);
   const [formTotalVisits, setFormTotalVisits] = useState<number>(4);
+  const [formDryVisits, setFormDryVisits] = useState<number>(0);
+  const [formJetVisits, setFormJetVisits] = useState<number>(0);
+  const [formPumpdownVisits, setFormPumpdownVisits] = useState<number>(0);
   const [formNotes, setFormNotes] = useState('');
   const [formCoveredAssetIds, setFormCoveredAssetIds] = useState<string[]>([]);
   const [cancelReason, setCancelReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Derived live PM service allocation calculation
+  const allocatedVisits = formDryVisits + formJetVisits + formPumpdownVisits;
+  const remainingVisits = formTotalVisits - allocatedVisits;
+  const isAllocationValid = allocatedVisits === formTotalVisits && formTotalVisits > 0;
 
   // Customer dropdown & asset selection options
   const [customersList, setCustomersList] = useState<Customer[]>([]);
@@ -328,6 +336,9 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormFrequency('QUARTERLY');
     setFormTotalAmount(25000);
     setFormTotalVisits(4);
+    setFormDryVisits(0);
+    setFormJetVisits(0);
+    setFormPumpdownVisits(0);
     setFormNotes('');
     setFormCoveredAssetIds([]);
   };
@@ -352,6 +363,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
       showToast({ title: 'Validation Error', message: 'End date cannot precede start date', type: 'warning' });
       return;
     }
+    if (!isAllocationValid) {
+      showToast({
+        title: 'Validation Error',
+        message: `Total PM service allocation (${allocatedVisits}) must exactly equal included visits (${formTotalVisits}).`,
+        type: 'warning',
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -363,6 +382,9 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         frequency: formFrequency,
         totalAmount: Number(formTotalAmount),
         totalVisits: Number(formTotalVisits),
+        dryServiceVisits: Number(formDryVisits),
+        jetServiceVisits: Number(formJetVisits),
+        pumpdownServiceVisits: Number(formPumpdownVisits),
         coveredAssetIds: formCoveredAssetIds,
         notes: formNotes || null,
       });
@@ -1124,6 +1146,45 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       {detailContract.completedVisitsCount || 0} / {detailContract.totalVisits} Completed
                     </div>
                   </div>
+                </div>
+
+                {/* PM Service Allocation Details */}
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    backgroundColor: 'var(--surface-subtle, rgba(0, 0, 0, 0.02))',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)', marginBottom: '8px' }}>
+                    Configured PM Service Allocation
+                  </div>
+                  {detailContract.dryServiceVisits != null ||
+                  detailContract.jetServiceVisits != null ||
+                  detailContract.pumpdownServiceVisits != null ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)' }}>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Dry Service</div>
+                        <div style={{ fontWeight: 600 }}>{detailContract.dryServiceVisits ?? 0} Visits</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Jet Service</div>
+                        <div style={{ fontWeight: 600 }}>{detailContract.jetServiceVisits ?? 0} Visits</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Pumpdown Service</div>
+                        <div style={{ fontWeight: 600 }}>{detailContract.pumpdownServiceVisits ?? 0} Visits</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      Not specified <span style={{ fontSize: '11px' }}>(Legacy contract with alternating PM default)</span>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                   {detailContract.previousContractId && (
                     <div style={{ gridColumn: 'span 2' }}>
                       <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Renewal Relationship</div>
@@ -1544,6 +1605,127 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             </div>
           </div>
 
+          {/* PM Service Allocation Section */}
+          <div
+            style={{
+              marginTop: 'var(--space-4)',
+              padding: 'var(--space-3)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              backgroundColor: 'var(--surface-subtle, rgba(0, 0, 0, 0.02))',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                Preventive Maintenance Service Allocation *
+              </label>
+              <span
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  color: isAllocationValid ? 'var(--color-success-600, #16a34a)' : 'var(--color-danger-600, #dc2626)',
+                }}
+              >
+                {allocatedVisits} / {formTotalVisits} Allocated
+              </span>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', margin: '0 0 var(--space-3) 0' }}>
+              Allocate the included PM visits across Dry, Jet and Pumpdown services. The total allocation must equal the number of included visits.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+              <div>
+                <label htmlFor="amc-dry-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                  Dry Service Visits
+                </label>
+                <select
+                  id="amc-dry-visits"
+                  className="input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                  value={formDryVisits}
+                  onChange={(e) => setFormDryVisits(Number(e.target.value))}
+                >
+                  {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i} {i === 1 ? 'visit' : 'visits'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="amc-jet-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                  Jet Service Visits
+                </label>
+                <select
+                  id="amc-jet-visits"
+                  className="input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                  value={formJetVisits}
+                  onChange={(e) => setFormJetVisits(Number(e.target.value))}
+                >
+                  {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i} {i === 1 ? 'visit' : 'visits'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="amc-pumpdown-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                  Pumpdown Service Visits
+                </label>
+                <select
+                  id="amc-pumpdown-visits"
+                  className="input-base"
+                  style={{ width: '100%', marginTop: '4px' }}
+                  value={formPumpdownVisits}
+                  onChange={(e) => setFormPumpdownVisits(Number(e.target.value))}
+                >
+                  {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i} {i === 1 ? 'visit' : 'visits'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Live calculation summary */}
+            <div
+              style={{
+                marginTop: 'var(--space-3)',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                backgroundColor: isAllocationValid ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${isAllocationValid ? 'var(--color-success-500, #22c55e)' : 'var(--color-danger-500, #ef4444)'}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: '11px',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <span>Total: <strong>{formTotalVisits}</strong></span>
+                <span>Allocated: <strong>{allocatedVisits}</strong></span>
+                <span>Remaining: <strong>{remainingVisits}</strong></span>
+              </div>
+              <span
+                style={{
+                  fontWeight: 600,
+                  color: isAllocationValid ? 'var(--color-success-600, #16a34a)' : 'var(--color-danger-600, #dc2626)',
+                }}
+              >
+                {isAllocationValid
+                  ? '✓ Allocation balanced'
+                  : remainingVisits > 0
+                  ? `⚠️ ${remainingVisits} visit(s) remaining to allocate`
+                  : `⚠️ Allocation exceeds by ${Math.abs(remainingVisits)} visit(s)`}
+              </span>
+            </div>
+          </div>
+
           {/* Covered Assets Selection */}
           <div style={{ marginTop: 'var(--space-4)' }}>
             <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
@@ -1619,7 +1801,12 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={isSubmitting}>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={isSubmitting || !isAllocationValid}
+              title={!isAllocationValid ? 'Total allocation must equal included visits to create agreement' : undefined}
+            >
               {isSubmitting ? 'Creating...' : 'Create Contract'}
             </Button>
           </div>

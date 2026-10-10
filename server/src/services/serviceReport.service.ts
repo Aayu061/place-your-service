@@ -204,6 +204,27 @@ export class ServiceReportService {
       }
     }
 
+    // Step 1: Validate originating report relationship if present
+    let originatingReport: any = null;
+    if (originatingReportId) {
+      const { data: orig, error: origErr } = await supabase
+        .from('service_reports')
+        .select('id, report_number, customer_id, site_id, service_request_id, primary_outcome, resolution_status, resolving_report_id')
+        .eq('id', originatingReportId)
+        .maybeSingle();
+
+      if (origErr || !orig) {
+        throw new BadRequestError('Referenced originating service report does not exist.');
+      }
+
+      // Reject cross-customer or cross-site follow-up resolution
+      if (orig.customer_id !== customerId || orig.site_id !== siteId) {
+        throw new BadRequestError('Cross-customer or cross-site follow-up resolution is strictly prohibited.');
+      }
+
+      originatingReport = orig;
+    }
+
     // Determine initial resolution status
     let resolutionStatus: 'OPEN' | 'AWAITING_PARTS' | 'AWAITING_REPAIR' | 'RESOLVED' | 'CANCELLED' = 'OPEN';
     let resolvedAt: string | null = null;
@@ -354,34 +375,81 @@ export class ServiceReportService {
 
     // 9. State Machine Transitions
 
-    // 9a. If this report follows up on an earlier pending issue, update originating report resolution state
-    if (originatingReportId) {
+    // 9a. If this report follows up on an earlier pending issue, evaluate completion and update resolution state
+    if (originatingReportId && originatingReport) {
       if (payload.primaryOutcome === 'COMPLETED') {
-        await supabase
-          .from('service_reports')
-          .update({
-            resolving_report_id: newReport.id,
-            resolved_at: new Date().toISOString(),
-            resolution_status: 'RESOLVED',
-            updated_by: actorId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', originatingReportId);
-
-        // Mark parts and repair items on originating report as resolved
-        await supabase
-          .from('service_report_items')
-          .update({
-            is_resolved: true,
-            updated_at: new Date().toISOString(),
-          })
+        // Multi-asset evaluation:
+        // Query originating report assets to see which AC assets had pending work
+        const { data: origAssets } = await supabase
+          .from('service_report_assets')
+          .select('id, asset_id, asset_outcome')
           .eq('report_id', originatingReportId);
 
-        await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
-          resolvingReportId: newReport.id,
-          resolvingReportNumber: trimmedReportNumber,
-          primaryOutcome: payload.primaryOutcome,
-        });
+        const pendingOrigAssets = (origAssets || []).filter(
+          (a: any) => a.asset_outcome === 'PENDING_PARTS' || a.asset_outcome === 'PENDING_REPAIRS'
+        );
+
+        // Assets that were genuinely completed in this follow-up report
+        const completedAssetIdsInFollowUp = new Set(
+          payload.assets.filter((a) => a.assetOutcome === 'COMPLETED').map((a) => a.assetId)
+        );
+
+        const remainingPendingAssets = pendingOrigAssets.filter(
+          (a: any) => !completedAssetIdsInFollowUp.has(a.asset_id)
+        );
+
+        // If all pending assets from originating report are completed (or no pending assets existed)
+        if (remainingPendingAssets.length === 0) {
+          await supabase
+            .from('service_reports')
+            .update({
+              resolving_report_id: newReport.id,
+              resolved_at: new Date().toISOString(),
+              resolution_status: 'RESOLVED',
+              updated_by: actorId || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', originatingReportId);
+
+          // Mark parts and repair items on originating report as resolved
+          await supabase
+            .from('service_report_items')
+            .update({
+              is_resolved: true,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('report_id', originatingReportId);
+
+          await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
+            resolvingReportId: newReport.id,
+            resolvingReportNumber: trimmedReportNumber,
+            primaryOutcome: payload.primaryOutcome,
+          });
+        } else {
+          // Partial multi-asset resolution: resolve items for completed assets only
+          const completedAssetIdsArray = Array.from(completedAssetIdsInFollowUp);
+          if (completedAssetIdsArray.length > 0) {
+            await supabase
+              .from('service_report_items')
+              .update({
+                is_resolved: true,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('report_id', originatingReportId)
+              .in('asset_id', completedAssetIdsArray);
+          }
+
+          const hasRemainingParts = remainingPendingAssets.some((a: any) => a.asset_outcome === 'PENDING_PARTS');
+          const remainingStatus = hasRemainingParts ? 'AWAITING_PARTS' : 'AWAITING_REPAIR';
+          await supabase
+            .from('service_reports')
+            .update({
+              resolution_status: remainingStatus,
+              updated_by: actorId || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', originatingReportId);
+        }
       } else if (payload.primaryOutcome === 'PENDING_PARTS') {
         await supabase
           .from('service_reports')
@@ -886,25 +954,38 @@ export class ServiceReportService {
     let pendingRepairsAll = 0;
 
     try {
+      let qTotal = supabase.from('service_reports').select('id', { count: 'exact', head: true });
+      let qCompleted = supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'COMPLETED');
+      let qParts = supabase
+        .from('service_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('resolution_status', 'AWAITING_PARTS')
+        .is('resolving_report_id', null);
+      let qRepairs = supabase
+        .from('service_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('resolution_status', 'AWAITING_REPAIR')
+        .is('resolving_report_id', null);
+
+      if (query.customerId) {
+        qTotal = qTotal.eq('customer_id', query.customerId);
+        qCompleted = qCompleted.eq('customer_id', query.customerId);
+        qParts = qParts.eq('customer_id', query.customerId);
+        qRepairs = qRepairs.eq('customer_id', query.customerId);
+      }
+      if (query.siteId) {
+        qTotal = qTotal.eq('site_id', query.siteId);
+        qCompleted = qCompleted.eq('site_id', query.siteId);
+        qParts = qParts.eq('site_id', query.siteId);
+        qRepairs = qRepairs.eq('site_id', query.siteId);
+      }
+
       const [
         { count: cTotal },
         { count: cCompleted },
         { count: cParts },
         { count: cRepairs },
-      ] = await Promise.all([
-        supabase.from('service_reports').select('id', { count: 'exact', head: true }),
-        supabase.from('service_reports').select('id', { count: 'exact', head: true }).eq('primary_outcome', 'COMPLETED'),
-        supabase
-          .from('service_reports')
-          .select('id', { count: 'exact', head: true })
-          .eq('resolution_status', 'AWAITING_PARTS')
-          .is('resolving_report_id', null),
-        supabase
-          .from('service_reports')
-          .select('id', { count: 'exact', head: true })
-          .eq('resolution_status', 'AWAITING_REPAIR')
-          .is('resolving_report_id', null),
-      ]);
+      ] = await Promise.all([qTotal, qCompleted, qParts, qRepairs]);
       totalAll = cTotal ?? total;
       completedAll = cCompleted ?? 0;
       pendingPartsAll = cParts ?? 0;
@@ -1079,6 +1160,47 @@ export class ServiceReportService {
           logger.error('Failed to update service report items', { error: iErr, id });
           throw new BadRequestError('Failed to update parts and repair items.');
         }
+      }
+    }
+
+    // Synchronize resolution state on originating report if applicable
+    if (existing.originatingReportId && existing.primaryOutcome === 'COMPLETED') {
+      const origId = existing.originatingReportId;
+      const { data: origAssets } = await supabase
+        .from('service_report_assets')
+        .select('id, asset_id, asset_outcome')
+        .eq('report_id', origId);
+
+      const pendingOrigAssets = (origAssets || []).filter(
+        (a: any) => a.asset_outcome === 'PENDING_PARTS' || a.asset_outcome === 'PENDING_REPAIRS'
+      );
+
+      const currentAssets = payload.assets || existing.assets;
+      const completedAssetIds = new Set(
+        currentAssets.filter((a: any) => a.assetOutcome === 'COMPLETED').map((a: any) => a.assetId)
+      );
+
+      const remainingPending = pendingOrigAssets.filter((a: any) => !completedAssetIds.has(a.asset_id));
+
+      if (remainingPending.length === 0) {
+        await supabase
+          .from('service_reports')
+          .update({
+            resolving_report_id: id,
+            resolved_at: new Date().toISOString(),
+            resolution_status: 'RESOLVED',
+            updated_by: actorId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', origId);
+
+        await supabase
+          .from('service_report_items')
+          .update({
+            is_resolved: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('report_id', origId);
       }
     }
 

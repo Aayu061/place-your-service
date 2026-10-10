@@ -123,14 +123,15 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       if (res.summary) {
         setSummaryStats(res.summary);
       } else {
-        // Fallback calculation
+        // Fallback calculation excluding genuinely resolved reports
         let completed = 0;
         let parts = 0;
         let repairs = 0;
         (res.reports || []).forEach((r) => {
-          if (r.primaryOutcome === 'COMPLETED') completed++;
-          if (r.primaryOutcome === 'PENDING_PARTS') parts++;
-          if (r.primaryOutcome === 'PENDING_REPAIRS') repairs++;
+          const isResolved = Boolean(r.resolvingReportId) || r.resolutionStatus === 'RESOLVED';
+          if (r.primaryOutcome === 'COMPLETED' || isResolved) completed++;
+          if (r.primaryOutcome === 'PENDING_PARTS' && !isResolved) parts++;
+          if (r.primaryOutcome === 'PENDING_REPAIRS' && !isResolved) repairs++;
         });
         setSummaryStats({
           total: res.total || 0,
@@ -286,7 +287,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
 
   const renderResolutionBadge = (report: ServiceVisitReport) => {
     // If this report had pending items that have since been resolved by a follow-up revisit
-    if (report.resolvingReportNumber) {
+    if (
+      report.resolvingReportNumber ||
+      report.resolvingReportId ||
+      (report.resolutionStatus === 'RESOLVED' && report.primaryOutcome !== 'COMPLETED')
+    ) {
       return (
         <button
           type="button"
@@ -305,13 +310,17 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             backgroundColor: 'var(--color-success-bg, #f0fdf4)',
             color: 'var(--color-success-text, #166534)',
             border: '1px solid var(--color-success-border, #bbf7d0)',
-            cursor: 'pointer',
+            cursor: report.resolvingReportId ? 'pointer' : 'default',
             textAlign: 'left',
           }}
-          title={`Click to view resolving report #${report.resolvingReportNumber}`}
+          title={
+            report.resolvingReportNumber
+              ? `Click to view resolving report #${report.resolvingReportNumber}`
+              : 'Resolved by follow-up'
+          }
         >
           <CheckCircle size={11} />
-          <span>Resolved by #{report.resolvingReportNumber}</span>
+          <span>Resolved by #{report.resolvingReportNumber || 'Follow-up'}</span>
         </button>
       );
     }

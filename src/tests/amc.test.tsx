@@ -327,6 +327,20 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
       if (amountInput) setInputValue(amountInput, '25000');
     });
 
+    // Configure balanced PM service allocation (2 dry, 2 jet = 4 total visits)
+    const drySelect = document.body.querySelector('#amc-dry-visits') as HTMLSelectElement;
+    const jetSelect = document.body.querySelector('#amc-jet-visits') as HTMLSelectElement;
+    await act(async () => {
+      if (drySelect) {
+        drySelect.value = '2';
+        drySelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (jetSelect) {
+        jetSelect.value = '2';
+        jetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
     // Submit form
     const submitBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Create Contract')
@@ -340,6 +354,8 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
     expect(postSpy).toHaveBeenCalledWith('/amc-contracts', expect.objectContaining({
       customerId: sampleCustomer.id,
       totalAmount: 25000,
+      dryServiceVisits: 2,
+      jetServiceVisits: 2,
     }));
 
     unmount();
@@ -574,11 +590,11 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
     });
 
     // Confirm cancel
-    const cancelForm = document.body.querySelector('form[action=""]') || document.body.querySelector('form.space-y-4');
     const confirmCancelBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
       b.textContent?.includes('Confirm Cancellation')
     );
     expect(confirmCancelBtn).toBeDefined();
+    const cancelForm = confirmCancelBtn?.closest('form');
 
     await act(async () => {
       if (cancelForm) {
@@ -925,6 +941,128 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
     expect(container.textContent).toContain('Dry Service');
     expect(container.textContent).toContain('Jet Service');
     expect(container.textContent).toContain('Not specified');
+
+    unmount();
+  });
+
+  it('12. PM Service Allocation Planner validates total visits sum and toggles submit button state', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/metrics')) {
+        return { metrics: { totalContracts: 1, activeContracts: 1, expiringSoon: 0, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
+      }
+      if (url.includes('/plans')) {
+        return { plans: [samplePlan] } as never;
+      }
+      if (url.includes('/customers')) {
+        return { customers: [sampleCustomer] } as never;
+      }
+      if (url.includes('/amc-contracts')) {
+        return { contracts: [sampleContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+      }
+      return {} as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    // Open Create AMC modal
+    const newBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('New AMC Contract')
+    );
+    await act(async () => {
+      newBtn?.click();
+    });
+
+    const drySelect = document.body.querySelector('#amc-dry-visits') as HTMLSelectElement;
+    const jetSelect = document.body.querySelector('#amc-jet-visits') as HTMLSelectElement;
+    const pumpdownSelect = document.body.querySelector('#amc-pumpdown-visits') as HTMLSelectElement;
+    expect(drySelect).toBeDefined();
+    expect(jetSelect).toBeDefined();
+    expect(pumpdownSelect).toBeDefined();
+
+    const submitBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Create Contract')
+    ) as HTMLButtonElement;
+    expect(submitBtn).toBeDefined();
+
+    // Initial state: default 0, 0, 0 with 4 total visits -> submit disabled
+    expect(submitBtn.disabled).toBe(true);
+    expect(document.body.textContent).toContain('4 visit(s) remaining to allocate');
+
+    // Partial allocation: 2 dry, 1 jet (=3 < 4) -> still disabled
+    await act(async () => {
+      drySelect.value = '2';
+      drySelect.dispatchEvent(new Event('change', { bubbles: true }));
+      jetSelect.value = '1';
+      jetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(submitBtn.disabled).toBe(true);
+    expect(document.body.textContent).toContain('1 visit(s) remaining to allocate');
+
+    // Over-allocation: 2 dry, 2 jet, 1 pumpdown (=5 > 4) -> disabled
+    await act(async () => {
+      pumpdownSelect.value = '2';
+      pumpdownSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(submitBtn.disabled).toBe(true);
+    expect(document.body.textContent).toContain('Allocation exceeds by');
+
+    // Exact balanced allocation: 2 dry, 1 jet, 1 pumpdown (=4) -> submit enabled
+    await act(async () => {
+      pumpdownSelect.value = '1';
+      pumpdownSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(submitBtn.disabled).toBe(false);
+    expect(document.body.textContent).toContain('Allocation balanced');
+
+    unmount();
+  });
+
+  it('13. Displays configured PM Service Allocation in Contract Detail drawer Overview tab', async () => {
+    const allocatedContract = {
+      ...sampleContract,
+      dryServiceVisits: 2,
+      jetServiceVisits: 1,
+      pumpdownServiceVisits: 1,
+    };
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/metrics')) {
+        return { metrics: { totalContracts: 1, activeContracts: 1, expiringSoon: 0, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
+      }
+      if (url.includes('/plans')) {
+        return { plans: [samplePlan] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/schedules`)) {
+        return { schedules: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/assets`)) {
+        return { assets: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}`)) {
+        return { contract: allocatedContract } as never;
+      }
+      if (url.includes('/amc-contracts')) {
+        return { contracts: [allocatedContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+      }
+      return {} as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    // Open detail drawer
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    // Check overview tab displays configured allocation
+    expect(document.body.textContent).toContain('Configured PM Service Allocation');
+    expect(document.body.textContent).toContain('Dry Service');
+    expect(document.body.textContent).toContain('2 Visits');
+    expect(document.body.textContent).toContain('Jet Service');
+    expect(document.body.textContent).toContain('Pumpdown Service');
 
     unmount();
   });

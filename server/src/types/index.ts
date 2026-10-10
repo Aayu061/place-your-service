@@ -992,6 +992,9 @@ export interface AmcContractResponse {
   frequency: AmcFrequency;
   totalAmount: number;
   totalVisits: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
   status: AmcStatus;
   notes: string | null;
   cancellationReason: string | null;
@@ -1019,6 +1022,9 @@ export interface CreateAmcContractPayload {
   frequency: AmcFrequency;
   totalAmount: number;
   totalVisits: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
   coveredAssetIds?: string[];
   status?: AmcStatus;
   notes?: string | null;
@@ -1031,6 +1037,9 @@ export interface UpdateAmcContractPayload {
   frequency?: AmcFrequency;
   totalAmount?: number;
   totalVisits?: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
   notes?: string | null;
 }
 

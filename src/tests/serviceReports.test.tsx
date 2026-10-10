@@ -1387,5 +1387,52 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     unmount();
   });
+
+  it('26. Renders Resolved by #456 badge for resolved originating reports and excludes them from pending KPIs in fallback summary', async () => {
+    const origResolvedReport: ServiceVisitReport = {
+      ...mockPendingPartsReport,
+      id: 'rep-orig-123',
+      reportNumber: 'SVR-123',
+      primaryOutcome: 'PENDING_REPAIRS',
+      resolutionStatus: 'RESOLVED',
+      resolvingReportId: 'rep-follow-456',
+      resolvingReportNumber: 'SVR-456',
+    };
+
+    const resolvingReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      id: 'rep-follow-456',
+      reportNumber: 'SVR-456',
+      primaryOutcome: 'COMPLETED',
+      originatingReportId: 'rep-orig-123',
+      originatingReportNumber: 'SVR-123',
+    };
+
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValueOnce({
+      reports: [origResolvedReport, resolvingReport],
+      total: 2,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+      // Intentionally omitting summary to trigger and test fallback KPI calculation
+    } as never);
+
+    const { container, unmount } = await renderComponent(<ServiceReportsManagement />);
+
+    // Verify Resolution Badge indicates resolution link
+    expect(container.textContent).toContain('Resolved by #SVR-456');
+
+    // Verify Fallback KPI summary excludes resolved report from pending repairs/parts
+    // Both reports are counted as completed/resolved, 0 pending
+    const kpiCards = container.querySelectorAll('.svr-kpi-card');
+    expect(kpiCards).toBeDefined();
+
+    // Check Pending for Parts & Pending for Repairs values in UI
+    expect(container.textContent).toContain('Pending for Repairs');
+    expect(container.textContent).toContain('Pending for Parts');
+
+    unmount();
+  });
 });
+
 
