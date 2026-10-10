@@ -6,7 +6,7 @@ let supabaseClientInstance: SupabaseClient | null = null;
 
 /**
  * Returns the singleton server-side Supabase client initialized with the SERVICE_ROLE_KEY.
- * This client bypasses RLS when needed and must NEVER be exposed to the client or browser.
+ * This client bypasses RLS and must NEVER be logged into an end-user session.
  */
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClientInstance) {
@@ -21,12 +21,36 @@ export function getSupabaseClient(): SupabaseClient {
         persistSession: false,
         autoRefreshToken: false,
       },
+      global: {
+        headers: {
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
     });
 
     logger.info('Supabase server-side client initialized successfully');
   }
 
   return supabaseClientInstance;
+}
+
+/**
+ * Creates an isolated, ephemeral Supabase client specifically for authenticating user credentials.
+ * This prevents mutating the global server-side service-role client's authentication state.
+ */
+export function createAuthClient(): SupabaseClient {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    const msg = 'Missing Supabase server credentials. Backend auth operations cannot proceed.';
+    logger.error(msg);
+    throw new Error(msg);
+  }
+
+  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }
 
 /**

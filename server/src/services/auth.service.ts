@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '../lib/supabase.js';
+import { getSupabaseClient, createAuthClient } from '../lib/supabase.js';
 import { UserProfileResponse, UserRole } from '../types/index.js';
 import { ConflictError, NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
@@ -213,8 +213,8 @@ export class AuthService {
     };
     user: UserProfileResponse;
   }> {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const authClient = createAuthClient();
+    const { data, error } = await authClient.auth.signInWithPassword({
       email: payload.email,
       password: payload.password,
     });

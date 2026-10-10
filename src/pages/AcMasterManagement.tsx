@@ -312,7 +312,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
 
     try {
       if (editingModel) {
-        await apiClient.patch(`/ac-models/${editingModel.id}`, {
+        const res = await apiClient.patch<{ model: AcModel }>(`/ac-models/${editingModel.id}`, {
           modelNumber: modelNumber.trim(),
           acType: modelAcType || null,
           technology: modelTechnology || null,
@@ -321,9 +321,12 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           refrigerant: modelRefrigerant || null,
           isActive: modelIsActive,
         });
-        showToast({ type: 'success', title: 'Model Updated', message: `AC model '${modelNumber}' updated successfully.` });
+        if (res?.model) {
+          setModels((prev) => prev.map((m) => (m.id === res.model.id ? res.model : m)));
+        }
+        showToast({ type: 'success', title: 'Model Updated', message: `AC model '${modelNumber.trim()}' updated successfully.` });
       } else {
-        await apiClient.post('/ac-models', {
+        const res = await apiClient.post<{ model: AcModel }>('/ac-models', {
           brandId: modelBrandId,
           modelNumber: modelNumber.trim(),
           acType: modelAcType || null,
@@ -333,12 +336,20 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           refrigerant: modelRefrigerant || null,
           isActive: modelIsActive,
         });
-        showToast({ type: 'success', title: 'Model Created', message: `AC model '${modelNumber}' created successfully.` });
+        if (res?.model) {
+          setModels((prev) => [res.model, ...prev]);
+        }
+        showToast({ type: 'success', title: 'Model Created', message: `AC model '${modelNumber.trim()}' created successfully.` });
       }
       setIsModelModalOpen(false);
       await fetchModels();
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to save model';
+      let msg = 'Failed to save model';
+      if (err instanceof ApiError && err.message) {
+        msg = err.message;
+      } else if (err instanceof Error && err.message) {
+        msg = err.message;
+      }
       setModelFormError(msg);
       showToast({ type: 'error', title: 'Error', message: msg });
     } finally {

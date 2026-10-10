@@ -284,12 +284,16 @@ export class MasterDataService {
       .from('ac_brands')
       .update(updates)
       .eq('id', brandId)
-      .select('*, ac_models(count)')
+      .select('id')
       .maybeSingle();
 
-    if (error || !updated) {
-      logger.error('Failed to update AC brand', { brandId, error: error?.message });
-      throw new BadRequestError(`Failed to update AC brand: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC brand database error', { brandId, error: error.message });
+      throw new BadRequestError(`Failed to update AC brand: ${error.message}`);
+    }
+
+    if (!updated) {
+      throw new NotFoundError(`AC brand with ID '${brandId}' not found`);
     }
 
     await logActivity({
@@ -301,16 +305,7 @@ export class MasterDataService {
       ipAddress,
     });
 
-    const row = updated as RawBrandRow;
-    return {
-      id: row.id,
-      name: row.name,
-      code: row.code,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      modelCount: row.ac_models?.[0]?.count || 0,
-    };
+    return this.getBrandById(brandId);
   }
 
   public async updateBrandStatus(
@@ -326,11 +321,16 @@ export class MasterDataService {
       .from('ac_brands')
       .update({ is_active: isActive, updated_at: new Date().toISOString() })
       .eq('id', brandId)
-      .select('*, ac_models(count)')
+      .select('id')
       .maybeSingle();
 
-    if (error || !updated) {
-      throw new BadRequestError(`Failed to update AC brand status: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC brand status database error', { brandId, error: error.message });
+      throw new BadRequestError(`Failed to update AC brand status: ${error.message}`);
+    }
+
+    if (!updated) {
+      throw new NotFoundError(`AC brand with ID '${brandId}' not found`);
     }
 
     await logActivity({
@@ -342,16 +342,7 @@ export class MasterDataService {
       ipAddress,
     });
 
-    const row = updated as RawBrandRow;
-    return {
-      id: row.id,
-      name: row.name,
-      code: row.code,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      modelCount: row.ac_models?.[0]?.count || 0,
-    };
+    return this.getBrandById(brandId);
   }
 
   // ==========================================================================
@@ -572,12 +563,17 @@ export class MasterDataService {
       .from('ac_models')
       .update(updates)
       .eq('id', modelId)
-      .select('*, ac_brands(name, code)')
+      .select('id')
       .maybeSingle();
 
-    if (error || !updated) {
-      logger.error('Failed to update AC model', { modelId, error: error?.message });
-      throw new BadRequestError(`Failed to update AC model: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC model database error', { modelId, error: error.message });
+      throw new BadRequestError(`Failed to update AC model: ${error.message}`);
+    }
+
+    if (!updated) {
+      logger.warn('AC model update returned no rows', { modelId });
+      throw new NotFoundError(`AC model with ID '${modelId}' not found`);
     }
 
     await logActivity({
@@ -589,22 +585,7 @@ export class MasterDataService {
       ipAddress,
     });
 
-    const row = updated as RawModelRow;
-    return {
-      id: row.id,
-      brandId: row.brand_id,
-      brandName: row.ac_brands?.name || existing.brandName,
-      brandCode: row.ac_brands?.code || existing.brandCode,
-      modelNumber: row.model_number,
-      acType: row.ac_type,
-      technology: row.technology,
-      capacityTons: row.capacity_tons ? Number(row.capacity_tons) : null,
-      rating: row.rating,
-      refrigerant: row.refrigerant,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return this.getModelById(modelId);
   }
 
   public async updateModelStatus(
@@ -614,17 +595,22 @@ export class MasterDataService {
     ipAddress?: string
   ): Promise<AcModelResponse> {
     const supabase = getSupabaseClient();
-    const existing = await this.getModelById(modelId);
+    await this.getModelById(modelId);
 
     const { data: updated, error } = await supabase
       .from('ac_models')
       .update({ is_active: isActive, updated_at: new Date().toISOString() })
       .eq('id', modelId)
-      .select('*, ac_brands(name, code)')
+      .select('id')
       .maybeSingle();
 
-    if (error || !updated) {
-      throw new BadRequestError(`Failed to update AC model status: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC model status database error', { modelId, error: error.message });
+      throw new BadRequestError(`Failed to update AC model status: ${error.message}`);
+    }
+
+    if (!updated) {
+      throw new NotFoundError(`AC model with ID '${modelId}' not found`);
     }
 
     await logActivity({
@@ -636,22 +622,7 @@ export class MasterDataService {
       ipAddress,
     });
 
-    const row = updated as RawModelRow;
-    return {
-      id: row.id,
-      brandId: row.brand_id,
-      brandName: row.ac_brands?.name || existing.brandName,
-      brandCode: row.ac_brands?.code || existing.brandCode,
-      modelNumber: row.model_number,
-      acType: row.ac_type,
-      technology: row.technology,
-      capacityTons: row.capacity_tons ? Number(row.capacity_tons) : null,
-      rating: row.rating,
-      refrigerant: row.refrigerant,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return this.getModelById(modelId);
   }
 
   // --- MODEL VARIANTS ---
@@ -872,9 +843,13 @@ export class MasterDataService {
       .select('*')
       .maybeSingle();
 
-    if (error || !updated) {
-      logger.error('Failed to update AC model variant', { variantId, error: error?.message });
-      throw new BadRequestError(`Failed to update AC model variant: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC model variant database error', { variantId, error: error.message });
+      throw new BadRequestError(`Failed to update AC model variant: ${error.message}`);
+    }
+
+    if (!updated) {
+      throw new NotFoundError(`AC model variant with ID '${variantId}' not found`);
     }
 
     await logActivity({
@@ -920,8 +895,13 @@ export class MasterDataService {
       .select('*')
       .maybeSingle();
 
-    if (error || !updated) {
-      throw new BadRequestError(`Failed to update AC model variant status: ${error?.message}`);
+    if (error) {
+      logger.error('Failed to update AC model variant status database error', { variantId, error: error.message });
+      throw new BadRequestError(`Failed to update AC model variant status: ${error.message}`);
+    }
+
+    if (!updated) {
+      throw new NotFoundError(`AC model variant with ID '${variantId}' not found`);
     }
 
     await logActivity({

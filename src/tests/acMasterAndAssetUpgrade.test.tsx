@@ -615,4 +615,155 @@ describe('AC Master Data & Asset Upgrade Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('9. Admin edits existing AC model specs successfully and updates model card with authoritative response', async () => {
+    const updatedModel: AcModel = {
+      ...sampleModels[0],
+      modelNumber: 'FTKF50TV-REV',
+      capacityTons: 2.0,
+      rating: '4 Star',
+      refrigerant: 'R32',
+    };
+
+    let patchCalled = false;
+    let patchPayload: unknown = null;
+
+    vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string, options?: RequestOptions) => {
+      if (endpoint.includes('/ac-brands')) {
+        return { brands: sampleBrands, total: 3 };
+      }
+      if (endpoint.includes('/ac-models/model-1') && options?.method === 'PATCH') {
+        patchCalled = true;
+        patchPayload = options?.body;
+        return { model: updatedModel };
+      }
+      if (endpoint.includes('/ac-models')) {
+        return { models: sampleModels, total: 2 };
+      }
+      return {};
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<AcMasterManagement />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const modelsTabBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('AC Models (')
+    );
+    await act(async () => {
+      modelsTabBtn?.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const editSpecsBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Edit Specs')
+    );
+    expect(editSpecsBtn).toBeTruthy();
+
+    await act(async () => {
+      editSpecsBtn?.click();
+    });
+
+    expect(document.body.textContent).toContain('Edit Model: FTKF50TV');
+
+    const modelNumInput = document.body.querySelector('input[placeholder*="FTKF50TV"]') as HTMLInputElement;
+    expect(modelNumInput).toBeTruthy();
+    expect(modelNumInput.value).toBe('FTKF50TV');
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(modelNumInput, 'FTKF50TV-REV');
+      modelNumInput.dispatchEvent(new Event('input', { bubbles: true }));
+      modelNumInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Save Changes')
+    );
+    expect(saveBtn).toBeTruthy();
+
+    await act(async () => {
+      saveBtn?.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(patchCalled).toBe(true);
+    const parsedPayload = typeof patchPayload === 'string' ? JSON.parse(patchPayload) : patchPayload;
+    expect(parsedPayload).toMatchObject({
+      modelNumber: 'FTKF50TV-REV',
+    });
+
+    expect(document.body.textContent).not.toContain('Edit Model: FTKF50TV');
+    expect(document.body.textContent).toContain('FTKF50TV-REV');
+
+    renderResult.cleanup();
+  });
+
+  it('10. Admin edit model failure preserves form values and displays actual server error instead of undefined', async () => {
+    vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string, options?: RequestOptions) => {
+      if (endpoint.includes('/ac-brands')) {
+        return { brands: sampleBrands, total: 3 };
+      }
+      if (endpoint.includes('/ac-models/model-1') && options?.method === 'PATCH') {
+        throw new Error('AC model number already exists for this brand.');
+      }
+      if (endpoint.includes('/ac-models')) {
+        return { models: sampleModels, total: 2 };
+      }
+      return {};
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<AcMasterManagement />);
+    });
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const modelsTabBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('AC Models (')
+    );
+    await act(async () => {
+      modelsTabBtn?.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const editSpecsBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Edit Specs')
+    );
+    await act(async () => {
+      editSpecsBtn?.click();
+    });
+
+    const modelNumInput = document.body.querySelector('input[placeholder*="FTKF50TV"]') as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(modelNumInput, 'FTKM35TV');
+      modelNumInput.dispatchEvent(new Event('input', { bubbles: true }));
+      modelNumInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Save Changes')
+    );
+    await act(async () => {
+      saveBtn?.click();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(document.body.textContent).toContain('AC model number already exists for this brand.');
+    expect(document.body.textContent).not.toContain('undefined');
+
+    expect(document.body.textContent).toContain('Edit Model: FTKF50TV');
+    expect(modelNumInput.value).toBe('FTKM35TV');
+
+    renderResult.cleanup();
+  });
 });

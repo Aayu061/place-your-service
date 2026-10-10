@@ -266,6 +266,7 @@ describe('Auth Routes API (/api/v1/auth)', () => {
       } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
 
       vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+      vi.spyOn(supabaseLib, 'createAuthClient').mockReturnValue(mockSupabase);
 
       const res = await request(app)
         .post('/api/v1/auth/login')
@@ -328,6 +329,7 @@ describe('Auth Routes API (/api/v1/auth)', () => {
       } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
 
       vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+      vi.spyOn(supabaseLib, 'createAuthClient').mockReturnValue(mockSupabase);
 
       const res = await request(app)
         .post('/api/v1/auth/login')
@@ -341,6 +343,64 @@ describe('Auth Routes API (/api/v1/auth)', () => {
       expect(res.body.data.token).toBe('mock-jwt-token');
       expect(res.body.data.user.role).toBe('ADMIN');
       expect(res.body.data.user.email).toBe('admin@placeyourservice.internal');
+    });
+
+    it('uses isolated createAuthClient for signInWithPassword to prevent contaminating getSupabaseClient', async () => {
+      const authClientMock = {
+        auth: {
+          signInWithPassword: vi.fn().mockResolvedValue({
+            data: {
+              session: { access_token: 'isolated-jwt', refresh_token: 'refresh', expires_at: 1700000000 },
+              user: { id: 'admin-profile-uuid' },
+            },
+            error: null,
+          }),
+        },
+      } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
+
+      const serviceClientMock = {
+        auth: {
+          signInWithPassword: vi.fn(),
+        },
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'profiles') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'admin-profile-uuid', full_name: 'System Admin', email: 'admin@pys.internal' },
+                error: null,
+              }),
+            };
+          }
+          if (table === 'staff') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({
+                data: { id: 'staff-uuid', role: 'ADMIN', is_active: true },
+                error: null,
+              }),
+            };
+          }
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
+        }),
+      } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
+
+      const createAuthSpy = vi.spyOn(supabaseLib, 'createAuthClient').mockReturnValue(authClientMock);
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(serviceClientMock);
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'admin@pys.internal',
+          password: 'Password123!',
+        });
+
+      expect(res.status).toBe(200);
+      expect(createAuthSpy).toHaveBeenCalled();
+      expect(authClientMock.auth.signInWithPassword).toHaveBeenCalled();
+      expect(serviceClientMock.auth.signInWithPassword).not.toHaveBeenCalled();
     });
   });
 

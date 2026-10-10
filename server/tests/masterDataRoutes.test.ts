@@ -409,6 +409,258 @@ describe('AC Master Data & Asset Upgrade API (/api/v1/ac-brands, /api/v1/ac-mode
       expect(res.body.success).toBe(true);
       expect(res.body.data.model.modelNumber).toBe('FTKF50TV');
     });
+
+    it('allows ADMIN to update an existing model with specifications', async () => {
+      const updatedModel = {
+        ...sampleModel,
+        model_number: '123V-VERTIS-EDITED',
+        capacity_tons: 2.0,
+        rating: '5 Star',
+        refrigerant: 'R32',
+        technology: 'Inverter',
+        ac_type: 'Split AC',
+      };
+
+      const updateMock = vi.fn().mockReturnThis();
+      const maybeSingleMock = vi
+        .fn()
+        .mockResolvedValueOnce({ data: sampleModel, error: null })
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: { id: sampleModelId }, error: null })
+        .mockResolvedValueOnce({ data: updatedModel, error: null });
+
+      const acModelsQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        ilike: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        update: updateMock,
+        maybeSingle: maybeSingleMock,
+      };
+
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') return acModelsQueryBuilder;
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          modelNumber: '123V-VERTIS-EDITED',
+          capacityTons: 2.0,
+          rating: '5 Star',
+          refrigerant: 'R32',
+          technology: 'Inverter',
+          acType: 'Split AC',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('AC model updated successfully');
+      expect(res.body.data.model.modelNumber).toBe('123V-VERTIS-EDITED');
+      expect(res.body.data.model.capacityTons).toBe(2.0);
+      expect(updateMock).toHaveBeenCalled();
+    });
+
+    it('rejects update with 409 CONFLICT if model number already exists for brand', async () => {
+      const maybeSingleMock = vi
+        .fn()
+        .mockResolvedValueOnce({ data: sampleModel, error: null })
+        .mockResolvedValueOnce({ data: { id: 'other-model-id' }, error: null });
+
+      const acModelsQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        ilike: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        maybeSingle: maybeSingleMock,
+      };
+
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') return acModelsQueryBuilder;
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          modelNumber: 'EXISTING-MODEL',
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('CONFLICT');
+      expect(res.body.error.message).toContain("Another model with number 'EXISTING-MODEL' already exists");
+    });
+
+    it('returns 404 NOT_FOUND when updating non-existent model ID', async () => {
+      const nonExistentId = '99999999-9999-9999-9999-999999999999';
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${nonExistentId}`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          technology: 'Non-Inverter',
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    });
+
+    it('returns 422 VALIDATION_ERROR on invalid UUID or negative capacity', async () => {
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation(setupAuthMock('ADMIN')),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const resInvalidUuid = await request(app)
+        .patch('/api/v1/ac-models/not-a-valid-uuid')
+        .set('Authorization', adminAuthToken)
+        .send({ technology: 'Inverter' });
+
+      expect(resInvalidUuid.status).toBe(422);
+
+      const resNegativeCap = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', adminAuthToken)
+        .send({ capacityTons: -2 });
+
+      expect(resNegativeCap.status).toBe(422);
+
+      const resEmptyBody = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', adminAuthToken)
+        .send({});
+
+      expect(resEmptyBody.status).toBe(422);
+    });
+
+    it('returns clear database error message instead of undefined on database failure', async () => {
+      const maybeSingleMock = vi
+        .fn()
+        .mockResolvedValueOnce({ data: sampleModel, error: null })
+        .mockResolvedValueOnce({ data: null, error: { message: 'Database constraint violation: check constraint' } });
+
+      const acModelsQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        maybeSingle: maybeSingleMock,
+      };
+
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') return acModelsQueryBuilder;
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', adminAuthToken)
+        .send({ technology: 'Inverter' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('Database constraint violation');
+      expect(res.body.error.message).not.toContain('undefined');
+    });
+
+    it('rejects STAFF role with 403 FORBIDDEN when attempting to update an AC model', async () => {
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }) },
+        from: vi.fn().mockImplementation(setupAuthMock('STAFF')),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}`)
+        .set('Authorization', staffAuthToken)
+        .send({ technology: 'Inverter' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('allows ADMIN to toggle model active status via /status endpoint', async () => {
+      const toggledModel = { ...sampleModel, is_active: false };
+      const maybeSingleMock = vi
+        .fn()
+        .mockResolvedValueOnce({ data: sampleModel, error: null })
+        .mockResolvedValueOnce({ data: { id: sampleModelId }, error: null })
+        .mockResolvedValueOnce({ data: toggledModel, error: null });
+
+      const acModelsQueryBuilder = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        maybeSingle: maybeSingleMock,
+      };
+
+      const mockSupabase = {
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }) },
+        from: vi.fn().mockImplementation((table: string) => {
+          const auth = setupAuthMock('ADMIN')(table);
+          if (auth.select) return auth;
+          if (table === 'ac_models') return acModelsQueryBuilder;
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
+          }
+          return {};
+        }),
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/ac-models/${sampleModelId}/status`)
+        .set('Authorization', adminAuthToken)
+        .send({ isActive: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.model.isActive).toBe(false);
+      expect(res.body.message).toContain('deactivated successfully');
+    });
   });
 
   describe('4. Upgraded Asset Validations & Warranty Calculation', () => {
