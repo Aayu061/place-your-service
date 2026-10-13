@@ -37,6 +37,10 @@ interface RawAssetJoinRecord {
   purchase_date?: string | null;
   warranty_start_date?: string | null;
   warranty_end_date?: string | null;
+  total_warranty_services?: number | null;
+  dry_warranty_visits?: number | null;
+  jet_warranty_visits?: number | null;
+  pumpdown_warranty_visits?: number | null;
   floor_location: string | null;
   room_location: string | null;
   refrigerant_type: string | null;
@@ -57,35 +61,8 @@ interface RawAssetJoinRecord {
   } | null;
 }
 
-/**
- * Calculates operational warranty status based on dates.
- * - If warranty_end_date < today -> EXPIRED
- * - Else if warranty_end_date <= today + 30 days -> EXPIRING_SOON
- * - Else -> UNDER_WARRANTY
- */
-export function calculateWarrantyStatus(
-  warrantyEndDate?: string | null,
-  warrantyStartDate?: string | null,
-  fallbackStatus?: WarrantyStatus
-): WarrantyStatus {
-  if (!warrantyEndDate) {
-    return fallbackStatus || 'UNDER_WARRANTY';
-  }
-
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-
-  const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const thirtyDaysStr = thirtyDaysLater.toISOString().split('T')[0];
-
-  if (warrantyEndDate < todayStr) {
-    return 'EXPIRED';
-  }
-  if (warrantyEndDate <= thirtyDaysStr) {
-    return 'EXPIRING_SOON';
-  }
-  return 'UNDER_WARRANTY';
-}
+export { calculateWarrantyStatus, calculateDefaultWarrantyEndDate } from '../utils/warranty.js';
+import { calculateWarrantyStatus, validateWarrantyAllocation } from '../utils/warranty.js';
 
 export class AssetService {
   /**
@@ -235,6 +212,10 @@ export class AssetService {
       purchaseDate: record.purchase_date || null,
       warrantyStartDate: record.warranty_start_date || null,
       warrantyEndDate: record.warranty_end_date || null,
+      totalWarrantyServices: record.total_warranty_services !== undefined && record.total_warranty_services !== null ? Number(record.total_warranty_services) : null,
+      dryWarrantyVisits: record.dry_warranty_visits !== undefined && record.dry_warranty_visits !== null ? Number(record.dry_warranty_visits) : null,
+      jetWarrantyVisits: record.jet_warranty_visits !== undefined && record.jet_warranty_visits !== null ? Number(record.jet_warranty_visits) : null,
+      pumpdownWarrantyVisits: record.pumpdown_warranty_visits !== undefined && record.pumpdown_warranty_visits !== null ? Number(record.pumpdown_warranty_visits) : null,
       floorLocation: record.floor_location,
       roomLocation: record.room_location,
       refrigerantType: record.refrigerant_type,
@@ -713,6 +694,10 @@ export class AssetService {
         purchase_date: payload.purchaseDate || null,
         warranty_start_date: payload.warrantyStartDate || null,
         warranty_end_date: payload.warrantyEndDate || null,
+        total_warranty_services: payload.totalWarrantyServices !== undefined && payload.totalWarrantyServices !== null ? payload.totalWarrantyServices : null,
+        dry_warranty_visits: payload.dryWarrantyVisits !== undefined && payload.dryWarrantyVisits !== null ? payload.dryWarrantyVisits : null,
+        jet_warranty_visits: payload.jetWarrantyVisits !== undefined && payload.jetWarrantyVisits !== null ? payload.jetWarrantyVisits : null,
+        pumpdown_warranty_visits: payload.pumpdownWarrantyVisits !== undefined && payload.pumpdownWarrantyVisits !== null ? payload.pumpdownWarrantyVisits : null,
         floor_location: payload.floorLocation?.trim() || null,
         room_location: payload.roomLocation?.trim() || null,
         refrigerant_type: payload.refrigerantType?.trim() || null,
@@ -888,6 +873,18 @@ export class AssetService {
     if (payload.installationDate !== undefined) updates.installation_date = payload.installationDate || null;
     if (payload.warrantyStartDate !== undefined) updates.warranty_start_date = payload.warrantyStartDate || null;
     if (payload.warrantyEndDate !== undefined) updates.warranty_end_date = payload.warrantyEndDate || null;
+    if (payload.totalWarrantyServices !== undefined) {
+      updates.total_warranty_services = payload.totalWarrantyServices !== null ? payload.totalWarrantyServices : null;
+    }
+    if (payload.dryWarrantyVisits !== undefined) {
+      updates.dry_warranty_visits = payload.dryWarrantyVisits !== null ? payload.dryWarrantyVisits : null;
+    }
+    if (payload.jetWarrantyVisits !== undefined) {
+      updates.jet_warranty_visits = payload.jetWarrantyVisits !== null ? payload.jetWarrantyVisits : null;
+    }
+    if (payload.pumpdownWarrantyVisits !== undefined) {
+      updates.pumpdown_warranty_visits = payload.pumpdownWarrantyVisits !== null ? payload.pumpdownWarrantyVisits : null;
+    }
     if (payload.floorLocation !== undefined) updates.floor_location = payload.floorLocation?.trim() || null;
     if (payload.roomLocation !== undefined) updates.room_location = payload.roomLocation?.trim() || null;
     if (payload.refrigerantType !== undefined) updates.refrigerant_type = payload.refrigerantType?.trim() || null;

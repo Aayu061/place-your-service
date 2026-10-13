@@ -275,21 +275,169 @@ describe('Phase 1 UI Components Suite', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('Drawer renders slide-over when isOpen is true', () => {
+  it('Modal backdrop click does NOT close modal by default (Requirement A1)', () => {
+    const onClose = vi.fn();
     const container = document.createElement('div');
     const root = createRoot(container);
 
     act(() => {
       root.render(
-        <Drawer isOpen={true} onClose={() => {}} title="Test Drawer">
+        <Modal isOpen={true} onClose={onClose} title="Protected Modal">
+          <p>Important unsubmitted form content</p>
+        </Modal>
+      );
+    });
+
+    const backdrop = container.querySelector('.modal-backdrop');
+    expect(backdrop).not.toBeNull();
+
+    // Clicking the backdrop/overlay
+    act(() => {
+      (backdrop as HTMLElement)?.click();
+    });
+
+    // Must NOT have called onClose
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Modal with dirty state displays discard confirmation on close attempt (Requirement A2)', () => {
+    const onClose = vi.fn();
+    const onConfirmDiscard = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <Modal
+          isOpen={true}
+          onClose={onClose}
+          isDirty={true}
+          onConfirmDiscard={onConfirmDiscard}
+          title="Dirty Form Modal"
+        >
+          <input defaultValue="modified value" />
+        </Modal>
+      );
+    });
+
+    // Close button clicked
+    const closeBtn = container.querySelector('.modal-header button');
+    act(() => {
+      (closeBtn as HTMLButtonElement)?.click();
+    });
+
+    // Discard confirmation dialog must appear
+    const alertModal = container.querySelector('[role="alertdialog"]');
+    expect(alertModal).not.toBeNull();
+    expect(container.textContent).toContain('You have unsaved changes. Discard them?');
+
+    // Click "Continue Editing"
+    const continueBtn = container.querySelector('#modal-continue-editing-btn');
+    expect(continueBtn).not.toBeNull();
+    act(() => {
+      (continueBtn as HTMLButtonElement)?.click();
+    });
+
+    // Modal remains open, onClose and onConfirmDiscard not called
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onConfirmDiscard).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull();
+
+    // Now click close button again
+    act(() => {
+      (closeBtn as HTMLButtonElement)?.click();
+    });
+
+    // Now click "Discard Changes"
+    const discardBtn = container.querySelector('#modal-discard-changes-btn');
+    expect(discardBtn).not.toBeNull();
+    act(() => {
+      (discardBtn as HTMLButtonElement)?.click();
+    });
+
+    // Both onConfirmDiscard and onClose called
+    expect(onConfirmDiscard).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('Drawer backdrop click does NOT close drawer by default (Requirement A1)', () => {
+    const onClose = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <Drawer isOpen={true} onClose={onClose} title="Protected Drawer">
           <p>Drawer content</p>
         </Drawer>
       );
     });
 
-    const drawer = container.querySelector('[role="dialog"]');
-    expect(drawer).not.toBeNull();
-    expect(container.querySelector('.drawer-title')?.textContent).toBe('Test Drawer');
+    const backdrop = container.querySelector('.drawer-backdrop');
+    expect(backdrop).not.toBeNull();
+
+    // Clicking the backdrop
+    act(() => {
+      (backdrop as HTMLElement)?.click();
+    });
+
+    // Must NOT have called onClose
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Drawer with dirty state displays discard confirmation on close attempt', () => {
+    const onClose = vi.fn();
+    const onConfirmDiscard = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <Drawer
+          isOpen={true}
+          onClose={onClose}
+          isDirty={true}
+          onConfirmDiscard={onConfirmDiscard}
+          title="Dirty Drawer"
+        >
+          <input defaultValue="drawer change" />
+        </Drawer>
+      );
+    });
+
+    // Close button clicked
+    const closeBtn = container.querySelector('.drawer-header button');
+    act(() => {
+      (closeBtn as HTMLButtonElement)?.click();
+    });
+
+    // Discard confirmation dialog must appear
+    const alertModal = container.querySelector('[role="alertdialog"]');
+    expect(alertModal).not.toBeNull();
+    expect(container.textContent).toContain('You have unsaved changes. Discard them?');
+
+    // Click "Continue Editing"
+    const continueBtn = container.querySelector('#drawer-continue-editing-btn');
+    expect(continueBtn).not.toBeNull();
+    act(() => {
+      (continueBtn as HTMLButtonElement)?.click();
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onConfirmDiscard).not.toHaveBeenCalled();
+
+    // Click close again and Discard Changes
+    act(() => {
+      (closeBtn as HTMLButtonElement)?.click();
+    });
+
+    const discardBtn = container.querySelector('#drawer-discard-changes-btn');
+    act(() => {
+      (discardBtn as HTMLButtonElement)?.click();
+    });
+
+    expect(onConfirmDiscard).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('Dropdown toggles menu on trigger click', () => {

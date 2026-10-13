@@ -396,6 +396,10 @@ export interface AcAssetResponse {
   purchaseDate?: string | null;
   warrantyStartDate?: string | null;
   warrantyEndDate?: string | null;
+  totalWarrantyServices?: number | null;
+  dryWarrantyVisits?: number | null;
+  jetWarrantyVisits?: number | null;
+  pumpdownWarrantyVisits?: number | null;
   floorLocation: string | null;
   roomLocation: string | null;
   refrigerantType: string | null;
@@ -443,6 +447,10 @@ export interface CreateAcAssetPayload {
   purchaseDate?: string;
   warrantyStartDate?: string;
   warrantyEndDate?: string;
+  totalWarrantyServices?: number | null;
+  dryWarrantyVisits?: number | null;
+  jetWarrantyVisits?: number | null;
+  pumpdownWarrantyVisits?: number | null;
   floorLocation?: string;
   roomLocation?: string;
   refrigerantType?: string;
@@ -469,6 +477,10 @@ export interface UpdateAcAssetPayload {
   purchaseDate?: string;
   warrantyStartDate?: string;
   warrantyEndDate?: string;
+  totalWarrantyServices?: number | null;
+  dryWarrantyVisits?: number | null;
+  jetWarrantyVisits?: number | null;
+  pumpdownWarrantyVisits?: number | null;
   floorLocation?: string;
   roomLocation?: string;
   refrigerantType?: string;

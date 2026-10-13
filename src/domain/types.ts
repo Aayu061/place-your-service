@@ -184,6 +184,10 @@ export interface AcAsset {
   purchaseDate?: string | null;
   warrantyStartDate?: string | null;
   warrantyEndDate?: string | null;
+  totalWarrantyServices?: number | null;
+  dryWarrantyVisits?: number | null;
+  jetWarrantyVisits?: number | null;
+  pumpdownWarrantyVisits?: number | null;
   floorLocation?: string | null;
   roomLocation?: string | null;
   locationDetails?: string; // Compatibility alias

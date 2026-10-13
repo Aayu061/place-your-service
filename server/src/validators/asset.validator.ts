@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateWarrantyAllocation } from '../utils/warranty.js';
 
 const acTypeEnum = z.enum([
   'SPLIT',
@@ -110,6 +111,10 @@ const baseAssetBody = z.object({
   installationDate: z.string().regex(dateRegex, 'Installation date must be in YYYY-MM-DD format').optional().nullable(),
   warrantyStartDate: z.string().regex(dateRegex, 'Warranty start date must be in YYYY-MM-DD format').optional().nullable(),
   warrantyEndDate: z.string().regex(dateRegex, 'Warranty end date must be in YYYY-MM-DD format').optional().nullable(),
+  totalWarrantyServices: z.coerce.number().int('Total warranty services must be a whole number').min(0, 'Total warranty services cannot be negative').optional().nullable(),
+  dryWarrantyVisits: z.coerce.number().int('Dry warranty visits must be a whole number').min(0, 'Dry warranty visits cannot be negative').optional().nullable(),
+  jetWarrantyVisits: z.coerce.number().int('Jet warranty visits must be a whole number').min(0, 'Jet warranty visits cannot be negative').optional().nullable(),
+  pumpdownWarrantyVisits: z.coerce.number().int('Pumpdown warranty visits must be a whole number').min(0, 'Pumpdown warranty visits cannot be negative').optional().nullable(),
   floorLocation: z.string().max(100).trim().optional().nullable(),
   roomLocation: z.string().max(100).trim().optional().nullable(),
   refrigerantType: z.string().max(50).trim().optional().nullable(),
@@ -131,6 +136,26 @@ const baseAssetBody = z.object({
       message: 'Warranty end date cannot be earlier than warranty start date.',
       path: ['warrantyEndDate'],
     });
+  }
+  if (
+    data.totalWarrantyServices !== undefined ||
+    data.dryWarrantyVisits !== undefined ||
+    data.jetWarrantyVisits !== undefined ||
+    data.pumpdownWarrantyVisits !== undefined
+  ) {
+    const allocResult = validateWarrantyAllocation({
+      totalWarrantyServices: data.totalWarrantyServices,
+      dryWarrantyVisits: data.dryWarrantyVisits,
+      jetWarrantyVisits: data.jetWarrantyVisits,
+      pumpdownWarrantyVisits: data.pumpdownWarrantyVisits,
+    });
+    if (!allocResult.isValid) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: allocResult.error || 'Invalid warranty service allocation.',
+        path: ['totalWarrantyServices'],
+      });
+    }
   }
 });
 
@@ -171,6 +196,10 @@ export const updateAcAssetSchema = {
       installationDate: z.string().regex(dateRegex, 'Installation date must be in YYYY-MM-DD format').optional().nullable(),
       warrantyStartDate: z.string().regex(dateRegex, 'Warranty start date must be in YYYY-MM-DD format').optional().nullable(),
       warrantyEndDate: z.string().regex(dateRegex, 'Warranty end date must be in YYYY-MM-DD format').optional().nullable(),
+      totalWarrantyServices: z.coerce.number().int('Total warranty services must be a whole number').min(0, 'Total warranty services cannot be negative').optional().nullable(),
+      dryWarrantyVisits: z.coerce.number().int('Dry warranty visits must be a whole number').min(0, 'Dry warranty visits cannot be negative').optional().nullable(),
+      jetWarrantyVisits: z.coerce.number().int('Jet warranty visits must be a whole number').min(0, 'Jet warranty visits cannot be negative').optional().nullable(),
+      pumpdownWarrantyVisits: z.coerce.number().int('Pumpdown warranty visits must be a whole number').min(0, 'Pumpdown warranty visits cannot be negative').optional().nullable(),
       floorLocation: z.string().max(100).trim().optional().nullable(),
       roomLocation: z.string().max(100).trim().optional().nullable(),
       refrigerantType: z.string().max(50).trim().optional().nullable(),
@@ -196,6 +225,26 @@ export const updateAcAssetSchema = {
           message: 'Warranty end date cannot be earlier than warranty start date.',
           path: ['warrantyEndDate'],
         });
+      }
+      if (
+        data.totalWarrantyServices !== undefined ||
+        data.dryWarrantyVisits !== undefined ||
+        data.jetWarrantyVisits !== undefined ||
+        data.pumpdownWarrantyVisits !== undefined
+      ) {
+        const allocResult = validateWarrantyAllocation({
+          totalWarrantyServices: data.totalWarrantyServices,
+          dryWarrantyVisits: data.dryWarrantyVisits,
+          jetWarrantyVisits: data.jetWarrantyVisits,
+          pumpdownWarrantyVisits: data.pumpdownWarrantyVisits,
+        });
+        if (!allocResult.isValid) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: allocResult.error || 'Invalid warranty service allocation.',
+            path: ['totalWarrantyServices'],
+          });
+        }
       }
     }),
 };

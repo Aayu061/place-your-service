@@ -44,12 +44,17 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalCloseButton } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
 import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
+import {
+  calculateDefaultWarrantyEndDate,
+  calculateWarrantyStatus,
+  validateWarrantyAllocation,
+} from '@/utils/warranty';
 
 const FLOOR_OPTIONS = [
   'Basement',
@@ -169,20 +174,8 @@ const ASSET_CONDITION_OPTIONS = [
   'Critical',
 ];
 
-function computeLiveWarrantyStatus(_startDate?: string, endDate?: string): WarrantyStatus {
-  if (!endDate) return 'OUT_OF_WARRANTY';
-  const end = new Date(endDate);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const thirtyDaysLater = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  if (end < today) {
-    return 'EXPIRED';
-  } else if (end <= thirtyDaysLater) {
-    return 'EXPIRING_SOON';
-  } else {
-    return 'UNDER_WARRANTY';
-  }
+function computeLiveWarrantyStatus(startDate?: string, endDate?: string): WarrantyStatus {
+  return calculateWarrantyStatus(startDate, endDate);
 }
 
 interface CustomersApiResponse {
@@ -340,6 +333,17 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [assetFormWarrantyStartDate, setAssetFormWarrantyStartDate] = useState('');
   const [assetFormWarrantyEndDate, setAssetFormWarrantyEndDate] = useState('');
   const [assetFormWarranty, setAssetFormWarranty] = useState<WarrantyStatus>('UNDER_WARRANTY');
+  const [isWarrantyEndDateOverridden, setIsWarrantyEndDateOverridden] = useState(false);
+
+  // Warranty Service Allocation (numeric counts, whole numbers >= 0)
+  const [assetFormTotalWarrantyServices, setAssetFormTotalWarrantyServices] = useState('');
+  const [assetFormDryWarrantyVisits, setAssetFormDryWarrantyVisits] = useState('');
+  const [assetFormJetWarrantyVisits, setAssetFormJetWarrantyVisits] = useState('');
+  const [assetFormPumpdownWarrantyVisits, setAssetFormPumpdownWarrantyVisits] = useState('');
+
+  // Dirty state tracking baseline snapshots
+  const addAssetBaselineRef = React.useRef<Record<string, string> | null>(null);
+  const editAssetBaselineRef = React.useRef<Record<string, string> | null>(null);
 
   // Status & Lifecycle
   const [assetFormStatus, setAssetFormStatus] = useState('Active');
@@ -923,12 +927,77 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     }
   };
 
+  const handleWarrantyStartDateChange = (newStartDate: string) => {
+    setAssetFormWarrantyStartDate(newStartDate);
+    if (!isWarrantyEndDateOverridden && newStartDate) {
+      const computedEnd = calculateDefaultWarrantyEndDate(newStartDate);
+      setAssetFormWarrantyEndDate(computedEnd);
+    }
+  };
+
+  const handleWarrantyEndDateChange = (newEndDate: string) => {
+    setAssetFormWarrantyEndDate(newEndDate);
+    const expectedDefault = assetFormWarrantyStartDate
+      ? calculateDefaultWarrantyEndDate(assetFormWarrantyStartDate)
+      : '';
+    setIsWarrantyEndDateOverridden(Boolean(newEndDate && newEndDate !== expectedDefault));
+  };
+
+  const handleRestoreDefaultWarrantyEndDate = () => {
+    if (assetFormWarrantyStartDate) {
+      const defaultEnd = calculateDefaultWarrantyEndDate(assetFormWarrantyStartDate);
+      setAssetFormWarrantyEndDate(defaultEnd);
+      setIsWarrantyEndDateOverridden(false);
+    }
+  };
+
+  const isAddAssetDirty = Boolean(
+    isAddAssetModalOpen &&
+      addAssetBaselineRef.current &&
+      (assetFormSiteId !== addAssetBaselineRef.current.siteId ||
+        assetFormBrand !== addAssetBaselineRef.current.brand ||
+        assetFormModel !== addAssetBaselineRef.current.model ||
+        assetFormSerial !== addAssetBaselineRef.current.serial ||
+        assetFormIndoorSerial !== addAssetBaselineRef.current.indoorSerial ||
+        assetFormOutdoorSerial !== addAssetBaselineRef.current.outdoorSerial ||
+        assetFormType !== addAssetBaselineRef.current.type ||
+        assetFormPurchaseDate !== addAssetBaselineRef.current.purchaseDate ||
+        assetFormInstallDate !== addAssetBaselineRef.current.installDate ||
+        assetFormWarrantyStartDate !== addAssetBaselineRef.current.warrantyStartDate ||
+        assetFormWarrantyEndDate !== addAssetBaselineRef.current.warrantyEndDate ||
+        assetFormTotalWarrantyServices !== addAssetBaselineRef.current.totalServices ||
+        assetFormDryWarrantyVisits !== addAssetBaselineRef.current.dryVisits ||
+        assetFormJetWarrantyVisits !== addAssetBaselineRef.current.jetVisits ||
+        assetFormPumpdownWarrantyVisits !== addAssetBaselineRef.current.pumpdownVisits ||
+        assetFormNotes !== addAssetBaselineRef.current.notes)
+  );
+
+  const isEditAssetDirty = Boolean(
+    editingAsset &&
+      editAssetBaselineRef.current &&
+      (assetFormBrand !== editAssetBaselineRef.current.brand ||
+        assetFormModel !== editAssetBaselineRef.current.model ||
+        assetFormSerial !== editAssetBaselineRef.current.serial ||
+        assetFormIndoorSerial !== editAssetBaselineRef.current.indoorSerial ||
+        assetFormOutdoorSerial !== editAssetBaselineRef.current.outdoorSerial ||
+        assetFormType !== editAssetBaselineRef.current.type ||
+        assetFormPurchaseDate !== editAssetBaselineRef.current.purchaseDate ||
+        assetFormInstallDate !== editAssetBaselineRef.current.installDate ||
+        assetFormWarrantyStartDate !== editAssetBaselineRef.current.warrantyStartDate ||
+        assetFormWarrantyEndDate !== editAssetBaselineRef.current.warrantyEndDate ||
+        assetFormTotalWarrantyServices !== editAssetBaselineRef.current.totalServices ||
+        assetFormDryWarrantyVisits !== editAssetBaselineRef.current.dryVisits ||
+        assetFormJetWarrantyVisits !== editAssetBaselineRef.current.jetVisits ||
+        assetFormPumpdownWarrantyVisits !== editAssetBaselineRef.current.pumpdownVisits ||
+        assetFormStatus !== editAssetBaselineRef.current.status ||
+        assetFormCondition !== editAssetBaselineRef.current.condition ||
+        assetFormNotes !== editAssetBaselineRef.current.notes)
+  );
+
   const openAddAssetModal = (defaultSiteId?: string) => {
     const targetSiteId = defaultSiteId || (sites.length > 0 ? sites[0].id : '');
     const todayStr = new Date().toISOString().split('T')[0];
-    const nextYear = new Date();
-    nextYear.setFullYear(nextYear.getFullYear() + 1);
-    const nextYearStr = nextYear.toISOString().split('T')[0];
+    const defaultEndStr = calculateDefaultWarrantyEndDate(todayStr);
 
     setAssetFormSiteId(targetSiteId);
     setAssetFormTag('');
@@ -953,12 +1022,37 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormPurchaseDate(todayStr);
     setAssetFormInstallDate(todayStr);
     setAssetFormWarrantyStartDate(todayStr);
-    setAssetFormWarrantyEndDate(nextYearStr);
+    setAssetFormWarrantyEndDate(defaultEndStr);
+    setIsWarrantyEndDateOverridden(false);
+    setAssetFormTotalWarrantyServices('');
+    setAssetFormDryWarrantyVisits('');
+    setAssetFormJetWarrantyVisits('');
+    setAssetFormPumpdownWarrantyVisits('');
     setAssetFormWarranty('UNDER_WARRANTY');
     setAssetFormStatus('Active');
     setAssetFormCondition('Good');
     setAssetFormNotes('');
     setAssetFormError(null);
+
+    addAssetBaselineRef.current = {
+      siteId: targetSiteId,
+      brand: '',
+      model: '',
+      serial: '',
+      indoorSerial: '',
+      outdoorSerial: '',
+      type: 'Split AC',
+      purchaseDate: todayStr,
+      installDate: todayStr,
+      warrantyStartDate: todayStr,
+      warrantyEndDate: defaultEndStr,
+      totalServices: '',
+      dryVisits: '',
+      jetVisits: '',
+      pumpdownVisits: '',
+      notes: '',
+    };
+
     setIsAddAssetModalOpen(true);
     loadAvailableBrands();
   };
@@ -984,6 +1078,20 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormPurchaseDate(asset.purchaseDate || '');
     setAssetFormWarrantyStartDate(asset.warrantyStartDate || '');
     setAssetFormWarrantyEndDate(asset.warrantyEndDate || '');
+
+    const expectedDefault = asset.warrantyStartDate ? calculateDefaultWarrantyEndDate(asset.warrantyStartDate) : '';
+    setIsWarrantyEndDateOverridden(Boolean(asset.warrantyEndDate && asset.warrantyEndDate !== expectedDefault));
+
+    const totalServStr = asset.totalWarrantyServices !== null && asset.totalWarrantyServices !== undefined ? String(asset.totalWarrantyServices) : '';
+    const dryStr = asset.dryWarrantyVisits !== null && asset.dryWarrantyVisits !== undefined ? String(asset.dryWarrantyVisits) : '';
+    const jetStr = asset.jetWarrantyVisits !== null && asset.jetWarrantyVisits !== undefined ? String(asset.jetWarrantyVisits) : '';
+    const pumpdownStr = asset.pumpdownWarrantyVisits !== null && asset.pumpdownWarrantyVisits !== undefined ? String(asset.pumpdownWarrantyVisits) : '';
+
+    setAssetFormTotalWarrantyServices(totalServStr);
+    setAssetFormDryWarrantyVisits(dryStr);
+    setAssetFormJetWarrantyVisits(jetStr);
+    setAssetFormPumpdownWarrantyVisits(pumpdownStr);
+
     setAssetFormFloor(FLOOR_OPTIONS.includes(asset.floorLocation || '') ? asset.floorLocation! : (asset.floorLocation ? 'Other' : 'Ground Floor'));
     setAssetFormCustomFloor(FLOOR_OPTIONS.includes(asset.floorLocation || '') ? '' : (asset.floorLocation || ''));
     setAssetFormRoom(ROOM_OPTIONS.includes(asset.roomLocation || '') ? asset.roomLocation! : (asset.roomLocation ? 'Other' : 'Reception'));
@@ -994,6 +1102,26 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormCondition(asset.assetCondition || 'Good');
     setAssetFormNotes(asset.notes || '');
     setAssetFormError(null);
+
+    editAssetBaselineRef.current = {
+      brand: asset.brand,
+      model: asset.modelNumber || '',
+      serial: asset.serialNumber || '',
+      indoorSerial: asset.indoorSerialNumber || '',
+      outdoorSerial: asset.outdoorSerialNumber || '',
+      type: asset.acType,
+      purchaseDate: asset.purchaseDate || '',
+      installDate: asset.installationDate || '',
+      warrantyStartDate: asset.warrantyStartDate || '',
+      warrantyEndDate: asset.warrantyEndDate || '',
+      totalServices: totalServStr,
+      dryVisits: dryStr,
+      jetVisits: jetStr,
+      pumpdownVisits: pumpdownStr,
+      notes: asset.notes || '',
+      status: asset.assetStatus || (asset.isActive ? 'Active' : 'Temporarily Inactive'),
+      condition: asset.assetCondition || 'Good',
+    };
   };
 
   const handleCreateAsset = async (e: React.FormEvent) => {
@@ -1006,6 +1134,23 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     }
     if (assetFormWarrantyStartDate && assetFormWarrantyEndDate && assetFormWarrantyEndDate < assetFormWarrantyStartDate) {
       setAssetFormError('Warranty end date cannot be earlier than warranty start date.');
+      return;
+    }
+
+    const parsedTotal = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
+    const parsedDry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
+    const parsedJet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
+    const parsedPumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+
+    const allocValidation = validateWarrantyAllocation({
+      totalWarrantyServices: parsedTotal,
+      dryWarrantyVisits: parsedDry,
+      jetWarrantyVisits: parsedJet,
+      pumpdownWarrantyVisits: parsedPumpdown,
+    });
+
+    if (!allocValidation.isValid) {
+      setAssetFormError(allocValidation.error || 'Invalid warranty service allocation.');
       return;
     }
 
@@ -1039,6 +1184,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         purchaseDate: assetFormPurchaseDate || undefined,
         warrantyStartDate: assetFormWarrantyStartDate || undefined,
         warrantyEndDate: assetFormWarrantyEndDate || undefined,
+        totalWarrantyServices: parsedTotal,
+        dryWarrantyVisits: parsedDry,
+        jetWarrantyVisits: parsedJet,
+        pumpdownWarrantyVisits: parsedPumpdown,
         floorLocation: finalFloor.trim() || undefined,
         roomLocation: finalRoom.trim() || undefined,
         refrigerantType: assetFormRefrigerant.trim() || undefined,
@@ -1075,6 +1224,23 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       return;
     }
 
+    const parsedTotal = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
+    const parsedDry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
+    const parsedJet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
+    const parsedPumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+
+    const allocValidation = validateWarrantyAllocation({
+      totalWarrantyServices: parsedTotal,
+      dryWarrantyVisits: parsedDry,
+      jetWarrantyVisits: parsedJet,
+      pumpdownWarrantyVisits: parsedPumpdown,
+    });
+
+    if (!allocValidation.isValid) {
+      setAssetFormError(allocValidation.error || 'Invalid warranty service allocation.');
+      return;
+    }
+
     setIsSubmittingAsset(true);
     setAssetFormError(null);
 
@@ -1099,6 +1265,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         purchaseDate: assetFormPurchaseDate || null,
         warrantyStartDate: assetFormWarrantyStartDate || null,
         warrantyEndDate: assetFormWarrantyEndDate || null,
+        totalWarrantyServices: parsedTotal,
+        dryWarrantyVisits: parsedDry,
+        jetWarrantyVisits: parsedJet,
+        pumpdownWarrantyVisits: parsedPumpdown,
         floorLocation: finalFloor.trim() || null,
         roomLocation: finalRoom.trim() || null,
         refrigerantType: assetFormRefrigerant.trim() || null,
@@ -2901,6 +3071,11 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       <Modal
         isOpen={isAddAssetModalOpen}
         onClose={() => setIsAddAssetModalOpen(false)}
+        isDirty={isAddAssetDirty}
+        onConfirmDiscard={() => {
+          setIsAddAssetModalOpen(false);
+          setAssetFormError(null);
+        }}
         title="Register New AC Asset"
         description="Add a physical AC unit to this customer's site register with permanent ESSC asset code"
       >
@@ -3299,22 +3474,146 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 label="Warranty Start Date"
                 type="date"
                 value={assetFormWarrantyStartDate}
-                onChange={(e) => setAssetFormWarrantyStartDate(e.target.value)}
+                onChange={(e) => handleWarrantyStartDateChange(e.target.value)}
               />
 
-              <Input
-                label="Warranty End Date"
-                type="date"
-                value={assetFormWarrantyEndDate}
-                onChange={(e) => setAssetFormWarrantyEndDate(e.target.value)}
-              />
+              <div>
+                <Input
+                  label="Warranty End Date (365-Day Inclusive)"
+                  type="date"
+                  value={assetFormWarrantyEndDate}
+                  onChange={(e) => handleWarrantyEndDateChange(e.target.value)}
+                />
+                {isWarrantyEndDateOverridden && assetFormWarrantyStartDate && (
+                  <div style={{ marginTop: '4px', textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={handleRestoreDefaultWarrantyEndDate}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-brand)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Restore 365-day default
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* 5. ASSET STATUS */}
+          {/* 5. WARRANTY SERVICE ALLOCATION */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                5. Warranty Service Allocation
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Manufacturer Entitlement (Separate from AMC)
+              </span>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+              Specify included warranty services provided by the OEM. If the visit breakdown is unknown, record the total count and leave the visit types blank.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+              <Input
+                label="Total Warranty Services"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 4"
+                value={assetFormTotalWarrantyServices}
+                onChange={(e) => setAssetFormTotalWarrantyServices(e.target.value)}
+              />
+
+              <Input
+                label="Dry Service Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 2"
+                value={assetFormDryWarrantyVisits}
+                onChange={(e) => setAssetFormDryWarrantyVisits(e.target.value)}
+              />
+
+              <Input
+                label="Jet Service Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 1"
+                value={assetFormJetWarrantyVisits}
+                onChange={(e) => setAssetFormJetWarrantyVisits(e.target.value)}
+              />
+
+              <Input
+                label="Pumpdown Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 1"
+                value={assetFormPumpdownWarrantyVisits}
+                onChange={(e) => setAssetFormPumpdownWarrantyVisits(e.target.value)}
+              />
+            </div>
+
+            {/* Reconciliation Feedback */}
+            {(() => {
+              const total = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
+              const dry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
+              const jet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
+              const pumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+
+              if (total === null && dry === null && jet === null && pumpdown === null) {
+                return (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Leave blank if manufacturer warranty visits are not specified.
+                  </div>
+                );
+              }
+
+              const validation = validateWarrantyAllocation({
+                totalWarrantyServices: total,
+                dryWarrantyVisits: dry,
+                jetWarrantyVisits: jet,
+                pumpdownWarrantyVisits: pumpdown,
+              });
+
+              if (!validation.isValid) {
+                return (
+                  <div style={{ fontSize: '12px', color: 'var(--color-danger, #ef4444)', fontWeight: 500 }}>
+                    ⚠️ {validation.error}
+                  </div>
+                );
+              }
+
+              if (validation.isExplicitAllocation) {
+                return (
+                  <div style={{ fontSize: '12px', color: 'var(--color-success, #10b981)', fontWeight: 500 }}>
+                    ✓ Allocation reconciled: {dry ?? 0} Dry + {jet ?? 0} Jet + {pumpdown ?? 0} Pumpdown = {total} Total Services
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ fontSize: '12px', color: 'var(--color-brand, #2563eb)' }}>
+                  ℹ️ Total recorded: {total} services. Visit type breakdown is unspecified (no fabricated values).
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 6. ASSET STATUS */}
           <div>
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
-              5. Asset Status
+              6. Asset Status
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
@@ -3364,9 +3663,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setIsAddAssetModalOpen(false)} disabled={isSubmittingAsset}>
+            <ModalCloseButton disabled={isSubmittingAsset}>
               Cancel
-            </Button>
+            </ModalCloseButton>
             <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
               Register Asset
             </Button>
@@ -3378,6 +3677,11 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       <Modal
         isOpen={!!editingAsset}
         onClose={() => setEditingAsset(null)}
+        isDirty={isEditAssetDirty}
+        onConfirmDiscard={() => {
+          setEditingAsset(null);
+          setAssetFormError(null);
+        }}
         title={`Edit AC Asset: ${editingAsset?.assetTag || ''}`}
         description="Update specifications, serial numbers, warranty, or condition"
       >
@@ -3654,21 +3958,146 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 label="Warranty Start Date"
                 type="date"
                 value={assetFormWarrantyStartDate}
-                onChange={(e) => setAssetFormWarrantyStartDate(e.target.value)}
+                onChange={(e) => handleWarrantyStartDateChange(e.target.value)}
               />
-              <Input
-                label="Warranty End Date"
-                type="date"
-                value={assetFormWarrantyEndDate}
-                onChange={(e) => setAssetFormWarrantyEndDate(e.target.value)}
-              />
+
+              <div>
+                <Input
+                  label="Warranty End Date (365-Day Inclusive)"
+                  type="date"
+                  value={assetFormWarrantyEndDate}
+                  onChange={(e) => handleWarrantyEndDateChange(e.target.value)}
+                />
+                {isWarrantyEndDateOverridden && assetFormWarrantyStartDate && (
+                  <div style={{ marginTop: '4px', textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={handleRestoreDefaultWarrantyEndDate}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-brand)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Restore 365-day default
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* 5. ASSET STATUS & CONDITION */}
+          {/* 5. WARRANTY SERVICE ALLOCATION */}
+          <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                5. Warranty Service Allocation
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Manufacturer Entitlement (Separate from AMC)
+              </span>
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+              Specify included warranty services provided by the OEM. If the visit breakdown is unknown, record the total count and leave the visit types blank.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+              <Input
+                label="Total Warranty Services"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 4"
+                value={assetFormTotalWarrantyServices}
+                onChange={(e) => setAssetFormTotalWarrantyServices(e.target.value)}
+              />
+
+              <Input
+                label="Dry Service Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 2"
+                value={assetFormDryWarrantyVisits}
+                onChange={(e) => setAssetFormDryWarrantyVisits(e.target.value)}
+              />
+
+              <Input
+                label="Jet Service Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 1"
+                value={assetFormJetWarrantyVisits}
+                onChange={(e) => setAssetFormJetWarrantyVisits(e.target.value)}
+              />
+
+              <Input
+                label="Pumpdown Visits"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 1"
+                value={assetFormPumpdownWarrantyVisits}
+                onChange={(e) => setAssetFormPumpdownWarrantyVisits(e.target.value)}
+              />
+            </div>
+
+            {/* Reconciliation Feedback */}
+            {(() => {
+              const total = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
+              const dry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
+              const jet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
+              const pumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+
+              if (total === null && dry === null && jet === null && pumpdown === null) {
+                return (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Leave blank if manufacturer warranty visits are not specified.
+                  </div>
+                );
+              }
+
+              const validation = validateWarrantyAllocation({
+                totalWarrantyServices: total,
+                dryWarrantyVisits: dry,
+                jetWarrantyVisits: jet,
+                pumpdownWarrantyVisits: pumpdown,
+              });
+
+              if (!validation.isValid) {
+                return (
+                  <div style={{ fontSize: '12px', color: 'var(--color-danger, #ef4444)', fontWeight: 500 }}>
+                    ⚠️ {validation.error}
+                  </div>
+                );
+              }
+
+              if (validation.isExplicitAllocation) {
+                return (
+                  <div style={{ fontSize: '12px', color: 'var(--color-success, #10b981)', fontWeight: 500 }}>
+                    ✓ Allocation reconciled: {dry ?? 0} Dry + {jet ?? 0} Jet + {pumpdown ?? 0} Pumpdown = {total} Total Services
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ fontSize: '12px', color: 'var(--color-brand, #2563eb)' }}>
+                  ℹ️ Total recorded: {total} services. Visit type breakdown is unspecified (no fabricated values).
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 6. ASSET STATUS & CONDITION */}
           <div>
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
-              5. Asset Status & Condition
+              6. Asset Status & Condition
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
@@ -3717,9 +4146,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setEditingAsset(null)} disabled={isSubmittingAsset}>
+            <ModalCloseButton disabled={isSubmittingAsset}>
               Cancel
-            </Button>
+            </ModalCloseButton>
             <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
               Save Changes
             </Button>
@@ -4013,8 +4442,33 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     ? `Expires: ${viewingAsset.warrantyEndDate}`
                     : 'No warranty dates registered'}
                 </div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '11px' }}>
-                  Warranty and AMC are independent contracts; expired warranty does not imply an inactive AMC contract.
+
+                {/* Dedicated Warranty Service Allocation Display */}
+                <div style={{ marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-subtle)' }}>
+                  <div style={{ color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>Warranty Service Allocation:</div>
+                  {viewingAsset.totalWarrantyServices !== null && viewingAsset.totalWarrantyServices !== undefined ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', alignItems: 'center' }}>
+                      <Badge variant="brand">Total: {viewingAsset.totalWarrantyServices} Services</Badge>
+                      {viewingAsset.dryWarrantyVisits !== null && viewingAsset.dryWarrantyVisits !== undefined ? (
+                        <span style={{ color: 'var(--text-secondary)' }}>• Dry: {viewingAsset.dryWarrantyVisits}</span>
+                      ) : null}
+                      {viewingAsset.jetWarrantyVisits !== null && viewingAsset.jetWarrantyVisits !== undefined ? (
+                        <span style={{ color: 'var(--text-secondary)' }}>• Jet: {viewingAsset.jetWarrantyVisits}</span>
+                      ) : null}
+                      {viewingAsset.pumpdownWarrantyVisits !== null && viewingAsset.pumpdownWarrantyVisits !== undefined ? (
+                        <span style={{ color: 'var(--text-secondary)' }}>• Pumpdown: {viewingAsset.pumpdownWarrantyVisits}</span>
+                      ) : null}
+                      {viewingAsset.dryWarrantyVisits === null && viewingAsset.jetWarrantyVisits === null && viewingAsset.pumpdownWarrantyVisits === null && (
+                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(Breakdown unspecified)</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No warranty service count recorded</div>
+                  )}
+                </div>
+
+                <div style={{ color: 'var(--text-secondary)', marginTop: '6px', fontSize: '11px' }}>
+                  Warranty entitlements and AMC obligations are independent; warranty counts do not consume AMC visit balances.
                 </div>
               </div>
             </div>
