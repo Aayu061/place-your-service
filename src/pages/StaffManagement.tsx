@@ -382,95 +382,98 @@ export const StaffManagement: React.FC = () => {
         }}
         title="Provision New Staff Account"
         description="Creates an operational staff account with Supabase Auth credentials. Staff role is assigned by default."
+        isDirty={Boolean(fullName || email || password || phone)}
       >
-        <form onSubmit={handleCreateStaff} noValidate>
-          {formError && (
-            <div
-              role="alert"
-              style={{
-                padding: 'var(--space-3)',
-                marginBottom: 'var(--space-4)',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                color: 'var(--color-danger, #ef4444)',
-                fontSize: 'var(--text-xs)',
-              }}
-            >
-              {formError}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <Input
-              id="staff-name"
-              label="Full Name"
-              required
-              disabled={isSubmitting}
-              placeholder="e.g. Rahul Sharma"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              leftIcon={<User size={16} />}
-            />
-
-            <Input
-              id="staff-email"
-              label="Work Email"
-              type="email"
-              required
-              disabled={isSubmitting}
-              placeholder="e.g. rahul@pys.internal"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail size={16} />}
-            />
-
-            <Input
-              id="staff-password"
-              label="Initial Password"
-              type="password"
-              required
-              disabled={isSubmitting}
-              placeholder="Minimum 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              leftIcon={<Lock size={16} />}
-              helperText="Staff member will use this password to authenticate into the portal."
-            />
-
-            <Input
-              id="staff-phone"
-              label="Phone Number"
-              type="tel"
-              disabled={isSubmitting}
-              placeholder="+91 9876543210 (Optional)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              leftIcon={<Phone size={16} />}
-            />
-
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 'var(--space-3)',
-                marginTop: 'var(--space-2)',
-              }}
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isSubmitting}
-                onClick={() => setIsAddModalOpen(false)}
+        {({ requestClose }) => (
+          <form onSubmit={handleCreateStaff} noValidate>
+            {formError && (
+              <div
+                role="alert"
+                style={{
+                  padding: 'var(--space-3)',
+                  marginBottom: 'var(--space-4)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: 'var(--color-danger, #ef4444)',
+                  fontSize: 'var(--text-xs)',
+                }}
               >
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" isLoading={isSubmitting}>
-                Provision Staff
-              </Button>
+                {formError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <Input
+                id="staff-name"
+                label="Full Name"
+                required
+                disabled={isSubmitting}
+                placeholder="e.g. Rahul Sharma"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                leftIcon={<User size={16} />}
+              />
+
+              <Input
+                id="staff-email"
+                label="Work Email"
+                type="email"
+                required
+                disabled={isSubmitting}
+                placeholder="e.g. rahul@pys.internal"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                leftIcon={<Mail size={16} />}
+              />
+
+              <Input
+                id="staff-password"
+                label="Initial Password"
+                type="password"
+                required
+                disabled={isSubmitting}
+                placeholder="Minimum 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leftIcon={<Lock size={16} />}
+                helperText="Staff member will use this password to authenticate into the portal."
+              />
+
+              <Input
+                id="staff-phone"
+                label="Phone Number"
+                type="tel"
+                disabled={isSubmitting}
+                placeholder="+91 9876543210 (Optional)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                leftIcon={<Phone size={16} />}
+              />
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 'var(--space-3)',
+                  marginTop: 'var(--space-2)',
+                }}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isSubmitting}
+                  onClick={requestClose}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" isLoading={isSubmitting}>
+                  Provision Staff
+                </Button>
+              </div>
             </div>
-          </div>
-        </form>
+          </form>
+        )}
       </Modal>
     </div>
   );

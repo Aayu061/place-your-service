@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import { ModalContext, useModal } from './modalContext';
 
@@ -11,6 +11,12 @@ export interface ModalProps {
   children: React.ReactNode | ((helpers: { requestClose: () => void; isDirty: boolean }) => React.ReactNode);
   footer?: React.ReactNode | ((helpers: { requestClose: () => void; isDirty: boolean }) => React.ReactNode);
   maxWidth?: string;
+  /**
+   * Optional Back button handler for multi-step or nested navigation.
+   * When provided, renders a visible Back button in the modal header.
+   */
+  onBack?: () => void;
+  backLabel?: string;
   /**
    * Whether clicking the backdrop dismisses the modal.
    * Default is FALSE globally across all Admin and Staff forms
@@ -38,6 +44,8 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   maxWidth = '540px',
+  onBack,
+  backLabel = 'Back',
   closeOnBackdropClick = false,
   isDirty = false,
   onConfirmDiscard,
@@ -124,17 +132,34 @@ export const Modal: React.FC<ModalProps> = ({
           }}
         >
           <div className="modal-header">
-            <div>
-              <h2 id="modal-title" className="modal-title">
-                {title}
-              </h2>
-              {description && (
-                <p id="modal-desc" className="text-caption" style={{ marginTop: '2px' }}>
-                  {description}
-                </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)' }}>
+              {onBack && (
+                <Button
+                  id="modal-header-back-btn"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onBack}
+                  aria-label={backLabel ? `Go back to ${backLabel}` : 'Go back'}
+                  title={backLabel ? `Go back to ${backLabel}` : 'Go back'}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
+                >
+                  <ArrowLeft size={18} />
+                  {backLabel && <span style={{ fontSize: 'var(--text-sm, 0.875rem)' }}>{backLabel}</span>}
+                </Button>
               )}
+              <div>
+                <h2 id="modal-title" className="modal-title">
+                  {title}
+                </h2>
+                {description && (
+                  <p id="modal-desc" className="text-caption" style={{ marginTop: '2px' }}>
+                    {description}
+                  </p>
+                )}
+              </div>
             </div>
             <Button
+              id="modal-header-close-btn"
               variant="ghost"
               size="sm"
               isIconOnly
@@ -301,6 +326,34 @@ export const ModalCloseButton: React.FC<ModalCloseButtonProps> = ({
         requestClose();
       }}
     >
+      {children}
+    </Button>
+  );
+};
+
+export interface ModalBackButtonProps {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  children?: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  style?: React.CSSProperties;
+}
+
+export const ModalBackButton: React.FC<ModalBackButtonProps> = ({
+  children = 'Back',
+  variant = 'outline',
+  onClick,
+  ...props
+}) => {
+  return (
+    <Button
+      {...props}
+      variant={variant}
+      onClick={onClick}
+    >
+      <ArrowLeft size={16} style={{ marginRight: '6px' }} />
       {children}
     </Button>
   );

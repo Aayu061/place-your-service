@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
+import { DrawerContext, useDrawer } from './drawerContext';
+export type { DrawerContextType } from './drawerContext';
 
 export interface DrawerProps {
   isOpen: boolean;
@@ -10,6 +12,12 @@ export interface DrawerProps {
   children: React.ReactNode | ((helpers: { requestClose: () => void; isDirty: boolean }) => React.ReactNode);
   footer?: React.ReactNode | ((helpers: { requestClose: () => void; isDirty: boolean }) => React.ReactNode);
   width?: string;
+  /**
+   * Optional Back button handler for multi-step or nested drawer navigation.
+   * When provided, renders a visible Back button in the drawer header.
+   */
+  onBack?: () => void;
+  backLabel?: string;
   /**
    * Whether clicking the backdrop dismisses the drawer.
    * Default is FALSE globally across all Admin and Staff forms
@@ -37,6 +45,8 @@ export const Drawer: React.FC<DrawerProps> = ({
   children,
   footer,
   width = '440px',
+  onBack,
+  backLabel = 'Back',
   closeOnBackdropClick = false,
   isDirty = false,
   onConfirmDiscard,
@@ -95,7 +105,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <>
+    <DrawerContext.Provider value={{ requestClose, isDirty }}>
       <div
         className="drawer-backdrop animate-fade-in"
         onClick={() => {
@@ -121,17 +131,34 @@ export const Drawer: React.FC<DrawerProps> = ({
         }}
       >
         <div className="drawer-header">
-          <div>
-            <h2 id="drawer-title" className="drawer-title">
-              {title}
-            </h2>
-            {description && (
-              <p id="drawer-desc" className="text-caption" style={{ marginTop: '2px' }}>
-                {description}
-              </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)' }}>
+            {onBack && (
+              <Button
+                id="drawer-header-back-btn"
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                aria-label={backLabel ? `Go back to ${backLabel}` : 'Go back'}
+                title={backLabel ? `Go back to ${backLabel}` : 'Go back'}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
+              >
+                <ArrowLeft size={18} />
+                {backLabel && <span style={{ fontSize: 'var(--text-sm, 0.875rem)' }}>{backLabel}</span>}
+              </Button>
             )}
+            <div>
+              <h2 id="drawer-title" className="drawer-title">
+                {title}
+              </h2>
+              {description && (
+                <p id="drawer-desc" className="text-caption" style={{ marginTop: '2px' }}>
+                  {description}
+                </p>
+              )}
+            </div>
           </div>
           <Button
+            id="drawer-header-close-btn"
             variant="ghost"
             size="sm"
             isIconOnly
@@ -264,6 +291,66 @@ export const Drawer: React.FC<DrawerProps> = ({
           </div>
         </div>
       )}
-    </>
+    </DrawerContext.Provider>
   );
 };
+
+export interface DrawerCloseButtonProps {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  children?: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  style?: React.CSSProperties;
+}
+
+export const DrawerCloseButton: React.FC<DrawerCloseButtonProps> = ({
+  children = 'Close',
+  variant = 'outline',
+  onClick,
+  ...props
+}) => {
+  const { requestClose } = useDrawer();
+  return (
+    <Button
+      {...props}
+      variant={variant}
+      onClick={(e) => {
+        onClick?.(e);
+        requestClose();
+      }}
+    >
+      {children}
+    </Button>
+  );
+};
+
+export interface DrawerBackButtonProps {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  children?: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  style?: React.CSSProperties;
+}
+
+export const DrawerBackButton: React.FC<DrawerBackButtonProps> = ({
+  children = 'Back',
+  variant = 'outline',
+  onClick,
+  ...props
+}) => {
+  return (
+    <Button
+      {...props}
+      variant={variant}
+      onClick={onClick}
+    >
+      <ArrowLeft size={16} style={{ marginRight: '6px' }} />
+      {children}
+    </Button>
+  );
+};
+

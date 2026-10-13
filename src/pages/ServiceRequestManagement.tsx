@@ -878,8 +878,10 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
         onClose={() => !createSubmitting && setIsCreateModalOpen(false)}
         title="Create Service Request"
         maxWidth="680px"
+        isDirty={Boolean(createFormData.customerId || createFormData.siteId || createFormData.description || createFormData.notes)}
       >
-        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {({ requestClose }) => (
+          <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* Cascading Selectors */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
             {/* Customer Select */}
@@ -1104,7 +1106,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
             <Button
               variant="outline"
               type="button"
-              onClick={() => setIsCreateModalOpen(false)}
+              onClick={requestClose}
               disabled={createSubmitting}
             >
               Cancel
@@ -1119,6 +1121,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
             </Button>
           </div>
         </form>
+        )}
       </Modal>
 
       {/* 6. Service Request Detail Drawer */}

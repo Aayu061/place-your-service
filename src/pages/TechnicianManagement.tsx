@@ -1342,8 +1342,10 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
         onClose={() => setIsFormModalOpen(false)}
         title={formMode === 'create' ? '+ Add New Technician' : `Edit Technician: ${selectedTech?.technicianCode}`}
         maxWidth="680px"
+        isDirty={Boolean(name || phone || email || notes || customAreaInput)}
       >
-        <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {({ requestClose }) => (
+          <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {formError && (
             <div
               style={{
@@ -1600,7 +1602,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsFormModalOpen(false)}
+              onClick={requestClose}
               disabled={formSubmitting}
             >
               Cancel
@@ -1614,6 +1616,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
             </Button>
           </div>
         </form>
+        )}
       </Modal>
 
       {/* QUICK STATUS CHANGE MODAL */}

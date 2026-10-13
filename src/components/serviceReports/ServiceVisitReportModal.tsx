@@ -706,6 +706,17 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
     }
   };
 
+  const isFormDirty = Boolean(
+    workDescription ||
+    technicianRemarks ||
+    customerRepresentative ||
+    customerAcknowledgement ||
+    serviceTypeDeviationReason ||
+    partItems.length > 0 ||
+    repairItems.length > 0 ||
+    assets.some((a) => a.diagnosisFindings || a.workPerformed || a.notes)
+  );
+
   return (
     <Modal
       isOpen={isOpen}
@@ -717,7 +728,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           : `Official execution record for Appointment #${schedule?.scheduleNumber || ''}`
       }
       maxWidth="1040px"
-      footer={
+      isDirty={isFormDirty}
+      footer={({ requestClose }) => (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ShieldCheck size={16} style={{ color: 'var(--color-success-solid)' }} />
@@ -727,7 +739,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             <Button
               type="button"
               variant="secondary"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={isSubmitting}
             >
               Cancel
@@ -750,7 +762,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             </Button>
           </div>
         </div>
-      }
+      )}
     >
       <form
         id="service-visit-report-form"

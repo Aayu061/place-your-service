@@ -439,6 +439,18 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setFormError(null);
   };
 
+  const isAddCustomerDirty = Boolean(
+    formName ||
+    formPhone ||
+    formAltPhone ||
+    formEmail ||
+    formCompanyName ||
+    formAddress ||
+    formCity ||
+    formSiteName ||
+    formNotes
+  );
+
   const openAddModal = () => {
     resetForm();
     setIsAddModalOpen(true);
@@ -1764,10 +1776,13 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         isOpen={isAddModalOpen}
         onClose={() => !isSubmitting && setIsAddModalOpen(false)}
         title="Register New Customer"
-        description="Create a temporary or permanent customer account with site details."
+        description="Create a client profile with primary site and contact details."
         maxWidth="680px"
+        isDirty={isAddCustomerDirty}
+        onConfirmDiscard={resetForm}
       >
-        <form onSubmit={handleCreateCustomer}>
+        {({ requestClose }) => (
+          <form onSubmit={handleCreateCustomer}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {formError && (
               <div
@@ -1950,7 +1965,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsAddModalOpen(false)}
+                onClick={requestClose}
                 disabled={isSubmitting}
               >
                 Cancel
@@ -1960,13 +1975,15 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 type="submit"
                 variant="primary"
                 isLoading={isSubmitting}
+                id="btn-submit-customer"
               >
                 Register Customer
               </Button>
             </div>
           </div>
         </form>
-      </Modal>
+      )}
+    </Modal>
 
       {/* 6. EDIT CUSTOMER MODAL */}
       <Modal
@@ -2235,6 +2252,8 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         title={selectedCustomer?.name || 'Customer Profile'}
         description={`Code: ${selectedCustomer?.customerCode || ''}`}
         width="640px"
+        onBack={drawerTab !== 'overview' ? () => setDrawerTab('overview') : undefined}
+        backLabel="Overview"
       >
         {selectedCustomer && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
