@@ -186,11 +186,12 @@ If and only if the user explicitly approves deleting the candidate operational r
    - SQL recovery script checksum: `dbaf8b0a7d0cd64b317bf8492bfb4fb2bd7a52496fc96859c0368d6b269b4bbc`
 3. **Execution Audit Companion Report:**
    - See [PRODUCTION_TEST_DATA_RESET_EXECUTION_REPORT_20261014.md](file:///c:/Users/aayup/Desktop/PYS/DOCS/PRODUCTION_TEST_DATA_RESET_EXECUTION_REPORT_20261014.md) for full execution audit details.
-4. **Executed Atomic Transaction Script (All 9 Customers):**
-   - Full atomic transaction script archived in [`EXECUTE_RESET_TRANSACTION_20261014.sql`](file:///c:/Users/aayup/Desktop/PYS/DOCS/EXECUTE_RESET_TRANSACTION_20261014.sql).
-   - **Execution Completed & Dual-Verified:** Executed on 2026-10-14 20:41 UTC+05:30. All 9 demo customers and 102 operational records deleted atomically. All preserved records (2 staff, 2 profiles, 4 technicians, 234 master records, 200 activity logs, and ESSC sequence 17) verified 100% intact.
+4. **Executed Atomic Transaction Scripts:**
+   - Stage 1 (All 9 Customers & 102 Operational Records): [`EXECUTE_RESET_TRANSACTION_20261014.sql`](file:///c:/Users/aayup/Desktop/PYS/DOCS/EXECUTE_RESET_TRANSACTION_20261014.sql).
+   - Stage 2 (All 4 Technicians & 4 AMC Plans): [`EXECUTE_TECHNICIANS_AND_PLANS_CLEANUP_20261014.sql`](file:///c:/Users/aayup/Desktop/PYS/DOCS/EXECUTE_TECHNICIANS_AND_PLANS_CLEANUP_20261014.sql).
+   - **Complete Cleanup Confirmed & Dual-Verified:** Executed on 2026-10-14. Zero customers, zero operational records, zero technicians, and zero AMC plans remain. All administrative accounts (2 staff, 2 profiles), equipment catalog (230 master items), audit logs (202 entries), and ESSC sequence (17) are 100% preserved.
 
 ---
-*Notice: Execution completed successfully with verified database confirmation.*
+*Notice: Complete test-data cleanup completed successfully with verified live database confirmation.*
 
 
