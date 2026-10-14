@@ -174,12 +174,23 @@ If and only if the user explicitly approves deleting the candidate operational r
 
 ---
 
-## 7. Blockers & Required Next Steps Before Any Reset
+## 7. Revised Scope & Staged Reset Status (All 9 Customers)
 
-1. **User Sign-Off Required:** The user must explicitly approve the candidate deletion scope (7 customers, 8 sites, 10 AC assets, 7 AMC contracts, 8 AMC assets, 30 schedules, 2 requests, 7 assignments, 3 reports).
-2. **ESSC Identifier Policy Decision:** The user must specify whether the asset identifier sequence (`ESSC-XXXX`) should reset to `ESSC-0001` or preserve historical sequence numbering.
-3. **Audit Log Policy Decision:** The user must specify whether `activity_logs` should be cleared of test activity or preserved in full for compliance history.
-4. **Logical Backup Execution:** Generate and verify a `pg_dump` snapshot prior to issuing any transactional DELETE script.
+1. **User Scope Revision Approved:**
+   - Scope expanded: **All 9 customers** and 100% of linked operational records (**102 total records** across 11 tables).
+   - Intended final state: **0 customers and 0 customer-owned operational records**.
+   - Mandatory preservation: All 2 staff profiles, 4 field technicians (`TECH-0001` - `0004`), 234 AC/AMC master records, all 200 activity logs, and ESSC sequence (`ac_asset_code_seq`, value 17).
+2. **Logical Recovery Export (Baseline 7-Customer):**
+   - Saved to `C:\Users\aayup\.gemini\antigravity-ide\backups\pys_production_demo_customer_reset_20261014\`
+   - JSON export checksum: `08b191f535db3d13d249e9a69323997808b0313ca8d8d6514daf171fe55519e3`
+   - SQL recovery script checksum: `dbaf8b0a7d0cd64b317bf8492bfb4fb2bd7a52496fc96859c0368d6b269b4bbc`
+3. **Execution Audit Companion Report:**
+   - See [PRODUCTION_TEST_DATA_RESET_EXECUTION_REPORT_20261014.md](file:///c:/Users/aayup/Desktop/PYS/DOCS/PRODUCTION_TEST_DATA_RESET_EXECUTION_REPORT_20261014.md) for full execution audit details.
+4. **Executed Atomic Transaction Script (All 9 Customers):**
+   - Full atomic transaction script archived in [`EXECUTE_RESET_TRANSACTION_20261014.sql`](file:///c:/Users/aayup/Desktop/PYS/DOCS/EXECUTE_RESET_TRANSACTION_20261014.sql).
+   - **Execution Completed & Dual-Verified:** Executed on 2026-10-14 20:41 UTC+05:30. All 9 demo customers and 102 operational records deleted atomically. All preserved records (2 staff, 2 profiles, 4 technicians, 234 master records, 200 activity logs, and ESSC sequence 17) verified 100% intact.
 
 ---
-*Notice: This report concludes Phase 1 read-only inspection. Zero database records were modified.*
+*Notice: Execution completed successfully with verified database confirmation.*
+
+
