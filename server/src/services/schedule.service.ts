@@ -157,6 +157,7 @@ export class ScheduleService {
       technicianName: record.technicians?.name || activeAssignment?.technicianName || null,
       technicianCode: record.technicians?.technician_code || activeAssignment?.technicianCode || null,
       technicianPhone: record.technicians?.phone || activeAssignment?.technicianPhone || null,
+      assistantName: (record as any).assistant_name || null,
       activeAssignment: activeAssignment || null,
       assignmentHistory: assignmentHistory || [],
       cancellationReason: record.cancellation_reason,
@@ -810,6 +811,7 @@ export class ScheduleService {
       customer_id: targetCustomerId,
       site_id: targetSiteId,
       technician_id: payload.technicianId || null,
+      assistant_name: payload.assistantName?.trim() || null,
       scheduled_date: payload.scheduledDate,
       start_time: startTime,
       end_time: endTime,
@@ -931,6 +933,7 @@ export class ScheduleService {
     if (payload.durationMinutes !== undefined) updates.duration_minutes = payload.durationMinutes;
     if (payload.plannedServiceType !== undefined) updates.planned_service_type = payload.plannedServiceType;
     if (payload.notes !== undefined) updates.notes = payload.notes?.trim() || null;
+    if (payload.assistantName !== undefined) updates.assistant_name = payload.assistantName?.trim() || null;
 
     const { error: updErr } = await supabase
       .from('service_schedules')
@@ -1332,13 +1335,18 @@ export class ScheduleService {
     }
 
     // Update schedule technician and status
+    const schedUpdates: Record<string, any> = {
+      technician_id: payload.technicianId,
+      status: 'ASSIGNED',
+      updated_by: actorId,
+    };
+    if (payload.assistantName !== undefined) {
+      schedUpdates.assistant_name = payload.assistantName?.trim() || null;
+    }
+
     const { error: schedUpErr } = await supabase
       .from('service_schedules')
-      .update({
-        technician_id: payload.technicianId,
-        status: 'ASSIGNED',
-        updated_by: actorId,
-      })
+      .update(schedUpdates)
       .eq('id', scheduleId);
 
     if (schedUpErr) {

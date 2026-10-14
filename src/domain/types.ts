@@ -646,6 +646,7 @@ export interface ServiceSchedule {
   technicianName?: string | null;
   technicianCode?: string | null;
   technicianPhone?: string | null;
+  assistantName?: string | null;
   activeAssignment?: ServiceAssignmentSummary | null;
   assignmentHistory?: ServiceAssignmentSummary[];
   cancellationReason?: string | null;
@@ -675,6 +676,7 @@ export interface CreateServiceSchedulePayload {
   plannedServiceType?: PlannedServiceType | null;
   notes?: string;
   technicianId?: string;
+  assistantName?: string | null;
   isOverride?: boolean;
   overrideReason?: string;
 }
@@ -686,10 +688,12 @@ export interface UpdateServiceSchedulePayload {
   durationMinutes?: number;
   plannedServiceType?: PlannedServiceType | null;
   notes?: string;
+  assistantName?: string | null;
 }
 
 export interface AssignTechnicianPayload {
   technicianId: string;
+  assistantName?: string | null;
   scheduledStartTime?: string;
   scheduledEndTime?: string;
   isOverride?: boolean;
@@ -698,6 +702,7 @@ export interface AssignTechnicianPayload {
 
 export interface ReassignTechnicianPayload {
   technicianId: string;
+  assistantName?: string | null;
   scheduledStartTime?: string;
   scheduledEndTime?: string;
   isOverride?: boolean;
@@ -885,6 +890,7 @@ export interface ServiceVisitReport {
   technicianName?: string | null;
   technicianCode?: string | null;
   technicianPhone?: string | null;
+  assistantName?: string | null;
   serviceDate: string;
   startTime?: string | null;
   endTime?: string | null;
@@ -934,6 +940,7 @@ export interface CreateServiceReportPayload {
   performedServiceType?: PerformedServiceType | null;
   serviceTypeDeviationReason?: string | null;
   originatingReportId?: string | null;
+  assistantName?: string | null;
   workDescription?: string | null;
   technicianRemarks?: string | null;
   customerRepresentative?: string | null;

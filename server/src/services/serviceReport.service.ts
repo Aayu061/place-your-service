@@ -250,6 +250,7 @@ export class ServiceReportService {
         customer_id: customerId,
         site_id: siteId,
         technician_id: technicianId,
+        assistant_name: payload.assistantName?.trim() || (schedule as any).assistant_name || null,
         service_date: payload.serviceDate,
         start_time: payload.startTime || schedule.start_time || null,
         end_time: payload.endTime || schedule.end_time || null,
@@ -546,7 +547,7 @@ export class ServiceReportService {
       .from('service_reports')
       .select(`
         id, report_number, visit_type, service_schedule_id, service_request_id,
-        amc_id, pm_obligation_id, customer_id, site_id, technician_id,
+        amc_id, pm_obligation_id, customer_id, site_id, technician_id, assistant_name,
         service_date, start_time, end_time, primary_outcome,
         planned_service_type, performed_service_type, service_type_deviation_reason,
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
@@ -719,6 +720,7 @@ export class ServiceReportService {
       technicianName: (row.technicians as any)?.name || null,
       technicianCode: (row.technicians as any)?.technician_code || null,
       technicianPhone: (row.technicians as any)?.phone || null,
+      assistantName: (row as any).assistant_name || null,
       serviceDate: row.service_date,
       startTime: row.start_time,
       endTime: row.end_time,
@@ -790,7 +792,7 @@ export class ServiceReportService {
       .select(
         `
         id, report_number, visit_type, service_schedule_id, service_request_id,
-        amc_id, pm_obligation_id, customer_id, site_id, technician_id,
+        amc_id, pm_obligation_id, customer_id, site_id, technician_id, assistant_name,
         service_date, start_time, end_time, primary_outcome,
         planned_service_type, performed_service_type, service_type_deviation_reason,
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
@@ -908,6 +910,7 @@ export class ServiceReportService {
       technicianName: row.technicians?.name || null,
       technicianCode: row.technicians?.technician_code || null,
       technicianPhone: row.technicians?.phone || null,
+      assistantName: row.assistant_name || null,
       serviceDate: row.service_date,
       startTime: row.start_time,
       endTime: row.end_time,

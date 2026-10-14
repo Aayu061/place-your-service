@@ -1,175 +1,227 @@
-# PYS Defect Register — Re-Audit 11 October 2026
+# PYS Defect Register — Comprehensive System Audit
 
-**Counts:** P0 0 | P1 13 | P2 5 | P3 2  
-**Status terms:** VERIFIED = proven from current source/migrations. LIKELY = deterministic risky migration behavior, but no live database state was inspected. TECHNICAL DEBT = verified maintainability/test/documentation concern.
+**Audit Date:** 14 October 2026  
+**Git Baseline:** `7f8cfab` (`main`)  
+**Database Target:** `place-your-service` (Supabase `jvccvdxfilzlncbgiplk`)  
+**Defect Counts:** P0: 2 | P1: 6 | P2: 4 | P3: 2  
+**Total Tracked Defects:** 14
 
-## P1 — High
+---
 
-### PYS-001 — VERIFIED — AMC allocation generation ignores the included-visit contract
+## Index of Defects
 
-- **Module / evidence:** AMC PM generator; server/src/services/amc.service.ts:54-79, 84-125, 1162-1175, 1229-1254.
-- **Reproduce:** Create a 2026 quarterly contract with three included visits allocated 1 Dry/1 Jet/1 Pumpdown. Generate PM work; four dates are produced and a fourth Dry fallback is inserted. Add a second asset to multiply schedules.
-- **Expected / actual:** Allocation must exactly map to included obligations. Actual generation maps allocation to cadence dates per asset.
-- **Impact:** wrong contracted work, misleading allocation display, incorrect billing/completion basis.
-- **Action / dependencies:** decide contract-level versus per-asset visit semantics; validate cadence/count before save; generate explicit obligation rows in one transaction; migrate/reconcile affected data.
-- **Acceptance test:** all frequencies, month boundaries, arbitrary valid counts, zero-count service types, one/multiple assets, and repeated generation produce exactly the defined obligation set.
+| Defect ID | Priority | Feature Module | Title | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **PYS-A1** | **P1** | Service Reports | Automatic Customer Email Delivery Missing | **CONFIRMED DEFECT** |
+| **PYS-A2** | **P2** | Service Reports | Technician Contact Phone Number Exposed on Customer Views | **CONFIRMED DEFECT** |
+| **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 1 SCHEMA & VALIDATORS COMPLETE (PENDING PROD MIGRATION & UI)** |
+| **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
+| **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **CONFIRMED DEFECT** |
+| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 1 DEVELOPMENT COMPLETE (PENDING PROD MIGRATION)** |
+| **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **CONFIRMED DEFECT** |
+| **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **CONFIRMED DEFECT** |
+| **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **CONFIRMED DEFECT** |
+| **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **CONFIRMED DEFECT** |
+| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **CONFIRMED DEFECT** |
+| **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **CONFIRMED DEFECT** |
+| **PYS-007**| **P3** | Frontend Types | `ServiceSchedule` Assistant Field Missing in Frontend Typings | **RESOLVED IN BATCH 1** |
+| **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **CONFIRMED DEFECT** |
 
-### PYS-002 — VERIFIED — AMC PATCH permits invalid allocation and historical plan drift
+---
 
-- **Module / evidence:** server/src/validators/amc.validator.ts:137-156; server/src/services/amc.service.ts:863-921; migration 20261011010000_amc_service_allocation_planner.sql:4-36.
-- **Reproduce:** PATCH only dryServiceVisits after an allocated contract exists. No merged sum is checked; generated schedules remain unchanged.
-- **Expected / actual:** merged allocation must equal totalVisits and generated/completed records must be protected. Actual state can become invalid and un-reconciled.
-- **Impact:** corrupted contract terms and rewritten intended future service mix.
-- **Action / dependencies:** database check or normalized allocation table, merged-state validation, immutable/versioned plan once work exists, controlled regeneration.
-- **Acceptance test:** partial PATCH, total-change PATCH, completed visit, and direct database/RLS write all reject or follow a documented versioning flow.
+## Detailed Defect Specifications
 
-### PYS-003 — VERIFIED — renewal silently loses allocation
+### PYS-C2 — Critical Schema Drift: Warranty Service Entry Fails on Live DB (P0)
+- **Severity / Priority:** P0 — Critical Blocker.
+- **Affected Feature:** AC Asset Registration & Warranty Entitlement Management.
+- **Reproduction Steps:**
+  1. Open Staff/Admin UI → Customers → Select Customer → Select Site.
+  2. Click "Add AC Asset".
+  3. Enter Brand, Model, Serial Numbers, and enter Warranty Services: Total: 3 (1 Dry, 1 Jet, 1 Pumpdown).
+  4. Click "Register AC Asset".
+- **Expected Behavior:** Asset is saved with warranty dates and service visit entitlements in `ac_assets`.
+- **Actual Behavior:** PostgreSQL error returned: `column "total_warranty_services" of relation "ac_assets" does not exist` (HTTP 500 / 400).
+- **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx)
+- **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts), [`server/src/validators/asset.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/asset.validator.ts)
+- **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` was authored and committed, but **NEVER executed on the live Supabase database**.
+- **Root Cause & Evidence:** Direct SQL query via Supabase MCP `execute_sql` confirmed `public.ac_assets` has `warranty_start_date` and `warranty_end_date`, but lacks `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`.
+- **Proposed Fix:** Apply migration `20261014000000_ac_asset_warranty_services.sql` to live database with non-negative checks and sum invariant constraint.
+- **Regression Tests:** Integration test executed against PostgreSQL 17 engine via transaction-isolated rollback; verified allocation check constraint `total = dry + jet + pumpdown` and non-negative constraints.
+- **Status:** **BATCH 1 DEVELOPMENT COMPLETE — PENDING PRODUCTION MIGRATION**.
 
-- **Module / evidence:** server/src/validators/amc.validator.ts:179-198; server/src/services/amc.service.ts:1417-1444; legacy fallback 90-94.
-- **Reproduce:** renew an allocated contract without a new allocation. Successor allocation fields are null and sequence reverts to Dry/Jet alternation.
-- **Expected / actual:** successor receives explicit validated allocation or disclosed carry-forward. Actual allocation is discarded.
-- **Impact:** contract commitments differ after renewal.
-- **Action / dependencies:** add allocation to renewal payload or copy/validate predecessor allocation; update UI and migration/API contracts.
-- **Acceptance test:** renew Dry/Jet/Pumpdown allocation and verify successor PM types/counts exactly.
+---
 
-### PYS-004 — VERIFIED — completion counts do not recognize valid revisit resolution
+### PYS-D1 — Duplicate PM Obligations & Orphaned Visits on Renewal (P0)
+- **Severity / Priority:** P0 — High Integrity Violation.
+- **Affected Feature:** AMC Contracts, Quotation Renewal & Preventive Maintenance Generation.
+- **Reproduction Steps:**
+  1. Create an active AMC contract with 4 quarterly visits for Asset A.
+  2. Notice visits scheduled for months 3, 6, 9, 12.
+  3. Execute Renewal for the subsequent year before all visits are performed.
+  4. Inspect `service_schedules`.
+- **Expected Behavior:**
+  - Successor contract is created with non-overlapping period.
+  - Unperformed predecessor obligations are cleanly reconciled (not left hanging or re-copied).
+  - Successor generates only its own cadence visits without multiplying schedules.
+- **Actual Behavior:**
+  - Unperformed predecessor schedules remain `SCHEDULED` indefinitely.
+  - Renewal inserts new schedules with a fragile idempotency key `${id}_${asset.assetId}_${date}`. If contract dates change or renewal is re-triggered, duplicate schedules accumulate.
+- **Frontend Files:** [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx)
+- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts) lines 1160–1260, lines 1410–1460.
+- **Database / Schema:** `public.service_schedules`, `public.amc_contracts`.
+- **Root Cause & Evidence:**
+  - `renewContract` in `amc.service.ts` creates a new contract but does not mark unperformed predecessor schedules or handle successor period boundaries cleanly.
+  - Furthermore, `renewContract` omits `dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits` during insert of successor contract, causing successor PM generation to fall back to generic alternating types or fail.
+- **Proposed Fix:**
+  1. Carry forward breakdown visit counts in `renewContract`.
+  2. Cancel unfulfilled predecessor visits with reason `'AMC_SUPERSEDED_BY_RENEWAL'`.
+  3. Generate successor PM obligations using deterministic composite obligation keys based on `amc_id`, `asset_id`, and `visit_number`.
+- **Regression Tests:** Test renewal of 1-year quarterly contract; verify exactly 4 visits on predecessor, cancel unfulfilled, verify exactly 4 on successor.
+- **Status:** **CONFIRMED DEFECT (P0)**.
 
-- **Module / evidence:** AMC counts server/src/services/amc.service.ts:427-460, 586-617; asset counts server/src/services/asset.service.ts:166-198.
-- **Reproduce:** submit a pending report for an AMC obligation, arrange/complete a linked follow-up, then compare contract and asset completed counts.
-- **Expected / actual:** original obligation becomes complete once after valid resolution. Actual contract excludes it while asset aggregation can count the follow-up.
-- **Impact:** remaining visits, AMC status, and dashboard decisions are wrong.
-- **Action / dependencies:** model obligation state separately from appointment/report state; resolve exactly once through an atomic transition.
-- **Acceptance test:** completed, pending, resolved follow-up, cancelled follow-up, and retry cases reconcile identically on all screens.
+---
 
-### PYS-005 — VERIFIED — report/schedule hierarchy can be corrupted
+### PYS-A1 — Automatic Customer Email Delivery Missing (P1)
+- **Severity / Priority:** P1 — Core Requirement.
+- **Affected Feature:** Service Visit Reports & Customer Communication.
+- **Reproduction Steps:**
+  1. Complete a service visit report in `ServiceReportsManagement`.
+  2. Save and complete the report.
+  3. Check email inbox of the customer.
+- **Expected Behavior:** Customer's registered email receives an automated, formatted service completion summary with work done, observations, and technician/assistant names.
+- **Actual Behavior:** No email is dispatched. No email provider or transport package is installed in `server/package.json`.
+- **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx)
+- **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/package.json`](file:///c:/Users/aayup/Desktop/PYS/server/package.json).
+- **Database / Schema:** `public.customers` (`email`), `public.service_reports`, `public.activity_logs`.
+- **Root Cause & Evidence:** `serviceReport.service.ts` only writes to PostgreSQL. There is zero email integration code, zero background email dispatch, and `customers.email` is not even queried in `getReportById`.
+- **Proposed Fix:**
+  1. Implement a pluggable email service in `server/src/services/email.service.ts` (supporting Resend / SMTP / Console Test Transport).
+  2. Add async dispatch trigger in `createReport` after database transaction successfully commits.
+  3. Query `customers.email` as authoritative recipient.
+  4. Ensure failed email delivery logs an error in `activity_logs` but DOES NOT roll back the committed service report.
+- **Regression Tests:** Mock email provider; verify email payload, recipient, and fallback on network error.
+- **Status:** **CONFIRMED DEFECT (P1)**.
 
-- **Module / evidence:** server/src/services/serviceReport.service.ts:102-167, 283-338; server/src/services/schedule.service.ts:497-535, 731-784.
-- **Reproduce:** submit a known asset UUID from a different site/customer in a report payload for a scheduled visit.
-- **Expected / actual:** asset, site, customer, request, and schedule must agree. Actual service code does not enforce those relationships.
-- **Impact:** cross-customer service history/data attribution corruption.
-- **Action / dependencies:** server-side ownership joins plus database trigger/RPC validation; do not trust UUID payloads.
-- **Acceptance test:** every cross-entity combination is rejected with 400/409 and leaves no writes.
+---
 
-### PYS-006 — VERIFIED — resolution can close an arbitrary report or too many items
+### PYS-A2 — Technician Contact Phone Number Exposed on Customer Views (P2)
+- **Severity / Priority:** P2 — Privacy & Policy Compliance.
+- **Affected Feature:** Customer-facing Service Report views, print layouts, and email templates.
+- **Reproduction Steps:**
+  1. Open `ServiceReportsManagement`.
+  2. View any completed report detail drawer or open `ServiceReportPrintView`.
+- **Expected Behavior:** Technician's name is displayed, but their private phone number is redacted from all customer-facing views, printable receipts, and email templates. Phone number must remain accessible in Admin/Staff Technician Management only.
+- **Actual Behavior:** Line 1188 of [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx) explicitly renders:
+  `<div>Phone: {detailedReport.technicianPhone}</div>`.
+- **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/service/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/service/ServiceReportPrintView.tsx).
+- **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts).
+- **Root Cause & Evidence:** Direct code match in UI and print components.
+- **Proposed Fix:** Remove `technicianPhone` from customer-facing report drawer, print view, and future email template. Keep `phone` in internal `TechnicianManagement.tsx`.
+- **Regression Tests:** Verify UI component and print view do not render technician phone number.
+- **Status:** **CONFIRMED DEFECT (P2)**.
 
-- **Module / evidence:** server/src/services/serviceReport.service.ts:146-157, 185-225, 378-470.
-- **Reproduce:** create a completed report naming another pending same-site report as originating; use generic/no-asset or multi-asset items.
-- **Expected / actual:** a linked follow-up resolves only selected unresolved issue/assets. Actual checks only broad report context and can set all items/source state.
-- **Impact:** false resolution, bad KPIs, and lost operational follow-up.
-- **Action / dependencies:** persistent issue/item scope, uniqueness/locking on resolution, aggregate outcome derived from asset/item state.
-- **Acceptance test:** unrelated same-site source, already resolved source, multi-asset partial completion, and generic item all fail or resolve precisely.
+---
 
-### PYS-007 — VERIFIED — report edits rewrite issued history; GET mutates records
+### PYS-A3 — Assistant Name Missing from Schema and Service Report Entry (P1)
+- **Severity / Priority:** P1 — Operational Requirement.
+- **Affected Feature:** Field Technician & Assistant Name Tracking on Service Reports.
+- **Reproduction Steps:**
+  1. Open "New Service Report" modal.
+  2. Observe technician name is displayed.
+  3. Look for assistant name input or display.
+- **Expected Behavior:** Both the assigned technician's name and the assistant's name are visible, editable, saved in database, and displayed on service reports and print views.
+- **Actual Behavior:** There is no field, column, or API parameter for assistant name.
+- **Frontend Files:** [`src/components/service/ServiceVisitReportModal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/service/ServiceVisitReportModal.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx).
+- **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/src/validators/serviceReport.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/serviceReport.validator.ts).
+- **Database / Schema:** `public.service_reports` and `public.service_schedules` lack `assistant_name` column.
+- **Root Cause & Evidence:** Schema inspection via Supabase MCP confirmed absence of `assistant_name` in both tables.
+- **Proposed Fix:**
+  1. Create migration adding `assistant_name TEXT NULL` to `service_schedules` and `service_reports` (`20261014010000_service_schedule_and_report_assistant_name.sql`).
+  2. Update validators and services to accept and persist `assistantName` (Completed in Batch 1).
+  3. Add input in `ServiceVisitReportModal.tsx`, prefilling from schedule if present (Batch 3).
+  4. Render both names in report details, tables, and print view (Batch 3).
+- **Regression Tests:** Authored `server/tests/assistantNameValidation.test.ts` (7 tests covering schedule and report validation). DDL and rollback tested on PostgreSQL 17 engine.
+- **Status:** **BATCH 1 SCHEMA & VALIDATORS COMPLETE (PENDING PROD MIGRATION & UI)**.
 
-- **Module / evidence:** server/src/services/serviceReport.service.ts:621-641, 1073-1163.
-- **Reproduce:** edit a report after an AC asset changes or after its items are resolved; separately GET a report whose follow-up is cancelled.
-- **Expected / actual:** snapshots/items/read APIs remain immutable/audited. Actual edit rebuilds snapshots from live assets and resets item resolution; GET clears follow-up linkage.
-- **Impact:** historical evidence and audit trail become unreliable.
-- **Action / dependencies:** append-only correction/version model, immutable database trigger, explicit audited repair endpoint.
-- **Acceptance test:** asset edit, report amendment, resolved item, and GET must not alter issued historical values without an authorized correction record.
+---
 
-### PYS-008 — VERIFIED — report issuance is race-prone and accepts cancelled schedules
+### PYS-B1 — Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry (P1)
+- **Severity / Priority:** P1 — Core Administrative Requirement.
+- **Affected Feature:** Operational Data Reporting & Excel Export.
+- **Reproduction Steps:**
+  1. Navigate to Customers, Service Schedules, Service Reports, or AMC Expiry screens.
+  2. Look for "Export to Excel" (.xlsx) functionality.
+- **Expected Behavior:** Accurate, formatted `.xlsx` export files generated with authoritative database values, proper dates, headers, and Admin/Staff role protection.
+- **Actual Behavior:** No `.xlsx` export endpoints or UI buttons exist. Neither `exceljs` nor `xlsx` library is present in dependencies.
+- **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx), [`src/pages/ServiceScheduleManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceScheduleManagement.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx).
+- **Backend Files:** Add `server/src/services/export.service.ts`, `server/src/controllers/export.controller.ts`, export routes.
+- **Root Cause & Evidence:** Code search for `.xlsx` and `excel` returned zero implementations.
+- **Proposed Fix:**
+  1. Install `exceljs` in `server/package.json`.
+  2. Implement backend streaming export endpoints with proper MIME type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+  3. Provide UI download triggers for:
+     - Customer details
+     - Service schedules
+     - Service reports
+     - AMC expiry details
+- **Regression Tests:** Test API endpoints return valid `.xlsx` binary buffers with correct column headers and records.
+- **Status:** **CONFIRMED DEFECT (P1)**.
 
-- **Module / evidence:** server/src/services/serviceReport.service.ts:102-144, 118-129, 240-483; migration 20261010000000_service_visit_reports.sql:31-40.
-- **Reproduce:** concurrently submit two different report numbers for one schedule; submit a report for a cancelled schedule.
-- **Expected / actual:** one report per valid appointment, atomically issued. Actual check-then-insert has no database uniqueness/transaction and lacks terminal-state rejection.
-- **Impact:** duplicate reports and cancelled work marked completed.
-- **Action / dependencies:** partial/unique schedule report index, idempotency key, transaction, terminal-state policy.
-- **Acceptance test:** concurrent submits yield one success/one conflict; cancelled/completed states are rejected.
+---
 
-### PYS-009 — VERIFIED — follow-up scope uses first asset but can resolve all source assets
+### PYS-C1 — Refrigerant Default Selection Cascade and Override Flaws (P2)
+- **Severity / Priority:** P2 — Data Entry Usability & Integrity.
+- **Affected Feature:** AC Master Data & Asset Register Cascading Autofill.
+- **Reproduction Steps:**
+  1. Open AC Master Management → Add or Edit Model.
+  2. Observe default refrigerant behavior.
+  3. Open Customer Management → Add Asset → Select Model without refrigerant.
+- **Expected Behavior:**
+  - If model/variant defines a refrigerant, it autofills the form.
+  - If user selects a different model/variant, the refrigerant updates to match the new selection.
+  - If model has no default, user can manually select any valid refrigerant without getting stuck.
+  - Value persists correctly upon save and reload.
+- **Actual Behavior:**
+  - `AcMasterManagement.tsx` forced `setModelRefrigerant(model.refrigerant || 'R32')` and `'R32'` on new models.
+  - In `asset.service.ts`, if `variantId` was omitted, the server failed to look up `mData.refrigerant` from `ac_models`.
+- **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx), [`src/pages/AcMasterManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AcMasterManagement.tsx).
+- **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts).
+- **Root Cause & Evidence:** Hardcoded 'R32' fallback in UI modal handlers and missing model-level fallback in asset creation backend.
+- **Proposed Fix:** Use clean cascade: Variant Refrigerant → Model Refrigerant → Manual Entry. Do not force hardcoded 'R32'. Clear dependent fields when brand/model changes.
+- **Regression Tests:** Test model selection with R32, R410A, and null refrigerant; verify correct form state and saved asset row.
+- **Status:** **CONFIRMED DEFECT (P2)**.
 
-- **Module / evidence:** server/src/services/serviceReport.service.ts:1246-1290 and 392-421.
-- **Reproduce:** create a report with two pending assets, with the second asset requiring work; schedule and complete a follow-up.
-- **Expected / actual:** follow-up persists selected issue/asset scope. Actual schedule selects assets[0] and resolution can close all.
-- **Impact:** wrong technician context and premature closure.
-- **Action / dependencies:** normalize follow-up-to-item/asset links; require resolution payload to match them.
-- **Acceptance test:** first asset not pending, two pending assets, and partial revisit scenarios preserve unresolved work.
+---
 
-### PYS-010 — VERIFIED — authenticated direct Supabase writes bypass backend controls
+### PYS-D2 — Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation (P1)
+- **Severity / Priority:** P1 — Contract Integrity.
+- **Affected Feature:** AMC Quotation Lifecycle.
+- **Reproduction Steps:**
+  1. Create an AMC quotation in `DRAFT` status.
+  2. Inspect `service_schedules` (0 schedules generated, as expected for drafts).
+  3. Update quotation status to `ACTIVE` via `PATCH /api/v1/amc-contracts/:id/status`.
+  4. Inspect `service_schedules`.
+- **Expected Behavior:** On transition to `ACTIVE`, the per-asset PM obligations are automatically generated for all covered assets.
+- **Actual Behavior:** `updateStatus` in `amc.service.ts` updates the status column in `amc_contracts` but never invokes `generatePmObligations`. Contract remains active with 0 PM visits.
+- **Frontend Files:** [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx).
+- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts) lines 940–990.
+- **Root Cause & Evidence:** In `amc.service.ts`, `generatePmObligations` is ONLY called inside `createContract` when status is initially `ACTIVE`. In `updateStatus`, no PM generation call exists.
+- **Proposed Fix:** In `updateStatus`, when `newStatus === 'ACTIVE'`, call `generatePmObligations` in the same transaction.
+- **Regression Tests:** Create draft AMC → activate it → assert correct number of scheduled PM visits appear.
+- **Status:** **CONFIRMED DEFECT (P1)**.
 
-- **Module / evidence:** src/services/supabase.ts:16-38; foundation migration 20261007000000:544-586, 603-610, 624-630.
-- **Reproduce:** with an authenticated Staff JWT, call Supabase REST for an operational table or activity_logs instead of the backend API.
-- **Expected / actual:** business writes and audit entries must be backend/trigger enforced. Actual broad Staff RLS permits direct write and audit insert.
-- **Impact:** bypass of validation/status/transaction rules and spoofable audit entries.
-- **Action / dependencies:** revoke browser table write privileges; use narrowly scoped RPCs/claims or backend-only service role; make audit log insert trigger/server-only.
-- **Acceptance test:** direct authenticated REST mutation and audit insert are denied; intended API flow still succeeds.
+---
 
-### PYS-011 — VERIFIED — reschedule without technician strands the appointment
-
-- **Module / evidence:** server/src/services/schedule.service.ts:424-432, 1421-1530.
-- **Reproduce:** reschedule an existing appointment while omitting targetTechId, then open unscheduled work.
-- **Expected / actual:** an actionable replacement or unassigned schedule remains visible. Actual same row becomes RESCHEDULED and is excluded from the queue.
-- **Impact:** missed service work.
-- **Action / dependencies:** atomically create successor or retain SCHEDULED/UNASSIGNED status; update state-machine/UI labels.
-- **Acceptance test:** no-tech reschedule, tech replacement, cancellation, and retry all retain exactly one actionable work item.
-
-### PYS-012 — LIKELY — history backfills can fabricate snapshots and resolve unrelated work
-
-- **Module / evidence:** migrations 20261010040000_service_report_assets_snapshot_integrity.sql:24-42 and 20261011010000_amc_service_allocation_planner.sql:43-69.
-- **Reproduce:** apply to legacy reports after asset attributes changed or when several same-site pending reports/follow-ups exist.
-- **Expected / actual:** unknown old data remains unknown and only exact linked issues resolve. Actual SQL copies current live asset fields and matches resolution by customer/site.
-- **Impact:** permanent historical misstatement or over-resolution after migration.
-- **Action / dependencies:** do not run broad update unreviewed; backup, dry-run/count, migrate only provable joins, leave unknowns null, provide repair ledger.
-- **Acceptance test:** fixture with changed assets and same-site unrelated pending issues proves no fabricated snapshot or unrelated closure.
-
-### PYS-013 — VERIFIED — AMC coverage removal deletes historical membership
-
-- **Module / evidence:** server/src/services/amc.service.ts:1080 onward.
-- **Reproduce:** remove a covered asset after completed PM/report history, then view contract/asset AMC history.
-- **Expected / actual:** historical association remains with an end date/reason. Actual amc_assets membership is deleted.
-- **Impact:** incomplete contract/service history.
-- **Action / dependencies:** soft-close association and filter only active coverage for future PM.
-- **Acceptance test:** removed asset remains visible in historical contract and asset history, while no new PM is generated.
-
-## P2 — Medium
-
-### PYS-014 — VERIFIED — critical multi-write workflows are not transactional
-
-- **Evidence:** AMC creation service lines 799-846; renewal 1417-1525; schedule assignment 621-711; report create 240-372.
-- **Expected / actual:** all-or-nothing writes. Actual code catches/logs some errors or manually compensates partial writes.
-- **Impact / action:** partial contracts, assignments, reports, and audits. Move workflows to PostgreSQL transactions/RPCs and fault-injection tests.
-- **Acceptance test:** force each child write to fail and verify zero partial persisted state.
-
-### PYS-015 — VERIFIED — metric definitions and filter scope diverge
-
-- **Evidence:** server/src/services/amc.service.ts:311-328; server/src/services/serviceReport.service.ts:949-1004; ServiceReportsManagement.tsx:105-151, 503-543.
-- **Expected / actual:** AMC cards count AMC only; pending cards count distinct unresolved issues and state scope. Actual queries count unsuitable rows/report headers and summary ignores several selected filters.
-- **Impact / action:** misleading operational KPIs. Define source queries/views, item-level counts, and global-versus-filtered UI labels.
-- **Acceptance test:** mix AMCs/non-AMCs, resolved/unresolved items, and filters; values reconcile to fixture truth.
-
-### PYS-016 — VERIFIED — schedule model references a column that migrations do not define and permits invalid times
-
-- **Evidence:** schedule.service.ts:765-779; foundation migration:139-156; schedule.validator.ts; updateSchedule path.
-- **Expected / actual:** resolve ownership via site and reject end <= start. Actual column query is invalid and validator accepts independent times.
-- **Impact / action:** failed generic scheduling/invalid visits. Correct mapping and time invariant, preserve DB overlap conflict semantics.
-- **Acceptance test:** asset-linked AMC schedule works; start=end and end<start return validation error.
-
-### PYS-017 — VERIFIED — asset master, customer filter, and warranty behavior are inconsistent
-
-- **Evidence:** asset.validator.ts:73-84; asset.service.ts list/update paths, warranty mapping/filter.
-- **Expected / actual:** model belongs to chosen brand; customerId filter works; warranty has one authoritative calculation. Actual update/filter paths diverge.
-- **Impact / action:** bad master combinations and misleading asset searches/statuses. Revalidate relationships and derive/filter warranty consistently.
-- **Acceptance test:** invalid brand/model patch fails; customer filter isolates assets; warranty changes at boundary date consistently.
-
-### PYS-018 — VERIFIED — public initial-admin bootstrap is operationally unsafe
-
-- **Evidence:** server/src/routes/auth.routes.ts:15-20; server/src/services/auth.service.ts:58-199.
-- **Expected / actual:** one-time provisioning cannot be claimed by a public first caller. Actual public endpoint creates/updates the singleton when none exists.
-- **Impact / action:** initial admin takeover/race. Require deployment secret/one-time migration/manual provisioning and disable route after use.
-- **Acceptance test:** public request without provisioning authority fails; authorized bootstrap runs once under concurrency.
-
-## P3 — Low
-
-### PYS-019 — VERIFIED — follow-up form labels are not associated to inputs
-
-- **Evidence:** src/pages/ServiceReportsManagement.tsx:1357-1396.
-- **Expected / actual:** Date/Start/End labels should use htmlFor matching input IDs. Actual labels are visual only.
-- **Impact / action:** reduced assistive-technology usability. Add IDs/htmlFor and keyboard accessibility regression test.
-
-### PYS-020 — TECHNICAL DEBT — source-of-truth documentation and test hygiene are stale
-
-- **Evidence:** DOCS/MEMORY.md phase claims/schema description; frontend test output from npm test.
-- **Expected / actual:** docs describe current schema and completion criteria; tests run without async act warning. Actual documentation includes ac_assets.customer_id and a report-modal test emits a React act warning.
-- **Impact / action:** audit/implementation decisions can rely on false completion assumptions. Correct docs with each migration and resolve warning.
-
+### PYS-D3 — Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) (P1)
+- **Severity / Priority:** P1 — Contract Integrity.
+- **Affected Feature:** AMC Contract Renewal.
+- **Reproduction Steps:**
+  1. Create a contract with breakdown visits: 2 Dry, 1 Jet, 1 Pumpdown.
+  2. Call `POST /api/v1/amc-contracts/:id/renew` without explicitly passing new breakdown numbers.
+- **Expected Behavior:** Successor contract inherits or carries forward the predecessor contract's service breakdown visits.
+- **Actual Behavior:** `renewContract` in `amc.service.ts` inserts successor with `dry_service_visits: null`, `jet_service_visits: null`, `pumpdown_service_visits: null`.
+- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts) lines 1410–1460.
+- **Root Cause & Evidence:** Code in `renewContract` only copies `plan_id`, `customer_id`, `site_id`, `frequency`, but omits the three breakdown fields.
+- **Proposed Fix:** Copy predecessor breakdown counts if not explicitly overridden in renewal request payload.
+- **Regression Tests:** Renew contract with 2/1/1 breakdown; verify successor contract has identical 2/1/1 breakdown.
+- **Status:** **CONFIRMED DEFECT (P1)**.

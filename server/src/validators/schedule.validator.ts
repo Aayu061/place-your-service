@@ -100,6 +100,7 @@ export const createScheduleSchema = {
     plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
     notes: optionalTrimmedString,
     technicianId: optionalUuid,
+    assistantName: optionalTrimmedString,
     isOverride: optionalBoolean,
     overrideReason: optionalTrimmedString,
   }).refine((data) => {
@@ -121,6 +122,7 @@ export const updateScheduleSchema = {
     durationMinutes: optionalPositiveInt,
     plannedServiceType: plannedServiceTypeEnum.nullable().optional(),
     notes: optionalTrimmedString,
+    assistantName: optionalTrimmedString,
   }),
 };
 
@@ -141,6 +143,7 @@ export const assignTechnicianSchema = {
   }),
   body: z.object({
     technicianId: z.string().uuid({ message: 'Valid technician ID is required' }),
+    assistantName: optionalTrimmedString,
     scheduledStartTime: z.string().optional(),
     scheduledEndTime: z.string().optional(),
     isOverride: optionalBoolean,
@@ -154,6 +157,7 @@ export const reassignTechnicianSchema = {
   }),
   body: z.object({
     technicianId: z.string().uuid({ message: 'Valid technician ID is required' }),
+    assistantName: optionalTrimmedString,
     scheduledStartTime: z.string().optional(),
     scheduledEndTime: z.string().optional(),
     isOverride: optionalBoolean,
