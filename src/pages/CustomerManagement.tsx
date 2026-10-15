@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Users,
   UserPlus,
@@ -9,6 +9,7 @@ import {
   Mail,
   MapPin,
   ArrowRightCircle,
+  ArrowLeft,
   Edit2,
   CheckCircle,
   XCircle,
@@ -246,6 +247,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [statusTogglingCustomer, setStatusTogglingCustomer] = useState<Customer | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const hasLoadedUrlCustomerRef = useRef(false);
 
   // Form Fields (used for both Add and Edit)
   const [formName, setFormName] = useState('');
@@ -700,6 +702,87 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setDrawerTab('overview');
     }
   }, [selectedCustomer, loadSitesAndAssets]);
+
+  // Sync selectedCustomer with URL parameter (?customerId=UUID)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      if (selectedCustomer) {
+        if (url.searchParams.get('customerId') !== selectedCustomer.id) {
+          url.searchParams.set('customerId', selectedCustomer.id);
+          window.history.replaceState({ inAppCustomer: true }, '', url.pathname + url.search + url.hash);
+        }
+      } else {
+        if (url.searchParams.has('customerId') || url.searchParams.has('customer') || url.searchParams.has('id')) {
+          url.searchParams.delete('customerId');
+          url.searchParams.delete('customer');
+          url.searchParams.delete('id');
+          window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+        }
+      }
+    } catch {
+      // Safe fallback in restricted environments
+    }
+  }, [selectedCustomer]);
+
+  // Support direct URL opening or page refresh with ?customerId=UUID or ?customer=UUID
+  useEffect(() => {
+    if (typeof window === 'undefined' || hasLoadedUrlCustomerRef.current) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlCustomerId = params.get('customerId') || params.get('customer') || params.get('id');
+      if (!urlCustomerId) return;
+      if (selectedCustomer?.id === urlCustomerId) return;
+
+      const match = customers.find((c) => c.id === urlCustomerId);
+      if (match) {
+        hasLoadedUrlCustomerRef.current = true;
+        setSelectedCustomer(match);
+      } else if (!isLoading) {
+        hasLoadedUrlCustomerRef.current = true;
+        apiClient
+          .get<CustomerApiResponse>(`/customers/${urlCustomerId}`)
+          .then((res) => {
+            if (res.customer) {
+              setSelectedCustomer(res.customer);
+            }
+          })
+          .catch(() => {
+            // Safe fallback if invalid customer ID
+          });
+      }
+    } catch {
+      // Safe fallback
+    }
+  }, [customers, isLoading, selectedCustomer]);
+
+  // Back button handler: navigate to previous valid in-app route or fallback to customers list
+  const handleCustomerDetailBack = useCallback(() => {
+    hasLoadedUrlCustomerRef.current = true;
+    setSelectedCustomer(null);
+    setDrawerTab('overview');
+
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('customerId') || url.searchParams.has('customer') || url.searchParams.has('id')) {
+          url.searchParams.delete('customerId');
+          url.searchParams.delete('customer');
+          url.searchParams.delete('id');
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, '', url.pathname + (url.search ? url.search : '') + url.hash);
+          }
+        }
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    if (onNavigate) {
+      onNavigate('customers');
+    }
+  }, [onNavigate]);
 
   // Site Operations
   const openAddSiteModal = (prefillPrimary = false) => {
@@ -2291,6 +2374,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
             <Button
+              type="button"
               variant="outline"
               onClick={() => setConvertingCustomer(null)}
               disabled={isSubmitting}
@@ -2327,6 +2411,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)' }}>
             <Button
+              type="button"
               variant="outline"
               onClick={() => setStatusTogglingCustomer(null)}
               disabled={isSubmitting}
@@ -2346,12 +2431,34 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       </Modal>      {/* 9. CUSTOMER DETAIL DRAWER */}
       <Drawer
         isOpen={!!selectedCustomer}
-        onClose={() => setSelectedCustomer(null)}
+        onClose={handleCustomerDetailBack}
         title={selectedCustomer?.name || 'Customer Profile'}
         description={`Code: ${selectedCustomer?.customerCode || ''}`}
         width="640px"
         onBack={drawerTab !== 'overview' ? () => setDrawerTab('overview') : undefined}
         backLabel="Overview"
+        headerActions={
+          <Button
+            id="customer-detail-back-btn"
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCustomerDetailBack}
+            aria-label="Back to customers list"
+            title="Back"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 500,
+            }}
+          >
+            <ArrowLeft size={14} />
+            <span>Back</span>
+          </Button>
+        }
       >
         {selectedCustomer && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
@@ -3099,7 +3206,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setIsAddSiteModalOpen(false)} disabled={isSubmittingSite}>
+            <Button type="button" variant="outline" onClick={() => setIsAddSiteModalOpen(false)} disabled={isSubmittingSite}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={isSubmittingSite}>
@@ -3174,7 +3281,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setEditingSite(null)} disabled={isSubmittingSite}>
+            <Button type="button" variant="outline" onClick={() => setEditingSite(null)} disabled={isSubmittingSite}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={isSubmittingSite}>
@@ -3809,7 +3916,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <ModalCloseButton disabled={isSubmittingAsset}>
+            <ModalCloseButton type="button" disabled={isSubmittingAsset}>
               Cancel
             </ModalCloseButton>
             <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
@@ -4298,7 +4405,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <ModalCloseButton disabled={isSubmittingAsset}>
+            <ModalCloseButton type="button" disabled={isSubmittingAsset}>
               Cancel
             </ModalCloseButton>
             <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
@@ -4855,6 +4962,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
               <Button
+                type="button"
                 variant="primary"
                 onClick={() => {
                   setViewingAsset(null);

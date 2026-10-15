@@ -19,6 +19,10 @@ export interface DrawerProps {
   onBack?: () => void;
   backLabel?: string;
   /**
+   * Optional custom actions rendered in the top-right header area before the close button.
+   */
+  headerActions?: React.ReactNode;
+  /**
    * Whether clicking the backdrop dismisses the drawer.
    * Default is FALSE globally across all Admin and Staff forms
    * to protect against accidental data loss.
@@ -47,6 +51,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   width = '440px',
   onBack,
   backLabel = 'Back',
+  headerActions,
   closeOnBackdropClick = false,
   isDirty = false,
   onConfirmDiscard,
@@ -131,10 +136,11 @@ export const Drawer: React.FC<DrawerProps> = ({
         }}
       >
         <div className="drawer-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)', minWidth: 0 }}>
             {onBack && (
               <Button
                 id="drawer-header-back-btn"
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={onBack}
@@ -146,27 +152,31 @@ export const Drawer: React.FC<DrawerProps> = ({
                 {backLabel && <span style={{ fontSize: 'var(--text-sm, 0.875rem)' }}>{backLabel}</span>}
               </Button>
             )}
-            <div>
-              <h2 id="drawer-title" className="drawer-title">
+            <div style={{ minWidth: 0 }}>
+              <h2 id="drawer-title" className="drawer-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {title}
               </h2>
               {description && (
-                <p id="drawer-desc" className="text-caption" style={{ marginTop: '2px' }}>
+                <p id="drawer-desc" className="text-caption" style={{ marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {description}
                 </p>
               )}
             </div>
           </div>
-          <Button
-            id="drawer-header-close-btn"
-            variant="ghost"
-            size="sm"
-            isIconOnly
-            onClick={requestClose}
-            aria-label="Close drawer"
-          >
-            <X size={18} />
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)', flexShrink: 0 }}>
+            {headerActions}
+            <Button
+              id="drawer-header-close-btn"
+              type="button"
+              variant="ghost"
+              size="sm"
+              isIconOnly
+              onClick={requestClose}
+              aria-label="Close drawer"
+            >
+              <X size={18} />
+            </Button>
+          </div>
         </div>
 
         <div className="drawer-body">
@@ -296,6 +306,7 @@ export const Drawer: React.FC<DrawerProps> = ({
 };
 
 export interface DrawerCloseButtonProps {
+  type?: 'button' | 'submit' | 'reset';
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   children?: React.ReactNode;
@@ -308,12 +319,14 @@ export interface DrawerCloseButtonProps {
 export const DrawerCloseButton: React.FC<DrawerCloseButtonProps> = ({
   children = 'Close',
   variant = 'outline',
+  type = 'button',
   onClick,
   ...props
 }) => {
   const { requestClose } = useDrawer();
   return (
     <Button
+      type={type}
       {...props}
       variant={variant}
       onClick={(e) => {
@@ -327,6 +340,7 @@ export const DrawerCloseButton: React.FC<DrawerCloseButtonProps> = ({
 };
 
 export interface DrawerBackButtonProps {
+  type?: 'button' | 'submit' | 'reset';
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   children?: React.ReactNode;
@@ -339,11 +353,13 @@ export interface DrawerBackButtonProps {
 export const DrawerBackButton: React.FC<DrawerBackButtonProps> = ({
   children = 'Back',
   variant = 'outline',
+  type = 'button',
   onClick,
   ...props
 }) => {
   return (
     <Button
+      type={type}
       {...props}
       variant={variant}
       onClick={onClick}

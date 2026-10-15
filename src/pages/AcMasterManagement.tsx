@@ -850,7 +850,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setIsBrandModalOpen(false)} disabled={isSubmittingBrand}>
+            <Button type="button" variant="outline" onClick={() => setIsBrandModalOpen(false)} disabled={isSubmittingBrand}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={isSubmittingBrand} leftIcon={<CheckCircle2 size={16} />}>
@@ -1022,7 +1022,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
-            <Button variant="outline" onClick={() => setIsModelModalOpen(false)} disabled={isSubmittingModel}>
+            <Button type="button" variant="outline" onClick={() => setIsModelModalOpen(false)} disabled={isSubmittingModel}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" isLoading={isSubmittingModel} leftIcon={<CheckCircle2 size={16} />}>

@@ -136,6 +136,7 @@ export const Modal: React.FC<ModalProps> = ({
               {onBack && (
                 <Button
                   id="modal-header-back-btn"
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={onBack}
@@ -160,6 +161,7 @@ export const Modal: React.FC<ModalProps> = ({
             </div>
             <Button
               id="modal-header-close-btn"
+              type="button"
               variant="ghost"
               size="sm"
               isIconOnly
@@ -301,6 +303,7 @@ export const Modal: React.FC<ModalProps> = ({
 };
 
 export interface ModalCloseButtonProps {
+  type?: 'button' | 'submit' | 'reset';
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   children?: React.ReactNode;
@@ -313,12 +316,14 @@ export interface ModalCloseButtonProps {
 export const ModalCloseButton: React.FC<ModalCloseButtonProps> = ({
   children = 'Cancel',
   variant = 'outline',
+  type = 'button',
   onClick,
   ...props
 }) => {
   const { requestClose } = useModal();
   return (
     <Button
+      type={type}
       {...props}
       variant={variant}
       onClick={(e) => {
@@ -332,6 +337,7 @@ export const ModalCloseButton: React.FC<ModalCloseButtonProps> = ({
 };
 
 export interface ModalBackButtonProps {
+  type?: 'button' | 'submit' | 'reset';
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   children?: React.ReactNode;
@@ -344,11 +350,13 @@ export interface ModalBackButtonProps {
 export const ModalBackButton: React.FC<ModalBackButtonProps> = ({
   children = 'Back',
   variant = 'outline',
+  type = 'button',
   onClick,
   ...props
 }) => {
   return (
     <Button
+      type={type}
       {...props}
       variant={variant}
       onClick={onClick}

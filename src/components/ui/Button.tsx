@@ -19,6 +19,7 @@ export const Button: React.FC<ButtonProps> = ({
   rightIcon,
   className = '',
   disabled,
+  type = 'button',
   ...props
 }) => {
   const variantClass = `btn-${variant}`;
@@ -27,6 +28,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
+      type={type}
       className={`btn ${variantClass} ${sizeClass} ${iconOnlyClass} ${className}`.trim()}
       disabled={disabled || isLoading}
       aria-busy={isLoading}

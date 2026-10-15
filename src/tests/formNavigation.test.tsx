@@ -5,8 +5,8 @@ import { act, useState } from 'react';
 // @ts-expect-error global React flag
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot } from 'react-dom/client';
-import { Modal } from '@/components/ui/Modal';
-import { Drawer } from '@/components/ui/Drawer';
+import { Modal, ModalCloseButton, ModalBackButton } from '@/components/ui/Modal';
+import { Drawer, DrawerCloseButton, DrawerBackButton } from '@/components/ui/Drawer';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { CustomerManagement } from '@/pages/CustomerManagement';
@@ -637,6 +637,101 @@ describe('Form Navigation & Dirty-State Protection Suite', () => {
       expect(notesInput.value).toBe('Special delivery instructions');
 
       renderResult.cleanup();
+    });
+  });
+
+  describe('Form Submission Lifecycle & Disconnected Form Prevention Suite', () => {
+    it('Button component defaults to type="button" to prevent accidental form submission', () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      act(() => {
+        root.render(<Button>Click Me</Button>);
+      });
+
+      const btn = container.querySelector('button') as HTMLButtonElement;
+      expect(btn.type).toBe('button');
+
+      root.unmount();
+      container.remove();
+    });
+
+    it('ModalCloseButton, ModalBackButton, DrawerCloseButton, and DrawerBackButton render type="button"', () => {
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      act(() => {
+        root.render(
+          <div>
+            <Modal isOpen={true} onClose={vi.fn()} title="Test Modal">
+              <ModalCloseButton>Cancel Modal</ModalCloseButton>
+              <ModalBackButton>Back Modal</ModalBackButton>
+            </Modal>
+            <Drawer isOpen={true} onClose={vi.fn()} title="Test Drawer">
+              <DrawerCloseButton>Close Drawer</DrawerCloseButton>
+              <DrawerBackButton>Back Drawer</DrawerBackButton>
+            </Drawer>
+          </div>
+        );
+      });
+
+      const buttons = Array.from(document.body.querySelectorAll('button'));
+      const cancelModal = buttons.find((b) => b.textContent?.includes('Cancel Modal'));
+      const backModal = buttons.find((b) => b.textContent?.includes('Back Modal'));
+      const closeDrawer = buttons.find((b) => b.textContent?.includes('Close Drawer'));
+      const backDrawer = buttons.find((b) => b.textContent?.includes('Back Drawer'));
+
+      expect(cancelModal?.type).toBe('button');
+      expect(backModal?.type).toBe('button');
+      expect(closeDrawer?.type).toBe('button');
+      expect(backDrawer?.type).toBe('button');
+
+      root.unmount();
+      container.remove();
+    });
+
+    it('Canceling or dismissing a modal form does not trigger detached form submission', async () => {
+      const handleSubmit = vi.fn();
+      let isOpen = true;
+
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+
+      const renderModal = () => {
+        act(() => {
+          root.render(
+            <Modal isOpen={isOpen} onClose={() => { isOpen = false; renderModal(); }} title="Test Form Modal">
+              <form onSubmit={handleSubmit}>
+                <input id="test-field" defaultValue="Sample" />
+                <ModalCloseButton>Cancel</ModalCloseButton>
+                <Button id="submit-btn" type="submit">Submit</Button>
+              </form>
+            </Modal>
+          );
+        });
+      };
+
+      renderModal();
+
+      const cancelBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Cancel')
+      ) as HTMLButtonElement;
+      expect(cancelBtn).toBeDefined();
+      expect(cancelBtn.type).toBe('button');
+
+      // Click Cancel: unmounts form
+      await act(async () => {
+        cancelBtn.click();
+      });
+
+      // Submit handler should NOT be called on unmount/close
+      expect(handleSubmit).not.toHaveBeenCalled();
+
+      root.unmount();
+      container.remove();
     });
   });
 });

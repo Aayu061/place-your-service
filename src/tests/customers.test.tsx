@@ -262,4 +262,122 @@ describe('Phase 4 Frontend Customer Management Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('8. Renders compact Back button in Customer Detail header, and clicking it returns to customers list', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    const mockNavigate = vi.fn();
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement onNavigate={mockNavigate} />);
+    });
+
+    // Open Customer Detail drawer
+    const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+    expect(viewBtn).toBeDefined();
+
+    await act(async () => {
+      viewBtn.click();
+    });
+
+    // Back button exists in the drawer header
+    const backBtn = document.body.querySelector('#customer-detail-back-btn') as HTMLButtonElement;
+    expect(backBtn).not.toBeNull();
+    expect(backBtn.textContent).toContain('Back');
+    expect(backBtn.getAttribute('aria-label')).toBe('Back to customers list');
+    expect(backBtn.getAttribute('type')).toBe('button');
+
+    // Existing badges and actions remain intact in the drawer
+    expect(document.body.textContent).toContain('Metropolitan Hospital');
+    expect(document.body.textContent).toContain('TEMPORARY');
+    expect(document.body.textContent).toContain('+ Service Request');
+    expect(document.body.textContent).toContain('Edit');
+
+    // Click Back
+    await act(async () => {
+      backBtn.click();
+    });
+
+    // Customer Detail drawer is closed and fallback navigation triggered
+    expect(document.body.querySelector('#customer-detail-back-btn')).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith('customers');
+
+    renderResult.cleanup();
+  });
+
+  it('9. Opens Customer Detail directly from URL query param and Back button navigates to list', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    // Mock URL with ?customerId=cust-123
+    const originalLocation = window.location;
+    // @ts-expect-error mock location
+    delete window.location;
+    // @ts-expect-error mock location
+    window.location = new URL('http://localhost:5173/?customerId=cust-123');
+
+    const mockNavigate = vi.fn();
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement onNavigate={mockNavigate} />);
+    });
+
+    // Customer detail opens automatically via URL
+    expect(document.body.textContent).toContain('Metropolitan Hospital');
+    expect(document.body.textContent).toContain('Code: CUST-100200');
+
+    const backBtn = document.body.querySelector('#customer-detail-back-btn') as HTMLButtonElement;
+    expect(backBtn).not.toBeNull();
+
+    // Click Back
+    await act(async () => {
+      backBtn.click();
+    });
+
+    expect(document.body.querySelector('#customer-detail-back-btn')).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith('customers');
+
+    window.location = originalLocation;
+    renderResult.cleanup();
+  });
+
+  it('10. Customer Detail Back button supports keyboard focus and visible focus state', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement />);
+    });
+
+    const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+    await act(async () => {
+      viewBtn.click();
+    });
+
+    const backBtn = document.body.querySelector('#customer-detail-back-btn') as HTMLButtonElement;
+    expect(backBtn).not.toBeNull();
+
+    // Verify focusable
+    backBtn.focus();
+    expect(document.activeElement).toBe(backBtn);
+
+    renderResult.cleanup();
+  });
 });

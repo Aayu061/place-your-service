@@ -1910,7 +1910,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             <Textarea rows={2} value={formNotes} onChange={(e) => setFormNotes(e.target.value)} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={isSubmitting}>Save Changes</Button>
           </div>
         </form>
@@ -1939,7 +1939,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <Button variant="ghost" onClick={() => setIsCancelModalOpen(false)}>Abort</Button>
+            <Button type="button" variant="ghost" onClick={() => setIsCancelModalOpen(false)}>Abort</Button>
             <Button variant="danger" type="submit" disabled={isSubmitting}>Confirm Cancellation</Button>
           </div>
         </form>
@@ -2145,7 +2145,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <Button variant="ghost" onClick={() => setIsRenewModalOpen(false)}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={() => setIsRenewModalOpen(false)}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={isSubmitting || !isAllocationValid}>Confirm Renewal</Button>
           </div>
         </form>
@@ -2224,7 +2224,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
               ))}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <Button variant="ghost" onClick={() => setIsAddAssetsModalOpen(false)}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={() => setIsAddAssetsModalOpen(false)}>Cancel</Button>
             <Button variant="primary" type="submit" disabled={isSubmitting || formCoveredAssetIds.length === 0}>
               Attach Selected ({formCoveredAssetIds.length})
             </Button>

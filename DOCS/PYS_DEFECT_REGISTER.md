@@ -416,3 +416,40 @@
   - Verified in `server/tests/postAuditRemediation.test.ts` (Scenarios 1-3 covering email return when present, null handling when absent, and email mapping in report list endpoints).
 - **Status:** **RESOLVED — AUTOMATED TESTS PASSED**.
 
+---
+
+### PYS-009 — Disconnected Form Submission Warning on Modal/Drawer Dismissal & Missing Customer Detail Back Button (P3)
+- **Severity / Priority:** P3 — Frontend UX & Form Lifecycle Integrity.
+- **Affected Features:**
+  1. Customer Detail Drawer (Missing compact Back button in header).
+  2. Modal & Drawer Form Dismissal (Browser console warning: `Form submission canceled because the form is not connected`).
+- **Root Cause Analysis:**
+  1. **Console Warning (`Form submission canceled because the form is not connected`):**
+     - In HTML/Chromium, any `<button>` element rendered inside a `<form>` without an explicit `type` defaults to `type="submit"`.
+     - In `src/components/ui/Button.tsx`, the `type` attribute was omitted, causing all default button instances (including Cancel, Close, and modal dismiss buttons) to behave as submit triggers.
+     - When users dismissed form modals (such as Add/Edit Customer Site in `CustomerManagement.tsx`, Add/Edit AC Asset, or AMC Modals), clicking "Cancel" fired the button's `onClick` handler which unmounted the modal and its `<form>`. The browser's default click action then attempted to submit the detached form, resulting in the browser logging: `Form submission canceled because the form is not connected`.
+  2. **Customer Detail Back Button:**
+     - The Customer Detail drawer previously lacked a dedicated in-app Back button in its top-right header, forcing reliance on the close `X` button or browser history.
+- **Frontend Files Changed:**
+  - [`src/components/ui/Button.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/ui/Button.tsx): Added default prop `type = 'button'` to ensure standard buttons never unintentionally trigger form submission unless explicitly marked with `type="submit"`.
+  - [`src/components/ui/Modal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/ui/Modal.tsx): Added `type="button"` to `ModalCloseButton`, `ModalBackButton`, and header buttons; added `type?: 'button' | 'submit' | 'reset'` to component props.
+  - [`src/components/ui/Drawer.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/ui/Drawer.tsx): Added `headerActions?: React.ReactNode` slot in `DrawerProps` positioned to the left of the `X` close button; added `type="button"` to `DrawerCloseButton` and `DrawerBackButton`.
+  - [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx):
+    - Added compact Back button with `<ArrowLeft size={14} /> Back` in the Customer Detail Drawer `headerActions` slot (`#customer-detail-back-btn`).
+    - Implemented `handleCustomerDetailBack` navigating to previous valid in-app route or falling back to `customers` list (`setSelectedCustomer(null)`, `onNavigate('customers')`).
+    - Added `hasLoadedUrlCustomerRef` to safely handle direct URL query parameters (`?customerId=UUID`) and prevent re-selection on Back navigation.
+    - Added explicit `type="button"` on modal Cancel buttons (Add/Edit Site, Add/Edit AC Asset, Convert, Status, and View Asset).
+  - [`src/pages/AcMasterManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AcMasterManagement.tsx) & [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx): Added explicit `type="button"` on modal Cancel/Abort buttons.
+- **Regression Tests Added & Verified:**
+  - [`src/tests/formNavigation.test.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/tests/formNavigation.test.tsx):
+    - Added test suite: `Form Submission Lifecycle & Disconnected Form Prevention Suite`.
+    - Tested that `<Button>` defaults to `type="button"`.
+    - Tested that `ModalCloseButton`, `ModalBackButton`, `DrawerCloseButton`, `DrawerBackButton` render `type="button"`.
+    - Tested that dismissing/canceling a modal form does not trigger detached form submission.
+  - [`src/tests/customers.test.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/tests/customers.test.tsx):
+    - Tested that Customer Detail renders compact Back button in header actions, and clicking it closes drawer and navigates to `customers` list.
+    - Tested direct URL loading via `?customerId=cust-123` and back navigation.
+    - Tested keyboard accessibility and focusability of the Back button.
+- **Status:** **RESOLVED — AUTOMATED TESTS PASSED (193/193 FRONTEND, 329/329 BACKEND)**.
+
+
