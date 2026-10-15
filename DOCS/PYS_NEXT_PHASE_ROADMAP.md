@@ -88,15 +88,19 @@ graph TD
 ---
 
 ### Batch 4: AMC Quotations, Renewal & Idempotent PM Generation Engine
+- **Status:** **COMPLETED IN APPLICATION CODE & TESTS**
 - **Goal:** Fix Defect D1 (renewal duplicate PMs), Defect D2 (draft-to-active PM generation), and Defect D3 (breakdown visit preservation).
-- **Tasks:**
-  1. **Draft Activation:** In `amc.service.ts` `updateStatus`, when transitioning to `'ACTIVE'`, call `generatePmObligations`.
-  2. **Renewal Preservation:** In `renewContract`, copy predecessor breakdown visits (`dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits`) if not explicitly overridden.
-  3. **Cancel Superseded Visits:** In `renewContract`, mark any unperformed predecessor schedules (`SCHEDULED` or `PLANNED`) as `status = 'CANCELLED'` with reason `'SUPERSEDED_BY_RENEWAL'`.
-  4. **Deterministic Obligation Keys:** Harden `pm_obligation_id` to prevent duplicate schedule rows for the same contract, asset, and visit number.
-- **Tests to Add / Run:**
-  - `amc.service.test.ts`: verify draft activation triggers PM generation.
-  - `amcAllocationPlanner.test.ts`: verify renewal inherits breakdown counts and cancels superseded schedules without duplicating.
+- **Completed Deliverables:**
+  1. **Draft AMC Activation:** In `amc.service.ts` `updateStatus`, transitioning from `DRAFT` to `ACTIVE` invokes `generatePmObligations`. If generation fails, contract status is atomically reverted to `DRAFT` to prevent partial activation state.
+  2. **Renewal Breakdown Preservation & Overrides:** In `renewContract`, predecessor breakdown counts (`dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits`) are inherited by default. Explicit valid overrides are supported and validated (`dry + jet + pumpdown === totalVisits`).
+  3. **Predecessor Schedule Supersession:** In `renewContract`, unperformed predecessor schedules (`SCHEDULED`, `PLANNED`, `DUE`, `OVERDUE`) are safely marked `status = 'CANCELLED'` with `cancellation_reason = 'SUPERSEDED_BY_RENEWAL'`, while completed visits (`COMPLETED`), in-progress visits (`IN_PROGRESS`), and service reports remain strictly preserved.
+  4. **Stable PM Identity & Duplicate Prevention:** Upgraded obligation generation from fragile date-only matching to composite entity identity `(amc_id, asset_id, visit_number)` and date, with graceful handling of PostgreSQL unique constraint collision (`23505`) for concurrent request safety.
+  5. **Frontend Renewal Allocation UI:** Added PM Service Allocation controls (Dry, Jet, Pumpdown) to renewal modal in `AmcManagement.tsx` with live reconciliation feedback against `totalVisits`.
+- **Tests Added & Verified:**
+  - `server/tests/amcBatch4Fixes.test.ts`: 16 comprehensive regression test scenarios covering all Batch 4 requirements (draft activation, obligation generation, idempotency, failure rollback, non-regeneration on active updates, breakdown inheritance, explicit overrides, invalid breakdown rejection, schedule supersession, completed visit preservation, in-progress handling, per-asset traceability, concurrent duplicate collision handling, follow-up schedule isolation, and audit logging).
+  - `server/tests/amcRoutes.test.ts`: 28 tests passing cleanly.
+  - `src/tests/amc.test.tsx`: 13 frontend tests passing cleanly.
+  - Full test suites pass: 18/18 frontend test files (178 tests) and 25/25 backend test files (293 tests); both frontend and backend builds clean.
 
 ---
 

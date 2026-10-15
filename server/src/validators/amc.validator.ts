@@ -183,6 +183,24 @@ export const renewAmcContractSchema = z
     frequency: z.enum(['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']).optional(),
     totalAmount: z.coerce.number().min(0, 'Total amount cannot be negative').optional(),
     totalVisits: z.coerce.number().int().min(1, 'Total visits must be at least 1').optional(),
+    dryServiceVisits: z
+      .coerce.number()
+      .int('Dry service visits must be a whole number')
+      .min(0, 'Dry service visits cannot be negative')
+      .optional()
+      .nullable(),
+    jetServiceVisits: z
+      .coerce.number()
+      .int('Jet service visits must be a whole number')
+      .min(0, 'Jet service visits cannot be negative')
+      .optional()
+      .nullable(),
+    pumpdownServiceVisits: z
+      .coerce.number()
+      .int('Pumpdown service visits must be a whole number')
+      .min(0, 'Pumpdown service visits cannot be negative')
+      .optional()
+      .nullable(),
     coveredAssetIds: z.array(z.string().regex(UUID_REGEX, 'Invalid Asset ID format')).optional(),
     planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format').optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
@@ -194,5 +212,25 @@ export const renewAmcContractSchema = z
     {
       message: 'AMC contract end date cannot precede start date',
       path: ['endDate'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (
+        data.totalVisits != null &&
+        (data.dryServiceVisits != null ||
+          data.jetServiceVisits != null ||
+          data.pumpdownServiceVisits != null)
+      ) {
+        const dry = data.dryServiceVisits ?? 0;
+        const jet = data.jetServiceVisits ?? 0;
+        const pumpdown = data.pumpdownServiceVisits ?? 0;
+        return dry + jet + pumpdown === data.totalVisits;
+      }
+      return true;
+    },
+    {
+      message: 'The total allocation across Dry, Jet, and Pumpdown visits must exactly equal total included visits',
+      path: ['dryServiceVisits'],
     }
   );

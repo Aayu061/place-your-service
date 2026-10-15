@@ -1291,6 +1291,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                         setFormFrequency(detailContract.frequency);
                         setFormTotalAmount(detailContract.totalAmount);
                         setFormTotalVisits(detailContract.totalVisits);
+                        const hasBreakdown = detailContract.dryServiceVisits != null || detailContract.jetServiceVisits != null || detailContract.pumpdownServiceVisits != null;
+                        const tVisits = detailContract.totalVisits || 1;
+                        setFormDryVisits(hasBreakdown ? (detailContract.dryServiceVisits ?? 0) : Math.ceil(tVisits / 2));
+                        setFormJetVisits(hasBreakdown ? (detailContract.jetServiceVisits ?? 0) : Math.floor(tVisits / 2));
+                        setFormPumpdownVisits(hasBreakdown ? (detailContract.pumpdownServiceVisits ?? 0) : 0);
                         setIsRenewModalOpen(true);
                       }}
                     >
@@ -1959,6 +1964,9 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 frequency: formFrequency,
                 totalAmount: Number(formTotalAmount),
                 totalVisits: Number(formTotalVisits),
+                dryServiceVisits: Number(formDryVisits),
+                jetServiceVisits: Number(formJetVisits),
+                pumpdownServiceVisits: Number(formPumpdownVisits),
                 notes: formNotes || null,
               });
               showToast({
@@ -2041,10 +2049,104 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Commercial Amount (INR)</label>
               <Input type="number" min="0" value={formTotalAmount} onChange={(e) => setFormTotalAmount(Number(e.target.value))} required />
             </div>
+
+            {/* PREVENTIVE MAINTENANCE VISIT BREAKDOWN ALLOCATION */}
+            <div
+              className="col-span-2"
+              style={{
+                backgroundColor: 'var(--bg-surface-subtle)',
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+                  Preventive Maintenance Service Allocation *
+                </label>
+                <span
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                    color: isAllocationValid ? 'var(--color-success-600, #16a34a)' : 'var(--color-danger-600, #dc2626)',
+                  }}
+                >
+                  {allocatedVisits} / {formTotalVisits} Allocated
+                </span>
+              </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', margin: '0 0 var(--space-3) 0' }}>
+                Allocate the renewed PM visits across Dry, Jet and Pumpdown services. Inherited from previous contract by default.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+                <div>
+                  <label htmlFor="renew-dry-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                    Dry Service Visits
+                  </label>
+                  <select
+                    id="renew-dry-visits"
+                    className="input-base"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formDryVisits}
+                    onChange={(e) => setFormDryVisits(Number(e.target.value))}
+                  >
+                    {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i} {i === 1 ? 'visit' : 'visits'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="renew-jet-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                    Jet Service Visits
+                  </label>
+                  <select
+                    id="renew-jet-visits"
+                    className="input-base"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formJetVisits}
+                    onChange={(e) => setFormJetVisits(Number(e.target.value))}
+                  >
+                    {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i} {i === 1 ? 'visit' : 'visits'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="renew-pumpdown-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                    Pumpdown Service Visits
+                  </label>
+                  <select
+                    id="renew-pumpdown-visits"
+                    className="input-base"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formPumpdownVisits}
+                    onChange={(e) => setFormPumpdownVisits(Number(e.target.value))}
+                  >
+                    {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i} {i === 1 ? 'visit' : 'visits'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {!isAllocationValid && (
+                <p style={{ fontSize: '11px', color: 'var(--color-danger-600, #dc2626)', marginTop: 'var(--space-2)', fontWeight: 500 }}>
+                  Allocation sum ({allocatedVisits}) must equal total included visits ({formTotalVisits}).
+                </p>
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
             <Button variant="ghost" onClick={() => setIsRenewModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={isSubmitting}>Confirm Renewal</Button>
+            <Button variant="primary" type="submit" disabled={isSubmitting || !isAllocationValid}>Confirm Renewal</Button>
           </div>
         </form>
       </Modal>

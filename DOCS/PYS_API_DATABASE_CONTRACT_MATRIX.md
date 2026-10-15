@@ -1,8 +1,9 @@
 # PYS API & Database Contract Matrix
 
-**Document Version:** 2.1  
+**Document Version:** 2.2  
 **Date:** 15 October 2026  
-**Repository:** `Aayu061/place-your-service` (`main` @ `880e9d5`)  
+**Repository:** `Aayu061/place-your-service` (`main`)  
+**Implementation Baseline:** `78727e4` (Batch 3 baseline) → Batch 4 AMC Integrity, Renewal & PM Engine  
 **Scope:** Complete map of REST APIs, roles, schemas, database tables, side effects, and contract discrepancies.
 
 ---
@@ -88,12 +89,44 @@
 
 | Method | Endpoint | Role | Request Schema | Response Schema | Backend Handler | DB Tables Mutated | Side Effects | Test Coverage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/amc-contracts` | `ADMIN`, `STAFF` | Query: `{ customerId?, status?, search?, limit?, offset? }` | `{ success: true, data: AmcContract[], total }` | `amcController.list` | None | Joins customer, plan, covered assets | `amc.test.ts` (Int) |
-| `GET` | `/api/v1/amc-contracts/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: AmcContractDetail }` | `amcController.getById` | None | Loads PM schedules & asset coverage | `amc.test.ts` (Int) |
-| `POST`| `/api/v1/amc-contracts` | `ADMIN`, `STAFF` | `{ customerId, planId, siteId, startDate, endDate, totalAmount, coveredAssetIds: UUID[], frequency?, dryServiceVisits?, jetServiceVisits?, pumpdownServiceVisits? }` | `{ success: true, data: AmcContract }` | `amcController.create` | `amc_contracts`, `amc_assets`, `activity_logs` | Generates `AMC-XXXXXX`. If `ACTIVE`, generates PM obligations | `amc.service.test.ts` |
-| `PATCH`| `/api/v1/amc-contracts/:id`| `ADMIN`, `STAFF` | `{ startDate?, endDate?, totalAmount?, frequency?, dryServiceVisits?, jetServiceVisits?, pumpdownServiceVisits? }` | `{ success: true, data: AmcContract }` | `amcController.update` | `amc_contracts`, `activity_logs` | Reconciles allocation breakdown | `amcAllocationPlanner.test.ts` |
-| `PATCH`| `/api/v1/amc-contracts/:id/status`| `ADMIN`, `STAFF` | `{ status: 'DRAFT' \| 'ACTIVE' \| 'EXPIRED' \| 'CANCELLED', reason? }` | `{ success: true, data: AmcContract }` | `amcController.updateStatus` | `amc_contracts`, `service_schedules`, `activity_logs` | On `ACTIVE`: triggers idempotent PM generator | `amc.test.ts` (Int) |
-| `POST`| `/api/v1/amc-contracts/:id/renew` | `ADMIN`, `STAFF` | `{ startDate, endDate, totalAmount, coveredAssetIds?, dryServiceVisits?, jetServiceVisits?, pumpdownServiceVisits? }` | `{ success: true, data: AmcContract }` | `amcController.renew` | `amc_contracts`, `amc_assets`, `service_schedules`, `activity_logs` | Creates successor contract, cancels unfulfilled predecessor schedules, generates successor PMs | `amc.service.test.ts` |
+| `GET` | `/api/v1/amc-contracts` | `ADMIN`, `STAFF` | Query: `{ customerId?, status?, search?, limit?, offset? }` | `{ success: true, data: AmcContract[], total }` | `amcController.list` | None | Joins customer, plan, covered assets | `amcRoutes.test.ts` (Int), `amc.test.tsx` (Frontend) |
+| `GET` | `/api/v1/amc-contracts/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: AmcContractDetail }` | `amcController.getById` | None | Loads PM schedules & asset coverage | `amcRoutes.test.ts` (Int), `amc.test.tsx` (Frontend) |
+| `POST`| `/api/v1/amc-contracts` | `ADMIN`, `STAFF` | `{ customerId, planId, siteId, startDate, endDate, totalAmount, coveredAssetIds: UUID[], frequency?, dryServiceVisits?, jetServiceVisits?, pumpdownServiceVisits? }` | `{ success: true, data: AmcContract }` | `amcController.create` | `amc_contracts`, `amc_assets`, `activity_logs` | Generates `AMC-XXXXXX`. If `ACTIVE`, generates PM obligations. If `DRAFT`, obligation generation is deferred | `amcRoutes.test.ts` (Int), `amc.test.tsx` (Frontend) |
+| `PATCH`| `/api/v1/amc-contracts/:id`| `ADMIN`, `STAFF` | `{ startDate?, endDate?, totalAmount?, frequency?, dryServiceVisits?, jetServiceVisits?, pumpdownServiceVisits? }` | `{ success: true, data: AmcContract }` | `amcController.update` | `amc_contracts`, `activity_logs` | Reconciles allocation breakdown | `amcRoutes.test.ts` (Int) |
+| `PATCH`| `/api/v1/amc-contracts/:id/status`| `ADMIN`, `STAFF` | `{ status: 'DRAFT' \| 'ACTIVE' \| 'EXPIRED' \| 'CANCELLED', reason? }` | `{ success: true, data: AmcContract }` | `amcController.updateStatus` | `amc_contracts`, `service_schedules`, `activity_logs` | On `DRAFT -> ACTIVE`: triggers idempotent `generatePmObligations` across all covered assets; generates per-asset PM schedules; rolls back contract status to `DRAFT` if obligation generation fails; records `AMC_CONTRACT_ACTIVATED` in `activity_logs`. If updating an already-active contract for unrelated reasons, does not duplicate or regenerate obligations | `amcBatch4Fixes.test.ts` (Int/Unit), `amcRoutes.test.ts` (Int) |
+| `POST`| `/api/v1/amc-contracts/:id/renew` | `ADMIN`, `STAFF` | `{ startDate: string, endDate: string, totalAmount: number, frequency?: AmcFrequency, totalVisits?: number, coveredAssetIds?: UUID[], dryServiceVisits?: number, jetServiceVisits?: number, pumpdownServiceVisits?: number }` | `{ success: true, data: AmcContract }` | `amcController.renew` | `amc_contracts`, `amc_assets`, `service_schedules`, `activity_logs` | Creates successor contract; inherits predecessor breakdown (`dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits`) if not overridden; validates `dry + jet + pumpdown === totalVisits`; cancels unperformed predecessor schedules (`SCHEDULED`, `PLANNED`, `DUE`, `OVERDUE`) setting `status = 'CANCELLED'`, `cancellation_reason = 'SUPERSEDED_BY_RENEWAL'`; strictly preserves completed (`COMPLETED`), in-progress (`IN_PROGRESS`), and service reports; generates successor PM obligations idempotently; rolls back successor contract and restores superseded schedules if PM generation fails | `amcBatch4Fixes.test.ts` (Int/Unit), `amcRoutes.test.ts` (Int), `amc.test.tsx` (Frontend) |
+
+### 7.1 AMC Contract Lifecycle, Renewal & PM Obligation Engine Specifications
+
+1. **Draft-to-Active AMC Status Transition (`updateStatus`):**
+   - **Trigger Condition:** Transitioning an AMC contract from `DRAFT` to `ACTIVE` via `PATCH /api/v1/amc-contracts/:id/status`.
+   - **Obligation Generation:** Automatically invokes `generatePmObligations(contractId, adminStaffId)`. Generates the required preventive maintenance service schedules across all covered assets according to contract cadence (Monthly, Quarterly, Half-Yearly, Yearly) and breakdown quotas.
+   - **Idempotency & Retry Safety:** Retrying activation or updating an already-active AMC for unrelated reasons (e.g., reason updates or repeated PATCH requests) strictly skips regenerating obligations, preventing duplicate schedule rows.
+   - **Failure Compensation & Rollback:** If PM obligation generation fails (e.g., missing asset coverage or database error), the contract status is automatically reverted to its previous status (`DRAFT`) to prevent orphaned active contracts with missing schedules.
+   - **Audit Trail:** Emits `AMC_CONTRACT_ACTIVATED` event in `activity_logs`.
+
+2. **AMC Renewal & Visit Breakdown Inheritance (`renewContract`):**
+   - **Breakdown Inheritance:** Successor contracts automatically carry forward the predecessor contract's service breakdown counts (`dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits`) whenever the renewal request does not explicitly supply replacement values.
+   - **Explicit Overrides & Validation:** Renewal requests may explicitly override the breakdown via `dryServiceVisits`, `jetServiceVisits`, and `pumpdownServiceVisits`. The backend validator (`renewAmcContractSchema`) strictly requires all breakdown numbers to be non-negative integers and enforces the invariant `dryServiceVisits + jetServiceVisits + pumpdownServiceVisits === totalVisits` (returning HTTP 422 `UNPROCESSABLE_ENTITY` on mismatch).
+   - **UI Reconciliation:** The frontend renewal modal in `AmcManagement.tsx` provides dedicated PM Service Allocation controls for Dry, Jet, and Pumpdown visits with live visual indicators (`{allocated} / {total} Allocated`) and disables submission until allocation matches total visits.
+
+3. **Predecessor Schedule Supersession & Historical Preservation:**
+   - **Eligible Supersession:** Unperformed predecessor schedules in states `SCHEDULED`, `PLANNED`, `DUE`, or `OVERDUE` are updated to `status = 'CANCELLED'` with `cancellation_reason = 'SUPERSEDED_BY_RENEWAL'`.
+   - **Strict Preservation of Completed Visits:** Visits in `status = 'COMPLETED'` and their associated `service_reports`, parts snapshots, and customer feedback are immutable and never cancelled or altered.
+   - **Strict Preservation of Active Work:** Visits in `status = 'IN_PROGRESS'` are preserved without cancellation to prevent disrupting field technicians actively on-site.
+   - **Contract Boundary Safety:** Schedule supersession is strictly scoped by `amc_id = predecessor.id`; schedules of unrelated contracts, other customers, or ad-hoc service requests are unaffected.
+
+4. **Deterministic Obligation Identity & Concurrency Protections:**
+   - **Composite Identity:** Obligation uniqueness is derived from the composite business entity `(amc_id, asset_id, visit_number)` and scheduled date. Schedule lookups query both `visit_number` and `scheduled_date` to prevent re-inserting already-planned visits.
+   - **Database-Level Protection:** Database partial unique index `idx_active_schedule_per_amc_asset_visit` on `(amc_id, asset_id, visit_number)` (for non-cancelled schedules) enforces uniqueness at the PostgreSQL engine level (established in migrations `20261010020000_allow_followup_schedules_after_completion.sql` and `20261008030000_phase9_hardening_concurrency_and_pm.sql`).
+   - **Concurrency Safety:** `generatePmObligations` catches PostgreSQL unique constraint violation `23505` (`duplicate key value violates unique constraint`), treating concurrent activation or renewal races gracefully as idempotent success.
+   - **Multi-Asset Traceability:** Multi-asset AMC contracts track distinct, sequential visit numbers per asset (`asset_id`), guaranteeing individual equipment obligations are not conflated or collapsed.
+   - **Follow-up / Repair Schedule Isolation:** Post-completion follow-up visits or ad-hoc repair schedules (which have `visit_number = NULL` or non-PM service types) do not conflict with or consume contract PM quotas.
+
+5. **Audit Events:**
+   - `AMC_CONTRACT_ACTIVATED`: Recorded on draft activation.
+   - `AMC_CONTRACT_RENEWED`: Recorded on renewal with predecessor reference.
+   - `SERVICE_SCHEDULE_CANCELLED`: Recorded for each superseded predecessor schedule.
 
 ---
 
@@ -172,8 +205,11 @@
 >    - `serviceReport.service.ts` query selects `customers (id, name, customer_code, phone)` but omits `email`.
 >    - Automatic customer email delivery is NOT implemented in application code (no email transport package or provider installed). Scheduled for implementation in Batch 5.
 > 
-> 5. **AMC Contract Draft-to-Active Transition (CONFIRMED DEFECT PYS-D2 — Unresolved / Batch 4 Scope):**
->    - `updateStatus` in `amc.service.ts` updates status to `ACTIVE` but does NOT invoke `generatePmObligations`, leaving draft quotations with 0 PM visits upon activation. Scheduled for implementation in Batch 4.
+> 5. **AMC Contract Draft-to-Active Transition, Renewal Breakdown & Schedule Supersession (RESOLVED in Batch 4):**
+>    - Draft AMC Activation: Transitioning an AMC contract from `DRAFT` to `ACTIVE` automatically triggers `generatePmObligations` in `amc.service.ts` across all covered assets and atomically reverts contract status if generation fails. Retried activations or already-active contract updates do not regenerate or duplicate obligations.
+>    - Renewal Breakdown Preservation: `renewContract` inherits `dry_service_visits`, `jet_service_visits`, and `pumpdown_service_visits` from the predecessor contract when not explicitly overridden, and validates that overrides strictly satisfy `dry + jet + pumpdown === totalVisits`.
+>    - Predecessor Schedule Supersession: Unperformed predecessor schedules (`SCHEDULED`, `PLANNED`, `DUE`, `OVERDUE`) are safely marked `status = 'CANCELLED'` with `cancellation_reason = 'SUPERSEDED_BY_RENEWAL'`. Completed visits, in-progress visits, and service reports remain strictly preserved.
+>    - Idempotency & Concurrency: Obligation identity is derived from composite entity `(amc_id, asset_id, visit_number)` and date, with PostgreSQL constraint code `23505` handled gracefully to guarantee concurrent request safety. Verified with comprehensive regression tests in `server/tests/amcBatch4Fixes.test.ts` (16 scenarios).
 > 
 > 6. **Missing Excel Exports (CONFIRMED DEFECT PYS-B1 — Unresolved / Batch 6 Scope):**
 >    - Missing `.xlsx` exports for Customers, Schedules, Reports, and AMC Contract Expiry. Scheduled for implementation in Batch 6.

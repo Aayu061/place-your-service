@@ -413,6 +413,21 @@ export interface UpdateAmcContractPayload {
   notes?: string | null;
 }
 
+export interface RenewAmcContractPayload {
+  customerId?: string;
+  startDate: string;
+  endDate: string;
+  frequency?: AmcFrequency;
+  totalAmount?: number;
+  totalVisits?: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
+  coveredAssetIds?: string[];
+  planId?: string | null;
+  notes?: string | null;
+}
+
 
 /* --------------------------------------------------
  * 6. Service Management (Requests vs Schedules)

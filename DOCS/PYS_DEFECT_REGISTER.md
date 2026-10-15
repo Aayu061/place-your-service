@@ -18,9 +18,9 @@
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
 | **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
 | **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 2 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
-| **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **CONFIRMED DEFECT** |
-| **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **CONFIRMED DEFECT** |
-| **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **CONFIRMED DEFECT** |
+| **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **RESOLVED IN BATCH 4** |
+| **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **RESOLVED IN BATCH 4** |
+| **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **RESOLVED IN BATCH 4** |
 | **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **CONFIRMED DEFECT** |
 | **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **CONFIRMED DEFECT** |
 | **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **RESOLVED IN BATCH 2** |
@@ -72,12 +72,14 @@
 - **Root Cause & Evidence:**
   - `renewContract` in `amc.service.ts` creates a new contract but does not mark unperformed predecessor schedules or handle successor period boundaries cleanly.
   - Furthermore, `renewContract` omits `dry_service_visits`, `jet_service_visits`, `pumpdown_service_visits` during insert of successor contract, causing successor PM generation to fall back to generic alternating types or fail.
-- **Proposed Fix:**
-  1. Carry forward breakdown visit counts in `renewContract`.
-  2. Cancel unfulfilled predecessor visits with reason `'AMC_SUPERSEDED_BY_RENEWAL'`.
-  3. Generate successor PM obligations using deterministic composite obligation keys based on `amc_id`, `asset_id`, and `visit_number`.
-- **Regression Tests:** Test renewal of 1-year quarterly contract; verify exactly 4 visits on predecessor, cancel unfulfilled, verify exactly 4 on successor.
-- **Status:** **CONFIRMED DEFECT (P0)**.
+- **Completed Fix (Batch 4):**
+  1. Replaced fragile date-only idempotency key with deterministic composite identity based on `amc_id`, `asset_id`, and `visit_number`, selecting existing schedules by visit number and date.
+  2. In `generatePmObligations`, handled PostgreSQL duplicate key violation (`23505`) gracefully to ensure concurrent activation/renewal requests do not crash or corrupt state.
+  3. In `renewContract`, identified all eligible unperformed predecessor schedules (`SCHEDULED`, `PLANNED`, `DUE`, `OVERDUE`) and marked them `status = 'CANCELLED'` with `cancellation_reason = 'SUPERSEDED_BY_RENEWAL'`.
+  4. Strictly preserved completed visits (`COMPLETED`), in-progress visits (`IN_PROGRESS`), and service reports without modification.
+  5. Implemented atomic compensation logic to roll back successor contract and restore superseded predecessor schedules if obligation generation fails.
+- **Regression Tests:** Verified in `server/tests/amcBatch4Fixes.test.ts` (Scenarios 9-16 covering unperformed schedule supersession, completed schedule preservation, in-progress handling, per-asset traceability, duplicate retry prevention, concurrent collision handling, follow-up schedule isolation, and audit logging).
+- **Status:** **RESOLVED IN BATCH 4**.
 
 ---
 
@@ -222,9 +224,12 @@
 - **Frontend Files:** [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx).
 - **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts) lines 940–990.
 - **Root Cause & Evidence:** In `amc.service.ts`, `generatePmObligations` is ONLY called inside `createContract` when status is initially `ACTIVE`. In `updateStatus`, no PM generation call exists.
-- **Proposed Fix:** In `updateStatus`, when `newStatus === 'ACTIVE'`, call `generatePmObligations` in the same transaction.
-- **Regression Tests:** Create draft AMC → activate it → assert correct number of scheduled PM visits appear.
-- **Status:** **CONFIRMED DEFECT (P1)**.
+- **Completed Fix (Batch 4):**
+  1. In `updateStatus`, when transitioning from `DRAFT` to `ACTIVE`, invoked `generatePmObligations` to generate per-asset PM schedules.
+  2. Implemented transactional rollback: if obligation generation fails, the contract status is automatically reverted to `DRAFT` with an explanatory error.
+  3. Ensured idempotent execution: repeated status updates or updating an already-active AMC does not regenerate obligations.
+- **Regression Tests:** Verified in `server/tests/amcBatch4Fixes.test.ts` (Scenarios 1-5 covering valid draft activation, correct per-asset PM schedule creation, activation retry idempotency, atomic rollback on generation failure, and avoiding duplicate generation on already-active updates).
+- **Status:** **RESOLVED IN BATCH 4**.
 
 ---
 
@@ -235,9 +240,13 @@
   1. Create a contract with breakdown visits: 2 Dry, 1 Jet, 1 Pumpdown.
   2. Call `POST /api/v1/amc-contracts/:id/renew` without explicitly passing new breakdown numbers.
 - **Expected Behavior:** Successor contract inherits or carries forward the predecessor contract's service breakdown visits.
-- **Actual Behavior:** `renewContract` in `amc.service.ts` inserts successor with `dry_service_visits: null`, `jet_service_visits: null`, `pumpdown_service_visits: null`.
-- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts) lines 1410–1460.
-- **Root Cause & Evidence:** Code in `renewContract` only copies `plan_id`, `customer_id`, `site_id`, `frequency`, but omits the three breakdown fields.
-- **Proposed Fix:** Copy predecessor breakdown counts if not explicitly overridden in renewal request payload.
-- **Regression Tests:** Renew contract with 2/1/1 breakdown; verify successor contract has identical 2/1/1 breakdown.
-- **Status:** **CONFIRMED DEFECT (P1)**.
+- **Actual Behavior:** Prior to Batch 4, `renewContract` in `amc.service.ts` inserted successor with `dry_service_visits: null`, `jet_service_visits: null`, `pumpdown_service_visits: null`.
+- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts), [`server/src/validators/amc.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/amc.validator.ts).
+- **Frontend Files:** [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx), [`src/domain/types.ts`](file:///c:/Users/aayup/Desktop/PYS/src/domain/types.ts).
+- **Root Cause & Evidence:** Code in `renewContract` only copied `plan_id`, `customer_id`, `site_id`, `frequency`, but omitted the three breakdown fields.
+- **Completed Fix (Batch 4):**
+  1. Updated `renewContract` to inherit `dry_service_visits`, `jet_service_visits`, and `pumpdown_service_visits` from the predecessor contract when not explicitly provided.
+  2. Supported explicit valid overrides in `RenewAmcContractPayload` (`renewAmcContractSchema`), validating that counts are non-negative and their sum strictly equals `totalVisits`.
+  3. Enforced allocation validation in the renewal modal in `AmcManagement.tsx` with live reconciliation indicators (`{allocated} / {total} Allocated`).
+- **Regression Tests:** Verified in `server/tests/amcBatch4Fixes.test.ts` (Scenarios 6-8 covering default breakdown inheritance, explicit overrides, and 422 rejection of invalid allocation sums) and `src/tests/amc.test.tsx` (renewal modal allocation inputs and submission).
+- **Status:** **RESOLVED IN BATCH 4**.

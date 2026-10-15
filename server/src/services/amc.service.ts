@@ -936,6 +936,19 @@ export class AmcService {
       return this.cancelContract(id, { reason: payload.reason || 'Status transitioned to CANCELLED' }, actorId);
     }
 
+    if (existing.status === 'CANCELLED') {
+      throw new BadRequestError('Cannot change status of a cancelled AMC contract');
+    }
+
+    if (existing.status === 'RENEWED') {
+      throw new BadRequestError('Cannot change status of a renewed AMC contract');
+    }
+
+    // Idempotent return if already in target status
+    if (existing.status === payload.status) {
+      return existing;
+    }
+
     const { error } = await supabase
       .from('amc_contracts')
       .update({
@@ -950,10 +963,34 @@ export class AmcService {
       throw new BadRequestError('Failed to update AMC status');
     }
 
+    // When transitioning to ACTIVE (e.g. from DRAFT), trigger PM obligations generation
+    if (existing.status !== 'ACTIVE' && payload.status === 'ACTIVE') {
+      try {
+        await this.generatePmObligations(id, {}, actorId);
+      } catch (genErr) {
+        logger.error('Failed to generate PM obligations upon AMC activation, reverting status', {
+          error: genErr,
+          id,
+          fromStatus: existing.status,
+        });
+        // Rollback status to previous state to prevent misleading partially activated state
+        await supabase
+          .from('amc_contracts')
+          .update({
+            status: existing.status,
+            updated_by: actorId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+        throw new BadRequestError('Failed to generate preventive maintenance obligations upon activation');
+      }
+    }
+
     await this.recordAudit(actorId, 'AMC_STATUS_CHANGED', id, {
       fromStatus: existing.status,
       toStatus: payload.status,
       reason: payload.reason,
+      pmGenerated: existing.status !== 'ACTIVE' && payload.status === 'ACTIVE',
     });
 
     return this.getContractById(id);
@@ -1177,7 +1214,7 @@ export class AmcService {
     // Fetch existing schedules for this contract to guarantee idempotency
     const { data: existingSchedules, error: sErr } = await supabase
       .from('service_schedules')
-      .select('id, amc_id, asset_id, scheduled_date, schedule_number, status')
+      .select('id, amc_id, asset_id, scheduled_date, visit_number, schedule_number, status')
       .eq('amc_id', id);
 
     if (sErr) {
@@ -1185,9 +1222,20 @@ export class AmcService {
       throw new BadRequestError('Failed to evaluate existing PM obligations');
     }
 
-    const existingKeySet = new Set(
-      (existingSchedules || []).map((s: any) => `${s.amc_id}_${s.asset_id}_${s.scheduled_date}`)
-    );
+    // Stable composite identity sets:
+    // 1. Visit sequence key: (amc_id, asset_id, visit_number) for active/completed schedules
+    // 2. Scheduled date key: (amc_id, asset_id, scheduled_date)
+    const existingVisitKeySet = new Set<string>();
+    const existingDateKeySet = new Set<string>();
+
+    for (const s of (existingSchedules || [])) {
+      if (s.visit_number != null && !['CANCELLED', 'RESCHEDULED'].includes(s.status)) {
+        existingVisitKeySet.add(`${s.amc_id}_${s.asset_id}_visit_${s.visit_number}`);
+      }
+      if (s.scheduled_date && !['CANCELLED', 'RESCHEDULED'].includes(s.status)) {
+        existingDateKeySet.add(`${s.amc_id}_${s.asset_id}_date_${s.scheduled_date}`);
+      }
+    }
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -1229,9 +1277,11 @@ export class AmcService {
     for (const asset of targetAssets) {
       for (let i = 0; i < dates.length; i++) {
         const date = dates[i];
-        const key = `${id}_${asset.assetId}_${date}`;
+        const visitNumber = i + 1;
+        const visitKey = `${id}_${asset.assetId}_visit_${visitNumber}`;
+        const dateKey = `${id}_${asset.assetId}_date_${date}`;
 
-        if (existingKeySet.has(key)) {
+        if (existingVisitKeySet.has(visitKey) || existingDateKeySet.has(dateKey)) {
           existingCount++;
         } else {
           const scheduleNumber = `${prefix}${String(currentSeq++).padStart(6, '0')}`;
@@ -1249,29 +1299,45 @@ export class AmcService {
             customer_id: contract.customerId || null,
             site_id: asset.siteId || null,
             scheduled_date: date,
-            visit_number: i + 1,
+            visit_number: visitNumber,
             planned_service_type: plannedTypes[i] || 'DRY_SERVICE',
             status,
             is_system_generated: true,
             created_by: validActorId,
           });
 
-          // Mark key as seen for concurrent asset loop
-          existingKeySet.add(key);
+          // Mark keys as seen for subsequent checks in this loop
+          existingVisitKeySet.add(visitKey);
+          existingDateKeySet.add(dateKey);
         }
       }
     }
 
+    let actuallyInsertedCount = toInsert.length;
     if (toInsert.length > 0) {
       const { error: insErr } = await supabase.from('service_schedules').insert(toInsert);
       if (insErr) {
-        logger.error('Failed to batch insert PM schedules', { error: insErr });
-        throw new BadRequestError('Failed to persist generated PM obligations');
+        // Concurrency safeguard: if another process inserted concurrently, suppress unique collision
+        const isUniqueViolation =
+          (insErr as any).code === '23505' ||
+          insErr.message?.includes('duplicate key') ||
+          insErr.message?.includes('unique constraint') ||
+          insErr.message?.includes('uq_amc_asset_schedule') ||
+          insErr.message?.includes('idx_active_schedule_per_amc_asset_visit');
+
+        if (isUniqueViolation) {
+          logger.warn('Concurrent PM obligation collision suppressed', { amcId: id, error: insErr });
+          existingCount += toInsert.length;
+          actuallyInsertedCount = 0;
+        } else {
+          logger.error('Failed to batch insert PM schedules', { error: insErr });
+          throw new BadRequestError('Failed to persist generated PM obligations');
+        }
       }
     }
 
     await this.recordAudit(actorId, 'AMC_PM_GENERATED', id, {
-      generatedCount: toInsert.length,
+      generatedCount: actuallyInsertedCount,
       existingCount,
       targetAssetsCount: targetAssets.length,
       frequency: contract.frequency,
@@ -1282,7 +1348,7 @@ export class AmcService {
     return {
       contractId: id,
       contractNumber: contract.contractNumber,
-      generatedCount: toInsert.length,
+      generatedCount: actuallyInsertedCount,
       existingCount,
       skippedCount: 0,
       dateRange: {
@@ -1420,12 +1486,100 @@ export class AmcService {
     const planId = payload.planId !== undefined ? payload.planId : existing.planId;
     const notes = payload.notes !== undefined ? payload.notes : (existing.notes || null);
 
+    // 4b. Preserve or override visit breakdowns (Dry, Jet, Pumpdown)
+    const hasBreakdownOverride =
+      payload.dryServiceVisits !== undefined ||
+      payload.jetServiceVisits !== undefined ||
+      payload.pumpdownServiceVisits !== undefined;
+
+    let dryVisits: number | null = null;
+    let jetVisits: number | null = null;
+    let pumpdownVisits: number | null = null;
+
+    if (hasBreakdownOverride) {
+      dryVisits = payload.dryServiceVisits != null ? Number(payload.dryServiceVisits) : 0;
+      jetVisits = payload.jetServiceVisits != null ? Number(payload.jetServiceVisits) : 0;
+      pumpdownVisits = payload.pumpdownServiceVisits != null ? Number(payload.pumpdownServiceVisits) : 0;
+
+      if (dryVisits < 0 || jetVisits < 0 || pumpdownVisits < 0) {
+        throw new BadRequestError('Visit breakdown counts cannot be negative');
+      }
+      if (
+        !Number.isInteger(dryVisits) ||
+        !Number.isInteger(jetVisits) ||
+        !Number.isInteger(pumpdownVisits)
+      ) {
+        throw new BadRequestError('Visit breakdown counts must be whole numbers');
+      }
+
+      if (dryVisits + jetVisits + pumpdownVisits !== totalVisits) {
+        throw new BadRequestError(
+          `The total allocation across Dry (${dryVisits}), Jet (${jetVisits}), and Pumpdown (${pumpdownVisits}) visits must exactly equal total included visits (${totalVisits})`
+        );
+      }
+    } else {
+      // Inherit predecessor visit breakdown
+      dryVisits = existing.dryServiceVisits ?? null;
+      jetVisits = existing.jetServiceVisits ?? null;
+      pumpdownVisits = existing.pumpdownServiceVisits ?? null;
+
+      const hasPredecessorBreakdown =
+        dryVisits != null || jetVisits != null || pumpdownVisits != null;
+
+      if (hasPredecessorBreakdown) {
+        const inheritedSum = (dryVisits ?? 0) + (jetVisits ?? 0) + (pumpdownVisits ?? 0);
+        if (inheritedSum !== totalVisits) {
+          throw new BadRequestError(
+            `The inherited visit allocation (Dry: ${dryVisits ?? 0}, Jet: ${jetVisits ?? 0}, Pumpdown: ${pumpdownVisits ?? 0} = ${inheritedSum}) does not match the new total visits (${totalVisits}). Please specify an explicit visit breakdown.`
+          );
+        }
+      }
+    }
+
+    // 4c. Query eligible unperformed predecessor schedules for supersession
+    const schedQuery: any = supabase
+      .from('service_schedules')
+      .select('id, schedule_number, status, notes, visit_number')
+      .eq('amc_id', existing.id);
+
+    const { data: eligibleRaw, error: schedQueryErr } = typeof schedQuery.in === 'function'
+      ? await schedQuery.in('status', ['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE'])
+      : await schedQuery;
+
+    if (schedQueryErr) {
+      logger.error('Failed to query predecessor schedules during renewal', { error: schedQueryErr });
+      throw new BadRequestError('Failed to inspect predecessor service schedules');
+    }
+
+    const unperformedStatuses = ['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE'];
+    const eligibleSchedules = (eligibleRaw || []).filter((s: any) =>
+      unperformedStatuses.includes(s.status)
+    );
+
+    // Verify actorId exists in profiles or set null to avoid FK violation on cancelled_by
+    let validActorId: string | null = null;
+    if (actorId) {
+      try {
+        const query: any = supabase.from('profiles').select('id').eq('id', actorId);
+        const res = typeof query.maybeSingle === 'function'
+          ? await query.maybeSingle()
+          : typeof query.single === 'function'
+            ? await query.single()
+            : { data: null };
+        if (res && res.data) validActorId = res.data.id;
+      } catch {
+        validActorId = null;
+      }
+    }
+
     // 5. Atomic execution with rollback safeguard
     let createdSuccessorId: string | null = null;
     let predecessorMarkedRenewed = false;
+    let supersededScheduleIds: string[] = [];
+    let previousScheduleStates: Array<{ id: string; status: string; notes: string | null }> = [];
 
     try {
-      // 5a. Insert successor contract (status ACTIVE, previous_contract_id linked)
+      // 5a. Insert successor contract (status ACTIVE, previous_contract_id linked, visit breakdowns populated)
       const { data: inserted, error: iErr } = await supabase
         .from('amc_contracts')
         .insert({
@@ -1437,6 +1591,9 @@ export class AmcService {
           frequency,
           total_amount: totalAmount,
           total_visits: totalVisits,
+          dry_service_visits: dryVisits,
+          jet_service_visits: jetVisits,
+          pumpdown_service_visits: pumpdownVisits,
           status: 'ACTIVE',
           notes,
           previous_contract_id: existing.id,
@@ -1464,7 +1621,38 @@ export class AmcService {
         throw new BadRequestError('Failed to attach covered assets to renewed contract');
       }
 
-      // 5c. Mark predecessor as RENEWED
+      // 5c. Supersede eligible unperformed predecessor schedules
+      if (eligibleSchedules && eligibleSchedules.length > 0) {
+        supersededScheduleIds = eligibleSchedules.map((s: any) => s.id);
+        previousScheduleStates = eligibleSchedules.map((s: any) => ({
+          id: s.id,
+          status: s.status,
+          notes: s.notes,
+        }));
+        const now = new Date().toISOString();
+        const updateQuery: any = supabase
+          .from('service_schedules')
+          .update({
+            status: 'CANCELLED',
+            cancellation_reason: 'SUPERSEDED_BY_RENEWAL',
+            notes: `Superseded by renewal contract ${contractNumber}`,
+            cancelled_at: now,
+            cancelled_by: validActorId,
+            updated_by: validActorId,
+            updated_at: now,
+          });
+
+        const { error: cancelSchedErr } = typeof updateQuery.in === 'function'
+          ? await updateQuery.in('id', supersededScheduleIds)
+          : await updateQuery.eq('amc_id', existing.id);
+
+        if (cancelSchedErr) {
+          logger.error('Failed to supersede predecessor schedules', { error: cancelSchedErr });
+          throw new BadRequestError('Failed to supersede predecessor schedules');
+        }
+      }
+
+      // 5d. Mark predecessor as RENEWED
       const { error: updErr } = await supabase
         .from('amc_contracts')
         .update({
@@ -1481,10 +1669,10 @@ export class AmcService {
 
       predecessorMarkedRenewed = true;
 
-      // 5d. Generate successor PM obligations
+      // 5e. Generate successor PM obligations
       await this.generatePmObligations(inserted.id, {}, actorId);
 
-      // 5e. Record audit log
+      // 5f. Record audit log
       await this.recordAudit(actorId, 'AMC_RENEWED', existing.id, {
         predecessorContractNumber: existing.contractNumber,
         successorContractId: inserted.id,
@@ -1492,6 +1680,10 @@ export class AmcService {
         assetsCount: assetIds.length,
         startDate: payload.startDate,
         endDate: payload.endDate,
+        dryServiceVisits: dryVisits,
+        jetServiceVisits: jetVisits,
+        pumpdownServiceVisits: pumpdownVisits,
+        supersededPredecessorSchedulesCount: supersededScheduleIds.length,
       });
 
       return this.getContractById(inserted.id);
@@ -1520,6 +1712,26 @@ export class AmcService {
             .eq('id', existing.id);
         } catch (revertErr) {
           logger.error('Rollback revert failed for predecessor status', { error: revertErr });
+        }
+      }
+      // Revert superseded predecessor schedules
+      if (previousScheduleStates.length > 0) {
+        try {
+          for (const prev of previousScheduleStates) {
+            await supabase
+              .from('service_schedules')
+              .update({
+                status: prev.status,
+                notes: prev.notes,
+                cancellation_reason: null,
+                cancelled_at: null,
+                cancelled_by: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', prev.id);
+          }
+        } catch (revertSchedErr) {
+          logger.error('Rollback revert failed for superseded schedules', { error: revertSchedErr });
         }
       }
       throw err;

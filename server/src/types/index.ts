@@ -1097,6 +1097,9 @@ export interface RenewAmcContractPayload {
   frequency?: AmcFrequency;
   totalAmount?: number;
   totalVisits?: number;
+  dryServiceVisits?: number | null;
+  jetServiceVisits?: number | null;
+  pumpdownServiceVisits?: number | null;
   coveredAssetIds?: string[];
   planId?: string | null;
   notes?: string | null;
