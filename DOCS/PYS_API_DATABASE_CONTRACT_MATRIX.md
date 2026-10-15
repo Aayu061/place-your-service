@@ -1,8 +1,8 @@
 # PYS API & Database Contract Matrix
 
-**Document Version:** 2.0  
-**Date:** 14 October 2026  
-**Repository:** `Aayu061/place-your-service` (`main` @ `7f8cfab`)  
+**Document Version:** 2.1  
+**Date:** 15 October 2026  
+**Repository:** `Aayu061/place-your-service` (`main` @ `880e9d5`)  
 **Scope:** Complete map of REST APIs, roles, schemas, database tables, side effects, and contract discrepancies.
 
 ---
@@ -114,11 +114,37 @@
 
 | Method | Endpoint | Role | Request Schema | Response Schema | Backend Handler | DB Tables Mutated | Side Effects | Test Coverage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/service-reports` | `ADMIN`, `STAFF` | Query: `{ customerId?, technicianId?, status?, limit?, offset? }` | `{ success: true, data: ServiceReport[], total }` | `reportController.list` | None | Joins customer, schedule, technician; redacts `technicianPhone: null` | `serviceReportRoutes.test.ts` (Int) |
-| `GET` | `/api/v1/service-reports/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: ServiceReportDetail }` | `reportController.getById` | None | Loads snapshot assets, items, parts, assistantName; redacts `technicianPhone: null` | `serviceReportRoutes.test.ts` (Int) |
-| `POST`| `/api/v1/service-reports` | `ADMIN`, `STAFF` | `{ serviceScheduleId, technicianId, assistantName?, serviceDate, workDescription?, observations?, actionTaken?, recommendation?, customerFeedback?, primaryOutcome, assetSnapshots: [], items: [], partsUsed: [] }` | `{ success: true, data: ServiceReport }` | `reportController.create` | `service_reports`, `service_report_assets`, `service_report_items`, `service_schedules`, `activity_logs` | Marks schedule `COMPLETED`. Enqueues async customer email | `serviceReport.service.test.ts` |
-| `PATCH`| `/api/v1/service-reports/:id`| `ADMIN`, `STAFF` | `{ assistantName?, workDescription?, observations?, actionTaken?, recommendation?, technicianRemarks? }` | `{ success: true, data: ServiceReport }` | `reportController.update` | `service_reports`, `activity_logs` | Updates editable remarks and assistant name | `serviceReportRoutes.test.ts` (Int) |
+| `GET` | `/api/v1/service-reports` | `ADMIN`, `STAFF` | Query: `{ customerId?, technicianId?, status?, limit?, offset? }` | `{ success: true, data: ServiceReport[], total, page, pageSize, totalPages, summary }` | `reportController.list` | None | Joins customer, schedule, technician. Projection omits technician phone: `technicians (id, name, technician_code)`. Returns `assistantName` (`string | null`). Explicitly redacts `technicianPhone: null` for privacy. | `serviceReportRoutes.test.ts` (Int), `serviceReports.test.tsx` (Frontend) |
+| `GET` | `/api/v1/service-reports/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: ServiceReportDetail }` | `reportController.getById` | None | Loads snapshot assets, items, parts, and `assistantName` (`string | null`). Technician join projection omits phone; explicitly redacts `technicianPhone: null` for privacy. | `serviceReportRoutes.test.ts` (Int), `serviceReports.test.tsx` (Frontend) |
+| `POST`| `/api/v1/service-reports` | `ADMIN`, `STAFF` | `{ serviceScheduleId: UUID, technicianId: UUID, assistantName?: string | null, serviceDate: string, workDescription?, observations?, actionTaken?, recommendation?, customerFeedback?, primaryOutcome, assetSnapshots: [], items: [], partsUsed: [] }` | `{ success: true, data: ServiceReport }` | `reportController.create` | `service_reports`, `service_report_assets`, `service_report_items`, `service_schedules`, `activity_logs` | Marks schedule `COMPLETED`; records `SERVICE_REPORT_CREATED` in `activity_logs`. Explicitly submitted `assistantName` takes precedence over schedule value; explicit `null` clears; blank/whitespace strings normalized to `null` (no invented names). Customer email delivery is NOT implemented (tracked under PYS-A1 / Batch 5). | `serviceReportRoutes.test.ts` (Int), `serviceReports.test.tsx` (Frontend) |
+| `PATCH`| `/api/v1/service-reports/:id`| `ADMIN`, `STAFF` | `{ assistantName?: string | null, workDescription?, observations?, actionTaken?, recommendation?, technicianRemarks? }` | `{ success: true, data: ServiceReport }` | `reportController.updateReport` | `service_reports`, `activity_logs` | Updates `assistant_name` (normalized to `null` if blank) and editable remarks; records `SERVICE_REPORT_UPDATED` in `activity_logs`. | `serviceReportRoutes.test.ts` (Int), `serviceReports.test.tsx` (Frontend) |
 | `POST`| `/api/v1/service-reports/:id/resolve`| `ADMIN`, `STAFF` | `{ resolvingReportId: UUID, resolvedNotes: string }` | `{ success: true, data: ServiceReport }` | `reportController.resolveIssue` | `service_reports`, `activity_logs` | Resolves prior follow-up ticket | `serviceResolution.test.ts` |
+
+### 9.1 Service Report Data Contract & Attribution Specifications
+
+1. **Assistant Name Field Mapping & Storage:**
+   - Database columns: `public.service_schedules.assistant_name` (`TEXT NULL`) and `public.service_reports.assistant_name` (`TEXT NULL`).
+   - Frontend property `assistantName` (camelCase) maps cleanly to backend and database `assistant_name` (snake_case).
+   - Both schedule and report entities independently record assistant names, enabling schedule prefill while capturing actual visit attendance.
+
+2. **Creation Precedence & Safe Normalization:**
+   - In `POST /api/v1/service-reports`, an explicitly submitted `assistantName` takes precedence over the schedule's pre-assigned assistant name.
+   - Submitting an explicit `null` intentionally clears the assistant name for a visit performed solo.
+   - If `assistantName` is omitted or `undefined` in the creation payload, the service falls back to the schedule's `assistant_name`.
+   - String inputs are trimmed; empty or whitespace-only inputs are normalized to `null`.
+   - Neither backend nor frontend will invent or synthesize placeholder names when an assistant name is missing or blank.
+
+3. **Separated Personnel Attribution in UI & Print Views:**
+   - **Form Entry (`ServiceVisitReportModal.tsx`):** Section 1 displays scheduled assistant context; Section 2 renders the assigned technician separately and provides an editable `#assistant-name-input` prefilled from the schedule.
+   - **Register Table (`ServiceReportsManagement.tsx`):** Attending technician column displays technician code and name, with `Asst: <name>` rendered as distinct secondary subtext beneath.
+   - **Detail Drawer (`ServiceReportsManagement.tsx`):** Attending Technician and Assistant / Helper are presented in discrete cards.
+   - **Print Output (`ServiceReportPrintView.tsx`):** Attribution section presents dedicated cards for Assigned Technician and Assistant / Helper; signature section provides separate sign-off blocks.
+
+4. **Technician Phone Privacy Hardening (Defense-in-Depth):**
+   - **Query Projection Level:** Supabase queries in `serviceReport.service.ts` explicitly select `technicians (id, name, technician_code)`, omitting `phone` from the database join projection.
+   - **Payload Level:** `getReportById` and `getReports` explicitly return `technicianPhone: null` across all report responses.
+   - **Presentation Level:** Customer-facing report detail drawer and print views have completely eliminated technician phone references.
+   - **Administrative Isolation:** Full technician contact numbers remain strictly preserved in internal Technician Management (`TechnicianManagement.tsx`) and the authoritative `public.technicians` table for dispatch and internal administration.
 
 ---
 
@@ -127,23 +153,27 @@
 > [!WARNING]
 > **Identified Discrepancies between Frontend, Backend, and Database:**
 > 
-> 1. **Warranty Services Schema Drift (Batch 2 Code Complete, Pending Production Migration):**
->    - Frontend & Backend: Require `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`. In Batch 2, frontend input parsing (`parseWarrantyCount`), in-form reconciliation feedback, backend defensive validation, and full payload serialization were completed and verified with automated test suites (`technologyAndAssetRegistration.test.tsx` and `assetPersistence.test.ts`).
->    - Migration: `20261014000000_ac_asset_warranty_services.sql` inspected, and non-negative constraints along with allocation check invariant (`total = dry + jet + pumpdown`) were validated against the PostgreSQL 17 engine via an isolated transactional rollback execution.
->    - Live DB: Columns do not yet exist on `public.ac_assets` on production (`jvccvdxfilzlncbgiplk`) due to production hold restriction. Queued in Production Migration Plan. Outstanding blocker until schema deployment is approved.
+> 1. **Warranty Services Schema Drift — PENDING PRODUCTION DEPLOYMENT (Batch 2 Code & Tests Complete):**
+>    - Frontend & Backend: Fully implemented and verified. Requires `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`. In Batch 2, frontend input parsing (`parseWarrantyCount`), in-form reconciliation feedback, backend defensive validation, and full payload serialization were completed and verified with automated test suites (`technologyAndAssetRegistration.test.tsx` and `assetPersistence.test.ts`).
+>    - Migration: `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` inspected, and non-negative constraints along with allocation check invariant (`total = dry + jet + pumpdown`) were validated against the PostgreSQL 17 engine via an isolated transactional rollback execution.
+>    - Live DB Status: Columns **DO NOT YET EXIST** on `public.ac_assets` on live production Supabase (`jvccvdxfilzlncbgiplk`). Production schema change freeze remains strictly in force. This migration remains an active deployment blocker until approved and applied.
 > 
-> 2. **Assistant Name Schema & Flow (Batch 3 Code & Tests Complete, Pending Production Migration):**
->    - Migration: `20261014010000_service_schedule_and_report_assistant_name.sql` authored with additive `assistant_name TEXT NULL` on `public.service_schedules` and `public.service_reports`, tested via transactional rollback on PostgreSQL 17 engine.
->    - Backend & Frontend: `ServiceSchedule` and `ServiceReport` interfaces, types, validators (`schedule.validator.ts`, `serviceReport.validator.ts`), and services updated. Frontend `ServiceVisitReportModal.tsx` adds editable `#assistant-name-input` prefilled from schedule; table, drawer, and print views display technician and assistant names distinctly. Verified with automated regression tests (`assistantNameValidation.test.ts`, `serviceReportRoutes.test.ts`, `serviceReports.test.tsx`).
->    - Live DB: Columns pending execution on live production database under change freeze.
+> 2. **Assistant Name Schema & Flow — PENDING PRODUCTION DEPLOYMENT (Batch 3 Code & Tests Complete):**
+>    - Frontend & Backend: Fully implemented and verified. In Batch 1 & 3, `ServiceSchedule` and `ServiceReport` domain types, validators (`schedule.validator.ts`, `serviceReport.validator.ts`), and service persistence were updated. Frontend `ServiceVisitReportModal.tsx` provides an editable `#assistant-name-input` prefilled from the schedule; table, drawer, and print views display technician and assistant names distinctly. Verified with automated regression tests (`assistantNameValidation.test.ts`, `serviceReportRoutes.test.ts`, `serviceReports.test.tsx`).
+>    - Migration: `supabase/migrations/20261014010000_service_schedule_and_report_assistant_name.sql` authored with additive `assistant_name TEXT NULL` on `public.service_schedules` and `public.service_reports`, verified via transactional rollback on PostgreSQL 17 engine.
+>    - Live DB Status: Columns **DO NOT YET EXIST** on `public.service_schedules` and `public.service_reports` on live production Supabase (`jvccvdxfilzlncbgiplk`). Production schema change freeze remains strictly in force. This migration remains an active deployment blocker until approved and applied.
 > 
 > 3. **Technician Phone Exposure (RESOLVED in Batch 3):**
->    - Redacted `technicianPhone: null` in backend report endpoints (`getReportById`, `getReports`) and omitted `phone` from Supabase join queries.
->    - Completely removed technician phone number from customer-facing report detail drawer in `ServiceReportsManagement.tsx` and printable receipt `ServiceReportPrintView.tsx`.
->    - Retained full technician phone number access in internal `TechnicianManagement.tsx` (directory table and profile drawer) and authoritative `technicians` table. Verified with regression tests in `serviceReports.test.tsx`, `serviceReportRoutes.test.ts`, and `technicians.test.tsx`.
+>    - Backend Redaction: Explicitly mapped `technicianPhone: null` in backend report endpoints (`getReportById`, `getReports`) and omitted `phone` from Supabase join queries (`technicians (id, name, technician_code)`).
+>    - Frontend Hardening: Completely removed technician phone number from customer-facing report detail drawer in `ServiceReportsManagement.tsx` and printable receipt `ServiceReportPrintView.tsx`.
+>    - Administrative Preservation: Retained full technician phone number access in internal Technician Management (`TechnicianManagement.tsx` table and profile drawer) and authoritative `public.technicians` table. Verified with regression tests in `serviceReports.test.tsx`, `serviceReportRoutes.test.ts`, and `technicians.test.tsx`.
 > 
-> 4. **Missing Customer Email in Report Payload:**
->    - `serviceReport.service.ts` query selects `customers (id, name, customer_code, phone)` but omits `email`, making auto-email impossible without an extra lookup (Batch 5).
+> 4. **Missing Customer Email Delivery (CONFIRMED DEFECT PYS-A1 — Unresolved / Batch 5 Scope):**
+>    - `serviceReport.service.ts` query selects `customers (id, name, customer_code, phone)` but omits `email`.
+>    - Automatic customer email delivery is NOT implemented in application code (no email transport package or provider installed). Scheduled for implementation in Batch 5.
 > 
-> 5. **AMC Contract Draft-to-Active Transition:**
->    - `updateStatus` in `amc.service.ts` updates status to `ACTIVE` but does NOT invoke `generatePmObligations`, leaving draft quotations with 0 PM visits upon activation (Batch 4).
+> 5. **AMC Contract Draft-to-Active Transition (CONFIRMED DEFECT PYS-D2 — Unresolved / Batch 4 Scope):**
+>    - `updateStatus` in `amc.service.ts` updates status to `ACTIVE` but does NOT invoke `generatePmObligations`, leaving draft quotations with 0 PM visits upon activation. Scheduled for implementation in Batch 4.
+> 
+> 6. **Missing Excel Exports (CONFIRMED DEFECT PYS-B1 — Unresolved / Batch 6 Scope):**
+>    - Missing `.xlsx` exports for Customers, Schedules, Reports, and AMC Contract Expiry. Scheduled for implementation in Batch 6.
