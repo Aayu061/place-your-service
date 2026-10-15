@@ -549,6 +549,11 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
               {report.customerName || 'N/A'}{' '}
               {report.customerCode && <span style={{ color: '#64748b' }}>({report.customerCode})</span>}
             </div>
+            {(report.customerPhone || report.customerEmail) && (
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                {[report.customerPhone, report.customerEmail].filter(Boolean).join(' • ')}
+              </div>
+            )}
             <div className="pys-field-label" style={{ marginTop: '8px' }}>
               Site & Address
             </div>

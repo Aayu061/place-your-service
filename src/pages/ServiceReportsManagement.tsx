@@ -1181,6 +1181,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                   <Building size={13} className="text-blue-600" /> Customer & Site
                 </span>
                 <div className="font-bold text-slate-900">{detailedReport.customerName}</div>
+                {(detailedReport.customerPhone || detailedReport.customerEmail) && (
+                  <div className="text-slate-500 text-[11px] mt-0.5">
+                    {[detailedReport.customerPhone, detailedReport.customerEmail].filter(Boolean).join(' • ')}
+                  </div>
+                )}
                 <div className="text-slate-600 mt-0.5">{detailedReport.siteName}</div>
                 <div className="text-slate-500 text-[11px] mt-0.5">{detailedReport.siteAddress}</div>
               </div>

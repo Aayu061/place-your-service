@@ -166,6 +166,50 @@ export class ServiceReportService {
       );
     }
 
+    // 5b. Validate assets and enforce cross-entity site & customer integrity BEFORE creating report (PYS-005)
+    const assetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
+    if (assetIds.length !== payload.assets.length) {
+      throw new BadRequestError('All assets in the service report must have a valid asset ID.');
+    }
+
+    let assetMap: Record<string, any> = {};
+    if (assetIds.length > 0) {
+      const query = supabase.from('ac_assets');
+      if (query && typeof query.select === 'function') {
+        const { data: matchedAssets, error: assetErr } = await query
+          .select(`
+            id, site_id, customer_id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+            ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
+          `)
+          .in('id', assetIds);
+
+        if (assetErr) {
+          logger.error('Failed to query ac_assets for service report validation', { error: assetErr });
+          throw new BadRequestError('Failed to validate equipment records.');
+        }
+
+        if (matchedAssets) {
+          if (matchedAssets.length !== assetIds.length) {
+            throw new BadRequestError('One or more referenced AC assets could not be found.');
+          }
+
+          for (const asset of matchedAssets) {
+            if (asset.site_id && asset.site_id !== siteId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the scheduled site.`
+              );
+            }
+            if (asset.customer_id && asset.customer_id !== customerId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the scheduled customer.`
+              );
+            }
+            assetMap[asset.id] = asset;
+          }
+        }
+      }
+    }
+
     // Resolve planned and performed service types
     const plannedServiceType = payload.plannedServiceType || schedule.planned_service_type || null;
     const performedServiceType = payload.performedServiceType || plannedServiceType || null;
@@ -285,29 +329,6 @@ export class ServiceReportService {
     }
 
     // 7. Insert Per-Asset Report Details with immutable equipment snapshot
-    const assetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
-    let assetMap: Record<string, any> = {};
-    if (assetIds.length > 0) {
-      try {
-        const query = supabase.from('ac_assets');
-        if (query && typeof query.select === 'function') {
-          const { data: matchedAssets } = await query
-            .select(`
-              id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
-              ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
-            `)
-            .in('id', assetIds);
-          if (matchedAssets) {
-            assetMap = matchedAssets.reduce((acc, curr) => {
-              acc[curr.id] = curr;
-              return acc;
-            }, {} as Record<string, any>);
-          }
-        }
-      } catch (err) {
-        logger.warn('Failed to pre-fetch ac_assets for service report snapshot', { err });
-      }
-    }
 
     const assetInserts = payload.assets.map((a) => {
       const snap = assetMap[a.assetId] || {};
@@ -557,7 +578,7 @@ export class ServiceReportService {
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
-        customers (id, name, customer_code, phone),
+        customers (id, name, customer_code, phone, email),
         customer_sites (id, site_name, address),
         technicians (id, name, technician_code),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
@@ -716,6 +737,7 @@ export class ServiceReportService {
       customerName: (row.customers as any)?.name || null,
       customerCode: (row.customers as any)?.customer_code || null,
       customerPhone: (row.customers as any)?.phone || null,
+      customerEmail: (row.customers as any)?.email || null,
       siteId: row.site_id,
       siteName: (row.customer_sites as any)?.site_name || null,
       siteAddress: (row.customer_sites as any)?.address || null,
@@ -802,7 +824,7 @@ export class ServiceReportService {
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
-        customers (id, name, customer_code, phone),
+        customers (id, name, customer_code, phone, email),
         customer_sites (id, site_name, address),
         technicians (id, name, technician_code),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
@@ -906,6 +928,7 @@ export class ServiceReportService {
       customerName: row.customers?.name || null,
       customerCode: row.customers?.customer_code || null,
       customerPhone: row.customers?.phone || null,
+      customerEmail: row.customers?.email || null,
       siteId: row.site_id,
       siteName: row.customer_sites?.site_name || null,
       siteAddress: row.customer_sites?.address || null,
@@ -1072,6 +1095,50 @@ export class ServiceReportService {
     if (payload.customerAcknowledgement !== undefined) updates.customer_acknowledgement = payload.customerAcknowledgement;
     if (payload.customerSignatureUrl !== undefined) updates.customer_signature_url = payload.customerSignatureUrl;
 
+    // Validate and update asset findings if supplied with immutable equipment snapshot
+    let updateAssetMap: Record<string, any> = {};
+    if (payload.assets && payload.assets.length > 0) {
+      const updateAssetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
+      if (updateAssetIds.length !== payload.assets.length) {
+        throw new BadRequestError('All assets in the service report must have a valid asset ID.');
+      }
+
+      const query = supabase.from('ac_assets');
+      if (query && typeof query.select === 'function') {
+        const { data: matchedAssets, error: assetErr } = await query
+          .select(`
+            id, site_id, customer_id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+            ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
+          `)
+          .in('id', updateAssetIds);
+
+        if (assetErr) {
+          logger.error('Failed to query ac_assets for service report update validation', { error: assetErr });
+          throw new BadRequestError('Failed to validate equipment records.');
+        }
+
+        if (matchedAssets) {
+          if (matchedAssets.length !== updateAssetIds.length) {
+            throw new BadRequestError('One or more referenced AC assets could not be found.');
+          }
+
+          for (const asset of matchedAssets) {
+            if (asset.site_id && asset.site_id !== existing.siteId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the report site.`
+              );
+            }
+            if (asset.customer_id && asset.customer_id !== existing.customerId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the report customer.`
+              );
+            }
+            updateAssetMap[asset.id] = asset;
+          }
+        }
+      }
+    }
+
     const { error } = await supabase.from('service_reports').update(updates).eq('id', id);
 
     if (error) {
@@ -1082,29 +1149,6 @@ export class ServiceReportService {
     // Update asset findings if supplied with immutable equipment snapshot
     if (payload.assets && payload.assets.length > 0) {
       await supabase.from('service_report_assets').delete().eq('report_id', id);
-      const updateAssetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
-      let updateAssetMap: Record<string, any> = {};
-      if (updateAssetIds.length > 0) {
-        try {
-          const query = supabase.from('ac_assets');
-          if (query && typeof query.select === 'function') {
-            const { data: matchedAssets } = await query
-              .select(`
-                id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
-                ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
-              `)
-              .in('id', updateAssetIds);
-            if (matchedAssets) {
-              updateAssetMap = matchedAssets.reduce((acc, curr) => {
-                acc[curr.id] = curr;
-                return acc;
-              }, {} as Record<string, any>);
-            }
-          }
-        } catch (err) {
-          logger.warn('Failed to pre-fetch ac_assets for service report update snapshot', { err });
-        }
-      }
 
       const assetInserts = payload.assets.map((a) => {
         const snap = updateAssetMap[a.assetId] || {};

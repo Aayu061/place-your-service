@@ -428,7 +428,7 @@ export class AmcService {
         .from('service_schedules')
         .select(`
           amc_id, scheduled_date, status, rescheduled_from_id,
-          service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome)
+          service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome, resolution_status)
         `)
         .in('amc_id', contractIds)
         .order('scheduled_date', { ascending: true });
@@ -449,11 +449,13 @@ export class AmcService {
             : curr.service_reports
               ? [curr.service_reports]
               : [];
-          const hasPendingReport = reportList.some(
-            (r: any) => r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS'
+          const hasUnresolvedPendingReport = reportList.some(
+            (r: any) =>
+              (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') &&
+              r.resolution_status !== 'RESOLVED'
           );
 
-          if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(curr.status) && !hasPendingReport) {
+          if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(curr.status) && !hasUnresolvedPendingReport) {
             acc[curr.amc_id].completed++;
           } else if (!acc[curr.amc_id].nextDate && curr.scheduled_date >= today && curr.status !== 'CANCELLED') {
             acc[curr.amc_id].nextDate = curr.scheduled_date;
@@ -588,7 +590,7 @@ export class AmcService {
       .from('service_schedules')
       .select(`
         id, status, scheduled_date, rescheduled_from_id,
-        service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome)
+        service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome, resolution_status)
       `)
       .eq('amc_id', id);
 
@@ -605,11 +607,13 @@ export class AmcService {
         : s.service_reports
           ? [s.service_reports]
           : [];
-      const hasPendingReport = reportList.some(
-        (r: any) => r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS'
+      const hasUnresolvedPendingReport = reportList.some(
+        (r: any) =>
+          (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') &&
+          r.resolution_status !== 'RESOLVED'
       );
 
-      if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(s.status) && !hasPendingReport) {
+      if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(s.status) && !hasUnresolvedPendingReport) {
         completedVisitsCount++;
       } else if (!nextPmDate && s.scheduled_date >= today && s.status !== 'CANCELLED') {
         nextPmDate = s.scheduled_date;

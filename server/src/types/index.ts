@@ -1304,6 +1304,7 @@ export interface ServiceVisitReportResponse {
   customerName?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
+  customerEmail?: string | null;
   siteId: string;
   siteName?: string | null;
   siteAddress?: string | null;

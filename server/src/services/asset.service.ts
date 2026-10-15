@@ -143,14 +143,29 @@ export class AssetService {
       // 2. Fetch completed PM schedule obligations for these active contracts and assets
       const { data: scheduleRows } = await supabase
         .from('service_schedules')
-        .select('amc_id, asset_id, status')
+        .select(`
+          amc_id, asset_id, status, rescheduled_from_id,
+          service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome, resolution_status)
+        `)
         .in('amc_id', Array.from(amcIdsToFetchSchedules))
         .in('asset_id', assetIds);
 
       const completedMap: Record<string, number> = {};
       if (scheduleRows) {
         for (const s of scheduleRows) {
-          if (['COMPLETED', 'RESOLVED'].includes(s.status)) {
+          const isFollowUp = Boolean(s.rescheduled_from_id);
+          const reportList = Array.isArray(s.service_reports)
+            ? s.service_reports
+            : s.service_reports
+              ? [s.service_reports]
+              : [];
+          const hasUnresolvedPendingReport = reportList.some(
+            (r: any) =>
+              (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') &&
+              r.resolution_status !== 'RESOLVED'
+          );
+
+          if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(s.status) && !hasUnresolvedPendingReport) {
             const key = `${s.amc_id}_${s.asset_id}`;
             completedMap[key] = (completedMap[key] || 0) + 1;
           }
@@ -448,13 +463,28 @@ export class AssetService {
     if (contractIds.length > 0) {
       const { data: scheduleRows } = await supabase
         .from('service_schedules')
-        .select('amc_id, status')
+        .select(`
+          amc_id, status, rescheduled_from_id,
+          service_reports:service_reports!service_reports_service_schedule_id_fkey (id, primary_outcome, resolution_status)
+        `)
         .in('amc_id', contractIds)
         .eq('asset_id', assetId);
 
       if (scheduleRows) {
         for (const s of scheduleRows) {
-          if (['COMPLETED', 'RESOLVED'].includes(s.status)) {
+          const isFollowUp = Boolean(s.rescheduled_from_id);
+          const reportList = Array.isArray(s.service_reports)
+            ? s.service_reports
+            : s.service_reports
+              ? [s.service_reports]
+              : [];
+          const hasUnresolvedPendingReport = reportList.some(
+            (r: any) =>
+              (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') &&
+              r.resolution_status !== 'RESOLVED'
+          );
+
+          if (!isFollowUp && ['COMPLETED', 'RESOLVED'].includes(s.status) && !hasUnresolvedPendingReport) {
             completedMap[s.amc_id] = (completedMap[s.amc_id] || 0) + 1;
           }
         }
