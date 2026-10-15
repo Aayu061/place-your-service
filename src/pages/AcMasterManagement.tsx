@@ -73,7 +73,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
   const [modelTechnology, setModelTechnology] = useState('Inverter');
   const [modelCapacityTons, setModelCapacityTons] = useState('1.5');
   const [modelRating, setModelRating] = useState('5 Star');
-  const [modelRefrigerant, setModelRefrigerant] = useState('R32');
+  const [modelRefrigerant, setModelRefrigerant] = useState('');
   const [modelIsActive, setModelIsActive] = useState(true);
   const [isSubmittingModel, setIsSubmittingModel] = useState(false);
   const [modelFormError, setModelFormError] = useState<string | null>(null);
@@ -90,7 +90,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
   const [variantStarRating, setVariantStarRating] = useState('5 Star');
   const [variantAcType, setVariantAcType] = useState('Split AC');
   const [variantTechnology, setVariantTechnology] = useState('Inverter');
-  const [variantRefrigerant, setVariantRefrigerant] = useState('R32');
+  const [variantRefrigerant, setVariantRefrigerant] = useState('');
   const [variantSeries, setVariantSeries] = useState('');
   const [isSubmittingVariant, setIsSubmittingVariant] = useState(false);
   const [variantFormError, setVariantFormError] = useState<string | null>(null);
@@ -284,7 +284,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setModelTechnology('Inverter');
     setModelCapacityTons('1.5');
     setModelRating('5 Star');
-    setModelRefrigerant('R32');
+    setModelRefrigerant('');
     setModelIsActive(true);
     setModelFormError(null);
     setIsModelModalOpen(true);
@@ -298,7 +298,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setModelTechnology(model.technology ? normalizeTechnology(model.technology) : '');
     setModelCapacityTons(model.capacityTons ? String(model.capacityTons) : '1.5');
     setModelRating(model.rating || '5 Star');
-    setModelRefrigerant(model.refrigerant || 'R32');
+    setModelRefrigerant(model.refrigerant || '');
     setModelIsActive(model.isActive);
     setModelFormError(null);
     setIsModelModalOpen(true);
@@ -403,7 +403,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     setVariantStarRating(model.rating || '5 Star');
     setVariantAcType(model.acType || 'Split AC');
     setVariantTechnology(model.technology ? normalizeTechnology(model.technology) : 'Inverter');
-    setVariantRefrigerant(model.refrigerant || 'R32');
+    setVariantRefrigerant(model.refrigerant || '');
     setVariantSeries('');
     setVariantFormError(null);
     fetchVariants(model.id);
@@ -997,6 +997,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 onChange={(e) => setModelRefrigerant(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
               >
+                <option value="">Select Refrigerant (Optional)...</option>
                 <option value="R32">R32</option>
                 <option value="R410A">R410A</option>
                 <option value="R22">R22</option>
@@ -1196,6 +1197,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                     onChange={(e) => setVariantRefrigerant(e.target.value)}
                     style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
                   >
+                    <option value="">Select Refrigerant (Optional)...</option>
                     <option value="R32">R32</option>
                     <option value="R410A">R410A</option>
                     <option value="R22">R22</option>

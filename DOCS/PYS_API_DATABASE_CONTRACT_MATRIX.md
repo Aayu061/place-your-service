@@ -127,10 +127,10 @@
 > [!WARNING]
 > **Identified Discrepancies between Frontend, Backend, and Database:**
 > 
-> 1. **Warranty Services Schema Drift (Batch 1 Validated, Pending Production Migration):**
->    - Frontend & Backend: Require `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`.
+> 1. **Warranty Services Schema Drift (Batch 2 Code Complete, Pending Production Migration):**
+>    - Frontend & Backend: Require `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`. In Batch 2, frontend input parsing (`parseWarrantyCount`), in-form reconciliation feedback, backend defensive validation, and full payload serialization were completed and verified with automated test suites (`technologyAndAssetRegistration.test.tsx` and `assetPersistence.test.ts`).
 >    - Migration: `20261014000000_ac_asset_warranty_services.sql` inspected, and non-negative constraints along with allocation check invariant (`total = dry + jet + pumpdown`) were validated against the PostgreSQL 17 engine via an isolated transactional rollback execution.
->    - Live DB: Columns do not yet exist on `public.ac_assets` on production (`jvccvdxfilzlncbgiplk`) due to production hold restriction. Queued in Production Migration Plan.
+>    - Live DB: Columns do not yet exist on `public.ac_assets` on production (`jvccvdxfilzlncbgiplk`) due to production hold restriction. Queued in Production Migration Plan. Outstanding blocker until schema deployment is approved.
 > 
 > 2. **Assistant Name Schema & Validator Alignment (Batch 1 Complete, Pending Production Migration):**
 >    - Migration: `20261014010000_service_schedule_and_report_assistant_name.sql` authored with additive `assistant_name TEXT NULL` on `public.service_schedules` and `public.service_reports`, tested via transactional rollback on PostgreSQL 17 engine.

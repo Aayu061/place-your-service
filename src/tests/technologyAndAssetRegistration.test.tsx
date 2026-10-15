@@ -9,7 +9,7 @@ import { CustomerManagement } from '@/pages/CustomerManagement';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { apiClient } from '@/services/api/client';
-import { AcBrand, AcModel, Customer, CustomerSite } from '@/domain/types';
+import { AcBrand, AcModel, AcModelVariant, Customer, CustomerSite } from '@/domain/types';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
 
 describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
@@ -469,6 +469,356 @@ describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
 
       // Section E: Warranty Coverage
       expect(document.body.textContent).toContain('Manufacturer Warranty');
+
+      renderResult.cleanup();
+    });
+
+    it('refrigerant cascade in Add Asset Modal: variant takes precedence over model, model is used when variant is absent, and manual override is preserved', async () => {
+      const modelWithRef: AcModel = {
+        id: 'model-cascade-1',
+        brandId: 'brand-1',
+        modelNumber: 'CASCADE-410',
+        acType: 'Split AC',
+        technology: 'Inverter',
+        capacityTons: 1.5,
+        rating: '3 Star',
+        refrigerant: 'R410A',
+        isActive: true,
+        createdAt: '2026-10-01T00:00:00Z',
+        updatedAt: '2026-10-01T00:00:00Z',
+      };
+
+      const sampleVariants: AcModelVariant[] = [
+        {
+          id: 'var-r32',
+          modelId: 'model-cascade-1',
+          variantCode: 'VAR-R32-01',
+          capacityTons: 1.5,
+          starRating: '5 Star',
+          acType: 'Split AC',
+          technology: 'Inverter',
+          refrigerant: 'R32', // Variant has R32
+          isActive: true,
+          createdAt: '2026-10-01T00:00:00Z',
+          updatedAt: '2026-10-01T00:00:00Z',
+        },
+        {
+          id: 'var-noref',
+          modelId: 'model-cascade-1',
+          variantCode: 'VAR-NOREF-02',
+          capacityTons: 1.8,
+          starRating: '4 Star',
+          acType: 'Split AC',
+          technology: 'Inverter',
+          refrigerant: null, // Variant has null refrigerant
+          isActive: true,
+          createdAt: '2026-10-01T00:00:00Z',
+          updatedAt: '2026-10-01T00:00:00Z',
+        },
+      ];
+
+      vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string) => {
+        if (endpoint === '/customers') {
+          return { customers: [sampleCustomer], total: 1, page: 1, pageSize: 20, totalPages: 1 };
+        }
+        if (endpoint.includes('/sites') && !endpoint.includes('/assets')) {
+          return { sites: sampleSites, total: 1 };
+        }
+        if (endpoint.includes('/assets')) {
+          return { assets: [], total: 0 };
+        }
+        if (endpoint.includes('/ac-brands')) {
+          return { brands: sampleBrands, total: 2 };
+        }
+        if (endpoint.includes('/variants')) {
+          return { variants: sampleVariants, total: 2 };
+        }
+        if (endpoint.includes('/ac-models')) {
+          return { models: [modelWithRef], total: 1 };
+        }
+        return {};
+      });
+
+      const renderResult = renderWithProviders(<CustomerManagement />);
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // View customer
+      const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+      await act(async () => {
+        viewBtn?.click();
+      });
+
+      // Switch to AC Assets tab
+      const assetsTabBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('AC Assets')
+      );
+      await act(async () => {
+        assetsTabBtn?.click();
+      });
+
+      // Open Add AC Asset modal
+      const addAssetBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Add AC Asset')
+      );
+      await act(async () => {
+        addAssetBtn?.click();
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Select brand-1
+      const brandSelect = Array.from(document.body.querySelectorAll('select')).find((s) =>
+        Array.from(s.options).some((o) => o.text.includes('Mitsubishi Heavy'))
+      );
+      expect(brandSelect).toBeTruthy();
+      await act(async () => {
+        brandSelect!.value = 'brand-1';
+        brandSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Select model-cascade-1 (CASCADE-410)
+      const modelSelect = Array.from(document.body.querySelectorAll('select')).find((s) =>
+        Array.from(s.options).some((o) => o.text.includes('CASCADE-410'))
+      );
+      expect(modelSelect).toBeTruthy();
+      await act(async () => {
+        modelSelect!.value = 'model-cascade-1';
+        modelSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Find Refrigerant select
+      const refSelect = Array.from(document.body.querySelectorAll('select')).find((s) =>
+        Array.from(s.options).some((o) => o.value === 'R410A')
+      );
+      expect(refSelect).toBeTruthy();
+      // Initially, model refrigerant 'R410A' is autofilled
+      expect(refSelect!.value).toBe('R410A');
+
+      // Now variant dropdown is rendered because variants exist
+      const variantSelect = document.body.querySelector('select[aria-label="Model Variant"]') as HTMLSelectElement;
+      expect(variantSelect).toBeTruthy();
+
+      // 1. Select var-r32: Variant refrigerant 'R32' takes precedence over model 'R410A'
+      await act(async () => {
+        variantSelect.value = 'var-r32';
+        variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(refSelect!.value).toBe('R32');
+
+      // 2. Select var-noref: Variant has null refrigerant, so falls back to model's 'R410A'
+      await act(async () => {
+        variantSelect.value = 'var-noref';
+        variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(refSelect!.value).toBe('R410A');
+
+      // 3. Clear variant back to empty: restores parent model default 'R410A'
+      await act(async () => {
+        variantSelect.value = '';
+        variantSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(refSelect!.value).toBe('R410A');
+
+      // 4. Operator manual override to 'R22'
+      await act(async () => {
+        refSelect!.value = 'R22';
+        refSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(refSelect!.value).toBe('R22');
+
+      // Editing an unrelated input (e.g. notes or serial) does not overwrite the deliberate manual override
+      const serialInput = document.body.querySelector('input[placeholder="e.g. SN-12345678"]') as HTMLInputElement;
+      if (serialInput) {
+        await act(async () => {
+          serialInput.value = 'SERIAL-XYZ';
+          serialInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      }
+      expect(refSelect!.value).toBe('R22');
+
+      // 5. Changing model clears dependent values
+      await act(async () => {
+        modelSelect!.value = '';
+        modelSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(refSelect!.value).toBe('');
+
+      renderResult.cleanup();
+    });
+
+    it('warranty service allocation in Add Asset Modal validates invariant, warns on mismatch, and preserves form values on error', async () => {
+      let postedPayload: any = null;
+
+      vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string, options?: any) => {
+        if (endpoint === '/customers') {
+          return { customers: [sampleCustomer], total: 1, page: 1, pageSize: 20, totalPages: 1 };
+        }
+        if (endpoint.includes('/sites') && !endpoint.includes('/assets')) {
+          return { sites: sampleSites, total: 1 };
+        }
+        if (endpoint.includes('/assets')) {
+          if (options?.method === 'POST') {
+            postedPayload = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+            return { asset: { id: 'asset-new-1', assetTag: 'ESSC-0099' } };
+          }
+          return { assets: [], total: 0 };
+        }
+        if (endpoint.includes('/ac-brands')) {
+          return { brands: sampleBrands, total: 2 };
+        }
+        if (endpoint.includes('/ac-models')) {
+          return { models: sampleModels, total: 2 };
+        }
+        return {};
+      });
+
+      const renderResult = renderWithProviders(<CustomerManagement />);
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // View customer -> AC Assets -> Add AC Asset
+      const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+      await act(async () => { viewBtn?.click(); });
+      const assetsTabBtn = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.includes('AC Assets'));
+      await act(async () => { assetsTabBtn?.click(); });
+      const addAssetBtn = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.includes('Add AC Asset'));
+      await act(async () => { addAssetBtn?.click(); });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Select brand-2 (Daikin)
+      const brandSelect = Array.from(document.body.querySelectorAll('select')).find((s) =>
+        Array.from(s.options).some((o) => o.text.includes('Daikin'))
+      );
+      expect(brandSelect).toBeTruthy();
+      await act(async () => {
+        brandSelect!.value = 'brand-2';
+        brandSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Locate warranty service inputs using label text
+      const findInputByLabel = (labelText: string) => {
+        const label = Array.from(document.body.querySelectorAll('label')).find((l) =>
+          l.textContent?.includes(labelText)
+        );
+        return label?.parentElement?.querySelector('input') as HTMLInputElement;
+      };
+
+      const totalInput = findInputByLabel('Total Warranty Services');
+      const dryInput = findInputByLabel('Dry Service Visits');
+      const jetInput = findInputByLabel('Jet Service Visits');
+      const pumpdownInput = findInputByLabel('Pumpdown Visits');
+
+      expect(totalInput).toBeTruthy();
+      expect(dryInput).toBeTruthy();
+      expect(jetInput).toBeTruthy();
+      expect(pumpdownInput).toBeTruthy();
+
+      const setInputValue = (input: HTMLInputElement, val: string) => {
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        if (nativeInputValueSetter) {
+          nativeInputValueSetter.call(input, val);
+        } else {
+          input.value = val;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      // Enter mismatched allocation: Total: 4, Dry: 2, Jet: 2, Pumpdown: 1 (sum = 5 != 4)
+      await act(async () => {
+        setInputValue(totalInput, '4');
+        setInputValue(dryInput, '2');
+        setInputValue(jetInput, '2');
+        setInputValue(pumpdownInput, '1');
+      });
+
+      // In-form reconciliation feedback displays mismatch warning
+      expect(document.body.textContent).toContain('Allocation mismatch');
+      expect(document.body.textContent).toContain('which does not match Total Warranty Services (4)');
+
+      // Attempt to submit form
+      const submitBtn = Array.from(document.body.querySelectorAll('button')).find(
+        (b) => b.textContent?.includes('Register Asset') || b.textContent?.includes('Save Asset')
+      );
+      expect(submitBtn).toBeTruthy();
+
+      await act(async () => {
+        submitBtn?.click();
+      });
+
+      // Submission was blocked, error banner appears
+      expect(document.body.textContent).toContain('Allocation mismatch');
+      // Form values are preserved (not cleared or lost!)
+      expect(totalInput.value).toBe('4');
+      expect(dryInput.value).toBe('2');
+      expect(jetInput.value).toBe('2');
+      expect(pumpdownInput.value).toBe('1');
+      expect(postedPayload).toBeNull(); // No request sent!
+
+      // Correct the allocation: Jet: 1 (2 + 1 + 1 = 4)
+      await act(async () => {
+        setInputValue(jetInput, '1');
+      });
+
+      // Reconciliation feedback shows success checkmark
+      expect(document.body.textContent).toContain('Allocation reconciled: 2 Dry + 1 Jet + 1 Pumpdown = 4 Total Services');
+
+      // Check single serial checkbox to fill single serial
+      const singleSerialCheckbox = Array.from(document.body.querySelectorAll('input[type="checkbox"]')).find(
+        (c) => c.parentElement?.textContent?.includes('Single unit serial only')
+      ) as HTMLInputElement;
+      if (singleSerialCheckbox) {
+        await act(async () => {
+          singleSerialCheckbox.click();
+        });
+      }
+
+      const serialInput = Array.from(document.body.querySelectorAll('label'))
+        .find((l) => l.textContent?.includes('Serial Number *'))
+        ?.parentElement?.querySelector('input') as HTMLInputElement;
+      if (serialInput) {
+        await act(async () => {
+          setInputValue(serialInput, 'SN-VALID-01');
+        });
+      }
+
+      // Submit valid form
+      await act(async () => {
+        submitBtn?.click();
+      });
+
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Request sent with all 4 warranty service counts as numbers
+      expect(postedPayload).toBeTruthy();
+      expect(postedPayload.totalWarrantyServices).toBe(4);
+      expect(postedPayload.dryWarrantyVisits).toBe(2);
+      expect(postedPayload.jetWarrantyVisits).toBe(1);
+      expect(postedPayload.pumpdownWarrantyVisits).toBe(1);
 
       renderResult.cleanup();
     });

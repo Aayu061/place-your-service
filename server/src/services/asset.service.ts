@@ -617,51 +617,111 @@ export class AssetService {
       }
     }
 
+    let mData: any = null;
     if (modelId) {
-      const { data: mData } = await supabase.from('ac_models').select('id, brand_id, is_active').eq('id', modelId).maybeSingle();
-      if (!mData || !mData.is_active) {
+      const { data: mDataResult } = await supabase
+        .from('ac_models')
+        .select('id, brand_id, model_number, refrigerant, ac_type, technology, capacity_tons, rating, is_active')
+        .eq('id', modelId)
+        .maybeSingle();
+      if (!mDataResult || !mDataResult.is_active) {
         throw new BadRequestError('Selected AC model is inactive or not found.');
       }
-      if (brandId && mData.brand_id !== brandId) {
+      if (brandId && mDataResult.brand_id !== brandId) {
         throw new BadRequestError('Selected AC model does not belong to the selected brand.');
       }
+      mData = mDataResult;
     }
 
+    let vData: any = null;
     if (variantId) {
-      const { data: vData } = await supabase
+      const { data: vDataResult } = await supabase
         .from('ac_model_variants')
-        .select('*, ac_models(id, brand_id, model_number, is_active)')
+        .select('*, ac_models(id, brand_id, model_number, refrigerant, ac_type, technology, capacity_tons, rating, is_active)')
         .eq('id', variantId)
         .maybeSingle();
-      if (!vData || !vData.is_active) {
+      if (!vDataResult || !vDataResult.is_active) {
         throw new BadRequestError('Selected AC model variant is inactive or not found.');
       }
-      if (modelId && vData.model_id !== modelId) {
+      if (modelId && vDataResult.model_id !== modelId) {
         throw new BadRequestError('Selected AC variant does not belong to the selected model.');
       }
-      const modelParent = vData.ac_models as any;
+      const modelParent = vDataResult.ac_models as any;
       if (brandId && modelParent?.brand_id && modelParent.brand_id !== brandId) {
         throw new BadRequestError('Selected AC variant does not belong to the selected brand.');
       }
-      if (!modelId) modelId = vData.model_id;
-      if (!payload.modelNumber && modelParent?.model_number) {
-        payload.modelNumber = modelParent.model_number;
-      }
-      // Prefill catalogue defaults ONLY for omitted / undefined fields (do not overwrite user input):
-      if (payload.capacityTons === undefined && vData.capacity_tons !== null && vData.capacity_tons !== undefined) {
+      if (!modelId) modelId = vDataResult.model_id;
+      if (!mData && modelParent) mData = modelParent;
+      vData = vDataResult;
+    }
+
+    // Prefill catalogue defaults ONLY for omitted / undefined fields (do not overwrite user input):
+    if (!payload.modelNumber && (vData?.ac_models?.model_number || mData?.model_number)) {
+      payload.modelNumber = vData?.ac_models?.model_number || mData?.model_number;
+    }
+    if (payload.capacityTons === undefined) {
+      if (vData?.capacity_tons !== null && vData?.capacity_tons !== undefined) {
         payload.capacityTons = Number(vData.capacity_tons);
+      } else if (mData?.capacity_tons !== null && mData?.capacity_tons !== undefined) {
+        payload.capacityTons = Number(mData.capacity_tons);
       }
-      if (payload.starRating === undefined && vData.star_rating) {
+    }
+    if (payload.starRating === undefined) {
+      if (vData?.star_rating) {
         payload.starRating = vData.star_rating;
+      } else if (mData?.rating) {
+        payload.starRating = mData.rating;
       }
-      if (payload.acType === undefined && vData.ac_type) {
+    }
+    if (payload.acType === undefined) {
+      if (vData?.ac_type) {
         payload.acType = vData.ac_type as AcType;
+      } else if (mData?.ac_type) {
+        payload.acType = mData.ac_type as AcType;
       }
-      if (payload.technology === undefined && vData.technology) {
+    }
+    if (payload.technology === undefined) {
+      if (vData?.technology) {
         payload.technology = normalizeTechnology(vData.technology);
+      } else if (mData?.technology) {
+        payload.technology = normalizeTechnology(mData.technology);
       }
-      if (payload.refrigerantType === undefined && vData.refrigerant) {
-        payload.refrigerantType = vData.refrigerant;
+    }
+
+    // Required Refrigerant Cascade:
+    // Variant refrigerant -> Model refrigerant -> Manual entry when neither supplies a value.
+    // If operator entered a manual value (payload.refrigerantType is provided and non-empty), preserve it!
+    const isManualRefrigerant =
+      payload.refrigerantType !== undefined &&
+      payload.refrigerantType !== null &&
+      payload.refrigerantType.trim() !== '';
+    if (!isManualRefrigerant) {
+      const vRef = vData?.refrigerant?.trim();
+      const mRef = (vData?.ac_models?.refrigerant || mData?.refrigerant)?.trim();
+      if (vRef) {
+        payload.refrigerantType = vRef;
+      } else if (mRef) {
+        payload.refrigerantType = mRef;
+      } else {
+        payload.refrigerantType = null;
+      }
+    }
+
+    // Defensive Warranty Service Allocation Validation
+    if (
+      payload.totalWarrantyServices !== undefined ||
+      payload.dryWarrantyVisits !== undefined ||
+      payload.jetWarrantyVisits !== undefined ||
+      payload.pumpdownWarrantyVisits !== undefined
+    ) {
+      const allocCheck = validateWarrantyAllocation({
+        totalWarrantyServices: payload.totalWarrantyServices,
+        dryWarrantyVisits: payload.dryWarrantyVisits,
+        jetWarrantyVisits: payload.jetWarrantyVisits,
+        pumpdownWarrantyVisits: payload.pumpdownWarrantyVisits,
+      });
+      if (!allocCheck.isValid) {
+        throw new BadRequestError(allocCheck.error || 'Invalid warranty service allocation.');
       }
     }
 
@@ -827,13 +887,31 @@ export class AssetService {
     if (payload.brand !== undefined) updates.brand = payload.brand.trim();
     if (payload.brandId !== undefined) updates.brand_id = payload.brandId || null;
     if (payload.modelNumber !== undefined) updates.model_number = payload.modelNumber?.trim() || null;
-    if (payload.modelId !== undefined) updates.model_id = payload.modelId || null;
+    if (payload.modelId !== undefined) {
+      updates.model_id = payload.modelId || null;
+      if (payload.modelId) {
+        const { data: mData } = await supabase
+          .from('ac_models')
+          .select('id, brand_id, model_number, refrigerant, ac_type, technology, capacity_tons, rating, is_active')
+          .eq('id', payload.modelId)
+          .maybeSingle();
+        if (!mData || !mData.is_active) {
+          throw new BadRequestError('Selected AC model is inactive or not found.');
+        }
+        if (payload.modelNumber === undefined && mData.model_number) {
+          updates.model_number = mData.model_number;
+        }
+        if (payload.variantId === undefined && payload.refrigerantType === undefined && mData.refrigerant) {
+          updates.refrigerant_type = mData.refrigerant;
+        }
+      }
+    }
     if (payload.variantId !== undefined) {
       const vId = payload.variantId;
       if (vId) {
         const { data: vData } = await supabase
           .from('ac_model_variants')
-          .select('*, ac_models(id, brand_id, is_active)')
+          .select('*, ac_models(id, brand_id, model_number, refrigerant, is_active)')
           .eq('id', vId)
           .maybeSingle();
         if (!vData || !vData.is_active) {
@@ -853,11 +931,39 @@ export class AssetService {
         if (payload.technology === undefined && vData.technology) {
           updates.technology = normalizeTechnology(vData.technology) || null;
         }
-        if (payload.refrigerantType === undefined && vData.refrigerant) {
-          updates.refrigerant_type = vData.refrigerant;
+        if (payload.refrigerantType === undefined) {
+          const vRef = vData.refrigerant?.trim();
+          const mRef = (vData.ac_models as any)?.refrigerant?.trim();
+          if (vRef) {
+            updates.refrigerant_type = vRef;
+          } else if (mRef) {
+            updates.refrigerant_type = mRef;
+          }
         }
       } else {
         updates.variant_id = null;
+      }
+    }
+
+    // Defensive Warranty Service Allocation Validation on update
+    if (
+      payload.totalWarrantyServices !== undefined ||
+      payload.dryWarrantyVisits !== undefined ||
+      payload.jetWarrantyVisits !== undefined ||
+      payload.pumpdownWarrantyVisits !== undefined
+    ) {
+      const newTotal = payload.totalWarrantyServices !== undefined ? payload.totalWarrantyServices : existing.totalWarrantyServices;
+      const newDry = payload.dryWarrantyVisits !== undefined ? payload.dryWarrantyVisits : existing.dryWarrantyVisits;
+      const newJet = payload.jetWarrantyVisits !== undefined ? payload.jetWarrantyVisits : existing.jetWarrantyVisits;
+      const newPumpdown = payload.pumpdownWarrantyVisits !== undefined ? payload.pumpdownWarrantyVisits : existing.pumpdownWarrantyVisits;
+      const allocCheck = validateWarrantyAllocation({
+        totalWarrantyServices: newTotal,
+        dryWarrantyVisits: newDry,
+        jetWarrantyVisits: newJet,
+        pumpdownWarrantyVisits: newPumpdown,
+      });
+      if (!allocCheck.isValid) {
+        throw new BadRequestError(allocCheck.error || 'Invalid warranty service allocation.');
       }
     }
     if (payload.serialNumber !== undefined) updates.serial_number = payload.serialNumber?.trim() || null;

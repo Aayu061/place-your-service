@@ -453,7 +453,7 @@ export interface CreateAcAssetPayload {
   pumpdownWarrantyVisits?: number | null;
   floorLocation?: string;
   roomLocation?: string;
-  refrigerantType?: string;
+  refrigerantType?: string | null;
   warrantyStatus?: WarrantyStatus;
   assetStatus?: AssetStatus;
   assetCondition?: AssetCondition;
@@ -483,7 +483,7 @@ export interface UpdateAcAssetPayload {
   pumpdownWarrantyVisits?: number | null;
   floorLocation?: string;
   roomLocation?: string;
-  refrigerantType?: string;
+  refrigerantType?: string | null;
   warrantyStatus?: WarrantyStatus;
   assetStatus?: AssetStatus;
   assetCondition?: AssetCondition;

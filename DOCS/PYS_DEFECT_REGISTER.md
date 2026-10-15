@@ -16,14 +16,14 @@
 | **PYS-A2** | **P2** | Service Reports | Technician Contact Phone Number Exposed on Customer Views | **CONFIRMED DEFECT** |
 | **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 1 SCHEMA & VALIDATORS COMPLETE (PENDING PROD MIGRATION & UI)** |
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
-| **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **CONFIRMED DEFECT** |
-| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 1 DEVELOPMENT COMPLETE (PENDING PROD MIGRATION)** |
+| **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
+| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 2 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
 | **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **CONFIRMED DEFECT** |
 | **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **CONFIRMED DEFECT** |
 | **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **CONFIRMED DEFECT** |
 | **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **CONFIRMED DEFECT** |
 | **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **CONFIRMED DEFECT** |
-| **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **CONFIRMED DEFECT** |
+| **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **RESOLVED IN BATCH 2** |
 | **PYS-007**| **P3** | Frontend Types | `ServiceSchedule` Assistant Field Missing in Frontend Typings | **RESOLVED IN BATCH 1** |
 | **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **CONFIRMED DEFECT** |
 
@@ -46,8 +46,8 @@
 - **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` was authored and committed, but **NEVER executed on the live Supabase database**.
 - **Root Cause & Evidence:** Direct SQL query via Supabase MCP `execute_sql` confirmed `public.ac_assets` has `warranty_start_date` and `warranty_end_date`, but lacks `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`.
 - **Proposed Fix:** Apply migration `20261014000000_ac_asset_warranty_services.sql` to live database with non-negative checks and sum invariant constraint.
-- **Regression Tests:** Integration test executed against PostgreSQL 17 engine via transaction-isolated rollback; verified allocation check constraint `total = dry + jet + pumpdown` and non-negative constraints.
-- **Status:** **BATCH 1 DEVELOPMENT COMPLETE — PENDING PRODUCTION MIGRATION**.
+- **Regression Tests:** Integration test executed against PostgreSQL 17 engine via transaction-isolated rollback; verified allocation check constraint `total = dry + jet + pumpdown` and non-negative constraints. Comprehensive frontend tests in `technologyAndAssetRegistration.test.tsx` and backend tests in `assetPersistence.test.ts` and `warrantyAllocation.test.ts` verify non-negative validation, sum invariant, and in-form feedback.
+- **Status:** **BATCH 2 CODE & TESTS COMPLETE — PENDING PRODUCTION MIGRATION DEPLOYMENT**.
 
 ---
 
@@ -188,8 +188,13 @@
 - **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts).
 - **Root Cause & Evidence:** Hardcoded 'R32' fallback in UI modal handlers and missing model-level fallback in asset creation backend.
 - **Proposed Fix:** Use clean cascade: Variant Refrigerant → Model Refrigerant → Manual Entry. Do not force hardcoded 'R32'. Clear dependent fields when brand/model changes.
-- **Regression Tests:** Test model selection with R32, R410A, and null refrigerant; verify correct form state and saved asset row.
-- **Status:** **CONFIRMED DEFECT (P2)**.
+- **Resolution in Batch 2:**
+  - Removed hardcoded `'R32'` defaults from `AcMasterManagement.tsx` model and variant modal handlers and dropdowns.
+  - Implemented full refrigerant cascade in `CustomerManagement.tsx` (`handleVariantChange` and `handleModelChange`).
+  - Implemented server-side cascade in `asset.service.ts` for both `createAcAsset` and `updateAcAsset`, prefilling `variant.refrigerant` -> `model.refrigerant` -> `null` while preserving deliberate manual overrides.
+  - Form state preserves manual override across unrelated field changes (serial, notes, dates).
+- **Regression Tests:** Verified in `src/tests/technologyAndAssetRegistration.test.tsx` (variant precedence, model fallback, manual override persistence, model reset clearing dependent specs) and `server/tests/assetPersistence.test.ts` (tests 4, 5, 6, 7).
+- **Status:** **RESOLVED IN BATCH 2**.
 
 ---
 

@@ -39,6 +39,7 @@ import {
   WarrantyStatus,
   AcBrand,
   AcModel,
+  AcModelVariant,
   AssetAmcHistoryResponse,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
@@ -301,8 +302,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   // Master data & specs
   const [availableBrands, setAvailableBrands] = useState<AcBrand[]>([]);
   const [availableModels, setAvailableModels] = useState<AcModel[]>([]);
+  const [availableVariants, setAvailableVariants] = useState<AcModelVariant[]>([]);
   const [isLoadingMasterBrands, setIsLoadingMasterBrands] = useState(false);
   const [isLoadingMasterModels, setIsLoadingMasterModels] = useState(false);
+  const [isLoadingMasterVariants, setIsLoadingMasterVariants] = useState(false);
 
   const [assetFormBrand, setAssetFormBrand] = useState('');
   const [assetFormBrandId, setAssetFormBrandId] = useState('');
@@ -835,6 +838,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setAssetFormModelId('');
       setAssetFormModel('');
       setAssetFormVariantId('');
+      setAvailableVariants([]);
       setAssetFormType('Split AC');
       setAssetFormTechnology('');
       setAssetFormCapacity('');
@@ -859,6 +863,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setAssetFormModelId('');
       setAssetFormModel('');
       setAssetFormVariantId('');
+      setAvailableVariants([]);
       setAssetFormType('Split AC');
       setAssetFormTechnology('');
       setAssetFormCapacity('');
@@ -868,7 +873,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     }
   };
 
-  const handleModelChange = (selectedModelVal: string) => {
+  const handleModelChange = async (selectedModelVal: string) => {
     const found = availableModels.find((m) => m.id === selectedModelVal || m.modelNumber === selectedModelVal);
     if (found) {
       setAssetFormModelId(found.id);
@@ -881,14 +886,76 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setAssetFormCapacity(found.capacityTons ? String(found.capacityTons) : '');
       setAssetFormRating(found.rating || '');
       setAssetFormRefrigerant(found.refrigerant || '');
+
+      setIsLoadingMasterVariants(true);
+      try {
+        const res = await apiClient.get<{ data?: { variants?: AcModelVariant[] }; variants?: AcModelVariant[] }>(
+          `/ac-models/${found.id}/variants?activeOnly=true`
+        );
+        const vList = res.data?.variants || res.variants || [];
+        setAvailableVariants(vList);
+      } catch {
+        setAvailableVariants([]);
+      } finally {
+        setIsLoadingMasterVariants(false);
+      }
     } else {
       setAssetFormModelId('');
       setAssetFormModel('');
       setAssetFormVariantId('');
+      setAvailableVariants([]);
       setAssetFormTechnology('');
       setAssetFormCapacity('');
       setAssetFormRating('');
       setAssetFormRefrigerant('');
+    }
+  };
+
+  const handleVariantChange = (selectedVariantVal: string) => {
+    const foundVar = availableVariants.find((v) => v.id === selectedVariantVal || v.variantCode === selectedVariantVal);
+    const parentModel = availableModels.find((m) => m.id === assetFormModelId || m.modelNumber === assetFormModel);
+
+    if (foundVar) {
+      setAssetFormVariantId(foundVar.id);
+      if (foundVar.capacityTons) {
+        setAssetFormCapacity(String(foundVar.capacityTons));
+      } else if (parentModel?.capacityTons) {
+        setAssetFormCapacity(String(parentModel.capacityTons));
+      }
+      if (foundVar.starRating) {
+        setAssetFormRating(foundVar.starRating);
+      } else if (parentModel?.rating) {
+        setAssetFormRating(parentModel.rating);
+      }
+      if (foundVar.acType) {
+        setAssetFormType(foundVar.acType as AcType);
+      } else if (parentModel?.acType) {
+        setAssetFormType(parentModel.acType as AcType);
+      }
+      if (foundVar.technology) {
+        setAssetFormTechnology(normalizeTechnology(foundVar.technology));
+      } else if (parentModel?.technology) {
+        setAssetFormTechnology(normalizeTechnology(parentModel.technology));
+      }
+
+      // Required Cascade: Variant refrigerant -> Model refrigerant -> manual entry when neither supplies a value
+      if (foundVar.refrigerant && foundVar.refrigerant.trim()) {
+        setAssetFormRefrigerant(foundVar.refrigerant.trim());
+      } else if (parentModel?.refrigerant && parentModel.refrigerant.trim()) {
+        setAssetFormRefrigerant(parentModel.refrigerant.trim());
+      } else {
+        setAssetFormRefrigerant('');
+      }
+    } else {
+      setAssetFormVariantId('');
+      // Restore parent model default specifications
+      if (parentModel) {
+        setAssetFormCapacity(parentModel.capacityTons ? String(parentModel.capacityTons) : '');
+        setAssetFormRating(parentModel.rating || '');
+        setAssetFormType(parentModel.acType ? (parentModel.acType as AcType) : 'Split AC');
+        setAssetFormTechnology(parentModel.technology ? normalizeTechnology(parentModel.technology) : '');
+        setAssetFormRefrigerant(parentModel.refrigerant || '');
+      }
     }
   };
 
@@ -1018,6 +1085,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormModel('');
     setAssetFormModelId('');
     setAssetFormVariantId('');
+    setAvailableVariants([]);
     setAssetFormSerial('');
     setAssetFormIndoorSerial('');
     setAssetFormOutdoorSerial('');
@@ -1115,6 +1183,21 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setAssetFormNotes(asset.notes || '');
     setAssetFormError(null);
 
+    if (asset.modelId) {
+      apiClient
+        .get<{ data?: { variants?: AcModelVariant[] }; variants?: AcModelVariant[] }>(
+          `/ac-models/${asset.modelId}/variants?activeOnly=true`
+        )
+        .then((res) => {
+          setAvailableVariants(res.data?.variants || res.variants || []);
+        })
+        .catch(() => {
+          setAvailableVariants([]);
+        });
+    } else {
+      setAvailableVariants([]);
+    }
+
     editAssetBaselineRef.current = {
       brand: asset.brand,
       model: asset.modelNumber || '',
@@ -1149,10 +1232,17 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       return;
     }
 
-    const parsedTotal = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
-    const parsedDry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
-    const parsedJet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
-    const parsedPumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+    const parseWarrantyCount = (val: string): number | null => {
+      const trimmed = val.trim();
+      if (!trimmed) return null;
+      const n = Number(trimmed);
+      return isNaN(n) ? NaN : n;
+    };
+
+    const parsedTotal = parseWarrantyCount(assetFormTotalWarrantyServices);
+    const parsedDry = parseWarrantyCount(assetFormDryWarrantyVisits);
+    const parsedJet = parseWarrantyCount(assetFormJetWarrantyVisits);
+    const parsedPumpdown = parseWarrantyCount(assetFormPumpdownWarrantyVisits);
 
     const allocValidation = validateWarrantyAllocation({
       totalWarrantyServices: parsedTotal,
@@ -1185,6 +1275,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         brandId: assetFormBrandId || undefined,
         modelNumber: assetFormModel.trim() || undefined,
         modelId: assetFormModelId || undefined,
+        variantId: assetFormVariantId || undefined,
         serialNumber: (isSingle ? assetFormSerial : (assetFormSerial || assetFormIndoorSerial)).trim() || undefined,
         indoorSerialNumber: !isSingle ? assetFormIndoorSerial.trim() || undefined : undefined,
         outdoorSerialNumber: !isSingle ? assetFormOutdoorSerial.trim() || undefined : undefined,
@@ -1236,10 +1327,17 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       return;
     }
 
-    const parsedTotal = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
-    const parsedDry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
-    const parsedJet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
-    const parsedPumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+    const parseWarrantyCount = (val: string): number | null => {
+      const trimmed = val.trim();
+      if (!trimmed) return null;
+      const n = Number(trimmed);
+      return isNaN(n) ? NaN : n;
+    };
+
+    const parsedTotal = parseWarrantyCount(assetFormTotalWarrantyServices);
+    const parsedDry = parseWarrantyCount(assetFormDryWarrantyVisits);
+    const parsedJet = parseWarrantyCount(assetFormJetWarrantyVisits);
+    const parsedPumpdown = parseWarrantyCount(assetFormPumpdownWarrantyVisits);
 
     const allocValidation = validateWarrantyAllocation({
       totalWarrantyServices: parsedTotal,
@@ -3204,6 +3302,29 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 </select>
               </div>
 
+              {availableVariants.length > 0 && (
+                <div style={{ marginBottom: 'var(--space-3)' }}>
+                  <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
+                    Model Variant (Optional)
+                  </label>
+                  <select
+                    className="select"
+                    aria-label="Model Variant"
+                    value={assetFormVariantId}
+                    onChange={(e) => handleVariantChange(e.target.value)}
+                    disabled={isLoadingMasterVariants}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 'var(--text-sm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}
+                  >
+                    <option value="">Default Model Specifications (No Variant)</option>
+                    {availableVariants.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.variantCode || `${v.capacityTons}T ${v.starRating || ''} ${v.technology || ''}`.trim()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
@@ -3585,10 +3706,16 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
             {/* Reconciliation Feedback */}
             {(() => {
-              const total = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
-              const dry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
-              const jet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
-              const pumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+              const parseWarrantyCount = (val: string): number | null => {
+                const trimmed = val.trim();
+                if (!trimmed) return null;
+                const n = Number(trimmed);
+                return isNaN(n) ? NaN : n;
+              };
+              const total = parseWarrantyCount(assetFormTotalWarrantyServices);
+              const dry = parseWarrantyCount(assetFormDryWarrantyVisits);
+              const jet = parseWarrantyCount(assetFormJetWarrantyVisits);
+              const pumpdown = parseWarrantyCount(assetFormPumpdownWarrantyVisits);
 
               if (total === null && dry === null && jet === null && pumpdown === null) {
                 return (
@@ -4069,10 +4196,16 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
             {/* Reconciliation Feedback */}
             {(() => {
-              const total = assetFormTotalWarrantyServices.trim() !== '' ? parseInt(assetFormTotalWarrantyServices.trim(), 10) : null;
-              const dry = assetFormDryWarrantyVisits.trim() !== '' ? parseInt(assetFormDryWarrantyVisits.trim(), 10) : null;
-              const jet = assetFormJetWarrantyVisits.trim() !== '' ? parseInt(assetFormJetWarrantyVisits.trim(), 10) : null;
-              const pumpdown = assetFormPumpdownWarrantyVisits.trim() !== '' ? parseInt(assetFormPumpdownWarrantyVisits.trim(), 10) : null;
+              const parseWarrantyCount = (val: string): number | null => {
+                const trimmed = val.trim();
+                if (!trimmed) return null;
+                const n = Number(trimmed);
+                return isNaN(n) ? NaN : n;
+              };
+              const total = parseWarrantyCount(assetFormTotalWarrantyServices);
+              const dry = parseWarrantyCount(assetFormDryWarrantyVisits);
+              const jet = parseWarrantyCount(assetFormJetWarrantyVisits);
+              const pumpdown = parseWarrantyCount(assetFormPumpdownWarrantyVisits);
 
               if (total === null && dry === null && jet === null && pumpdown === null) {
                 return (

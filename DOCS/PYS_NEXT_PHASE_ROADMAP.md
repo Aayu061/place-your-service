@@ -44,19 +44,23 @@ graph TD
 
 ---
 
-### Batch 2: AC Asset Refrigerant Cascade & Warranty Service Entry
+### Batch 2: AC Asset Refrigerant Cascade & Warranty Service Entry (COMPLETED)
 - **Goal:** Fix Defect C1 (refrigerant autofill & manual override) and Defect C2 (warranty service registration).
-- **Tasks:**
-  1. **Refrigerant Cascade:** In `CustomerManagement.tsx` and `asset.service.ts`:
-     - When a model is chosen, default to `model.refrigerant` if variant refrigerant is null.
-     - Allow free manual override without reverting.
-     - Remove hardcoded `'R32'` fallback from `AcMasterManagement.tsx` dialog openers.
+- **Status:** **COMPLETE in Application Code & Tests** (Production live database migration `20261014000000_ac_asset_warranty_services.sql` remains queued as a production hold blocker).
+- **Completed Deliverables:**
+  1. **Refrigerant Cascade:** In `CustomerManagement.tsx`, `AcMasterManagement.tsx`, and `asset.service.ts`:
+     - Clean cascade: Variant refrigerant → Model refrigerant → Manual entry when neither supplies a value.
+     - Removed hardcoded `'R32'` defaults from state and dialog handlers in `AcMasterManagement.tsx`.
+     - Deliberate manual overrides preserved during unrelated field updates.
+     - Dependent values cleanly cleared/updated when model or brand changes.
   2. **Warranty Service Registration:**
-     - Ensure `createAcAsset` writes `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits` to `public.ac_assets`.
-     - Validate frontend and backend schema validation rejects negative numbers or mismatched sums.
-- **Tests to Add / Run:**
-  - `assetSpecificationFlow.test.tsx`: test refrigerant selection and manual override.
-  - `asset.service.test.ts`: test asset creation with complete warranty breakdown.
+     - Enforced non-negative integer and allocation invariant (`total = dry + jet + pumpdown`) across frontend validation, backend Zod validators, service layer defensive checks, and PostgreSQL constraints.
+     - Frontend parses counts via `parseWarrantyCount` to catch decimals/negatives without losing entered data.
+     - `createAcAsset` and `updateAcAsset` persist all 4 visit counts to database columns and map to response.
+- **Tests Added & Verified:**
+  - `src/tests/technologyAndAssetRegistration.test.tsx`: verified refrigerant cascade, model fallback, manual override preservation, model clearing, and warranty allocation validation with in-form reconciliation feedback.
+  - `server/tests/assetPersistence.test.ts`: verified tests 4 through 10 covering refrigerant cascade precedence, model fallback, manual override, null fallback, warranty column persistence, and invalid allocation rejection (422).
+  - Both frontend (173 tests) and backend (275 tests) test suites pass; production builds clean.
 
 ---
 
