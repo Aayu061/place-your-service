@@ -23,7 +23,7 @@
 | **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **RESOLVED IN BATCH 4** |
 | **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **RESOLVED IN BATCH 4** |
 | **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **RESOLVED — AUTOMATED TESTS PASSED** |
-| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **REMEDIATED — REGRESSION TESTS PASSED (LIVE REPORT TEST PENDING DEPLOYMENT)** |
+| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **RESOLVED & VERIFIED IN PRODUCTION (`RUN-1792077245663`)** |
 | **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **RESOLVED IN BATCH 2** |
 | **PYS-007**| **P3** | Frontend Types | `ServiceSchedule` Assistant Field Missing in Frontend Typings | **RESOLVED IN BATCH 1** |
 | **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **RESOLVED — AUTOMATED TESTS PASSED** |
@@ -209,18 +209,23 @@
 - **Frontend Files:** [`src/components/serviceReports/ServiceVisitReportModal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceVisitReportModal.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/serviceReports/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceReportPrintView.tsx), [`src/domain/types.ts`](file:///c:/Users/aayup/Desktop/PYS/src/domain/types.ts).
 - **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/src/validators/serviceReport.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/serviceReport.validator.ts).
 - **Database / Schema:** Migration `supabase/migrations/20261014010000_service_schedule_and_report_assistant_name.sql` is present and committed in `main`. It was executed on the live production database (`jvccvdxfilzlncbgiplk`) under remote tracking version `20261015133534` (`service_schedule_and_report_assistant_name`).
-- **Production Smoke-Test Evidence (`RUN-1792072881312` Confirmed 2026-10-15):**
+- **Production Smoke-Test Evidence (`RUN-1792072881312` & `RUN-1792077245663` Confirmed 2026-10-15):**
   - **Service Schedule Assistant Name (PASSED):**
     1. Created schedule via `POST /api/v1/schedules` with `assistantName: "Ramesh Assistant"` -> `201 Created`, verified `assistant_name: "Ramesh Assistant"` stored in DB.
     2. Updated schedule via `PATCH /api/v1/schedules/:id` with `assistantName: "Suresh Assistant"` -> `200 OK`, verified update persisted.
-  - **Service Report Assistant Name (PENDING):**
-    - Submission of `POST /api/v1/service-reports` was blocked by schema error PYS-005 (`Could not find the 'customer_id' column of 'ac_assets' in the schema cache`).
-    - Service report persistence requires deployment of PYS-005 remediation.
+  - **Service Report Assistant Name & PYS-005 Cross-Entity Resolution (PASSED):**
+    1. Foreign customer asset rejected prior to report insert (`400 Bad Request`, `Asset "ESSC-0041" does not belong to the scheduled customer.`), confirming PYS-005 cross-entity resolution and zero ghost records.
+    2. Created service report via `POST /api/v1/service-reports` with valid asset and `assistantName: "PYS Valid Assistant 5663"` -> `201 Created` (report `REP-VAL-297171`), confirming full resolution of the previous schema-cache validation error.
+    3. Read-back of service report detail via `GET /api/v1/service-reports/:id` verified persisted `assistantName: "PYS Valid Assistant 5663"` and associated asset record.
+    4. Read-back of service reports list via `GET /api/v1/service-reports?search=REP-VAL-297171` verified persisted `assistantName`.
+    5. Updated service report via `PATCH /api/v1/service-reports/:id` with `assistantName: "PYS Updated Assistant 5663"` -> `200 OK`, verified update persisted.
+    6. Scoped reverse-dependency cleanup executed successfully, leaving zero residual disposable fixtures, exact operational baseline counts restored, and protected customers/sites 100% intact.
 - **Regression Tests:**
   - `server/tests/assistantNameValidation.test.ts`: 7 tests covering schedule and report validation.
   - `server/tests/serviceReportRoutes.test.ts` (tests 22, 23): Verified assistant name mapping, persistence, and safe handling of null/empty names.
+  - `server/tests/postAuditRemediation.test.ts`: 10 comprehensive tests covering PYS-005 customer ownership join, fallback resolution, cross-customer/cross-site rejection, and assistant name persistence.
   - `src/tests/serviceReports.test.tsx` (tests 27, 28, 29, 30): Verified assistant name prefill, editing, persistence, blank handling, separated rendering, and absence of technician phone.
-- **Status:** **PARTIALLY VERIFIED (SCHEDULE VERIFIED IN PRODUCTION, SERVICE REPORT PENDING DEPLOYMENT OF PYS-005 REMEDIATION)**.
+- **Status:** **RESOLVED & VERIFIED IN PRODUCTION (SCHEDULES & SERVICE REPORTS)**.
 
 ---
 
@@ -381,7 +386,14 @@
   8. Successfully accepts report when asset matches customer and site via `customer_sites` join.
   9. Successfully accepts report and persists custom `assistantName`.
   10. Rejects report update (PATCH) with 400 when updated asset belongs to different customer or site.
-- **Status:** **REMEDIATED — REGRESSION TESTS PASSED (LIVE REPORT TEST PENDING DEPLOYMENT)**.
+- **Production Smoke-Test Evidence (`RUN-1792077245663` Confirmed 2026-10-15 on Deployed Commit `1a8d917`):**
+  1. **Foreign Customer Asset Rejection (PASSED):** Submitted report for Customer A's schedule referencing Asset B1 (Customer B). Correctly rejected with `400 Bad Request` (`Asset "ESSC-0041" does not belong to the scheduled customer.`), confirming relational customer ownership enforcement prior to header insertion.
+  2. **Ghost Record Prevention (PASSED):** Database query confirmed 0 reports, report assets, or items created upon rejection.
+  3. **Valid Report Creation (PASSED):** Submitted report `REP-VAL-297171` (`2106dd57-ac18-4eaf-8b83-9e25a7217531`) with valid Customer A asset and `assistantName`. Successfully returned `201 Created`, resolving the previous PostgREST schema cache error on `ac_assets.customer_id`.
+  4. **Read-back & Detail Query (PASSED):** Detail query (`GET /api/v1/service-reports/:id`) and list query (`GET /api/v1/service-reports?search=REP-VAL-297171`) returned the created report with `assistantName: "PYS Valid Assistant 5663"` and asset link.
+  5. **Report Update (PASSED):** Updated report via `PATCH /api/v1/service-reports/:id` with new assistant name `PYS Updated Assistant 5663` (`200 OK`), confirmed via read-back.
+  6. **Scoped Reverse-Dependency Cleanup (PASSED):** All disposable fixtures deleted in reverse order within an atomic transaction. Database counts restored to exact baseline with zero residual records and protected customers/sites 100% intact.
+- **Status:** **RESOLVED & VERIFIED IN PRODUCTION (`RUN-1792077245663`)**.
 
 ---
 
