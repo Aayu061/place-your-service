@@ -20,6 +20,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
   const sampleSiteId = '22222222-2222-2222-2222-222222222222';
   const otherSiteId = '22222222-2222-2222-2222-999999999999';
   const sampleAssetId = '33333333-3333-3333-3333-333333333333';
+  const sampleAssetId2 = '33333333-3333-3333-3333-444444444444';
   const sampleScheduleId = '55555555-5555-5555-5555-555555555555';
   const sampleFollowUpScheduleId = '55555555-5555-5555-5555-666666666666';
   const sampleTechId = '66666666-6666-6666-6666-666666666666';
@@ -57,6 +58,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
     id: sampleAssetId,
     site_id: sampleSiteId,
     customer_id: sampleCustomerId,
+    customer_sites: { id: sampleSiteId, customer_id: sampleCustomerId },
     asset_tag: 'ESSC-0001',
     brand: 'Daikin',
     model_number: 'FTKF50',
@@ -372,11 +374,12 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
   // PYS-005: Cross-Entity Asset/Site Validation
   // =========================================================================
   describe('PYS-005: Cross-Entity Asset / Site / Customer Validation', () => {
-    it('1. Rejects report creation with 400 when asset belongs to a different site', async () => {
+    it('1. Rejects report creation with 400 when asset belongs to a different site (same customer)', async () => {
       const authMock = setupAuth('ADMIN');
       const mismatchedSiteAsset = {
         ...sampleAssetRecord,
         site_id: otherSiteId, // Mismatched site!
+        customer_sites: { id: otherSiteId, customer_id: sampleCustomerId },
       };
 
       const mockSupabase = {
@@ -434,11 +437,12 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
       expect(res.body.error.message).toContain('does not belong to the scheduled site');
     });
 
-    it('2. Rejects report creation with 400 when asset belongs to a different customer', async () => {
+    it('2. Rejects report creation with 400 when asset belongs to a different customer resolved via customer_sites', async () => {
       const authMock = setupAuth('ADMIN');
       const mismatchedCustomerAsset = {
         ...sampleAssetRecord,
-        customer_id: otherCustomerId, // Mismatched customer!
+        site_id: otherSiteId,
+        customer_sites: { id: otherSiteId, customer_id: otherCustomerId }, // Foreign customer!
       };
 
       const mockSupabase = {
@@ -496,7 +500,81 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
       expect(res.body.error.message).toContain('does not belong to the scheduled customer');
     });
 
-    it('3. Rejects report creation with 400 when referenced asset does not exist', async () => {
+    it('3. Rejects report creation with 400 when asset customer is resolved via fallback batch lookup to customer_sites', async () => {
+      const authMock = setupAuth('ADMIN');
+      // Asset has no customer_sites joined, but has site_id pointing to foreign site
+      const unjoinedAsset = {
+        ...sampleAssetRecord,
+        site_id: otherSiteId,
+        customer_sites: undefined,
+        customer_id: undefined,
+      };
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+              }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [unjoinedAsset], error: null }),
+            };
+          }
+          if (table === 'customer_sites') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({
+                data: [{ id: otherSiteId, customer_id: otherCustomerId }],
+                error: null,
+              }),
+            };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/service-reports')
+        .set('Authorization', adminAuthToken)
+        .send({
+          reportNumber: 'REP-FALLBACK-CUST-01',
+          scheduleId: sampleScheduleId,
+          visitType: 'PREVENTIVE',
+          serviceDate: '2026-10-15',
+          primaryOutcome: 'COMPLETED',
+          workDescription: 'Routine PM check',
+          assets: [
+            {
+              assetId: sampleAssetId,
+              assetOutcome: 'COMPLETED',
+              workPerformed: 'Filter cleaned',
+            },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('does not belong to the scheduled customer');
+    });
+
+    it('4. Rejects report creation with 400 when referenced asset does not exist in database', async () => {
       const authMock = setupAuth('ADMIN');
 
       const mockSupabase = {
@@ -554,7 +632,210 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
       expect(res.body.error.message).toContain('One or more referenced AC assets could not be found');
     });
 
-    it('4. Successfully accepts report when asset matches customer and site', async () => {
+    it('5. Rejects report creation with 400 when multiple assets have mixed ownership (foreign customer)', async () => {
+      const authMock = setupAuth('ADMIN');
+      const validAsset = { ...sampleAssetRecord };
+      const foreignCustAsset = {
+        ...sampleAssetRecord,
+        id: sampleAssetId2,
+        asset_tag: 'ESSC-0002',
+        site_id: otherSiteId,
+        customer_sites: { id: otherSiteId, customer_id: otherCustomerId },
+      };
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+              }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [validAsset, foreignCustAsset], error: null }),
+            };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/service-reports')
+        .set('Authorization', adminAuthToken)
+        .send({
+          reportNumber: 'REP-MIXED-CUST-01',
+          scheduleId: sampleScheduleId,
+          visitType: 'PREVENTIVE',
+          serviceDate: '2026-10-15',
+          primaryOutcome: 'COMPLETED',
+          workDescription: 'Routine PM check',
+          assets: [
+            { assetId: sampleAssetId, assetOutcome: 'COMPLETED', workPerformed: 'Cleaned' },
+            { assetId: sampleAssetId2, assetOutcome: 'COMPLETED', workPerformed: 'Cleaned' },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('does not belong to the scheduled customer');
+    });
+
+    it('6. Rejects report creation with 400 when multiple assets have mixed ownership (foreign site)', async () => {
+      const authMock = setupAuth('ADMIN');
+      const validAsset = { ...sampleAssetRecord };
+      const foreignSiteAsset = {
+        ...sampleAssetRecord,
+        id: sampleAssetId2,
+        asset_tag: 'ESSC-0002',
+        site_id: otherSiteId,
+        customer_sites: { id: otherSiteId, customer_id: sampleCustomerId }, // Same customer, different site
+      };
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+              }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [validAsset, foreignSiteAsset], error: null }),
+            };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/service-reports')
+        .set('Authorization', adminAuthToken)
+        .send({
+          reportNumber: 'REP-MIXED-SITE-01',
+          scheduleId: sampleScheduleId,
+          visitType: 'PREVENTIVE',
+          serviceDate: '2026-10-15',
+          primaryOutcome: 'COMPLETED',
+          workDescription: 'Routine PM check',
+          assets: [
+            { assetId: sampleAssetId, assetOutcome: 'COMPLETED', workPerformed: 'Cleaned' },
+            { assetId: sampleAssetId2, assetOutcome: 'COMPLETED', workPerformed: 'Cleaned' },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('does not belong to the scheduled site');
+    });
+
+    it('7. Guarantees atomicity: invalid asset requests create NO partial service-report records or child rows', async () => {
+      const authMock = setupAuth('ADMIN');
+      const mismatchedCustomerAsset = {
+        ...sampleAssetRecord,
+        site_id: otherSiteId,
+        customer_sites: { id: otherSiteId, customer_id: otherCustomerId },
+      };
+
+      const reportInsertSpy = vi.fn();
+      const assetInsertSpy = vi.fn();
+      const itemInsertSpy = vi.fn();
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+              insert: reportInsertSpy,
+            };
+          }
+          if (table === 'service_report_assets') {
+            return { insert: assetInsertSpy };
+          }
+          if (table === 'service_report_items') {
+            return { insert: itemInsertSpy };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+              }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [mismatchedCustomerAsset], error: null }),
+            };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/service-reports')
+        .set('Authorization', adminAuthToken)
+        .send({
+          reportNumber: 'REP-ATOMIC-FAIL-01',
+          scheduleId: sampleScheduleId,
+          visitType: 'PREVENTIVE',
+          serviceDate: '2026-10-15',
+          primaryOutcome: 'COMPLETED',
+          workDescription: 'Atomic integrity test',
+          assets: [
+            {
+              assetId: sampleAssetId,
+              assetOutcome: 'COMPLETED',
+              workPerformed: 'Filter cleaned',
+            },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      // Critical check: No records were persisted
+      expect(reportInsertSpy).not.toHaveBeenCalled();
+      expect(assetInsertSpy).not.toHaveBeenCalled();
+      expect(itemInsertSpy).not.toHaveBeenCalled();
+    });
+
+    it('8. Successfully accepts report when asset matches customer and site via customer_sites join', async () => {
       const authMock = setupAuth('ADMIN');
       let insertedReport: any = null;
 
@@ -667,6 +948,196 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
       expect(insertedReport).toBeTruthy();
       expect(insertedReport.site_id).toBe(sampleSiteId);
       expect(insertedReport.customer_id).toBe(sampleCustomerId);
+    });
+
+    it('9. Successfully accepts report and persists custom assistantName', async () => {
+      const authMock = setupAuth('ADMIN');
+      let insertedReport: any = null;
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockImplementation((col: string, val: string) => {
+                return {
+                  maybeSingle: vi.fn().mockImplementation(() => {
+                    if (col === 'id') {
+                      return Promise.resolve({
+                        data: {
+                          id: sampleReportId,
+                          report_number: 'REP-VALID-ASST-01',
+                          visit_type: 'PREVENTIVE',
+                          service_schedule_id: sampleScheduleId,
+                          customer_id: sampleCustomerId,
+                          site_id: sampleSiteId,
+                          technician_id: sampleTechId,
+                          assistant_name: 'Mahesh Field Assistant',
+                          service_date: '2026-10-15',
+                          primary_outcome: 'COMPLETED',
+                          customers: sampleCustomer,
+                          customer_sites: { id: sampleSiteId, site_name: 'HQ' },
+                          technicians: { id: sampleTechId, name: 'Raj Patel' },
+                          service_schedules: { id: sampleScheduleId, schedule_number: 'PM-2026-00001' },
+                          amc_contracts: null,
+                          profiles: mockAdminProfile,
+                        },
+                        error: null,
+                      });
+                    }
+                    return Promise.resolve({ data: null, error: null });
+                  }),
+                };
+              }),
+              insert: vi.fn().mockImplementation((rec: any) => {
+                insertedReport = rec;
+                return {
+                  select: vi.fn().mockReturnValue({
+                    single: vi.fn().mockResolvedValue({
+                      data: { id: sampleReportId, report_number: rec.report_number },
+                      error: null,
+                    }),
+                  }),
+                };
+              }),
+            };
+          }
+          if (table === 'service_report_assets') {
+            return {
+              insert: vi.fn().mockResolvedValue({ error: null }),
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            };
+          }
+          if (table === 'service_report_items') {
+            return {
+              insert: vi.fn().mockResolvedValue({ error: null }),
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+              update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [sampleAssetRecord], error: null }),
+            };
+          }
+          if (table === 'activity_logs') {
+            return { insert: vi.fn().mockResolvedValue({ error: null }) };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .post('/api/v1/service-reports')
+        .set('Authorization', adminAuthToken)
+        .send({
+          reportNumber: 'REP-VALID-ASST-01',
+          scheduleId: sampleScheduleId,
+          visitType: 'PREVENTIVE',
+          serviceDate: '2026-10-15',
+          primaryOutcome: 'COMPLETED',
+          assistantName: 'Mahesh Field Assistant',
+          workDescription: 'Verified match with assistant',
+          assets: [
+            {
+              assetId: sampleAssetId,
+              assetOutcome: 'COMPLETED',
+              workPerformed: 'Validated correctly',
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(insertedReport).toBeTruthy();
+      expect(insertedReport.assistant_name).toBe('Mahesh Field Assistant');
+    });
+
+    it('10. Rejects report update (PATCH) with 400 when updated asset belongs to different customer or site', async () => {
+      const authMock = setupAuth('ADMIN');
+      const foreignCustomerAsset = {
+        ...sampleAssetRecord,
+        site_id: otherSiteId,
+        customer_sites: { id: otherSiteId, customer_id: otherCustomerId },
+      };
+
+      const mockSupabase = {
+        ...authMock,
+        from: (table: string) => {
+          if (table === 'profiles' || table === 'staff') return authMock.from(table);
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: sampleReportId,
+                    report_number: 'REP-EXISTING-01',
+                    visit_type: 'PREVENTIVE',
+                    service_schedule_id: sampleScheduleId,
+                    customer_id: sampleCustomerId,
+                    site_id: sampleSiteId,
+                    technician_id: sampleTechId,
+                    service_date: '2026-10-15',
+                    primary_outcome: 'COMPLETED',
+                    resolution_status: 'RESOLVED',
+                    status: 'SUBMITTED',
+                    customers: sampleCustomer,
+                    customer_sites: { id: sampleSiteId, site_name: 'HQ' },
+                    technicians: { id: sampleTechId, name: 'Raj Patel' },
+                    service_schedules: { id: sampleScheduleId, schedule_number: 'PM-2026-00001' },
+                  },
+                  error: null,
+                }),
+              }),
+            };
+          }
+          if (table === 'service_report_assets' || table === 'service_report_items') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              in: vi.fn().mockResolvedValue({ data: [foreignCustomerAsset], error: null }),
+            };
+          }
+          return {};
+        },
+      };
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+      const res = await request(app)
+        .patch(`/api/v1/service-reports/${sampleReportId}`)
+        .set('Authorization', adminAuthToken)
+        .send({
+          assets: [
+            {
+              assetId: sampleAssetId,
+              assetOutcome: 'COMPLETED',
+              workPerformed: 'Updated with foreign asset',
+            },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toContain('does not belong to the report customer');
     });
   });
 

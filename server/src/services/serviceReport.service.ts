@@ -16,6 +16,36 @@ import { scheduleService } from './schedule.service.js';
 import { normalizeTechnology } from '../utils/technology.js';
 import { logActivity } from './audit.service.js';
 
+/**
+ * Helper to resolve customer ownership for an AC asset.
+ * In the database schema, ac_assets belong to customer_sites, which in turn belong to customers.
+ * Handles:
+ * 1. Joined `customer_sites` object { id, customer_id }
+ * 2. Joined `customer_sites` single-element array [{ id, customer_id }]
+ * 3. Direct `customer_id` (present on legacy fixtures / mock test objects)
+ * 4. Fallback lookup map (when customer_sites join wasn't hydrated by caller or mock)
+ */
+function resolveAssetCustomerId(
+  asset: any,
+  fallbackSiteCustomerMap: Record<string, string> = {}
+): string | null {
+  if (asset.customer_sites) {
+    if (typeof asset.customer_sites === 'object' && !Array.isArray(asset.customer_sites) && asset.customer_sites.customer_id) {
+      return asset.customer_sites.customer_id;
+    }
+    if (Array.isArray(asset.customer_sites) && asset.customer_sites.length > 0 && asset.customer_sites[0]?.customer_id) {
+      return asset.customer_sites[0].customer_id;
+    }
+  }
+  if (asset.customer_id) {
+    return asset.customer_id;
+  }
+  if (asset.site_id && fallbackSiteCustomerMap[asset.site_id]) {
+    return fallbackSiteCustomerMap[asset.site_id];
+  }
+  return null;
+}
+
 export class ServiceReportService {
   /**
    * Helper to write audit logs to activity_logs
@@ -178,7 +208,7 @@ export class ServiceReportService {
       if (query && typeof query.select === 'function') {
         const { data: matchedAssets, error: assetErr } = await query
           .select(`
-            id, site_id, customer_id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+            id, site_id, customer_sites ( id, customer_id ), asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
             ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
           `)
           .in('id', assetIds);
@@ -193,15 +223,39 @@ export class ServiceReportService {
             throw new BadRequestError('One or more referenced AC assets could not be found.');
           }
 
+          // Fallback batch lookup for customer_id if customer_sites join was not hydrated by caller/mock
+          const fallbackSiteCustomerMap: Record<string, string> = {};
+          const unresolvedSiteIds = matchedAssets
+            .filter((a) => !resolveAssetCustomerId(a) && a.site_id)
+            .map((a) => a.site_id);
+
+          if (unresolvedSiteIds.length > 0) {
+            const uniqueSiteIds = Array.from(new Set(unresolvedSiteIds));
+            const sitesQuery = supabase.from('customer_sites');
+            if (sitesQuery && typeof sitesQuery.select === 'function') {
+              const { data: sitesData } = await sitesQuery
+                .select('id, customer_id')
+                .in('id', uniqueSiteIds);
+              if (sitesData) {
+                for (const s of sitesData) {
+                  if (s.id && s.customer_id) {
+                    fallbackSiteCustomerMap[s.id] = s.customer_id;
+                  }
+                }
+              }
+            }
+          }
+
           for (const asset of matchedAssets) {
+            const assetCustomerId = resolveAssetCustomerId(asset, fallbackSiteCustomerMap);
+            if (assetCustomerId && assetCustomerId !== customerId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the scheduled customer.`
+              );
+            }
             if (asset.site_id && asset.site_id !== siteId) {
               throw new BadRequestError(
                 `Asset "${asset.asset_tag || asset.id}" does not belong to the scheduled site.`
-              );
-            }
-            if (asset.customer_id && asset.customer_id !== customerId) {
-              throw new BadRequestError(
-                `Asset "${asset.asset_tag || asset.id}" does not belong to the scheduled customer.`
               );
             }
             assetMap[asset.id] = asset;
@@ -1107,7 +1161,7 @@ export class ServiceReportService {
       if (query && typeof query.select === 'function') {
         const { data: matchedAssets, error: assetErr } = await query
           .select(`
-            id, site_id, customer_id, asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
+            id, site_id, customer_sites ( id, customer_id ), asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
             ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
           `)
           .in('id', updateAssetIds);
@@ -1122,15 +1176,39 @@ export class ServiceReportService {
             throw new BadRequestError('One or more referenced AC assets could not be found.');
           }
 
+          // Fallback batch lookup for customer_id if customer_sites join was not hydrated by caller/mock
+          const fallbackSiteCustomerMap: Record<string, string> = {};
+          const unresolvedSiteIds = matchedAssets
+            .filter((a) => !resolveAssetCustomerId(a) && a.site_id)
+            .map((a) => a.site_id);
+
+          if (unresolvedSiteIds.length > 0) {
+            const uniqueSiteIds = Array.from(new Set(unresolvedSiteIds));
+            const sitesQuery = supabase.from('customer_sites');
+            if (sitesQuery && typeof sitesQuery.select === 'function') {
+              const { data: sitesData } = await sitesQuery
+                .select('id, customer_id')
+                .in('id', uniqueSiteIds);
+              if (sitesData) {
+                for (const s of sitesData) {
+                  if (s.id && s.customer_id) {
+                    fallbackSiteCustomerMap[s.id] = s.customer_id;
+                  }
+                }
+              }
+            }
+          }
+
           for (const asset of matchedAssets) {
+            const assetCustomerId = resolveAssetCustomerId(asset, fallbackSiteCustomerMap);
+            if (assetCustomerId && assetCustomerId !== existing.customerId) {
+              throw new BadRequestError(
+                `Asset "${asset.asset_tag || asset.id}" does not belong to the report customer.`
+              );
+            }
             if (asset.site_id && asset.site_id !== existing.siteId) {
               throw new BadRequestError(
                 `Asset "${asset.asset_tag || asset.id}" does not belong to the report site.`
-              );
-            }
-            if (asset.customer_id && asset.customer_id !== existing.customerId) {
-              throw new BadRequestError(
-                `Asset "${asset.asset_tag || asset.id}" does not belong to the report customer.`
               );
             }
             updateAssetMap[asset.id] = asset;

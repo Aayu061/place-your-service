@@ -14,16 +14,16 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **PYS-A1** | **P1** | Service Reports | Automatic Customer Email Delivery Missing | **CONFIRMED DEFECT** |
 | **PYS-A2** | **P2** | Service Reports | Technician Contact Phone Number Exposed on Customer Views | **RESOLVED IN BATCH 3** |
-| **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 3 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
+| **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **PARTIALLY VERIFIED (SCHEDULE PASSED, REPORT PENDING DEPLOYMENT)** |
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
 | **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
-| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **CODE & ALL REGRESSION TESTS VERIFIED (PENDING PROD MIGRATION)** |
+| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **RESOLVED — PRODUCTION SMOKE TEST PASSED** |
 | **PYS-S1** | **P1** | Sites API | Direct `POST /api/v1/sites` HTTP 400 / Missing Route Handler | **RESOLVED — PRODUCTION SMOKE TEST PASSED** |
 | **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **RESOLVED IN BATCH 4** |
 | **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **RESOLVED IN BATCH 4** |
 | **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **RESOLVED IN BATCH 4** |
 | **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **RESOLVED — AUTOMATED TESTS PASSED** |
-| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **RESOLVED — AUTOMATED TESTS PASSED** |
+| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **REMEDIATED — REGRESSION TESTS PASSED (LIVE REPORT TEST PENDING DEPLOYMENT)** |
 | **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **RESOLVED IN BATCH 2** |
 | **PYS-007**| **P3** | Frontend Types | `ServiceSchedule` Assistant Field Missing in Frontend Typings | **RESOLVED IN BATCH 1** |
 | **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **RESOLVED — AUTOMATED TESTS PASSED** |
@@ -45,65 +45,35 @@
   `Could not find the 'dry_warranty_visits' column of 'ac_assets' in the schema cache` (HTTP 400 Bad Request).
 - **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx), [`src/utils/warranty.ts`](file:///c:/Users/aayup/Desktop/PYS/src/utils/warranty.ts)
 - **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts), [`server/src/validators/asset.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/asset.validator.ts), [`server/src/utils/warranty.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/utils/warranty.ts)
-- **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` is present, syntactically correct, and committed in `main`, but **has not been applied to the live production database (`jvccvdxfilzlncbgiplk`)**.
+- **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` is present and committed in `main`. It was executed on the live production database (`jvccvdxfilzlncbgiplk`) under remote tracking version `20261015133528` (`ac_asset_warranty_services`).
 - **Root Cause & Evidence:**
   1. PostgREST inspects the PostgreSQL system catalog (`information_schema.columns`) on startup and builds an in-memory schema cache of valid columns.
-  2. Because the live database table `public.ac_assets` only contains columns up to `warranty_status` and does not yet have `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`, PostgREST rejects any `INSERT` payload referencing `dry_warranty_visits` with the schema cache error.
-  3. **Crucial Constraint:** Application code or frontend fixes alone cannot resolve this error on the live database. The production database migration is required.
-- **Required Production Migration Steps (When Freeze is Lifted):**
-  1. Execute `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` in the Supabase SQL Editor:
-     ```sql
-     ALTER TABLE public.ac_assets
-       ADD COLUMN IF NOT EXISTS total_warranty_services INTEGER NULL,
-       ADD COLUMN IF NOT EXISTS dry_warranty_visits INTEGER NULL,
-       ADD COLUMN IF NOT EXISTS jet_warranty_visits INTEGER NULL,
-       ADD COLUMN IF NOT EXISTS pumpdown_warranty_visits INTEGER NULL;
-
-     ALTER TABLE public.ac_assets
-       ADD CONSTRAINT chk_ac_assets_total_warranty_services_non_neg
-       CHECK (total_warranty_services IS NULL OR total_warranty_services >= 0);
-
-     ALTER TABLE public.ac_assets
-       ADD CONSTRAINT chk_ac_assets_dry_warranty_visits_non_neg
-       CHECK (dry_warranty_visits IS NULL OR dry_warranty_visits >= 0);
-
-     ALTER TABLE public.ac_assets
-       ADD CONSTRAINT chk_ac_assets_jet_warranty_visits_non_neg
-       CHECK (jet_warranty_visits IS NULL OR jet_warranty_visits >= 0);
-
-     ALTER TABLE public.ac_assets
-       ADD CONSTRAINT chk_ac_assets_pumpdown_warranty_visits_non_neg
-       CHECK (pumpdown_warranty_visits IS NULL OR pumpdown_warranty_visits >= 0);
-
-     ALTER TABLE public.ac_assets
-       ADD CONSTRAINT chk_ac_assets_warranty_services_allocation CHECK (
-         (total_warranty_services IS NULL AND dry_warranty_visits IS NULL AND jet_warranty_visits IS NULL AND pumpdown_warranty_visits IS NULL)
-         OR
-         (total_warranty_services IS NOT NULL AND dry_warranty_visits IS NULL AND jet_warranty_visits IS NULL AND pumpdown_warranty_visits IS NULL)
-         OR
-         (total_warranty_services IS NOT NULL
-          AND dry_warranty_visits IS NOT NULL
-          AND jet_warranty_visits IS NOT NULL
-          AND pumpdown_warranty_visits IS NOT NULL
-          AND (dry_warranty_visits + jet_warranty_visits + pumpdown_warranty_visits = total_warranty_services))
-       );
-     ```
-  2. Reload PostgREST schema cache:
-     ```sql
-     NOTIFY pgrst, 'reload schema';
-     ```
-  3. Verify column presence:
-     ```sql
-     SELECT column_name, data_type, is_nullable
-     FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name = 'ac_assets'
-       AND column_name IN ('total_warranty_services', 'dry_warranty_visits', 'jet_warranty_visits', 'pumpdown_warranty_visits');
-     ```
+  2. Prior to migration, `public.ac_assets` only contained columns up to `warranty_status`. PostgREST rejected any `INSERT` payload referencing `dry_warranty_visits` with the schema cache error.
+- **Production Migration Execution & Verification (Confirmed 2026-10-15):**
+  1. Applied in Supabase production under generated version `20261015133528`.
+  2. System catalog inspection (`information_schema.columns`) confirmed all 4 columns present: `total_warranty_services` (int), `dry_warranty_visits` (int), `jet_warranty_visits` (int), `pumpdown_warranty_visits` (int).
+  3. PostgreSQL constraint inspection (`pg_constraint`) confirmed all 5 check constraints present and active:
+     - `chk_ac_assets_total_warranty_services_non_neg`
+     - `chk_ac_assets_dry_warranty_visits_non_neg`
+     - `chk_ac_assets_jet_warranty_visits_non_neg`
+     - `chk_ac_assets_pumpdown_warranty_visits_non_neg`
+     - `chk_ac_assets_warranty_services_allocation`
+  4. Protected production customer records (`735ef677-5543-48d4-9d43-ccb9d73c0a3e`, `56013e41-80e4-4c2a-adb9-5e7f4790d0a2`) and their sites verified 100% intact.
+- **Production Smoke-Test Evidence (`RUN-1792072881312` Confirmed 2026-10-15):**
+  - Tested 6 exhaustive allocation cases against live Render backend and Supabase DB:
+    1. Valid 3-way split (`total=3, dry=1, jet=1, pumpdown=1`) -> `201 Created` with valid dates and counts.
+    2. Negative allocation (`dry=-1`) -> `422 Unprocessable Entity` correctly rejected; zero partial rows persisted.
+    3. Mismatched total (`total=4 != dry=1 + jet=1 + pumpdown=1`) -> `422 Unprocessable Entity` correctly rejected; zero partial rows persisted.
+    4. Valid total-only allocation (`total=2, dry=null, jet=null, pumpdown=null`) -> `201 Created`.
+    5. Valid all-null allocation (`total=null, dry=null, jet=null, pumpdown=null`) -> `201 Created`.
+    6. Valid zero-valued allocation (`total=0, dry=0, jet=0, pumpdown=0`) -> `201 Created`.
+  - Database cleanup verified: All disposable test asset rows deleted in reverse dependency order.
+  - Protected records verified: Baseline customer count (2) and site count (2) remained 100% untouched.
 - **Regression Tests Verified:**
-  - `src/tests/warranty.test.ts` (27 tests): all-zero allocation (`0 = 0 + 0 + 0`), each single-type allocation (100% Dry, 100% Jet, 100% Pumpdown), every two-type split (Dry+Jet, Dry+Pumpdown, Jet+Pumpdown), three-type allocations, explicit zero values, mismatched totals (under and over), negative values in all fields, and decimal numbers.
-  - `server/tests/warrantyAllocation.test.ts` (29 tests): exhaustive server-side validation and Zod schema parsing matching all frontend rules.
+  - `src/tests/warranty.test.ts` (28 tests): all-zero allocation (`0 = 0 + 0 + 0`), each single-type allocation (100% Dry, 100% Jet, 100% Pumpdown), every two-type split (Dry+Jet, Dry+Pumpdown, Jet+Pumpdown), three-type allocations, explicit zero values, mismatched totals (under and over), negative values in all fields, and decimal numbers.
+  - `server/tests/warrantyAllocation.test.ts` (30 tests): exhaustive server-side validation and Zod schema parsing matching all frontend rules.
   - `src/tests/technologyAndAssetRegistration.test.tsx`: UI registration form allocation feedback, error display, and non-resetting behavior on unrelated field updates.
-- **Status:** **CODE & ALL REGRESSION TESTS VERIFIED (PENDING PROD MIGRATION)**.
+- **Status:** **RESOLVED — PRODUCTION SMOKE TEST PASSED (`RUN-1792072881312`)**.
 
 ---
 
@@ -238,20 +208,19 @@
 - **Actual Behavior:** Initially, there was no field, column, or API parameter for assistant name.
 - **Frontend Files:** [`src/components/serviceReports/ServiceVisitReportModal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceVisitReportModal.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/serviceReports/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceReportPrintView.tsx), [`src/domain/types.ts`](file:///c:/Users/aayup/Desktop/PYS/src/domain/types.ts).
 - **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/src/validators/serviceReport.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/serviceReport.validator.ts).
-- **Database / Schema:** Migration `supabase/migrations/20261014010000_service_schedule_and_report_assistant_name.sql` adds `assistant_name TEXT NULL` to `service_schedules` and `service_reports`. Held under production change freeze.
-- **Root Cause & Evidence:** Schema inspection via Supabase MCP confirmed absence of `assistant_name` column on live production database.
-- **Completed Fix (Batch 1 & Batch 3):**
-  1. Created migration `20261014010000_service_schedule_and_report_assistant_name.sql` adding `assistant_name` to `service_schedules` and `service_reports`.
-  2. Updated backend validators (`schedule.validator.ts`, `serviceReport.validator.ts`) and TypeScript typings in Batch 1.
-  3. Added editable `#assistant-name-input` in `ServiceVisitReportModal.tsx` prefilled from schedule, while allowing staff to edit or clear for the visit (Batch 3).
-  4. Added `assistantName?: string | null` to `UpdateServiceReportPayload` in `src/domain/types.ts` and wired persistence in `serviceReport.service.ts` for both create and update operations (Batch 3).
-  5. Safely handled blank or absent assistant names without inventing placeholder names (Batch 3).
-  6. Rendered both technician and assistant names distinctly in report table, detail drawer, and print view (Batch 3).
+- **Database / Schema:** Migration `supabase/migrations/20261014010000_service_schedule_and_report_assistant_name.sql` is present and committed in `main`. It was executed on the live production database (`jvccvdxfilzlncbgiplk`) under remote tracking version `20261015133534` (`service_schedule_and_report_assistant_name`).
+- **Production Smoke-Test Evidence (`RUN-1792072881312` Confirmed 2026-10-15):**
+  - **Service Schedule Assistant Name (PASSED):**
+    1. Created schedule via `POST /api/v1/schedules` with `assistantName: "Ramesh Assistant"` -> `201 Created`, verified `assistant_name: "Ramesh Assistant"` stored in DB.
+    2. Updated schedule via `PATCH /api/v1/schedules/:id` with `assistantName: "Suresh Assistant"` -> `200 OK`, verified update persisted.
+  - **Service Report Assistant Name (PENDING):**
+    - Submission of `POST /api/v1/service-reports` was blocked by schema error PYS-005 (`Could not find the 'customer_id' column of 'ac_assets' in the schema cache`).
+    - Service report persistence requires deployment of PYS-005 remediation.
 - **Regression Tests:**
   - `server/tests/assistantNameValidation.test.ts`: 7 tests covering schedule and report validation.
   - `server/tests/serviceReportRoutes.test.ts` (tests 22, 23): Verified assistant name mapping, persistence, and safe handling of null/empty names.
   - `src/tests/serviceReports.test.tsx` (tests 27, 28, 29, 30): Verified assistant name prefill, editing, persistence, blank handling, separated rendering, and absence of technician phone.
-- **Status:** **BATCH 3 CODE & TESTS COMPLETE — PENDING PRODUCTION MIGRATION DEPLOYMENT**.
+- **Status:** **PARTIALLY VERIFIED (SCHEDULE VERIFIED IN PRODUCTION, SERVICE REPORT PENDING DEPLOYMENT OF PYS-005 REMEDIATION)**.
 
 ---
 
@@ -377,26 +346,42 @@
 
 ---
 
-### PYS-005 — Cross-Entity Asset/Site Validation Missing in Service Report Payload (P1)
-- **Severity / Priority:** P1 — Security & Multi-Tenant Data Integrity.
+### PYS-005 — Cross-Entity Asset/Site Validation Defect & PostgREST Schema Error in Service Report (P1)
+- **Severity / Priority:** P1 — Security, Multi-Tenant Data Integrity & Production Blocker.
 - **Affected Feature:** Service Visit Report Creation & Updating (`POST /api/v1/service-reports`, `PATCH /api/v1/service-reports/:id`).
 - **Reproduction Steps:**
-  1. Submit a service report payload with an `assetId` that belongs to a different customer or a different physical site than the scheduled appointment.
-- **Expected Behavior:** Backend server-side validation strictly verifies that all referenced AC assets exist and belong to the appointment's authoritative `site_id` and `customer_id`. Rejects mismatches with HTTP 400 Bad Request before writing any records.
-- **Actual Behavior:** Prior to remediation, `serviceReport.service.ts` inserted the report header and only queried `ac_assets` afterwards for snapshot caching without asserting `asset.site_id === schedule.site_id` or `asset.customer_id === schedule.customer_id`.
+  1. Submit a service report payload with an `assetId` referencing a registered AC asset.
+- **Expected Behavior:** Backend server-side validation strictly verifies that all referenced AC assets exist and belong to the appointment's authoritative `site_id` and `customer_id`. Rejects cross-customer, cross-site, nonexistent, or mixed-ownership assets with HTTP 400 Bad Request before creating any records.
+- **Actual Behavior (Discovered during `RUN-1792072881312` at baseline `fca0415`):**
+  - Production service report creation failed with PostgREST error:
+    `Could not find the 'customer_id' column of 'ac_assets' in the schema cache` (HTTP 400 Bad Request).
+  - The query in `serviceReport.service.ts` projected `customer_id` directly from `public.ac_assets`.
+  - In PostgreSQL, `public.ac_assets` does NOT possess a `customer_id` column; customer ownership is established relationally through `ac_assets.site_id -> customer_sites.id -> customer_sites.customer_id`.
 - **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts).
 - **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx).
-- **Completed Fix:**
-  1. In `createReport`, added pre-validation step (`5b`) before inserting the `service_reports` header:
-     - Verified every asset in `payload.assets` has a valid `assetId`.
-     - Queried `ac_assets` by ID and checked `matchedAssets.length === assetIds.length`.
-     - Validated `asset.site_id === siteId` and `asset.customer_id === customerId`.
-     - Threw clear, secure `BadRequestError` messages (`Asset "..." does not belong to the scheduled site/customer`).
-     - Reused the pre-fetched `assetMap` directly for asset snapshot insertion, eliminating redundant database queries.
-  2. In `updateReport`, enforced the exact same cross-entity verification before executing report updates or deleting existing asset report items.
-- **Regression Tests:**
-  - Verified in `server/tests/postAuditRemediation.test.ts` (Scenarios 1-4 covering cross-site rejection, cross-customer rejection, nonexistent asset rejection, and successful creation when assets match).
-- **Status:** **RESOLVED — AUTOMATED TESTS PASSED**.
+- **Completed Remediation:**
+  1. **Removed Invalid Direct Column Projection:** Removed `customer_id` from the `ac_assets` query select statement in both `createReport` (Step 5b) and `updateReport`.
+  2. **Relational Join Projection:** Added `customer_sites ( id, customer_id )` to the `ac_assets` PostgREST query to resolve ownership through the foreign-key relation in a single query.
+  3. **Defensive Multi-Layer Customer Resolution:** Implemented `resolveAssetCustomerId` helper supporting:
+     - Embedded `customer_sites` object `{ id, customer_id }` or array `[{ id, customer_id }]`.
+     - Direct `customer_id` for backward compatibility with isolated unit test fixtures.
+     - Fallback batch query against `customer_sites` using `.in('id', unresolvedSiteIds)` to avoid N+1 queries if join hydration is omitted by client mocks.
+  4. **Strict Cross-Entity Validation Order:**
+     - Verified customer ownership first: if `assetCustomerId !== customerId`, rejects immediately with `Asset "..." does not belong to the scheduled customer.`
+     - Verified site ownership second: if `asset.site_id !== siteId`, rejects immediately with `Asset "..." does not belong to the scheduled site.`
+  5. **Atomicity Guarantee:** All validations execute prior to header insertion (`supabase.from('service_reports').insert(...)`), guaranteeing zero partial reports, asset rows, or audit entries are persisted on invalid requests.
+- **Regression Tests (10 Comprehensive Scenarios in `server/tests/postAuditRemediation.test.ts`):**
+  1. Rejects report creation with 400 when asset belongs to a different site (same customer).
+  2. Rejects report creation with 400 when asset belongs to a different customer resolved via `customer_sites`.
+  3. Rejects report creation with 400 when asset customer is resolved via fallback batch lookup to `customer_sites`.
+  4. Rejects report creation with 400 when referenced asset does not exist in database.
+  5. Rejects report creation with 400 when multiple assets have mixed ownership (foreign customer).
+  6. Rejects report creation with 400 when multiple assets have mixed ownership (foreign site).
+  7. Guarantees atomicity: invalid asset requests create NO partial service-report records or child rows (spies verify zero insert calls).
+  8. Successfully accepts report when asset matches customer and site via `customer_sites` join.
+  9. Successfully accepts report and persists custom `assistantName`.
+  10. Rejects report update (PATCH) with 400 when updated asset belongs to different customer or site.
+- **Status:** **REMEDIATED — REGRESSION TESTS PASSED (LIVE REPORT TEST PENDING DEPLOYMENT)**.
 
 ---
 
