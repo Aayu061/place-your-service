@@ -239,6 +239,73 @@ describe('Server-Side Warranty Allocation Invariant (Requirement C1)', () => {
       }).isValid).toBe(true);
     });
 
+    it('verifies exact user-specified test cases (Total 2 single-type & two-type splits, Total 3 three-way, Total 0)', () => {
+      // Total 2, Dry 0, Jet 2, Pumpdown 0
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(true);
+
+      // Total 2, Dry 2, Jet 0, Pumpdown 0
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(true);
+
+      // Total 2, Dry 0, Jet 0, Pumpdown 2
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 2,
+      }).isValid).toBe(true);
+
+      // Total 2 with valid two-type splits:
+      // Dry 1, Jet 1, Pumpdown 0
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(true);
+
+      // Dry 1, Jet 0, Pumpdown 1
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 1,
+      }).isValid).toBe(true);
+
+      // Dry 0, Jet 1, Pumpdown 1
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1,
+      }).isValid).toBe(true);
+
+      // Total 3 with all three types receiving one visit each
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1,
+      }).isValid).toBe(true);
+
+      // Zero total with all allocations zero
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 0,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(true);
+    });
+
     it('rejects mismatched totals (both under-allocation and over-allocation)', () => {
       // Over-allocation (sum > total)
       const over = validateWarrantyAllocation({
