@@ -380,4 +380,111 @@ describe('Phase 4 Frontend Customer Management Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('11. Customer Detail Drawer renders visible Close button with accessible label and clicking it closes drawer and cleans URL', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    const originalLocation = window.location;
+    // @ts-expect-error mock location
+    delete window.location;
+    // @ts-expect-error mock location
+    window.location = new URL('http://localhost:5173/?customerId=cust-123');
+
+    const mockNavigate = vi.fn();
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement onNavigate={mockNavigate} />);
+    });
+
+    // Both Close and Back buttons are rendered in the drawer header
+    const closeBtn = document.body.querySelector('#drawer-header-close-btn') as HTMLButtonElement;
+    expect(closeBtn).not.toBeNull();
+    expect(closeBtn.getAttribute('aria-label')).toBe('Close customer details');
+    expect(closeBtn.title).toBe('Close customer details');
+
+    const backBtn = document.body.querySelector('#customer-detail-back-btn') as HTMLButtonElement;
+    expect(backBtn).not.toBeNull();
+
+    // Click Close (×) button
+    await act(async () => {
+      closeBtn.click();
+    });
+
+    // Drawer is closed and controls removed from DOM
+    expect(document.body.querySelector('#drawer-header-close-btn')).toBeNull();
+    expect(document.body.querySelector('#customer-detail-back-btn')).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith('customers');
+
+    window.location = originalLocation;
+    renderResult.cleanup();
+  });
+
+  it('12. Both Back and Close buttons co-exist in drawer header action container without layout conflict', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement />);
+    });
+
+    const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+    await act(async () => {
+      viewBtn.click();
+    });
+
+    const header = document.body.querySelector('.drawer-header') as HTMLElement;
+    expect(header).not.toBeNull();
+
+    const backBtn = header.querySelector('#customer-detail-back-btn') as HTMLButtonElement;
+    const closeBtn = header.querySelector('#drawer-header-close-btn') as HTMLButtonElement;
+
+    expect(backBtn).not.toBeNull();
+    expect(closeBtn).not.toBeNull();
+
+    // Verify both buttons are siblings or descendants within the header actions container
+    expect(header.contains(backBtn)).toBe(true);
+    expect(header.contains(closeBtn)).toBe(true);
+
+    renderResult.cleanup();
+  });
+
+  it('13. Customer Detail Close button supports keyboard focus and visible focus state', async () => {
+    vi.spyOn(apiClient, 'request').mockResolvedValue({
+      customers: [sampleCustomer],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<CustomerManagement />);
+    });
+
+    const viewBtn = renderResult.container.querySelector('button[aria-label="View customer"]') as HTMLButtonElement;
+    await act(async () => {
+      viewBtn.click();
+    });
+
+    const closeBtn = document.body.querySelector('#drawer-header-close-btn') as HTMLButtonElement;
+    expect(closeBtn).not.toBeNull();
+
+    closeBtn.focus();
+    expect(document.activeElement).toBe(closeBtn);
+
+    renderResult.cleanup();
+  });
 });

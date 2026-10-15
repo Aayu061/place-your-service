@@ -39,6 +39,11 @@ export interface DrawerProps {
   onConfirmDiscard?: () => void;
   discardTitle?: string;
   discardMessage?: string;
+  /**
+   * Accessible label and title for the close button.
+   * Default: 'Close drawer'.
+   */
+  closeLabel?: string;
 }
 
 export const Drawer: React.FC<DrawerProps> = ({
@@ -57,6 +62,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   onConfirmDiscard,
   discardTitle,
   discardMessage,
+  closeLabel = 'Close drawer',
 }) => {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
@@ -135,8 +141,8 @@ export const Drawer: React.FC<DrawerProps> = ({
           e.stopPropagation();
         }}
       >
-        <div className="drawer-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)', minWidth: 0 }}>
+        <div className="drawer-header" style={{ gap: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2, 8px)', minWidth: 0, flex: '1 1 auto' }}>
             {onBack && (
               <Button
                 id="drawer-header-back-btn"
@@ -146,13 +152,13 @@ export const Drawer: React.FC<DrawerProps> = ({
                 onClick={onBack}
                 aria-label={backLabel ? `Go back to ${backLabel}` : 'Go back'}
                 title={backLabel ? `Go back to ${backLabel}` : 'Go back'}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', flexShrink: 0 }}
               >
                 <ArrowLeft size={18} />
                 {backLabel && <span style={{ fontSize: 'var(--text-sm, 0.875rem)' }}>{backLabel}</span>}
               </Button>
             )}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
               <h2 id="drawer-title" className="drawer-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {title}
               </h2>
@@ -172,7 +178,8 @@ export const Drawer: React.FC<DrawerProps> = ({
               size="sm"
               isIconOnly
               onClick={requestClose}
-              aria-label="Close drawer"
+              aria-label={closeLabel}
+              title={closeLabel}
             >
               <X size={18} />
             </Button>

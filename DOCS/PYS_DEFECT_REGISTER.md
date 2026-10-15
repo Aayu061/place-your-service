@@ -452,4 +452,45 @@
     - Tested keyboard accessibility and focusability of the Back button.
 - **Status:** **RESOLVED — AUTOMATED TESTS PASSED (193/193 FRONTEND, 329/329 BACKEND)**.
 
+---
+
+### DEFECT-014: Customer Detail Drawer Header Hidden Under Sticky TopBar (Missing Close & Back Buttons)
+- **Defect ID:** `DEFECT-014`
+- **Severity:** High (Navigation & Usability Block)
+- **Symptoms:**
+  - When opening a customer record, the Customer Detail drawer slid out from the right over the dimmed page.
+  - The drawer content began visibly at y = 84px with status badges (`PERMANENT`/`TEMPORARY`, `Active`/`Inactive`), `+ Service Request`, and `Edit` buttons.
+  - However, the entire drawer header (`Mr Bhagwan Ahuja`, `Code: CUST-...`, the `← Back` button, and the `×` Close button) was completely missing and invisible on the screen.
+- **Root Cause Analysis (CSS Stacking Context Trap):**
+  - In `src/layouts/AppShell.tsx`: `<main className="content-container animate-fade-in">`
+  - In `src/styles/motion.css`: `.animate-fade-in` applies `animation: fadeIn var(--duration-page) var(--ease-decelerate) forwards;`.
+  - According to the CSS Stacking Context Specification, applying a CSS animation creates an isolated stacking context on `<main>`.
+  - In `AppShell.tsx`, the sibling `<TopBar>` is styled with `position: sticky; top: 0; z-index: var(--z-header);` (z-index 200) and height 64px with an opaque surface background.
+  - `<main>` has `position: static` with an isolated stacking context at the root level (z-index: 0 / auto).
+  - Even though the Customer Detail `<Drawer>` has `position: fixed; z-index: var(--z-drawer);` (450), because it was rendered inside `<main>`, it was trapped within `<main>`'s root stacking context.
+  - Therefore, `<TopBar>` (z-index 200) was painted ABOVE `<main>` and all its descendants. The opaque 64px `<TopBar>` physically covered the top 64px of `.drawer-container`, completely obscuring `.drawer-header` (which spans 0 to 84px).
+- **Resolution Applied:**
+  1. **AppShell Architecture (`src/layouts/AppShell.tsx`):**
+     - Removed `animate-fade-in` from `<main className="content-container">`.
+     - Documented architectural rule: Never apply CSS animations or transforms to `<main>`, ensuring fixed overlays (`Drawer`, `Modal`) maintain their viewport-level stacking context and render above the sticky header (z-index 450 > 200).
+  2. **Drawer Component Enhancements (`src/components/ui/Drawer.tsx`):**
+     - Added `closeLabel?: string` prop to `DrawerProps` (default: `'Close drawer'`).
+     - Set `aria-label={closeLabel}` and `title={closeLabel}` on `#drawer-header-close-btn`.
+     - Configured responsive flex layout in `.drawer-header` (`flex: 1 1 auto; minWidth: 0; overflow: hidden` on left title/description; `flexShrink: 0` on left back button and right action cluster) to prevent wrapping or button clipping on narrow viewports.
+  3. **Customer Detail Drawer Integration (`src/pages/CustomerManagement.tsx`):**
+     - Passed `closeLabel="Close customer details"` to `<Drawer>`.
+     - Verified `#customer-detail-back-btn` and `#drawer-header-close-btn` co-exist cleanly in the top-right header, both executing `handleCustomerDetailBack` (URL cleanup and list view restoration).
+- **Regression Verification:**
+  - `src/tests/customers.test.tsx`:
+    - Test 11: Close button rendered with `aria-label="Close customer details"`; clicking it closes drawer and cleans URL params.
+    - Test 12: Back and Close buttons co-exist in drawer header action cluster without layout conflicts.
+    - Test 13: Close button supports keyboard focus and visible focus indicator.
+  - `src/tests/formNavigation.test.tsx`:
+    - Verified custom `closeLabel` and `headerActions` in Drawer.
+    - Verified `AppShell` `<main>` does not contain `animate-fade-in`, preventing stacking context traps.
+  - Test Suite: 18/18 test files passed (198/198 tests).
+  - TypeScript & Build: `tsc --noEmit` clean, Vite production build successful.
+- **Status:** **RESOLVED — VERIFIED IN TESTS & PRODUCTION BUILD**.
+
+
 

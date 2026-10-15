@@ -52,7 +52,10 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
           }}
         />
 
-        <main className="content-container animate-fade-in">
+        {/* NOTE: Do not apply CSS animations (e.g. animate-fade-in) or CSS transforms to <main>.
+            Any animation/transform on <main> establishes an isolated CSS stacking context,
+            which traps fixed overlay children (Drawers, Modals) below the sibling <TopBar> (z-index: 200). */}
+        <main className="content-container">
           {children({
             currentRole,
             activeItem,

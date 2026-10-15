@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { CustomerManagement } from '@/pages/CustomerManagement';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
+import { AppShell } from '@/layouts/AppShell';
 import { apiClient } from '@/services/api/client';
 import { Customer } from '@/domain/types';
 
@@ -213,6 +214,66 @@ describe('Form Navigation & Dirty-State Protection Suite', () => {
 
       root.unmount();
       container.remove();
+    });
+
+    it('Drawer supports custom closeLabel and renders headerActions alongside Close button', () => {
+      const onClose = vi.fn();
+      const container = document.createElement('div');
+      const root = createRoot(container);
+
+      act(() => {
+        root.render(
+          <Drawer
+            isOpen={true}
+            onClose={onClose}
+            closeLabel="Close customer details"
+            title="Customer Profile"
+            headerActions={
+              <button id="custom-action-btn" type="button">
+                Back Action
+              </button>
+            }
+          >
+            <p>Drawer body</p>
+          </Drawer>
+        );
+      });
+
+      const closeBtn = container.querySelector('#drawer-header-close-btn') as HTMLButtonElement;
+      expect(closeBtn).not.toBeNull();
+      expect(closeBtn.getAttribute('aria-label')).toBe('Close customer details');
+      expect(closeBtn.title).toBe('Close customer details');
+
+      const customAction = container.querySelector('#custom-action-btn') as HTMLButtonElement;
+      expect(customAction).not.toBeNull();
+      expect(customAction.textContent).toBe('Back Action');
+
+      const header = container.querySelector('.drawer-header') as HTMLElement;
+      expect(header.contains(closeBtn)).toBe(true);
+      expect(header.contains(customAction)).toBe(true);
+
+      root.unmount();
+      container.remove();
+    });
+
+    it('AppShell content-container does not have animate-fade-in to prevent CSS stacking context trap over sticky TopBar', () => {
+      let renderResult!: ReturnType<typeof renderWithProviders>;
+
+      act(() => {
+        renderResult = renderWithProviders(
+          <AppShell role="ADMIN">
+            {() => <div id="page-content">Test Page Content</div>}
+          </AppShell>
+        );
+      });
+
+      const main = renderResult.container.querySelector('main') as HTMLElement;
+      expect(main).not.toBeNull();
+      expect(main.className).toContain('content-container');
+      // Crucial regression check: must not contain animate-fade-in which creates a stacking context trapping drawers
+      expect(main.className).not.toContain('animate-fade-in');
+
+      renderResult.cleanup();
     });
   });
 

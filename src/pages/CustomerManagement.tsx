@@ -2435,6 +2435,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         title={selectedCustomer?.name || 'Customer Profile'}
         description={`Code: ${selectedCustomer?.customerCode || ''}`}
         width="640px"
+        closeLabel="Close customer details"
         onBack={drawerTab !== 'overview' ? () => setDrawerTab('overview') : undefined}
         backLabel="Overview"
         headerActions={
