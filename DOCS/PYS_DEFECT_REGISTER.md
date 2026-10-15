@@ -3,8 +3,8 @@
 **Audit Date:** 14 October 2026  
 **Git Baseline:** `7f8cfab` (`main`)  
 **Database Target:** `place-your-service` (Supabase `jvccvdxfilzlncbgiplk`)  
-**Defect Counts:** P0: 2 | P1: 6 | P2: 4 | P3: 2  
-**Total Tracked Defects:** 14
+**Defect Counts:** P0: 2 | P1: 7 | P2: 4 | P3: 2  
+**Total Tracked Defects:** 15
 
 ---
 
@@ -17,7 +17,8 @@
 | **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 3 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
 | **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
-| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 2 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
+| **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **CODE & ALL REGRESSION TESTS VERIFIED (PENDING PROD MIGRATION)** |
+| **PYS-S1** | **P1** | Sites API | Direct `POST /api/v1/sites` HTTP 400 / Missing Route Handler | **RESOLVED & VERIFIED IN TESTS** |
 | **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **RESOLVED IN BATCH 4** |
 | **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **RESOLVED IN BATCH 4** |
 | **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **RESOLVED IN BATCH 4** |
@@ -40,14 +41,101 @@
   3. Enter Brand, Model, Serial Numbers, and enter Warranty Services: Total: 3 (1 Dry, 1 Jet, 1 Pumpdown).
   4. Click "Register AC Asset".
 - **Expected Behavior:** Asset is saved with warranty dates and service visit entitlements in `ac_assets`.
-- **Actual Behavior:** PostgreSQL error returned: `column "total_warranty_services" of relation "ac_assets" does not exist` (HTTP 500 / 400).
+- **Actual Behavior:** PostgREST / Supabase API error returned:
+  `Could not find the 'dry_warranty_visits' column of 'ac_assets' in the schema cache` (HTTP 400 Bad Request).
+- **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx), [`src/utils/warranty.ts`](file:///c:/Users/aayup/Desktop/PYS/src/utils/warranty.ts)
+- **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts), [`server/src/validators/asset.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/asset.validator.ts), [`server/src/utils/warranty.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/utils/warranty.ts)
+- **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` is present, syntactically correct, and committed in `main`, but **has not been applied to the live production database (`jvccvdxfilzlncbgiplk`)**.
+- **Root Cause & Evidence:**
+  1. PostgREST inspects the PostgreSQL system catalog (`information_schema.columns`) on startup and builds an in-memory schema cache of valid columns.
+  2. Because the live database table `public.ac_assets` only contains columns up to `warranty_status` and does not yet have `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`, PostgREST rejects any `INSERT` payload referencing `dry_warranty_visits` with the schema cache error.
+  3. **Crucial Constraint:** Application code or frontend fixes alone cannot resolve this error on the live database. The production database migration is required.
+- **Required Production Migration Steps (When Freeze is Lifted):**
+  1. Execute `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` in the Supabase SQL Editor:
+     ```sql
+     ALTER TABLE public.ac_assets
+       ADD COLUMN IF NOT EXISTS total_warranty_services INTEGER NULL,
+       ADD COLUMN IF NOT EXISTS dry_warranty_visits INTEGER NULL,
+       ADD COLUMN IF NOT EXISTS jet_warranty_visits INTEGER NULL,
+       ADD COLUMN IF NOT EXISTS pumpdown_warranty_visits INTEGER NULL;
+
+     ALTER TABLE public.ac_assets
+       ADD CONSTRAINT chk_ac_assets_total_warranty_services_non_neg
+       CHECK (total_warranty_services IS NULL OR total_warranty_services >= 0);
+
+     ALTER TABLE public.ac_assets
+       ADD CONSTRAINT chk_ac_assets_dry_warranty_visits_non_neg
+       CHECK (dry_warranty_visits IS NULL OR dry_warranty_visits >= 0);
+
+     ALTER TABLE public.ac_assets
+       ADD CONSTRAINT chk_ac_assets_jet_warranty_visits_non_neg
+       CHECK (jet_warranty_visits IS NULL OR jet_warranty_visits >= 0);
+
+     ALTER TABLE public.ac_assets
+       ADD CONSTRAINT chk_ac_assets_pumpdown_warranty_visits_non_neg
+       CHECK (pumpdown_warranty_visits IS NULL OR pumpdown_warranty_visits >= 0);
+
+     ALTER TABLE public.ac_assets
+       ADD CONSTRAINT chk_ac_assets_warranty_services_allocation CHECK (
+         (total_warranty_services IS NULL AND dry_warranty_visits IS NULL AND jet_warranty_visits IS NULL AND pumpdown_warranty_visits IS NULL)
+         OR
+         (total_warranty_services IS NOT NULL AND dry_warranty_visits IS NULL AND jet_warranty_visits IS NULL AND pumpdown_warranty_visits IS NULL)
+         OR
+         (total_warranty_services IS NOT NULL
+          AND dry_warranty_visits IS NOT NULL
+          AND jet_warranty_visits IS NOT NULL
+          AND pumpdown_warranty_visits IS NOT NULL
+          AND (dry_warranty_visits + jet_warranty_visits + pumpdown_warranty_visits = total_warranty_services))
+       );
+     ```
+  2. Reload PostgREST schema cache:
+     ```sql
+     NOTIFY pgrst, 'reload schema';
+     ```
+  3. Verify column presence:
+     ```sql
+     SELECT column_name, data_type, is_nullable
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'ac_assets'
+       AND column_name IN ('total_warranty_services', 'dry_warranty_visits', 'jet_warranty_visits', 'pumpdown_warranty_visits');
+     ```
+- **Regression Tests Verified:**
+  - `src/tests/warranty.test.ts` (27 tests): all-zero allocation (`0 = 0 + 0 + 0`), each single-type allocation (100% Dry, 100% Jet, 100% Pumpdown), every two-type split (Dry+Jet, Dry+Pumpdown, Jet+Pumpdown), three-type allocations, explicit zero values, mismatched totals (under and over), negative values in all fields, and decimal numbers.
+  - `server/tests/warrantyAllocation.test.ts` (29 tests): exhaustive server-side validation and Zod schema parsing matching all frontend rules.
+  - `src/tests/technologyAndAssetRegistration.test.tsx`: UI registration form allocation feedback, error display, and non-resetting behavior on unrelated field updates.
+- **Status:** **CODE & ALL REGRESSION TESTS VERIFIED (PENDING PROD MIGRATION)**.
+
+---
+
+### PYS-S1 — Direct `POST /api/v1/sites` HTTP 400 / Missing Route Handler (P1)
+- **Severity / Priority:** P1 — Contract Compliance & Site Provisioning.
+- **Affected Feature:** Customer Site Provisioning (`POST /api/v1/sites` & `GET /api/v1/sites`).
+- **Reproduction Steps:**
+  1. Make an authenticated `POST` request to `/api/v1/sites` with request body:
+     `{ customerId: "...", siteName: "Site Name", address: "Site Address", isPrimary: true }`
+  2. Observe HTTP 400 Bad Request / 404 response.
+- **Expected Behavior:**
+  - Route successfully provisions the customer site, sets primary status, links customer, and returns 201 Created with `{ success: true, data: { site: ... } }`.
+- **Actual Behavior:**
+  - `POST /api/v1/sites` returned HTTP 400 Bad Request or failed routing.
 - **Frontend Files:** [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx)
-- **Backend Files:** [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts), [`server/src/validators/asset.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/asset.validator.ts)
-- **Database / Schema:** Migration `supabase/migrations/20261014000000_ac_asset_warranty_services.sql` was authored and committed, but **NEVER executed on the live Supabase database**.
-- **Root Cause & Evidence:** Direct SQL query via Supabase MCP `execute_sql` confirmed `public.ac_assets` has `warranty_start_date` and `warranty_end_date`, but lacks `total_warranty_services`, `dry_warranty_visits`, `jet_warranty_visits`, `pumpdown_warranty_visits`.
-- **Proposed Fix:** Apply migration `20261014000000_ac_asset_warranty_services.sql` to live database with non-negative checks and sum invariant constraint.
-- **Regression Tests:** Integration test executed against PostgreSQL 17 engine via transaction-isolated rollback; verified allocation check constraint `total = dry + jet + pumpdown` and non-negative constraints. Comprehensive frontend tests in `technologyAndAssetRegistration.test.tsx` and backend tests in `assetPersistence.test.ts` and `warrantyAllocation.test.ts` verify non-negative validation, sum invariant, and in-form feedback.
-- **Status:** **BATCH 2 CODE & TESTS COMPLETE — PENDING PRODUCTION MIGRATION DEPLOYMENT**.
+- **Backend Files:**
+  - [`server/src/routes/site.routes.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/routes/site.routes.ts)
+  - [`server/src/controllers/site.controller.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/controllers/site.controller.ts)
+  - [`server/src/validators/site.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/site.validator.ts)
+  - [`server/src/services/site.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/site.service.ts)
+- **Root Cause & Evidence:**
+  1. **Route Mounting Mismatch:** While `DOCS/PYS_API_DATABASE_CONTRACT_MATRIX.md` specified direct `POST /api/v1/sites` and `GET /api/v1/sites?customerId=UUID`, `site.routes.ts` previously only mounted `:siteId` subroutes (`/:siteId`, `/:siteId/primary`, `/:siteId/status`) and lacked root `GET /` and `POST /` handlers.
+  2. **Controller Parameter Extraction:** `site.controller.ts` only looked for `req.params.customerId`, ignoring `req.body.customerId` (on POST) and `req.query.customerId` (on GET).
+  3. **Service Layer Null Edge Case:** In `siteService.createSite`, `existingSiteCount` was nullable (`data === null` when no rows existed). When an initial site was created, `willBePrimary` was true, and the service attempted to execute primary site demotion queries when 0 sites existed, triggering database conflict/error.
+- **Completed Fix:**
+  1. Added `createDirectSiteSchema` (requiring `customerId` in body) and `listDirectSitesSchema` (requiring `customerId` in query) to `server/src/validators/site.validator.ts`.
+  2. Mounted direct `GET /` and `POST /` routes in `server/src/routes/site.routes.ts` alongside existing `:siteId` routes.
+  3. Updated `site.controller.ts` to read `customerId` from `req.params.customerId || req.body.customerId` on POST, and `req.params.customerId || req.query.customerId` on GET.
+  4. Hardened `site.service.ts` to safely evaluate `siteCount = existingSiteCount ?? 0` and only execute primary site demotion if `willBePrimary && siteCount > 0`.
+- **Regression Tests Verified:**
+  - `server/tests/siteRoutes.test.ts`: Added 8 new regression tests (tests 9-16) covering direct `POST /api/v1/sites` with body `customerId`, 422 validations for missing/invalid customer ID and short site name/address, 404 for missing customer, 400 for database failure, and direct `GET /api/v1/sites?customerId=...`. All 16 site tests pass cleanly.
+- **Status:** **RESOLVED & VERIFIED IN TESTS**.
 
 ---
 

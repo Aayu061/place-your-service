@@ -8,6 +8,8 @@ import {
   siteIdParamSchema,
   updateSiteSchema,
   updateSiteStatusSchema,
+  listDirectSitesSchema,
+  createDirectSiteSchema,
 } from '../validators/site.validator.js';
 import {
   listSiteAssetsSchema,
@@ -18,6 +20,20 @@ const siteRouter = Router();
 
 // All Site endpoints require active authentication and either ADMIN or STAFF role
 siteRouter.use(requireAuth, requireRole('ADMIN', 'STAFF'));
+
+// 0a. List customer sites directly via query param (GET /api/v1/sites?customerId=UUID)
+siteRouter.get(
+  '/',
+  validate(listDirectSitesSchema),
+  siteController.listCustomerSites.bind(siteController)
+);
+
+// 0b. Create site directly (POST /api/v1/sites with customerId in body)
+siteRouter.post(
+  '/',
+  validate(createDirectSiteSchema),
+  siteController.createSite.bind(siteController)
+);
 
 // 1. Get site by ID
 siteRouter.get(

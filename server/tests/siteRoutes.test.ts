@@ -440,4 +440,298 @@ describe('Customer Sites Management API (/api/v1/customers/:customerId/sites & /
     expect(res.status).toBe(400);
     expect(res.body.error.message).toContain('active AC asset(s)');
   });
+
+  it('9. Direct POST /api/v1/sites creates site when customerId is provided in body', async () => {
+    const directPayload = {
+      customerId: sampleCustomerId,
+      siteName: 'Direct Site Navi Mumbai',
+      address: '77 Palm Beach Road',
+      contactPerson: 'Aditya Roy',
+      contactPhone: '9876543299',
+    };
+
+    const directCreatedRow = {
+      id: '55555555-5555-5555-5555-555555555555',
+      customer_id: sampleCustomerId,
+      site_name: 'Direct Site Navi Mumbai',
+      address: '77 Palm Beach Road',
+      contact_person: 'Aditya Roy',
+      contact_phone: '9876543299',
+      contact_email: null,
+      is_primary: true,
+      is_active: true,
+      notes: null,
+      created_at: '2026-10-15T10:00:00Z',
+      updated_at: '2026-10-15T10:00:00Z',
+      customers: {
+        name: 'Acme Commercial Ltd',
+        customer_code: 'CUST-100200',
+      },
+    };
+
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const authHandler = setupAuthMock('STAFF')(table);
+        if (authHandler.select) return authHandler;
+
+        if (table === 'customers') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleCustomer, error: null }),
+          };
+        }
+        if (table === 'customer_sites') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            insert: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({ data: directCreatedRow, error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+          };
+        }
+        return {};
+      }),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send(directPayload);
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.site.siteName).toBe('Direct Site Navi Mumbai');
+    expect(res.body.data.site.contactPerson).toBe('Aditya Roy');
+  });
+
+  it('10. Direct POST /api/v1/sites rejects request missing customerId with 422', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => setupAuthMock('STAFF')(table)),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send({
+        siteName: 'Missing Customer Site',
+        address: '100 Ocean View Road',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('11. Direct POST /api/v1/sites rejects invalid customerId UUID with 422', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => setupAuthMock('STAFF')(table)),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send({
+        customerId: 'not-a-uuid',
+        siteName: 'Invalid Customer UUID Site',
+        address: '100 Ocean View Road',
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('12. Direct POST /api/v1/sites rejects short siteName or address with 422', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => setupAuthMock('STAFF')(table)),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send({
+        customerId: sampleCustomerId,
+        siteName: 'A', // too short (< 2)
+        address: '12', // too short (< 3)
+      });
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('13. Direct POST /api/v1/sites returns 404 when referenced customer does not exist', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const authHandler = setupAuthMock('STAFF')(table);
+        if (authHandler.select) return authHandler;
+
+        if (table === 'customers') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          };
+        }
+        return {};
+      }),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send({
+        customerId: sampleCustomerId,
+        siteName: 'Non-Existent Customer Site',
+        address: '100 Ocean View Road',
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('14. POST site returns 400 Bad Request when database insertion fails', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockStaffUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const authHandler = setupAuthMock('STAFF')(table);
+        if (authHandler.select) return authHandler;
+
+        if (table === 'customers') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleCustomer, error: null }),
+          };
+        }
+        if (table === 'customer_sites') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            insert: vi.fn().mockReturnThis(),
+            single: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'duplicate key value violates unique constraint "idx_customer_sites_single_primary"' },
+            }),
+          };
+        }
+        return {};
+      }),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .post('/api/v1/sites')
+      .set('Authorization', staffAuthToken)
+      .send({
+        customerId: sampleCustomerId,
+        siteName: 'Duplicate Primary Site',
+        address: '100 Ocean View Road',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('BAD_REQUEST');
+    expect(res.body.error.message).toContain('Failed to create site');
+    expect(res.body.error.message).toContain('idx_customer_sites_single_primary');
+  });
+
+  it('15. Direct GET /api/v1/sites lists customer sites via query parameter', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => {
+        const authHandler = setupAuthMock('ADMIN')(table);
+        if (authHandler.select) return authHandler;
+
+        if (table === 'customers') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: sampleCustomer, error: null }),
+          };
+        }
+        if (table === 'customer_sites') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [sampleSite, sampleSite2],
+              error: null,
+              count: 2,
+            }),
+          };
+        }
+        if (table === 'ac_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({
+              data: [{ site_id: sampleSiteId }, { site_id: sampleSiteId }],
+              error: null,
+            }),
+          };
+        }
+        return {};
+      }),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get(`/api/v1/sites?customerId=${sampleCustomerId}`)
+      .set('Authorization', adminAuthToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.sites).toHaveLength(2);
+    expect(res.body.data.total).toBe(2);
+  });
+
+  it('16. Direct GET /api/v1/sites without customerId query param returns 422', async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: mockAdminUser }, error: null }),
+      },
+      from: vi.fn().mockImplementation((table: string) => setupAuthMock('ADMIN')(table)),
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get('/api/v1/sites')
+      .set('Authorization', adminAuthToken);
+
+    expect(res.status).toBe(422);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
 });

@@ -175,6 +175,10 @@ export class SiteService {
   ): Promise<SiteResponse> {
     const supabase = getSupabaseClient();
 
+    if (!customerId) {
+      throw new BadRequestError('Customer ID is required');
+    }
+
     // 1. Verify customer exists
     const { data: customer, error: custErr } = await supabase
       .from('customers')
@@ -192,16 +196,24 @@ export class SiteService {
       .select('*', { count: 'exact', head: true })
       .eq('customer_id', customerId);
 
+    const siteCount = existingSiteCount ?? 0;
     // If customer has 0 sites, default this new site to primary
-    const willBePrimary = payload.isPrimary === true || existingSiteCount === 0;
+    const willBePrimary = payload.isPrimary === true || siteCount === 0;
 
-    // 3. If will be primary, atomically demote existing primary sites first
-    if (willBePrimary) {
-      await supabase
+    // 3. If will be primary and customer already has sites, atomically demote existing primary sites first
+    if (willBePrimary && siteCount > 0) {
+      const { error: demoteErr } = await supabase
         .from('customer_sites')
         .update({ is_primary: false, updated_at: new Date().toISOString() })
         .eq('customer_id', customerId)
         .eq('is_primary', true);
+
+      if (demoteErr) {
+        logger.warn('Failed to demote previous primary site before inserting new primary', {
+          customerId,
+          error: demoteErr.message,
+        });
+      }
     }
 
     // 4. Insert new site

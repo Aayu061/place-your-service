@@ -174,4 +174,220 @@ describe('Requirement C: Warranty Service Allocation Invariant', () => {
     expect(result.isValid).toBe(false);
     expect(result.error).toContain('all visit types (Dry, Jet, Pumpdown) must be provided');
   });
+
+  describe('Comprehensive Allocation Permutations & Edge Cases', () => {
+    it('accepts all-zero allocation when total is zero (0 = 0 + 0 + 0)', () => {
+      const res = validateWarrantyAllocation({
+        totalWarrantyServices: 0,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      });
+      expect(res.isValid).toBe(true);
+      expect(res.isExplicitAllocation).toBe(true);
+      expect(res.error).toBeUndefined();
+    });
+
+    it('accepts each single-type allocation (100% Dry, 100% Jet, 100% Pumpdown)', () => {
+      // 100% Dry
+      const dryOnly = validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 3,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      });
+      expect(dryOnly.isValid).toBe(true);
+
+      // 100% Jet
+      const jetOnly = validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 4,
+        pumpdownWarrantyVisits: 0,
+      });
+      expect(jetOnly.isValid).toBe(true);
+
+      // 100% Pumpdown
+      const pumpdownOnly = validateWarrantyAllocation({
+        totalWarrantyServices: 2,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 2,
+      });
+      expect(pumpdownOnly.isValid).toBe(true);
+    });
+
+    it('accepts every two-type split combination', () => {
+      // Dry + Jet split (Pumpdown = 0)
+      const dryJet = validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 3,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 0,
+      });
+      expect(dryJet.isValid).toBe(true);
+
+      // Dry + Pumpdown split (Jet = 0)
+      const dryPump = validateWarrantyAllocation({
+        totalWarrantyServices: 5,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 3,
+      });
+      expect(dryPump.isValid).toBe(true);
+
+      // Jet + Pumpdown split (Dry = 0)
+      const jetPump = validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 3,
+      });
+      expect(jetPump.isValid).toBe(true);
+    });
+
+    it('accepts three-type allocations across various sums', () => {
+      // Equal split
+      const equal3 = validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1,
+      });
+      expect(equal3.isValid).toBe(true);
+
+      // Varied split
+      const varied = validateWarrantyAllocation({
+        totalWarrantyServices: 6,
+        dryWarrantyVisits: 3,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 1,
+      });
+      expect(varied.isValid).toBe(true);
+
+      // Large allocation
+      const large = validateWarrantyAllocation({
+        totalWarrantyServices: 10,
+        dryWarrantyVisits: 5,
+        jetWarrantyVisits: 3,
+        pumpdownWarrantyVisits: 2,
+      });
+      expect(large.isValid).toBe(true);
+    });
+
+    it('handles explicit zero values for any service type', () => {
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 2,
+      }).isValid).toBe(true);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 2,
+      }).isValid).toBe(true);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(true);
+    });
+
+    it('rejects mismatched totals (both under-allocation and over-allocation)', () => {
+      // Over-allocation (sum > total)
+      const over = validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 1, // sum = 5
+      });
+      expect(over.isValid).toBe(false);
+      expect(over.error).toContain('Allocation mismatch');
+
+      // Under-allocation (sum < total)
+      const under = validateWarrantyAllocation({
+        totalWarrantyServices: 4,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1, // sum = 3
+      });
+      expect(under.isValid).toBe(false);
+      expect(under.error).toContain('Allocation mismatch');
+
+      // Zero total with non-zero visits
+      const zeroMismatch = validateWarrantyAllocation({
+        totalWarrantyServices: 0,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      });
+      expect(zeroMismatch.isValid).toBe(false);
+      expect(zeroMismatch.error).toContain('Allocation mismatch');
+    });
+
+    it('rejects negative values in any field', () => {
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: -1,
+        dryWarrantyVisits: 0,
+        jetWarrantyVisits: 0,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: -1,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: 2,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: -1,
+        pumpdownWarrantyVisits: 2,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 2,
+        jetWarrantyVisits: 2,
+        pumpdownWarrantyVisits: -1,
+      }).isValid).toBe(false);
+    });
+
+    it('rejects decimals in any field', () => {
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3.5,
+        dryWarrantyVisits: 1.5,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 1.5,
+        jetWarrantyVisits: 1.5,
+        pumpdownWarrantyVisits: 0,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1.25,
+        pumpdownWarrantyVisits: 0.75,
+      }).isValid).toBe(false);
+
+      expect(validateWarrantyAllocation({
+        totalWarrantyServices: 3,
+        dryWarrantyVisits: 1,
+        jetWarrantyVisits: 1,
+        pumpdownWarrantyVisits: 1.001,
+      }).isValid).toBe(false);
+    });
+  });
 });

@@ -6,7 +6,7 @@ import { SiteListQuery } from '../types/index.js';
 export class SiteController {
   public async listCustomerSites(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customerId = req.params.customerId as string;
+      const customerId = (req.params.customerId || req.query.customerId) as string;
       const result = await siteService.listCustomerSites(customerId, req.query as SiteListQuery);
       sendSuccess(
         res,
@@ -41,7 +41,7 @@ export class SiteController {
 
   public async createSite(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customerId = req.params.customerId as string;
+      const customerId = (req.params.customerId || req.body.customerId) as string;
       const site = await siteService.createSite(
         customerId,
         req.body,
