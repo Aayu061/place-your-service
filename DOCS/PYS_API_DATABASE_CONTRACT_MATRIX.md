@@ -114,10 +114,10 @@
 
 | Method | Endpoint | Role | Request Schema | Response Schema | Backend Handler | DB Tables Mutated | Side Effects | Test Coverage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/service-reports` | `ADMIN`, `STAFF` | Query: `{ customerId?, technicianId?, status?, limit?, offset? }` | `{ success: true, data: ServiceReport[], total }` | `reportController.list` | None | Joins customer, schedule, technician | `serviceReport.test.ts` (Int) |
-| `GET` | `/api/v1/service-reports/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: ServiceReportDetail }` | `reportController.getById` | None | Loads snapshot assets, items, parts | `serviceReport.test.ts` (Int) |
+| `GET` | `/api/v1/service-reports` | `ADMIN`, `STAFF` | Query: `{ customerId?, technicianId?, status?, limit?, offset? }` | `{ success: true, data: ServiceReport[], total }` | `reportController.list` | None | Joins customer, schedule, technician; redacts `technicianPhone: null` | `serviceReportRoutes.test.ts` (Int) |
+| `GET` | `/api/v1/service-reports/:id` | `ADMIN`, `STAFF` | Params: `{ id: UUID }` | `{ success: true, data: ServiceReportDetail }` | `reportController.getById` | None | Loads snapshot assets, items, parts, assistantName; redacts `technicianPhone: null` | `serviceReportRoutes.test.ts` (Int) |
 | `POST`| `/api/v1/service-reports` | `ADMIN`, `STAFF` | `{ serviceScheduleId, technicianId, assistantName?, serviceDate, workDescription?, observations?, actionTaken?, recommendation?, customerFeedback?, primaryOutcome, assetSnapshots: [], items: [], partsUsed: [] }` | `{ success: true, data: ServiceReport }` | `reportController.create` | `service_reports`, `service_report_assets`, `service_report_items`, `service_schedules`, `activity_logs` | Marks schedule `COMPLETED`. Enqueues async customer email | `serviceReport.service.test.ts` |
-| `PATCH`| `/api/v1/service-reports/:id`| `ADMIN`, `STAFF` | `{ workDescription?, observations?, actionTaken?, recommendation?, technicianRemarks? }` | `{ success: true, data: ServiceReport }` | `reportController.update` | `service_reports`, `activity_logs` | Updates editable remarks | `serviceReport.service.test.ts` |
+| `PATCH`| `/api/v1/service-reports/:id`| `ADMIN`, `STAFF` | `{ assistantName?, workDescription?, observations?, actionTaken?, recommendation?, technicianRemarks? }` | `{ success: true, data: ServiceReport }` | `reportController.update` | `service_reports`, `activity_logs` | Updates editable remarks and assistant name | `serviceReportRoutes.test.ts` (Int) |
 | `POST`| `/api/v1/service-reports/:id/resolve`| `ADMIN`, `STAFF` | `{ resolvingReportId: UUID, resolvedNotes: string }` | `{ success: true, data: ServiceReport }` | `reportController.resolveIssue` | `service_reports`, `activity_logs` | Resolves prior follow-up ticket | `serviceResolution.test.ts` |
 
 ---
@@ -132,13 +132,15 @@
 >    - Migration: `20261014000000_ac_asset_warranty_services.sql` inspected, and non-negative constraints along with allocation check invariant (`total = dry + jet + pumpdown`) were validated against the PostgreSQL 17 engine via an isolated transactional rollback execution.
 >    - Live DB: Columns do not yet exist on `public.ac_assets` on production (`jvccvdxfilzlncbgiplk`) due to production hold restriction. Queued in Production Migration Plan. Outstanding blocker until schema deployment is approved.
 > 
-> 2. **Assistant Name Schema & Validator Alignment (Batch 1 Complete, Pending Production Migration):**
+> 2. **Assistant Name Schema & Flow (Batch 3 Code & Tests Complete, Pending Production Migration):**
 >    - Migration: `20261014010000_service_schedule_and_report_assistant_name.sql` authored with additive `assistant_name TEXT NULL` on `public.service_schedules` and `public.service_reports`, tested via transactional rollback on PostgreSQL 17 engine.
->    - Backend & Frontend: `ServiceSchedule` and `ServiceReport` interfaces, types, validators (`schedule.validator.ts`, `serviceReport.validator.ts`), and services updated and verified with automated regression tests (`assistantNameValidation.test.ts`).
->    - Live DB: Queued in Production Migration Plan.
+>    - Backend & Frontend: `ServiceSchedule` and `ServiceReport` interfaces, types, validators (`schedule.validator.ts`, `serviceReport.validator.ts`), and services updated. Frontend `ServiceVisitReportModal.tsx` adds editable `#assistant-name-input` prefilled from schedule; table, drawer, and print views display technician and assistant names distinctly. Verified with automated regression tests (`assistantNameValidation.test.ts`, `serviceReportRoutes.test.ts`, `serviceReports.test.tsx`).
+>    - Live DB: Columns pending execution on live production database under change freeze.
 > 
-> 3. **Technician Phone Exposure:**
->    - Backend includes `technician.phone` in `getReportById` response; frontend `ServiceReportsManagement.tsx` displayed this to users. Must be removed from customer-facing views (Batch 3).
+> 3. **Technician Phone Exposure (RESOLVED in Batch 3):**
+>    - Redacted `technicianPhone: null` in backend report endpoints (`getReportById`, `getReports`) and omitted `phone` from Supabase join queries.
+>    - Completely removed technician phone number from customer-facing report detail drawer in `ServiceReportsManagement.tsx` and printable receipt `ServiceReportPrintView.tsx`.
+>    - Retained full technician phone number access in internal `TechnicianManagement.tsx` (directory table and profile drawer) and authoritative `technicians` table. Verified with regression tests in `serviceReports.test.tsx`, `serviceReportRoutes.test.ts`, and `technicians.test.tsx`.
 > 
 > 4. **Missing Customer Email in Report Payload:**
 >    - `serviceReport.service.ts` query selects `customers (id, name, customer_code, phone)` but omits `email`, making auto-email impossible without an extra lookup (Batch 5).

@@ -13,8 +13,8 @@
 | Defect ID | Priority | Feature Module | Title | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | **PYS-A1** | **P1** | Service Reports | Automatic Customer Email Delivery Missing | **CONFIRMED DEFECT** |
-| **PYS-A2** | **P2** | Service Reports | Technician Contact Phone Number Exposed on Customer Views | **CONFIRMED DEFECT** |
-| **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 1 SCHEMA & VALIDATORS COMPLETE (PENDING PROD MIGRATION & UI)** |
+| **PYS-A2** | **P2** | Service Reports | Technician Contact Phone Number Exposed on Customer Views | **RESOLVED IN BATCH 3** |
+| **PYS-A3** | **P1** | Service Reports | Assistant Name Missing from Schema and Service Report Entry | **BATCH 3 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
 | **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
 | **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **BATCH 2 CODE & TESTS COMPLETE (PENDING PROD MIGRATION)** |
@@ -111,14 +111,20 @@
   1. Open `ServiceReportsManagement`.
   2. View any completed report detail drawer or open `ServiceReportPrintView`.
 - **Expected Behavior:** Technician's name is displayed, but their private phone number is redacted from all customer-facing views, printable receipts, and email templates. Phone number must remain accessible in Admin/Staff Technician Management only.
-- **Actual Behavior:** Line 1188 of [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx) explicitly renders:
-  `<div>Phone: {detailedReport.technicianPhone}</div>`.
-- **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/service/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/service/ServiceReportPrintView.tsx).
+- **Actual Behavior:** Previously, line 1188 of [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx) explicitly rendered `Phone: {detailedReport.technicianPhone}`, and the backend included technician phone in report payloads.
+- **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/serviceReports/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceReportPrintView.tsx).
 - **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts).
-- **Root Cause & Evidence:** Direct code match in UI and print components.
-- **Proposed Fix:** Remove `technicianPhone` from customer-facing report drawer, print view, and future email template. Keep `phone` in internal `TechnicianManagement.tsx`.
-- **Regression Tests:** Verify UI component and print view do not render technician phone number.
-- **Status:** **CONFIRMED DEFECT (P2)**.
+- **Root Cause & Evidence:** Direct code match in UI and print components, as well as database join projection of `technicians(id, name, technician_code, phone)`.
+- **Completed Fix (Batch 3):**
+  1. Removed `technicianPhone` line completely from the customer-facing report detail drawer in `ServiceReportsManagement.tsx`.
+  2. Verified and asserted that technician phone is absent from `ServiceReportPrintView.tsx`.
+  3. Hardened backend privacy by omitting `phone` from Supabase join queries (`technicians (id, name, technician_code)`) and mapping `technicianPhone: null` in all report endpoints (`getReportById` and `getReports`).
+  4. Retained authoritative technician phone numbers in internal `TechnicianManagement.tsx` (directory table and detail profile drawer) and the `technicians` table.
+- **Regression Tests:**
+  - `src/tests/serviceReports.test.tsx` (tests 29, 30): Verified technician phone is absent from report detail drawer and print view DOM.
+  - `src/tests/technicians.test.tsx` (test 9): Verified technician phone remains accessible in internal technician management table and detail drawer.
+  - `server/tests/serviceReportRoutes.test.ts` (test 22): Verified backend returns `technicianPhone: null` on report endpoints.
+- **Status:** **RESOLVED IN BATCH 3**.
 
 ---
 
@@ -130,18 +136,23 @@
   2. Observe technician name is displayed.
   3. Look for assistant name input or display.
 - **Expected Behavior:** Both the assigned technician's name and the assistant's name are visible, editable, saved in database, and displayed on service reports and print views.
-- **Actual Behavior:** There is no field, column, or API parameter for assistant name.
-- **Frontend Files:** [`src/components/service/ServiceVisitReportModal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/service/ServiceVisitReportModal.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx).
+- **Actual Behavior:** Initially, there was no field, column, or API parameter for assistant name.
+- **Frontend Files:** [`src/components/serviceReports/ServiceVisitReportModal.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceVisitReportModal.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx), [`src/components/serviceReports/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceReportPrintView.tsx), [`src/domain/types.ts`](file:///c:/Users/aayup/Desktop/PYS/src/domain/types.ts).
 - **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/src/validators/serviceReport.validator.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/validators/serviceReport.validator.ts).
-- **Database / Schema:** `public.service_reports` and `public.service_schedules` lack `assistant_name` column.
-- **Root Cause & Evidence:** Schema inspection via Supabase MCP confirmed absence of `assistant_name` in both tables.
-- **Proposed Fix:**
-  1. Create migration adding `assistant_name TEXT NULL` to `service_schedules` and `service_reports` (`20261014010000_service_schedule_and_report_assistant_name.sql`).
-  2. Update validators and services to accept and persist `assistantName` (Completed in Batch 1).
-  3. Add input in `ServiceVisitReportModal.tsx`, prefilling from schedule if present (Batch 3).
-  4. Render both names in report details, tables, and print view (Batch 3).
-- **Regression Tests:** Authored `server/tests/assistantNameValidation.test.ts` (7 tests covering schedule and report validation). DDL and rollback tested on PostgreSQL 17 engine.
-- **Status:** **BATCH 1 SCHEMA & VALIDATORS COMPLETE (PENDING PROD MIGRATION & UI)**.
+- **Database / Schema:** Migration `supabase/migrations/20261014010000_service_schedule_and_report_assistant_name.sql` adds `assistant_name TEXT NULL` to `service_schedules` and `service_reports`. Held under production change freeze.
+- **Root Cause & Evidence:** Schema inspection via Supabase MCP confirmed absence of `assistant_name` column on live production database.
+- **Completed Fix (Batch 1 & Batch 3):**
+  1. Created migration `20261014010000_service_schedule_and_report_assistant_name.sql` adding `assistant_name` to `service_schedules` and `service_reports`.
+  2. Updated backend validators (`schedule.validator.ts`, `serviceReport.validator.ts`) and TypeScript typings in Batch 1.
+  3. Added editable `#assistant-name-input` in `ServiceVisitReportModal.tsx` prefilled from schedule, while allowing staff to edit or clear for the visit (Batch 3).
+  4. Added `assistantName?: string | null` to `UpdateServiceReportPayload` in `src/domain/types.ts` and wired persistence in `serviceReport.service.ts` for both create and update operations (Batch 3).
+  5. Safely handled blank or absent assistant names without inventing placeholder names (Batch 3).
+  6. Rendered both technician and assistant names distinctly in report table, detail drawer, and print view (Batch 3).
+- **Regression Tests:**
+  - `server/tests/assistantNameValidation.test.ts`: 7 tests covering schedule and report validation.
+  - `server/tests/serviceReportRoutes.test.ts` (tests 22, 23): Verified assistant name mapping, persistence, and safe handling of null/empty names.
+  - `src/tests/serviceReports.test.tsx` (tests 27, 28, 29, 30): Verified assistant name prefill, editing, persistence, blank handling, separated rendering, and absence of technician phone.
+- **Status:** **BATCH 3 CODE & TESTS COMPLETE — PENDING PRODUCTION MIGRATION DEPLOYMENT**.
 
 ---
 

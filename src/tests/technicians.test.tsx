@@ -339,4 +339,40 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
 
     unmount();
   });
+
+  it('9. Retains technician phone access in directory table and detail drawer for internal administration', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes(`/technicians/${sampleTechnician.id}`)) {
+        return {
+          technician: sampleTechnician,
+        } as never;
+      }
+      return {
+        technicians: [sampleTechnician],
+        total: 1,
+      } as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    // Verify phone is visible in internal management table
+    expect(container.textContent).toContain('9876543210');
+
+    // Click View to open drawer
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    expect(viewBtn).toBeDefined();
+
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    // Verify phone is retained in internal management drawer
+    expect(document.body.textContent).toContain('Primary Phone:');
+    expect(document.body.textContent).toContain('9876543210');
+
+    unmount();
+  });
 });
+

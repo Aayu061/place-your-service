@@ -1683,4 +1683,202 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     expect(asset.floorLocation).toBe('1st Floor');
     expect(asset.roomLocation).toBe('Hall');
   });
+
+  // =========================================================================
+  // 12. Batch 3: Assistant Name Persistence & Technician Privacy Hardening
+  // =========================================================================
+  it('22. Returns assistantName and redacts technicianPhone from report details for privacy hardening', async () => {
+    const authMock = setupAuth('STAFF');
+
+    const reportRowWithAssistant = {
+      ...sampleFullReportRow,
+      assistant_name: 'Prakash Sharma',
+      technicians: { id: sampleTechId, name: 'Raj Patel', technician_code: 'TECH-0001' },
+    };
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: reportRowWithAssistant, error: null }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get(`/api/v1/service-reports/${sampleReportId}`)
+      .set('Authorization', staffAuthToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.report.technicianName).toBe('Raj Patel');
+    expect(res.body.data.report.assistantName).toBe('Prakash Sharma');
+    // Privacy assertion: technicianPhone must be redacted (null)
+    expect(res.body.data.report.technicianPhone).toBeNull();
+  });
+
+  it('23. Persists custom assistantName on report creation and safely handles blank or absent assistant names', async () => {
+    const authMock = setupAuth('STAFF');
+
+    let insertedReportData: any = null;
+
+    const mockSupabase = {
+      ...authMock,
+      from: (table: string) => {
+        if (table === 'profiles' || table === 'staff') return authMock.from(table);
+        if (table === 'service_schedules') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: {
+                ...sampleScheduleSrRecord,
+                assistant_name: 'Scheduled Helper Initial',
+              },
+              error: null,
+            }),
+            update: vi.fn().mockReturnThis(),
+          };
+        }
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            neq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockImplementation(() => {
+              if (insertedReportData) {
+                return Promise.resolve({
+                  data: {
+                    ...sampleFullReportRow,
+                    ...insertedReportData,
+                  },
+                  error: null,
+                });
+              }
+              return Promise.resolve({ data: null, error: null });
+            }),
+            insert: vi.fn().mockImplementation((payload) => {
+              insertedReportData = payload;
+              return {
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: sampleReportId, ...payload },
+                    error: null,
+                  }),
+                }),
+              };
+            }),
+            update: vi.fn().mockReturnThis(),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'service_report_items') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'service_requests') {
+          return {
+            update: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        if (table === 'ac_assets') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({ data: [{ id: sampleAssetId }], error: null }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        return {};
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    // Case A: Staff enters custom assistant name
+    const payloadWithAssistant = {
+      reportNumber: 'REP-2026-ASST-01',
+      scheduleId: sampleScheduleId,
+      visitType: 'SERVICE_REQUEST',
+      serviceDate: '2026-10-15',
+      primaryOutcome: 'COMPLETED',
+      workDescription: 'Work completed with custom assistant',
+      assistantName: 'Mahesh Field Assistant',
+      assets: [
+        {
+          assetId: sampleAssetId,
+          assetOutcome: 'COMPLETED',
+          workPerformed: 'Checked refrigerant pressures and cleaned blower',
+        },
+      ],
+    };
+
+    const resA = await request(app)
+      .post('/api/v1/service-reports')
+      .set('Authorization', staffAuthToken)
+      .send(payloadWithAssistant);
+
+    expect(resA.status).toBe(201);
+    expect(resA.body.success).toBe(true);
+    expect(insertedReportData.assistant_name).toBe('Mahesh Field Assistant');
+
+    // Case B: Blank / absent assistant name safely sets null without error
+    insertedReportData = null;
+    const payloadWithoutAssistant = {
+      reportNumber: 'REP-2026-ASST-02',
+      scheduleId: sampleScheduleId,
+      visitType: 'SERVICE_REQUEST',
+      serviceDate: '2026-10-15',
+      primaryOutcome: 'COMPLETED',
+      workDescription: 'Work completed alone without assistant',
+      assistantName: '',
+      assets: [
+        {
+          assetId: sampleAssetId,
+          assetOutcome: 'COMPLETED',
+          workPerformed: 'Solo technician completed filter change',
+        },
+      ],
+    };
+
+    const resB = await request(app)
+      .post('/api/v1/service-reports')
+      .set('Authorization', staffAuthToken)
+      .send(payloadWithoutAssistant);
+
+    expect(resB.status).toBe(201);
+    expect(resB.body.success).toBe(true);
+    expect(insertedReportData.assistant_name).toBeNull();
+  });
 });

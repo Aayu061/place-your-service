@@ -562,6 +562,13 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
               {report.technicianCode && <span style={{ color: '#64748b' }}>[{report.technicianCode}]</span>}
             </div>
 
+            {report.assistantName && (
+              <div style={{ marginTop: '8px' }}>
+                <div className="pys-field-label">Assistant / Helper</div>
+                <div className="pys-field-value">{report.assistantName}</div>
+              </div>
+            )}
+
             {report.amcContractNumber && (
               <div style={{ marginTop: '8px' }}>
                 <div className="pys-field-label">Linked AMC Contract</div>
@@ -782,7 +789,12 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           </div>
           <div>
             <div className="pys-field-label">Attending Service Technician</div>
-            <div className="pys-field-value">{report.technicianName}</div>
+            <div className="pys-field-value">{report.technicianName || 'N/A'}</div>
+            {report.assistantName && (
+              <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                Assistant: {report.assistantName}
+              </div>
+            )}
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
               Place Your Service Operational Staff
             </div>

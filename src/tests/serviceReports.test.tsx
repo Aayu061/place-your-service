@@ -216,7 +216,8 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
   };
 
   const setInputValue = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
-    const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const isTextArea = element.tagName === 'TEXTAREA' || (typeof HTMLTextAreaElement !== 'undefined' && element instanceof HTMLTextAreaElement);
+    const prototype = isTextArea ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const nativeValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
     if (nativeValueSetter) {
       nativeValueSetter.call(element, value);
@@ -1430,6 +1431,220 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     // Check Pending for Parts & Pending for Repairs values in UI
     expect(container.textContent).toContain('Pending for Repairs');
     expect(container.textContent).toContain('Pending for Parts');
+
+    unmount();
+  });
+
+  it('27. ServiceVisitReportModal renders assistant name input, prefills from schedule, and allows staff to edit before submitting', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+    const createSpy = vi.spyOn(serviceReportApi, 'createReport').mockResolvedValueOnce({
+      report: mockCompletedReport,
+    } as never);
+
+    const scheduleWithAssistant: ServiceSchedule = {
+      ...sampleSchedule,
+      technicianName: 'Raj Patel',
+      technicianCode: 'TECH-0001',
+      assistantName: 'Sanjay Assistant',
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={scheduleWithAssistant}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // 1. Verify Assigned Technician and Assistant are displayed clearly and separately
+    expect(container.textContent).toContain('Assigned Technician');
+    expect(container.textContent).toContain('Raj Patel');
+    expect(container.textContent).toContain('Scheduled Asst: Sanjay Assistant');
+
+    // 2. Verify assistant-name-input exists and prefills from schedule
+    const assistantInput = container.querySelector('#assistant-name-input') as HTMLInputElement;
+    expect(assistantInput).not.toBeNull();
+    expect(assistantInput.value).toBe('Sanjay Assistant');
+
+    // 3. Staff modifies the assistant name before submitting
+    await act(async () => {
+      setInputValue(assistantInput, 'Ramesh Helper');
+    });
+    expect(assistantInput.value).toBe('Ramesh Helper');
+
+    // 4. Fill required report number and work description
+    const reportNumInput = container.querySelector('#manual-report-number-input') as HTMLInputElement;
+    setInputValue(reportNumInput, 'SVR-2026-ASST-01');
+
+    const workInput = container.querySelector(
+      'input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]'
+    ) as HTMLInputElement;
+    if (workInput) {
+      setInputValue(workInput, 'Completed coil wash and motor testing with assistant.');
+    }
+
+    // 5. Submit report
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    // 6. Assert assistantName was persisted in the createReport payload
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportNumber: 'SVR-2026-ASST-01',
+        assistantName: 'Ramesh Helper',
+      })
+    );
+    expect(handleSuccess).toHaveBeenCalled();
+    expect(handleClose).toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it('28. ServiceVisitReportModal safely handles absent assistant name on schedule and allows submission without assistant name', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+    const createSpy = vi.spyOn(serviceReportApi, 'createReport').mockResolvedValueOnce({
+      report: mockCompletedReport,
+    } as never);
+
+    const scheduleWithoutAssistant: ServiceSchedule = {
+      ...sampleSchedule,
+      technicianName: 'Raj Patel',
+      technicianCode: 'TECH-0001',
+      assistantName: null,
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={scheduleWithoutAssistant}
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Verify assistant-name-input exists and is empty
+    const assistantInput = container.querySelector('#assistant-name-input') as HTMLInputElement;
+    expect(assistantInput).not.toBeNull();
+    expect(assistantInput.value).toBe('');
+
+    // Fill required report number and work description
+    const reportNumInput = container.querySelector('#manual-report-number-input') as HTMLInputElement;
+    setInputValue(reportNumInput, 'SVR-2026-SOLO-01');
+
+    const workInput = container.querySelector(
+      'input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]'
+    ) as HTMLInputElement;
+    if (workInput) {
+      setInputValue(workInput, 'Solo technician completed scheduled service.');
+    }
+
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportNumber: 'SVR-2026-SOLO-01',
+        assistantName: null,
+      })
+    );
+    expect(handleSuccess).toHaveBeenCalled();
+
+    unmount();
+  });
+
+  it('29. ServiceReportsManagement renders technician and assistant names separately, and technician phone is completely absent from DOM', async () => {
+    const reportWithAssistantAndPhone: ServiceVisitReport = {
+      ...mockCompletedReport,
+      id: 'rep-asst-101',
+      reportNumber: 'SVR-2026-ASST-REPORT',
+      technicianName: 'Raj Patel',
+      technicianCode: 'TECH-0001',
+      technicianPhone: '9876543210',
+      assistantName: 'Kishore Field Assistant',
+    };
+
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValueOnce({
+      reports: [reportWithAssistantAndPhone],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+      summary: { total: 1, completed: 1, pendingParts: 0, pendingRepairs: 0 },
+    } as never);
+
+    vi.spyOn(serviceReportApi, 'getReportById').mockResolvedValueOnce({
+      report: reportWithAssistantAndPhone,
+    } as never);
+
+    const { container, unmount } = await renderComponent(<ServiceReportsManagement />);
+
+    // 1. Check Table row for technician and assistant
+    expect(container.textContent).toContain('Raj Patel');
+    expect(container.textContent).toContain('TECH-0001');
+    expect(container.textContent).toContain('Asst: Kishore Field Assistant');
+
+    // 2. Open Detail Drawer
+    const viewBtn = container.querySelector('button[title="View Details"]') as HTMLButtonElement;
+    expect(viewBtn).toBeDefined();
+
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    // 3. Detail drawer verification
+    expect(container.textContent).toContain('Attending Technician');
+    expect(container.textContent).toContain('Raj Patel');
+    expect(container.textContent).toContain('Assistant / Helper');
+    expect(container.textContent).toContain('Kishore Field Assistant');
+
+    // 4. Privacy assertion: technician phone must NOT appear anywhere in the customer-facing report DOM
+    expect(container.textContent).not.toContain('9876543210');
+    expect(container.textContent).not.toContain('Phone: 9876543210');
+
+    unmount();
+  });
+
+  it('30. ServiceReportPrintView renders technician and assistant names separately, and technician phone is absent from print view', async () => {
+    const handleClose = vi.fn();
+    const printReportWithAssistant: ServiceVisitReport = {
+      ...mockCompletedReport,
+      reportNumber: 'SVR-2026-PRINT-ASST',
+      technicianName: 'Raj Patel',
+      technicianCode: 'TECH-0001',
+      technicianPhone: '9892001122',
+      assistantName: 'Dinesh Helper',
+    };
+
+    const { container, unmount } = await renderComponent(
+      <ServiceReportPrintView report={printReportWithAssistant} onClose={handleClose} />
+    );
+
+    // 1. Attribution section check
+    expect(container.textContent).toContain('Assigned Technician');
+    expect(container.textContent).toContain('Raj Patel');
+    expect(container.textContent).toContain('Assistant / Helper');
+    expect(container.textContent).toContain('Dinesh Helper');
+
+    // 2. Signature section check
+    expect(container.textContent).toContain('Attending Service Technician');
+    expect(container.textContent).toContain('Assistant: Dinesh Helper');
+
+    // 3. Privacy hardening check: technician phone is absent from printable document
+    expect(container.textContent).not.toContain('9892001122');
+    expect(container.textContent).not.toContain('Phone:');
 
     unmount();
   });

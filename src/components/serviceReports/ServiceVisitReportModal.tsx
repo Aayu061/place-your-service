@@ -108,6 +108,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
   // Basic Form States
   const [reportNumber, setReportNumber] = useState<string>('');
+  const [assistantName, setAssistantName] = useState<string>('');
   const [visitDate, setVisitDate] = useState<string>('');
   const [startTime, setStartTime] = useState<string>('09:30');
   const [endTime, setEndTime] = useState<string>('11:45');
@@ -161,6 +162,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
     if (isOpen) {
       if (mode === 'edit' && initialReport) {
         setReportNumber(initialReport.reportNumber || '');
+        setAssistantName(initialReport.assistantName || schedule?.assistantName || '');
         setVisitDate(initialReport.serviceDate || '');
         setStartTime(initialReport.startTime || '09:30');
         setEndTime(initialReport.endTime || '11:45');
@@ -263,6 +265,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         }
       } else if (schedule) {
         setReportNumber('');
+        setAssistantName(schedule.assistantName || '');
         setVisitDate(schedule.scheduledDate || new Date().toISOString().slice(0, 10));
         setStartTime(schedule.startTime || '09:30');
         setEndTime(schedule.endTime || '11:45');
@@ -597,6 +600,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             ? serviceTypeDeviationReason.trim()
             : null,
         originatingReportId: originatingReportId || null,
+        assistantName: assistantName.trim() || null,
         workDescription: workDescription.trim() || null,
         technicianRemarks: technicianRemarks.trim() || null,
         customerRepresentative: customerRepresentative.trim() || null,
@@ -649,6 +653,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             plannedServiceType && performedServiceType && plannedServiceType !== performedServiceType
               ? serviceTypeDeviationReason.trim()
               : null,
+          assistantName: assistantName.trim() || null,
           workDescription: workDescription.trim() || null,
           technicianRemarks: technicianRemarks.trim() || null,
           customerRepresentative: customerRepresentative.trim() || null,
@@ -842,6 +847,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
                 [{schedule?.technicianCode || initialReport?.technicianCode || 'N/A'}]
               </span>
+              {(schedule?.assistantName || initialReport?.assistantName) && (
+                <span className="svr-context-sub" style={{ display: 'block', marginTop: '2px', color: 'var(--text-secondary)' }}>
+                  Scheduled Asst: {schedule?.assistantName || initialReport?.assistantName}
+                </span>
+              )}
             </div>
 
             <div className="svr-context-item">
@@ -924,6 +934,39 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 Physical carbon / booklet serial number
               </span>
             )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="assistant-name-input"
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                color: 'var(--text-secondary)',
+                marginBottom: '6px',
+              }}
+            >
+              Assistant Name (Optional)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Input
+                id="assistant-name-input"
+                value={assistantName}
+                onChange={(e) => {
+                  setAssistantName(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                placeholder="e.g. Ramesh Kumar"
+                disabled={isSubmitting}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+              Assisting technician or field helper on-site
+            </span>
           </div>
 
           <div>

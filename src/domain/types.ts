@@ -996,6 +996,7 @@ export interface UpdateServiceReportPayload {
   plannedServiceType?: PlannedServiceType | null;
   performedServiceType?: PerformedServiceType | null;
   serviceTypeDeviationReason?: string | null;
+  assistantName?: string | null;
   workDescription?: string | null;
   technicianRemarks?: string | null;
   customerRepresentative?: string | null;

@@ -250,7 +250,10 @@ export class ServiceReportService {
         customer_id: customerId,
         site_id: siteId,
         technician_id: technicianId,
-        assistant_name: payload.assistantName?.trim() || (schedule as any).assistant_name || null,
+        assistant_name:
+          payload.assistantName !== undefined
+            ? (payload.assistantName ? payload.assistantName.trim() || null : null)
+            : ((schedule as any).assistant_name || null),
         service_date: payload.serviceDate,
         start_time: payload.startTime || schedule.start_time || null,
         end_time: payload.endTime || schedule.end_time || null,
@@ -556,7 +559,7 @@ export class ServiceReportService {
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone),
         customer_sites (id, site_name, address),
-        technicians (id, name, technician_code, phone),
+        technicians (id, name, technician_code),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
         service_requests (id, request_number),
         amc_contracts (id, contract_number),
@@ -719,7 +722,7 @@ export class ServiceReportService {
       technicianId: row.technician_id,
       technicianName: (row.technicians as any)?.name || null,
       technicianCode: (row.technicians as any)?.technician_code || null,
-      technicianPhone: (row.technicians as any)?.phone || null,
+      technicianPhone: null,
       assistantName: (row as any).assistant_name || null,
       serviceDate: row.service_date,
       startTime: row.start_time,
@@ -801,7 +804,7 @@ export class ServiceReportService {
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone),
         customer_sites (id, site_name, address),
-        technicians (id, name, technician_code, phone),
+        technicians (id, name, technician_code),
         service_schedules!service_reports_service_schedule_id_fkey (id, schedule_number),
         follow_up_schedules:service_schedules!service_reports_follow_up_schedule_id_fkey (id, schedule_number, status),
         service_requests (id, request_number),
@@ -909,7 +912,7 @@ export class ServiceReportService {
       technicianId: row.technician_id,
       technicianName: row.technicians?.name || null,
       technicianCode: row.technicians?.technician_code || null,
-      technicianPhone: row.technicians?.phone || null,
+      technicianPhone: null,
       assistantName: row.assistant_name || null,
       serviceDate: row.service_date,
       startTime: row.start_time,
@@ -1059,6 +1062,9 @@ export class ServiceReportService {
     if (payload.performedServiceType !== undefined) updates.performed_service_type = payload.performedServiceType;
     if (payload.serviceTypeDeviationReason !== undefined) {
       updates.service_type_deviation_reason = payload.serviceTypeDeviationReason ? payload.serviceTypeDeviationReason.trim() : null;
+    }
+    if (payload.assistantName !== undefined) {
+      updates.assistant_name = payload.assistantName ? payload.assistantName.trim() || null : null;
     }
     if (payload.workDescription !== undefined) updates.work_description = payload.workDescription;
     if (payload.technicianRemarks !== undefined) updates.technician_remarks = payload.technicianRemarks;

@@ -65,16 +65,25 @@ graph TD
 ---
 
 ### Batch 3: Service Report Assistant Name & Privacy Hardening
+- **Status:** **COMPLETED IN APPLICATION CODE & TESTS (Pending Production Migration Deployment)**
 - **Goal:** Fix Defect A2 (remove technician phone from customer views) and Defect A3 (technician and assistant names).
-- **Tasks:**
-  1. **Schema & Typings:** Add `assistantName?: string` to `ServiceSchedule` and `ServiceReport` interfaces (frontend and backend).
-  2. **Service Report Modal:** Update `ServiceVisitReportModal.tsx` to display assigned technician and assistant name input (prefilled from schedule).
-  3. **Display & Print Views:**
-     - Update `ServiceReportsManagement.tsx` and `ServiceReportPrintView.tsx` to render both technician and assistant names.
-     - **Remove `technicianPhone`** from `ServiceReportsManagement.tsx` drawer, report table, and printable receipt.
-- **Tests to Add / Run:**
-  - `serviceVisitReportModal.test.tsx`: assert assistant name input presence and prefill.
-  - `serviceReportsManagement.test.tsx`: assert technician phone is absent from DOM.
+- **Completed Deliverables:**
+  1. **Assistant Name Capture & Persistence:**
+     - Added `#assistant-name-input` to `ServiceVisitReportModal.tsx` prefilled from schedule, allowing staff editing.
+     - Displayed assigned technician name clearly and separately from assistant name.
+     - Added `assistantName?: string | null` to `UpdateServiceReportPayload` in `src/domain/types.ts`.
+     - Persisted `assistant_name` in `serviceReport.service.ts` for both report creation and updates.
+     - Handled blank or absent assistant names safely without inventing placeholder values.
+     - Rendered separated technician and assistant names across `ServiceReportsManagement.tsx` (table and drawer) and `ServiceReportPrintView.tsx` (attribution and signatures).
+  2. **Technician Phone Privacy Hardening:**
+     - Removed `technicianPhone` completely from customer-facing report detail drawer in `ServiceReportsManagement.tsx` and printable receipt `ServiceReportPrintView.tsx`.
+     - Hardened backend privacy by omitting `phone` from Supabase join queries (`technicians (id, name, technician_code)`) and mapping `technicianPhone: null` in `serviceReport.service.ts`.
+     - Strictly retained technician contact phone in internal `TechnicianManagement.tsx` (table and profile drawer) and authoritative `technicians` table.
+- **Tests Added & Verified:**
+  - `src/tests/serviceReports.test.tsx` (tests 27, 28, 29, 30): Verified assistant name prefill, edit, persistence, blank handling, separated name rendering, and complete absence of technician phone from report drawer and print view.
+  - `src/tests/technicians.test.tsx` (test 9): Verified technician phone access is retained in internal technician management table and detail drawer.
+  - `server/tests/serviceReportRoutes.test.ts` (tests 22, 23): Verified assistant name mapping, persistence, blank safety, and `technicianPhone: null` redaction.
+  - Full test suites pass: 18/18 frontend test files (178 tests) and 24/24 backend test files (277 tests); both frontend and backend builds clean.
 
 ---
 

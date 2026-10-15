@@ -856,13 +856,18 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                       </div>
                     </td>
 
-                    {/* Attending Technician */}
+                    {/* Attending Technician & Assistant */}
                     <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <User size={12} style={{ color: 'var(--text-muted)' }} />
                         {report.technicianName || 'Unassigned'}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{report.technicianCode}</div>
+                      {report.assistantName && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Asst: {report.assistantName}
+                        </div>
+                      )}
                     </td>
 
                     {/* Outcome Badge */}
@@ -1183,9 +1188,16 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 <span className="text-slate-500 font-semibold mb-1 flex items-center gap-1">
                   <User size={13} className="text-blue-600" /> Attending Technician
                 </span>
-                <div className="font-bold text-slate-900">{detailedReport.technicianName}</div>
-                <div className="text-slate-600 mt-0.5">Code: {detailedReport.technicianCode}</div>
-                <div className="text-slate-500 text-[11px] mt-0.5">Phone: {detailedReport.technicianPhone}</div>
+                <div className="font-bold text-slate-900">{detailedReport.technicianName || 'Unassigned'}</div>
+                {detailedReport.technicianCode && (
+                  <div className="text-slate-600 mt-0.5">Code: {detailedReport.technicianCode}</div>
+                )}
+                {detailedReport.assistantName && (
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <span className="text-slate-500 font-semibold block text-[11px]">Assistant / Helper</span>
+                    <div className="font-medium text-slate-800">{detailedReport.assistantName}</div>
+                  </div>
+                )}
               </div>
             </div>
 
