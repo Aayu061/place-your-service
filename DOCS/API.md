@@ -347,10 +347,9 @@ All Site endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
 
 ### 9.1 List Customer Sites
 - **Method:** `GET`
-- **Route:** `/api/v1/customers/:customerId/sites`
-- **Params:** `customerId` (UUID)
-- **Query:** `includeInactive` (boolean, optional)
-- **Response:** `200 OK`
+- **Route:** `/api/v1/customers/:customerId/sites` or `/api/v1/sites`
+- **Query:** `customerId` (UUID, required if using direct `/api/v1/sites`), `status` (`ALL` | `ACTIVE` | `INACTIVE`), `search`, `page`, `pageSize`
+- **Response:** `200 OK` (Verified in production smoke test on commit `9cbf149`)
   ```json
   {
     "success": true,
@@ -387,15 +386,13 @@ All Site endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
 
 ### 9.3 Create Customer Site
 - **Method:** `POST`
-- **Route:** `/api/v1/customers/:customerId/sites`
-- **Request Body:**
+- **Route:** `/api/v1/customers/:customerId/sites` or `/api/v1/sites`
+- **Request Body (Direct Route):** Requires `customerId` in payload when calling `/api/v1/sites`:
   ```json
   {
+    "customerId": "UUID",
     "siteName": "Navi Mumbai Branch",
     "address": "Plot 42, Vashi Sector 17",
-    "city": "Navi Mumbai",
-    "state": "Maharashtra",
-    "postalCode": "400703",
     "contactPerson": "A. Patil",
     "contactPhone": "9820123456",
     "contactEmail": "branch@vashi.example",
@@ -403,7 +400,7 @@ All Site endpoints require `requireAuth` + `requireRole('ADMIN', 'STAFF')`.
     "notes": "Service gate on north wing"
   }
   ```
-- **Response:** `201 Created` with created site entity.
+- **Response:** `201 Created` with created site entity (Verified in production smoke test on commit `9cbf149`).
 - **Invariants:** If `isPrimary = true`, existing primary sites for this customer are atomically demoted. Audits `SITE_CREATED`.
 
 ### 9.4 Update Site

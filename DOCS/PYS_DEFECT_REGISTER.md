@@ -18,15 +18,15 @@
 | **PYS-B1** | **P1** | Excel Export | Missing `.xlsx` Exports for Customers, Schedules, Reports & Expiry | **CONFIRMED DEFECT** |
 | **PYS-C1** | **P2** | AC Master / Assets | Refrigerant Default Selection Cascade and Override Flaws | **RESOLVED IN BATCH 2** |
 | **PYS-C2** | **P0** | AC Assets | Critical Schema Drift: Warranty Service Entry Fails on Live DB | **CODE & ALL REGRESSION TESTS VERIFIED (PENDING PROD MIGRATION)** |
-| **PYS-S1** | **P1** | Sites API | Direct `POST /api/v1/sites` HTTP 400 / Missing Route Handler | **RESOLVED & VERIFIED IN TESTS** |
+| **PYS-S1** | **P1** | Sites API | Direct `POST /api/v1/sites` HTTP 400 / Missing Route Handler | **RESOLVED — PRODUCTION SMOKE TEST PASSED** |
 | **PYS-D1** | **P0** | AMC Contracts | Duplicate PM Obligations & Orphaned Visits on Renewal | **RESOLVED IN BATCH 4** |
 | **PYS-D2** | **P1** | AMC Quotations | Quotation Activation (`DRAFT` → `ACTIVE`) Skips PM Obligation Generation | **RESOLVED IN BATCH 4** |
 | **PYS-D3** | **P1** | AMC Contracts | Renewal Discards Breakdown Visits (`dry`, `jet`, `pumpdown`) | **RESOLVED IN BATCH 4** |
-| **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **CONFIRMED DEFECT** |
-| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **CONFIRMED DEFECT** |
+| **PYS-004**| **P2** | Service Resolution | Revisit Resolution Leaves Discrepancy in Completion Aggregations | **RESOLVED — AUTOMATED TESTS PASSED** |
+| **PYS-005**| **P1** | Service Reports | Cross-Entity Asset/Site Validation Missing in Service Report Payload | **RESOLVED — AUTOMATED TESTS PASSED** |
 | **PYS-006**| **P2** | Master Data | Model Creation Dialog Hardcodes 'R32' Default When Null Intended | **RESOLVED IN BATCH 2** |
 | **PYS-007**| **P3** | Frontend Types | `ServiceSchedule` Assistant Field Missing in Frontend Typings | **RESOLVED IN BATCH 1** |
-| **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **CONFIRMED DEFECT** |
+| **PYS-008**| **P3** | Service Reports | Customer Email Missing from Service Report Detail Query | **RESOLVED — AUTOMATED TESTS PASSED** |
 
 ---
 
@@ -133,9 +133,18 @@
   2. Mounted direct `GET /` and `POST /` routes in `server/src/routes/site.routes.ts` alongside existing `:siteId` routes.
   3. Updated `site.controller.ts` to read `customerId` from `req.params.customerId || req.body.customerId` on POST, and `req.params.customerId || req.query.customerId` on GET.
   4. Hardened `site.service.ts` to safely evaluate `siteCount = existingSiteCount ?? 0` and only execute primary site demotion if `willBePrimary && siteCount > 0`.
-- **Regression Tests Verified:**
-  - `server/tests/siteRoutes.test.ts`: Added 8 new regression tests (tests 9-16) covering direct `POST /api/v1/sites` with body `customerId`, 422 validations for missing/invalid customer ID and short site name/address, 404 for missing customer, 400 for database failure, and direct `GET /api/v1/sites?customerId=...`. All 16 site tests pass cleanly.
-- **Status:** **RESOLVED & VERIFIED IN TESTS**.
+- **Automated Regression Tests Verified (Pre-Deployment Evidence):**
+  - `server/tests/siteRoutes.test.ts`: 16/16 regression tests passed (tests 9-16 covering direct `POST /api/v1/sites` with body `customerId`, 422 validations for missing/invalid customer ID and short site name/address, 404 for missing customer, 400 for database failure, and direct `GET /api/v1/sites?customerId=...`).
+  - Total backend test suite: 313/313 tests passed across 26 test suites as previously reported.
+- **Production Smoke-Test Evidence (Live Backend on Render commit `9cbf149`):**
+  - *Direct Sites API:* The production smoke-test report records that an authenticated `POST /api/v1/sites` request with `customerId` in the body returned HTTP `201 Created`. The returned site belonged to the designated disposable test customer (`44ede2f7-4622-4f27-be0b-1b7b8882abbe`), and the request generated a dedicated `SITE_CREATED` event in `public.activity_logs`.
+  - *Read-back Verification:* The production smoke-test report records that an authenticated `GET /api/v1/sites?customerId=44ede2f7-4622-4f27-be0b-1b7b8882abbe` returned HTTP `200 OK` with 2 sites: the auto-generated primary site and the standalone secondary site (`isPrimary: false`).
+  - *Database Cleanup & Cascading Integrity:* The production smoke-test report records that disposable test customer `44ede2f7-4622-4f27-be0b-1b7b8882abbe` was deleted in a narrowly scoped transaction. The deletion cleanly cascaded to both associated sites (`b54e2c6e-8063-4c94-9d8d-692f7e0851f3` and `335c294b-da7f-4ae5-b328-97d5cda5485e`). Read-only post-cleanup queries confirmed 0 residual test customer/site rows while system audit logs were retained.
+  - *Protected Records Integrity:* The production smoke-test report records that both original production customers (`735ef677-5543-48d4-9d43-ccb9d73c0a3e`, `56013e41-80e4-4c2a-adb9-5e7f4790d0a2`) and their respective sites (`cf1fd574-f5cf-447a-a587-da12eee060fb`, `0ab9bf7f-a3c5-422c-8420-9b1b679dc8ca`) remained 100% intact and unchanged.
+  - *Follow-Up Checklist Boundary:* Operational checklist items (Check Auth Tables, Check Refresh Tokens, Test Refresh, Test Me) mentioned in earlier reports were not evaluated by this endpoint test and remain pending / evidence-not-provided.
+- **Status:** **Resolved — Production Smoke Test Passed**
+- **Resolution Evidence:** Authenticated production POST returned `201 Created`; authenticated customer-specific GET returned `200 OK`; `SITE_CREATED` audit event was reported; disposable test records were physically removed; protected records were reported unchanged.
+- **Evidence Limitation:** The current closure is based on the supplied Antigravity production-test report, not an independent repeat of the test in this task.
 
 ---
 
@@ -338,3 +347,75 @@
   3. Enforced allocation validation in the renewal modal in `AmcManagement.tsx` with live reconciliation indicators (`{allocated} / {total} Allocated`).
 - **Regression Tests:** Verified in `server/tests/amcBatch4Fixes.test.ts` (Scenarios 6-8 covering default breakdown inheritance, explicit overrides, and 422 rejection of invalid allocation sums) and `src/tests/amc.test.tsx` (renewal modal allocation inputs and submission).
 - **Status:** **RESOLVED IN BATCH 4**.
+
+---
+
+### PYS-004 — Revisit Resolution Leaves Discrepancy in Completion Aggregations (P2)
+- **Severity / Priority:** P2 — Data Integrity & Progress Tracking.
+- **Affected Feature:** AMC Contract & AC Asset Preventive Maintenance Visit Accounting.
+- **Reproduction Steps:**
+  1. A planned AMC preventive maintenance visit ends with outcome `PENDING_PARTS` or `PENDING_REPAIRS`.
+  2. A follow-up revisit appointment (`rescheduled_from_id` linked) is executed and submitted with outcome `COMPLETED`, resolving the pending equipment issues.
+  3. Inspect the AMC contract and AC asset visit counts on the dashboard and detail views.
+- **Expected Behavior:**
+  - When the original PM visit report is resolved via follow-up, the originating PM obligation is recognized as 1 completed visit.
+  - The follow-up revisit visit (`rescheduled_from_id` set) does not consume a second PM obligation or inflate total contract obligations.
+  - Both contract views (`amc.service.ts`) and asset views (`asset.service.ts`) compute identical, reconciled completed and remaining visit counts.
+- **Actual Behavior:**
+  - `amc.service.ts` inspected `hasPendingReport` by checking `r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS'` without checking `r.resolution_status !== 'RESOLVED'`. Because the follow-up had `isFollowUp = true`, neither schedule was counted as completed, leaving the contract with 0 completed visits indefinitely.
+  - `asset.service.ts` counted all schedules with `status IN ('COMPLETED', 'RESOLVED')` without filtering out follow-up schedules (`!s.rescheduled_from_id`) or checking unresolved pending reports.
+- **Backend Files:** [`server/src/services/amc.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/amc.service.ts), [`server/src/services/asset.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/asset.service.ts).
+- **Frontend Files:** Consistent data consumed by [`src/pages/AmcManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/AmcManagement.tsx) and [`src/pages/CustomerManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/CustomerManagement.tsx).
+- **Completed Fix:**
+  1. In `amc.service.ts` (`listContracts` and `getContractById`), updated pending report evaluation to:
+     `const hasUnresolvedPendingReport = reportList.some(r => ['PENDING_PARTS', 'PENDING_REPAIRS'].includes(r.primary_outcome) && r.resolution_status !== 'RESOLVED');`
+     Ensured non-followup schedules count as completed once resolved.
+  2. In `asset.service.ts` (`getBatchActiveAmc` and `getAssetAmcHistory`), selected `rescheduled_from_id` and joined `service_reports(id, primary_outcome, resolution_status)`. Filtered out follow-up visits (`!isFollowUp`) and required `!hasUnresolvedPendingReport` for completion.
+- **Regression Tests:**
+  - Verified in `server/tests/postAuditRemediation.test.ts` (Scenarios 1-3 covering unresolved pending block, resolved revisit PM completion, and cross-service parity between `assetService` and `amcService`).
+- **Status:** **RESOLVED — AUTOMATED TESTS PASSED**.
+
+---
+
+### PYS-005 — Cross-Entity Asset/Site Validation Missing in Service Report Payload (P1)
+- **Severity / Priority:** P1 — Security & Multi-Tenant Data Integrity.
+- **Affected Feature:** Service Visit Report Creation & Updating (`POST /api/v1/service-reports`, `PATCH /api/v1/service-reports/:id`).
+- **Reproduction Steps:**
+  1. Submit a service report payload with an `assetId` that belongs to a different customer or a different physical site than the scheduled appointment.
+- **Expected Behavior:** Backend server-side validation strictly verifies that all referenced AC assets exist and belong to the appointment's authoritative `site_id` and `customer_id`. Rejects mismatches with HTTP 400 Bad Request before writing any records.
+- **Actual Behavior:** Prior to remediation, `serviceReport.service.ts` inserted the report header and only queried `ac_assets` afterwards for snapshot caching without asserting `asset.site_id === schedule.site_id` or `asset.customer_id === schedule.customer_id`.
+- **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts).
+- **Frontend Files:** [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx).
+- **Completed Fix:**
+  1. In `createReport`, added pre-validation step (`5b`) before inserting the `service_reports` header:
+     - Verified every asset in `payload.assets` has a valid `assetId`.
+     - Queried `ac_assets` by ID and checked `matchedAssets.length === assetIds.length`.
+     - Validated `asset.site_id === siteId` and `asset.customer_id === customerId`.
+     - Threw clear, secure `BadRequestError` messages (`Asset "..." does not belong to the scheduled site/customer`).
+     - Reused the pre-fetched `assetMap` directly for asset snapshot insertion, eliminating redundant database queries.
+  2. In `updateReport`, enforced the exact same cross-entity verification before executing report updates or deleting existing asset report items.
+- **Regression Tests:**
+  - Verified in `server/tests/postAuditRemediation.test.ts` (Scenarios 1-4 covering cross-site rejection, cross-customer rejection, nonexistent asset rejection, and successful creation when assets match).
+- **Status:** **RESOLVED — AUTOMATED TESTS PASSED**.
+
+---
+
+### PYS-008 — Customer Email Missing from Service Report Detail Query (P3)
+- **Severity / Priority:** P3 — Operational Visibility.
+- **Affected Feature:** Service Visit Report Detail & Export/Print Views.
+- **Reproduction Steps:**
+  1. Call `GET /api/v1/service-reports/:id` or view a report detail drawer.
+  2. Inspect the customer contact information.
+- **Expected Behavior:** Customer email is retrieved from the joined `customers` relation and included in the report response as `customerEmail`, alongside `customerName` and `customerPhone`.
+- **Actual Behavior:** The database query join `customers (...)` selected only `id, name, customer_code, phone`, leaving `customerEmail` absent from the response contract.
+- **Backend Files:** [`server/src/services/serviceReport.service.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/services/serviceReport.service.ts), [`server/src/types/index.ts`](file:///c:/Users/aayup/Desktop/PYS/server/src/types/index.ts).
+- **Frontend Files:** [`src/domain/types.ts`](file:///c:/Users/aayup/Desktop/PYS/src/domain/types.ts), [`src/components/serviceReports/ServiceReportPrintView.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/components/serviceReports/ServiceReportPrintView.tsx), [`src/pages/ServiceReportsManagement.tsx`](file:///c:/Users/aayup/Desktop/PYS/src/pages/ServiceReportsManagement.tsx).
+- **Completed Fix:**
+  1. Updated `getReportById` and `listReports` database query joins in `serviceReport.service.ts` to `customers (id, name, customer_code, phone, email)`.
+  2. Mapped `customerEmail: (row.customers as any)?.email || null` in both single-report and list serializers.
+  3. Added `customerEmail?: string | null` to `ServiceVisitReportResponse` (server types) and `ServiceVisitReport` (frontend domain types).
+  4. Updated `ServiceReportPrintView.tsx` and `ServiceReportsManagement.tsx` detail drawer to display customer email cleanly alongside customer phone.
+- **Regression Tests:**
+  - Verified in `server/tests/postAuditRemediation.test.ts` (Scenarios 1-3 covering email return when present, null handling when absent, and email mapping in report list endpoints).
+- **Status:** **RESOLVED — AUTOMATED TESTS PASSED**.
+
