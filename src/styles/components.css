@@ -78,6 +78,40 @@
   background-color: var(--color-error-hover);
 }
 
+.btn-neomorph {
+  background: linear-gradient(145deg, #ffffff, #f1f5f9);
+  box-shadow: 3px 3px 8px rgba(15, 23, 42, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  color: var(--text-primary);
+}
+.btn-neomorph:hover:not(:disabled) {
+  background: linear-gradient(145deg, #f8fafc, #e2e8f0);
+  box-shadow: 4px 4px 12px rgba(15, 23, 42, 0.10), -4px -4px 12px rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+.btn-neomorph:active:not(:disabled) {
+  box-shadow: var(--neomorph-shadow-pressed);
+  transform: translateY(1px);
+}
+
+.btn-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-xs), var(--glass-specular-highlight);
+  color: var(--text-primary);
+}
+.btn-glass:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(2, 132, 199, 0.4);
+  box-shadow: var(--shadow-sm), var(--glass-specular-highlight);
+  transform: translateY(-1px);
+}
+.btn-glass:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 .btn-icon {
   padding: 0.5rem;
   border-radius: var(--radius-md);
@@ -178,6 +212,20 @@
   box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
+/* Inset Neumorphic input controls */
+.form-input-neomorph {
+  background-color: var(--color-neutral-50);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--neomorph-shadow-inset);
+  transition: all var(--duration-hover) var(--ease-standard);
+}
+
+.form-input-neomorph:focus {
+  background-color: #ffffff;
+  border-color: var(--border-focus);
+  box-shadow: var(--neomorph-shadow-inset), 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
 .form-input::placeholder,
 .form-textarea::placeholder {
   color: var(--text-muted);
@@ -239,6 +287,57 @@
 .card-elevated {
   box-shadow: var(--shadow-md);
   border-color: var(--border-subtle);
+}
+
+/* Glassmorphic frosted card surface */
+.card-glass {
+  background: var(--glass-bg-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  box-shadow: var(--shadow-sm), var(--glass-specular-highlight);
+  position: relative;
+  transition: transform var(--duration-hover) var(--ease-standard),
+              box-shadow var(--duration-hover) var(--ease-standard),
+              border-color var(--duration-hover) var(--ease-standard);
+}
+
+.card-glass:hover {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-md), var(--glass-specular-highlight);
+}
+
+/* Soft extruded Neumorphic card */
+.card-neomorph {
+  background-color: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--neomorph-shadow-flat);
+  transition: transform var(--duration-hover) var(--ease-standard),
+              box-shadow var(--duration-hover) var(--ease-standard);
+}
+
+.card-neomorph:hover {
+  box-shadow: var(--neomorph-shadow-raised);
+  transform: translateY(-2px);
+}
+
+/* Hybrid Neumorphic Glass (Frosted Glass + Dual Ambient Shadow Geometry) */
+.card-hybrid {
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: var(--hybrid-glass-neomorph);
+  position: relative;
+  transition: transform var(--duration-hover) var(--ease-standard),
+              box-shadow var(--duration-hover) var(--ease-standard),
+              border-color var(--duration-hover) var(--ease-standard);
+}
+
+.card-hybrid:hover {
+  box-shadow: var(--hybrid-glass-neomorph-hover);
+  border-color: rgba(255, 255, 255, 0.95);
+  transform: translateY(-2px);
 }
 
 .card-header {

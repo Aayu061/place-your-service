@@ -2,7 +2,7 @@ import React from 'react';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  variant?: 'default' | 'interactive' | 'elevated';
+  variant?: 'default' | 'interactive' | 'elevated' | 'glass' | 'neomorph' | 'hybrid';
 }
 
 export const Card: React.FC<CardProps> = ({

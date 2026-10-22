@@ -9,6 +9,7 @@ import { CustomerManagement } from '@/pages/CustomerManagement';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { apiClient } from '@/services/api/client';
+import { RequestOptions } from '@/services/api/types';
 import { AcBrand, AcModel, AcModelVariant, Customer, CustomerSite } from '@/domain/types';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
 
@@ -660,9 +661,9 @@ describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
     });
 
     it('warranty service allocation in Add Asset Modal validates invariant, warns on mismatch, and preserves form values on error', async () => {
-      let postedPayload: any = null;
+      let postedPayload: Record<string, unknown> | null = null;
 
-      vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string, options?: any) => {
+      vi.spyOn(apiClient, 'request').mockImplementation(async (endpoint: string, options?: RequestOptions) => {
         if (endpoint === '/customers') {
           return { customers: [sampleCustomer], total: 1, page: 1, pageSize: 20, totalPages: 1 };
         }
@@ -815,10 +816,10 @@ describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
 
       // Request sent with all 4 warranty service counts as numbers
       expect(postedPayload).toBeTruthy();
-      expect(postedPayload.totalWarrantyServices).toBe(4);
-      expect(postedPayload.dryWarrantyVisits).toBe(2);
-      expect(postedPayload.jetWarrantyVisits).toBe(1);
-      expect(postedPayload.pumpdownWarrantyVisits).toBe(1);
+      expect(postedPayload!.totalWarrantyServices).toBe(4);
+      expect(postedPayload!.dryWarrantyVisits).toBe(2);
+      expect(postedPayload!.jetWarrantyVisits).toBe(1);
+      expect(postedPayload!.pumpdownWarrantyVisits).toBe(1);
 
       renderResult.cleanup();
     });

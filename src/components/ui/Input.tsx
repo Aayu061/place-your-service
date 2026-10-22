@@ -6,6 +6,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   helperText?: string;
   error?: string;
   isSearch?: boolean;
+  variant?: 'default' | 'neomorph';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
@@ -17,6 +18,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       helperText,
       error,
       isSearch = false,
+      variant = 'default',
       leftIcon,
       rightIcon,
       className = '',
@@ -30,6 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     const hasError = Boolean(error);
     const resolvedLeftIcon = isSearch ? <Search size={16} /> : leftIcon;
+    const variantClass = variant === 'neomorph' ? 'form-input-neomorph' : '';
 
     return (
       <div className={`form-group ${className}`.trim()}>
@@ -55,7 +58,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                 ? `${inputId}-hint`
                 : undefined
             }
-            className={`form-input ${hasError ? 'has-error' : ''}`}
+            className={`form-input ${variantClass} ${hasError ? 'has-error' : ''}`.trim()}
             {...props}
           />
           {rightIcon && <span className="input-icon-right">{rightIcon}</span>}

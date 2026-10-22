@@ -147,6 +147,41 @@
 }
 
 /* --------------------------------------------------
+ * GSAP Hardware Acceleration & Chart Motion Utilities
+ * -------------------------------------------------- */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.chart-svg-container {
+  overflow: visible;
+  filter: drop-shadow(0 4px 12px rgba(2, 132, 199, 0.12));
+}
+
+.chart-spline-path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-dot-pulse {
+  animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.chart-hover-glow {
+  transition: r var(--duration-hover) var(--ease-standard),
+              fill var(--duration-hover) var(--ease-standard),
+              filter var(--duration-hover) var(--ease-standard);
+}
+
+.chart-hover-glow:hover {
+  r: 6;
+  filter: drop-shadow(0 0 6px var(--color-brand));
+}
+
+/* --------------------------------------------------
  * Accessibility: Strict prefers-reduced-motion
  * (DOCS/DESIGN.md Section 17 & Phase 1 Section 15)
  * -------------------------------------------------- */

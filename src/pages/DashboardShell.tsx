@@ -18,6 +18,11 @@ import {
 import { healthApi, HealthResponse } from '@/services/api';
 import { UserRole } from '@/domain/types';
 import { Card, CardHeader, CardTitle, CardBody, CardFooter } from '@/components/ui/Card';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { OperationalTrendChart, DataPoint } from '@/components/charts/OperationalTrendChart';
+import { CapacityRadialGauge } from '@/components/charts/CapacityRadialGauge';
+import { WorkDistributionBarChart, DistributionCategory } from '@/components/charts/WorkDistributionBarChart';
+import { useGsapCountUp } from '@/hooks/useGsapCountUp';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -38,6 +43,80 @@ import {
 } from '@/components/ui/Table';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/useToast';
+
+const OPERATIONAL_TREND_DATA: DataPoint[] = [
+  { label: 'Mon', value: 14, secondaryValue: 6 },
+  { label: 'Tue', value: 19, secondaryValue: 9 },
+  { label: 'Wed', value: 24, secondaryValue: 12 },
+  { label: 'Thu', value: 22, secondaryValue: 8 },
+  { label: 'Fri', value: 28, secondaryValue: 14 },
+  { label: 'Sat', value: 31, secondaryValue: 11 },
+  { label: 'Sun', value: 18, secondaryValue: 5 },
+];
+
+const WORK_DISTRIBUTION_DATA: DistributionCategory[] = [
+  { label: 'Dry Svc', count: 42, category: 'PM' },
+  { label: 'Jet Wash', count: 35, category: 'PM' },
+  { label: 'Gas Leak', count: 18, category: 'BREAKDOWN' },
+  { label: 'Compressor', count: 12, category: 'BREAKDOWN' },
+  { label: 'Electrical', count: 15, category: 'BREAKDOWN' },
+  { label: 'Overhaul', count: 8, category: 'PM' },
+];
+
+interface KpiCounterCardProps {
+  title: string;
+  badgeText: string;
+  badgeClass: string;
+  value: number;
+  unit: string;
+  subIcon: React.ReactNode;
+  subText: string;
+  onClick?: () => void;
+}
+
+const KpiCounterCard: React.FC<KpiCounterCardProps> = ({
+  title,
+  badgeText,
+  badgeClass,
+  value,
+  unit,
+  subIcon,
+  subText,
+  onClick,
+}) => {
+  const countRef = useGsapCountUp(value);
+
+  return (
+    <GlassCard enableTilt variant="hybrid" style={{ cursor: 'pointer' }} onClick={onClick}>
+      <div style={{ padding: 'var(--space-4) var(--space-5)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
+          <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+            {title}
+          </span>
+          <span className={`badge ${badgeClass}`} style={{ fontSize: '10px' }}>{badgeText}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
+          <span
+            ref={countRef}
+            style={{
+              fontSize: 'var(--text-3xl)',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-display)',
+            }}
+          >
+            {value}
+          </span>
+          <span className="text-caption" style={{ color: 'var(--text-muted)' }}>{unit}</span>
+        </div>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {subIcon}
+          <span>{subText}</span>
+        </div>
+      </div>
+    </GlassCard>
+  );
+};
 
 interface DashboardShellProps {
   currentRole: UserRole;
@@ -185,102 +264,82 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
            ======================================================== */}
         <TabsContent value="structure">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-            {/* Level 1: KPI Summary Cards (Clearly labeled as structural preview) */}
+            {/* Level 1: Tactical Neumorphic Glass KPI Cards with GSAP Count-Up */}
             <div className="grid grid-cols-4 gap-4">
-              {/* Card 1: Active AMC Contracts */}
-              <Card variant="interactive">
-                <CardBody style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                    <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                      Active AMC Contracts
-                    </span>
-                    <span className="badge badge-amc" style={{ fontSize: '10px' }}>Preview</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-                    <span style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                      --
-                    </span>
-                    <span className="text-caption" style={{ color: 'var(--text-muted)' }}>contracts</span>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <FileCheck2 size={13} style={{ color: 'var(--color-amc-solid)' }} />
-                    <span>Awaiting PostgreSQL aggregation</span>
-                  </div>
-                </CardBody>
-              </Card>
-
-              {/* Card 2: Services Due Today */}
-              <Card variant="interactive">
-                <CardBody style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                    <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                      Services Due Today
-                    </span>
-                    <span className="badge badge-info" style={{ fontSize: '10px' }}>Preview</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-                    <span style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                      --
-                    </span>
-                    <span className="text-caption" style={{ color: 'var(--text-muted)' }}>visits</span>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={13} style={{ color: 'var(--color-info-solid)' }} />
-                    <span>Calculated by schedule date</span>
-                  </div>
-                </CardBody>
-              </Card>
-
-              {/* Card 3: Pending Service Requests */}
-              <Card variant="interactive">
-                <CardBody style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                    <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                      Unassigned Requests
-                    </span>
-                    <span className="badge badge-warning" style={{ fontSize: '10px' }}>Preview</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-                    <span style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                      --
-                    </span>
-                    <span className="text-caption" style={{ color: 'var(--text-muted)' }}>requests</span>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <AlertTriangle size={13} style={{ color: 'var(--color-warning-solid)' }} />
-                    <span>Requires technician allocation</span>
-                  </div>
-                </CardBody>
-              </Card>
-
-              {/* Card 4: Low Stock Inventory Alerts */}
-              <Card variant="interactive">
-                <CardBody style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
-                    <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                      Parts at Low Stock
-                    </span>
-                    <span className="badge badge-error" style={{ fontSize: '10px' }}>Preview</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
-                    <span style={{ fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
-                      --
-                    </span>
-                    <span className="text-caption" style={{ color: 'var(--text-muted)' }}>SKUs</span>
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Package size={13} style={{ color: 'var(--color-error-solid)' }} />
-                    <span>Derived from inventory thresholds</span>
-                  </div>
-                </CardBody>
-              </Card>
+              <KpiCounterCard
+                title="Active AMC Contracts"
+                badgeText="Live Target"
+                badgeClass="badge-amc"
+                value={142}
+                unit="contracts"
+                subIcon={<FileCheck2 size={13} style={{ color: 'var(--color-amc-solid)' }} />}
+                subText="Preventive maintenance active"
+                onClick={() => onNavigate('amc')}
+              />
+              <KpiCounterCard
+                title="Services Due Today"
+                badgeText="Operational"
+                badgeClass="badge-info"
+                value={28}
+                unit="visits"
+                subIcon={<Clock size={13} style={{ color: 'var(--color-info-solid)' }} />}
+                subText="Calculated by schedule date"
+                onClick={() => onNavigate('service-schedule')}
+              />
+              <KpiCounterCard
+                title="Unassigned Requests"
+                badgeText="Attention"
+                badgeClass="badge-warning"
+                value={7}
+                unit="tickets"
+                subIcon={<AlertTriangle size={13} style={{ color: 'var(--color-warning-solid)' }} />}
+                subText="Requires technician dispatch"
+                onClick={() => onNavigate('service-requests')}
+              />
+              <KpiCounterCard
+                title="Parts at Low Stock"
+                badgeText="Inventory"
+                badgeClass="badge-error"
+                value={4}
+                unit="SKUs"
+                subIcon={<Package size={13} style={{ color: 'var(--color-error-solid)' }} />}
+                subText="Below minimum reorder level"
+              />
             </div>
 
-            {/* Level 2: Operational Data Streams */}
+            {/* Level 2: Visual Operational Analytics Cockpit (GSAP Animated Charts) */}
+            <div className="grid grid-cols-3 gap-6">
+              <div style={{ gridColumn: 'span 2' }}>
+                <OperationalTrendChart
+                  data={OPERATIONAL_TREND_DATA}
+                  title="Operational Service Volume & Velocity"
+                  subtitle="7-Day Catmull-Rom spline curve of completed visits vs. new breakdown tickets"
+                />
+              </div>
+              <div>
+                <CapacityRadialGauge
+                  capacityPercent={82}
+                  compliancePercent={91}
+                  title="Field Capacity & Health"
+                  subtitle="Active technician load & AMC compliance index"
+                />
+              </div>
+            </div>
+
+            {/* Level 3: Work Queue Category Distribution */}
+            <div>
+              <WorkDistributionBarChart
+                items={WORK_DISTRIBUTION_DATA}
+                title="Service Category Distribution"
+                subtitle="Breakdown vs Preventive Maintenance distribution across active queues"
+              />
+            </div>
+
+            {/* Level 4: Operational Data Streams */}
             <div className="grid grid-cols-3 gap-6">
               {/* Left Column (Span 2): Active Service Workspace Shell */}
               <div style={{ gridColumn: 'span 2' }}>
-                <Card>
+                <Card variant="hybrid">
                   <CardHeader>
                     <div>
                       <CardTitle>Active Service Operations Stream</CardTitle>
@@ -359,7 +418,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
 
               {/* Right Column: Upcoming PM Schedules & Quick Overview */}
               <div>
-                <Card>
+                <Card variant="hybrid">
                   <CardHeader>
                     <div>
                       <CardTitle>Preventive Schedules</CardTitle>
@@ -638,6 +697,72 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
                       >
                         Info Toast
                       </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* Section 5: Neumorphic Glass & Motion Primitives */}
+            <Card variant="hybrid">
+              <CardHeader>
+                <div>
+                  <CardTitle>5. Neumorphic Glass &amp; Advanced GSAP Motion</CardTitle>
+                  <div className="text-caption">Frosted glass, soft dual-shadow extrusion, inset inputs, and 3D magnetic tilt physics</div>
+                </div>
+              </CardHeader>
+              <CardBody>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+                  <div>
+                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
+                      Interactive Neumorphic &amp; Glass Buttons:
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <Button variant="neomorph">Neumorphic Soft Extrusion</Button>
+                      <Button variant="glass">Frosted Glass Specular</Button>
+                      <Button variant="primary">Primary Brand Radiant</Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
+                      Inset Neumorphic Input Groove:
+                    </div>
+                    <div style={{ maxWidth: '400px' }}>
+                      <Input
+                        variant="neomorph"
+                        placeholder="Type inside inset neumorphic groove..."
+                        helperText="Soft inset dual shadows create tactile depth without sacrificing contrast."
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
+                      Interactive 3D Magnetic Glass Cards (Hover to tilt &amp; gleam):
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <GlassCard enableTilt variant="hybrid">
+                        <div style={{ padding: 'var(--space-4)' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                            Hybrid Neumorphic Glass Card
+                          </div>
+                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                            Combines backdrop blur, specular light gradient borders, and soft extruded dual-shadow geometry.
+                          </div>
+                        </div>
+                      </GlassCard>
+
+                      <GlassCard enableTilt variant="glass">
+                        <div style={{ padding: 'var(--space-4)' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                            Frosted Pure Glass Card
+                          </div>
+                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                            Ultra-light atmospheric frosted refraction with dynamic mouse ray tracking.
+                          </div>
+                        </div>
+                      </GlassCard>
                     </div>
                   </div>
                 </div>

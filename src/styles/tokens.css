@@ -220,4 +220,36 @@
   --sidebar-collapsed-width: 68px;
   --header-height: 64px;
   --max-content-width: 1440px;
+
+  /* --------------------------------------------------
+   * Glassmorphism Tokens (Frosted Glass & Specular Reflections)
+   * -------------------------------------------------- */
+  --glass-bg-surface: rgba(255, 255, 255, 0.76);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.88);
+  --glass-bg-subtle: rgba(248, 250, 252, 0.65);
+  --glass-bg-card: rgba(255, 255, 255, 0.82);
+  --glass-blur: blur(16px);
+  --glass-blur-sm: blur(8px);
+  --glass-blur-lg: blur(24px);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.65);
+  --glass-border-specular: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.2) 60%, rgba(2, 132, 199, 0.25) 100%);
+  --glass-border-subtle: 1px solid rgba(226, 232, 240, 0.6);
+  --glass-specular-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(15, 23, 42, 0.03);
+
+  /* --------------------------------------------------
+   * Neumorphism Tokens (Extrusions, Insets & Tactile Shadows)
+   * -------------------------------------------------- */
+  /* Soft extruded surfaces (Cards, Raised Buttons) */
+  --neomorph-shadow-flat: 6px 6px 14px rgba(15, 23, 42, 0.06), -5px -5px 12px rgba(255, 255, 255, 0.95);
+  --neomorph-shadow-raised: 10px 10px 22px rgba(15, 23, 42, 0.08), -8px -8px 18px rgba(255, 255, 255, 1);
+  --neomorph-shadow-floating: 16px 16px 32px rgba(15, 23, 42, 0.10), -12px -12px 28px rgba(255, 255, 255, 1);
+
+  /* Inset / Pressed grooves (Inputs, Active Tabs, Sliders) */
+  --neomorph-shadow-inset: inset 2px 2px 5px rgba(15, 23, 42, 0.07), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+  --neomorph-shadow-inset-deep: inset 3px 3px 8px rgba(15, 23, 42, 0.10), inset -3px -3px 8px rgba(255, 255, 255, 0.95);
+  --neomorph-shadow-pressed: inset 2px 2px 4px rgba(15, 23, 42, 0.12), inset -2px -2px 4px rgba(255, 255, 255, 0.85);
+
+  /* Hybrid Neumorphic Glass (Glass frosted surface + dual ambient shadows) */
+  --hybrid-glass-neomorph: var(--glass-specular-highlight), 8px 8px 20px rgba(15, 23, 42, 0.06), -6px -6px 16px rgba(255, 255, 255, 0.9);
+  --hybrid-glass-neomorph-hover: var(--glass-specular-highlight), 12px 12px 26px rgba(15, 23, 42, 0.09), -8px -8px 20px rgba(255, 255, 255, 1);
 }
