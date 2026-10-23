@@ -11,6 +11,7 @@ import { amcRouter } from './amc.routes.js';
 import { brandRouter, modelRouter, variantRouter } from './masterData.routes.js';
 import scheduleRouter from './schedule.routes.js';
 import serviceReportRouter from './serviceReport.routes.js';
+import analyticsRouter from './analytics.routes.js';
 
 const apiV1Router = Router();
 
@@ -47,6 +48,9 @@ apiV1Router.use('/service-schedules', scheduleRouter);
 
 // Service Visit Reports & Completion Management Routes
 apiV1Router.use('/service-reports', serviceReportRouter);
+
+// Unified Dashboard Analytics Routes
+apiV1Router.use('/analytics', analyticsRouter);
 
 export default apiV1Router;
 

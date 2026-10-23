@@ -15,6 +15,7 @@ import {
   History,
   Info,
   CheckCircle2,
+  Calendar,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import {
@@ -147,6 +148,57 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     notes: '',
   });
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+
+  // Direct Schedule Modal state
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState<boolean>(false);
+  const [scheduleTargetRequest, setScheduleTargetRequest] = useState<ServiceRequest | null>(null);
+  const [scheduleDate, setScheduleDate] = useState<string>('');
+  const [scheduleStartTime, setScheduleStartTime] = useState<string>('09:00');
+  const [scheduleEndTime, setScheduleEndTime] = useState<string>('11:00');
+  const [scheduleNotes, setScheduleNotes] = useState<string>('');
+  const [isSubmittingSchedule, setIsSubmittingSchedule] = useState<boolean>(false);
+
+  const handleOpenSchedule = (req: ServiceRequest) => {
+    setScheduleTargetRequest(req);
+    const defaultDate = req.preferredDate || new Date().toISOString().slice(0, 10);
+    setScheduleDate(defaultDate);
+    setScheduleStartTime('09:00');
+    setScheduleEndTime('11:00');
+    setScheduleNotes(`Service visit for ${req.requestNumber}: ${req.description}`);
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleConfirmSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleTargetRequest || !scheduleDate) {
+      toast('Please select a scheduled date', 'warning');
+      return;
+    }
+
+    try {
+      setIsSubmittingSchedule(true);
+      await apiClient.post('/service-schedules', {
+        serviceRequestId: scheduleTargetRequest.id,
+        scheduledDate: scheduleDate,
+        startTime: scheduleStartTime || '09:00',
+        endTime: scheduleEndTime || '11:00',
+        durationMinutes: 120,
+        notes: scheduleNotes.trim() || undefined,
+      });
+
+      toast(`Service appointment scheduled for ${scheduleTargetRequest.requestNumber}`, 'success');
+      setIsScheduleModalOpen(false);
+      setScheduleTargetRequest(null);
+      fetchRequests();
+      if (selectedRequestId === scheduleTargetRequest.id) {
+        fetchRequestDetail(selectedRequestId);
+      }
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Failed to schedule service', 'error');
+    } finally {
+      setIsSubmittingSchedule(false);
+    }
+  };
 
   // Debounce search term
   useEffect(() => {
@@ -815,15 +867,28 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                       style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Eye size={16} />}
-                        onClick={() => setSelectedRequestId(req.id)}
-                        aria-label={`View ${req.requestNumber}`}
-                      >
-                        View
-                      </Button>
+                      <div style={{ display: 'inline-flex', gap: 'var(--space-2)' }}>
+                        {['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'].includes(req.status) && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            leftIcon={<Calendar size={14} />}
+                            onClick={() => handleOpenSchedule(req)}
+                            aria-label={`Schedule ${req.requestNumber}`}
+                          >
+                            Schedule
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          leftIcon={<Eye size={16} />}
+                          onClick={() => setSelectedRequestId(req.id)}
+                          aria-label={`View ${req.requestNumber}`}
+                        >
+                          View
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1188,6 +1253,17 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                 {detailRequest.status !== 'CANCELLED' && detailRequest.status !== 'CLOSED' && (
                   <>
+                    {['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'].includes(detailRequest.status) && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={<Calendar size={14} />}
+                        onClick={() => handleOpenSchedule(detailRequest)}
+                      >
+                        Schedule Visit
+                      </Button>
+                    )}
+
                     <Button variant="outline" size="sm" leftIcon={<Edit2 size={14} />} onClick={handleOpenEditModal}>
                       Edit
                     </Button>
@@ -1653,6 +1729,101 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
             </Button>
             <Button variant="primary" type="submit" disabled={isUpdating || editFormData.description.trim().length < 5}>
               {isUpdating ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 10. Direct Schedule Modal */}
+      <Modal
+        isOpen={isScheduleModalOpen}
+        onClose={() => !isSubmittingSchedule && setIsScheduleModalOpen(false)}
+        title={scheduleTargetRequest ? `Schedule Service Visit: ${scheduleTargetRequest.requestNumber}` : 'Schedule Service Visit'}
+        maxWidth="540px"
+      >
+        <form onSubmit={handleConfirmSchedule} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div
+            style={{
+              padding: 'var(--space-3)',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--text-sm)',
+            }}
+          >
+            <div><strong>Customer:</strong> {scheduleTargetRequest?.customerName || 'N/A'}</div>
+            {scheduleTargetRequest?.siteName && (
+              <div><strong>Site:</strong> {scheduleTargetRequest.siteName}</div>
+            )}
+            <div><strong>Issue:</strong> {scheduleTargetRequest?.description || 'N/A'}</div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+              Scheduled Date *
+            </label>
+            <Input
+              type="date"
+              value={scheduleDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setScheduleDate(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+                Start Time
+              </label>
+              <Input
+                type="time"
+                value={scheduleStartTime}
+                onChange={(e) => setScheduleStartTime(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+                End Time
+              </label>
+              <Input
+                type="time"
+                value={scheduleEndTime}
+                onChange={(e) => setScheduleEndTime(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+              Appointment Notes
+            </label>
+            <Textarea
+              rows={2}
+              value={scheduleNotes}
+              placeholder="Special instructions for technician or customer..."
+              onChange={(e) => setScheduleNotes(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setIsScheduleModalOpen(false)}
+              disabled={isSubmittingSchedule}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={isSubmittingSchedule || !scheduleDate}
+              leftIcon={<Calendar size={14} />}
+            >
+              {isSubmittingSchedule ? 'Scheduling...' : 'Confirm Schedule'}
             </Button>
           </div>
         </form>

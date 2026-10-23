@@ -282,6 +282,10 @@ export class SiteService {
         .update({ is_primary: false, updated_at: new Date().toISOString() })
         .eq('customer_id', existing.customerId)
         .eq('is_primary', true);
+    } else if (payload.isPrimary === false && existing.isPrimary) {
+      throw new BadRequestError(
+        `Cannot directly unset primary status on site '${existing.siteName}'. Designate another active site as primary instead.`
+      );
     }
 
     // 3. Build update fields
@@ -397,7 +401,7 @@ export class SiteService {
     // 1. Verify existence
     const existing = await this.getSiteById(siteId);
 
-    // 2. Safety check: prevent deactivating a site that has active AC assets
+    // 2. Safety check: prevent deactivating a site that has active AC assets or active schedules
     if (!isActive) {
       const { count: activeAssetCount } = await supabase
         .from('ac_assets')
@@ -409,6 +413,37 @@ export class SiteService {
         throw new BadRequestError(
           `Cannot deactivate site '${existing.siteName}' because it has ${activeAssetCount} active AC asset(s). Deactivate or reassign assets first.`
         );
+      }
+
+      const { count: activeScheduleCount } = await supabase
+        .from('service_schedules')
+        .select('*', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS']);
+
+      if (activeScheduleCount && activeScheduleCount > 0) {
+        throw new BadRequestError(
+          `Cannot deactivate site '${existing.siteName}' because it has ${activeScheduleCount} active service schedule(s). Reassign or cancel schedules first.`
+        );
+      }
+
+      if (existing.isPrimary) {
+        // Find another active site for this customer to promote
+        const { data: otherSites } = await supabase
+          .from('customer_sites')
+          .select('id')
+          .eq('customer_id', existing.customerId)
+          .neq('id', siteId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1);
+
+        if (otherSites && otherSites.length > 0) {
+          await supabase
+            .from('customer_sites')
+            .update({ is_primary: true, updated_at: new Date().toISOString() })
+            .eq('id', otherSites[0].id);
+        }
       }
     }
 

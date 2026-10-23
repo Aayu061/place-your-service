@@ -88,6 +88,19 @@ const WEEK_DAYS: WeekDay[] = [
   'SATURDAY',
 ];
 
+/**
+ * Normalizes time strings like '09:00', '09:00:00' to integer minutes from midnight.
+ * Prevents lexicographical string comparison bugs (e.g., '11:00:00' > '11:00').
+ */
+export function timeStringToMinutes(timeStr: string | null | undefined, defaultMinutes = 0): number {
+  if (!timeStr) return defaultMinutes;
+  const parts = timeStr.trim().split(':');
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours)) return defaultMinutes;
+  return hours * 60 + (isNaN(minutes) ? 0 : minutes);
+}
+
 export class ScheduleService {
   /**
    * Generates a collision-resistant unique Service Schedule number (e.g. SCH-2026-10492).
@@ -366,31 +379,31 @@ export class ScheduleService {
 
   /**
    * Identifies unscheduled work waiting for appointment booking.
-   * Source A: Service requests in REQUESTED / PENDING without active schedule.
-   * Source B: AMC PM obligations in PLANNED / SCHEDULED / DUE without technician assigned.
+   * Source A: Service requests in REQUESTED / PENDING / AWAITING_PARTS / REVISIT_REQUIRED without active schedule.
+   * Source B: AMC PM obligations in PLANNED / SCHEDULED / DUE / OVERDUE / RESCHEDULED without technician assigned.
    */
   public async getUnscheduledWork(): Promise<UnscheduledWorkItem[]> {
     const supabase = getSupabaseClient();
     const items: UnscheduledWorkItem[] = [];
 
-    // 1. Unscheduled Service Requests
+    // 1. Unscheduled Service Requests (including follow-ups needing revisit or parts completed)
     const { data: requests, error: srErr } = await supabase
       .from('service_requests')
-      .select('id, request_number, customer_id, site_id, asset_id, request_type, priority, description, preferred_date, reported_date, customers(name, phone), customer_sites(site_name, address), ac_assets(asset_tag, brand, model_number, ac_type)')
-      .in('status', ['REQUESTED', 'PENDING'])
+      .select('id, request_number, customer_id, site_id, asset_id, request_type, priority, description, preferred_date, reported_date, status, customers(name, phone), customer_sites(site_name, address), ac_assets(asset_tag, brand, model_number, ac_type)')
+      .in('status', ['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'])
       .order('reported_date', { ascending: true })
       .limit(50);
 
     if (srErr) {
       logger.warn('Failed to query service requests for unscheduled queue', { error: srErr.message });
     } else if (requests && requests.length > 0) {
-      // Find which ones already have active schedules
+      // Find which ones already have active upcoming schedules (SCHEDULED, ASSIGNED, IN_PROGRESS)
       const requestIds = requests.map((r) => r.id);
       const { data: activeSchedules } = await supabase
         .from('service_schedules')
         .select('service_request_id')
         .in('service_request_id', requestIds)
-        .neq('status', 'CANCELLED');
+        .in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS']);
 
       const scheduledRequestIds = new Set(
         (activeSchedules || []).map((s) => s.service_request_id)
@@ -398,6 +411,13 @@ export class ScheduleService {
 
       for (const r of requests as any[]) {
         if (!scheduledRequestIds.has(r.id)) {
+          let desc = r.description;
+          if (r.status === 'AWAITING_PARTS') {
+            desc = `[Awaiting Parts] ${desc || 'Follow-up service visit needed'}`;
+          } else if (r.status === 'REVISIT_REQUIRED') {
+            desc = `[Revisit Required] ${desc || 'Follow-up inspection required'}`;
+          }
+
           items.push({
             type: 'SERVICE_REQUEST',
             id: r.id,
@@ -415,7 +435,7 @@ export class ScheduleService {
             acType: r.ac_assets?.ac_type || null,
             dueDate: r.preferred_date || r.reported_date,
             priority: r.priority,
-            description: r.description,
+            description: desc,
             suggestedDurationMinutes: 120,
           });
         }
@@ -428,7 +448,7 @@ export class ScheduleService {
       .select('id, schedule_number, amc_id, asset_id, customer_id, site_id, scheduled_date, visit_number, notes, customers(name, phone), customer_sites(site_name, address), ac_assets(asset_tag, brand, model_number, ac_type, site_id, customer_sites(site_name, address, customer_id, customers(name, phone))), amc_contracts(contract_number, customer_id, customers(name, phone))')
       .not('amc_id', 'is', null)
       .is('technician_id', null)
-      .in('status', ['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE'])
+      .in('status', ['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE', 'RESCHEDULED'])
       .order('scheduled_date', { ascending: true })
       .limit(50);
 
@@ -516,18 +536,29 @@ export class ScheduleService {
       }
 
       // Check for active duplicate schedule
-      const { data: existingActive } = await supabase
-        .from('service_schedules')
-        .select('id, schedule_number')
-        .eq('service_request_id', payload.serviceRequestId)
-        .neq('status', 'CANCELLED')
-        .maybeSingle();
+      const schedTable = supabase.from('service_schedules');
+      if (schedTable && typeof schedTable.select === 'function') {
+        let dupQuery = schedTable
+          .select('id, schedule_number, status')
+          .eq('service_request_id', payload.serviceRequestId);
 
-      if (existingActive) {
-        throw new ConflictError(
-          `Service Request already has an active schedule (${existingActive.schedule_number}). Use reschedule instead.`,
-          { existingScheduleId: existingActive.id, scheduleNumber: existingActive.schedule_number }
-        );
+        if (typeof (dupQuery as any).in === 'function') {
+          dupQuery = (dupQuery as any).in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS']);
+        } else if (typeof (dupQuery as any).neq === 'function') {
+          dupQuery = (dupQuery as any).neq('status', 'CANCELLED');
+        }
+
+        const { data: existingActive } = await dupQuery.maybeSingle();
+
+        if (existingActive) {
+          const status = (existingActive as any).status;
+          if (!status || ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS'].includes(status)) {
+            throw new ConflictError(
+              `Service Request already has an active schedule (${existingActive.schedule_number}). Use reschedule instead.`,
+              { existingScheduleId: existingActive.id, scheduleNumber: existingActive.schedule_number }
+            );
+          }
+        }
       }
 
       targetCustomerId = targetCustomerId || sr.customer_id;
@@ -1031,20 +1062,24 @@ export class ScheduleService {
       // Rule 3: Working Hours Availability
       const startH = tech.working_hours?.start || '09:00';
       const endH = tech.working_hours?.end || '18:00';
-      const withinWorkingHours = targetStart >= startH && targetEnd <= endH;
+      const targetStartMin = timeStringToMinutes(targetStart, 9 * 60);
+      const targetEndMin = timeStringToMinutes(targetEnd, 11 * 60);
+      const startHMin = timeStringToMinutes(startH, 9 * 60);
+      const endHMin = timeStringToMinutes(endH, 18 * 60);
+      const withinWorkingHours = targetStartMin >= startHMin && targetEndMin <= endHMin;
 
       const isAvailable = isActive && worksOnDay && withinWorkingHours;
 
-      // Rule 4: Overlapping Schedule Conflict
+      // Rule 4: Overlapping Schedule Conflict (using integer minute comparison to avoid false positive string collisions)
       const techSchedules = activeDaySchedules.filter(
         (s) => s.technician_id === tech.id && s.id !== scheduleId
       );
 
       const conflict = techSchedules.find((s) => {
-        const sStart = s.start_time || '09:00';
-        const sEnd = s.end_time || '11:00';
+        const sStartMin = timeStringToMinutes(s.start_time, 9 * 60);
+        const sEndMin = timeStringToMinutes(s.end_time, 11 * 60);
         // Overlap condition: S1 < E2 and E1 > S2
-        return sStart < targetEnd && sEnd > targetStart;
+        return sStartMin < targetEndMin && sEndMin > targetStartMin;
       });
 
       const hasConflict = Boolean(conflict);
@@ -1054,16 +1089,21 @@ export class ScheduleService {
       const maxDailyWorkload = tech.max_daily_workload || 5;
       const isOverloaded = dailyWorkload >= maxDailyWorkload;
 
-      // Rule 6: Service Area Matching
+      // Rule 6: Service Area Matching (with PIN code and tokenized zone matching)
       const techAreas: string[] = tech.service_areas || [];
+      const sitePinMatch = siteAddress.match(/\b\d{6}\b/);
+      const sitePin = sitePinMatch ? sitePinMatch[0] : null;
+
       const areaMatch =
         techAreas.length === 0 ||
-        techAreas.some(
-          (area) =>
-            siteAddress.includes(area.toLowerCase()) ||
-            siteName.includes(area.toLowerCase()) ||
-            area.toLowerCase().includes('all')
-        );
+        techAreas.some((rawArea) => {
+          const area = rawArea.toLowerCase().trim();
+          if (area === 'all' || area === 'all areas' || area === 'citywide') return true;
+          if (sitePin && area.includes(sitePin)) return true;
+          if (siteAddress.includes(area) || siteName.includes(area)) return true;
+          const tokens = area.split(/[\s,-]+/).filter((t) => t.length > 2);
+          return tokens.length > 0 && tokens.every((t) => siteAddress.includes(t) || siteName.includes(t));
+        });
 
       // Rule 7: Skill Matching
       const specializations: string[] = tech.specializations || [];
@@ -1226,10 +1266,13 @@ export class ScheduleService {
 
     const { data: existingSchedules } = await conflictQuery;
 
+    const targetStartMin = timeStringToMinutes(startTime, 9 * 60);
+    const targetEndMin = timeStringToMinutes(endTime, 11 * 60);
+
     const conflict = (existingSchedules || []).find((s) => {
-      const sStart = s.start_time || '09:00';
-      const sEnd = s.end_time || '11:00';
-      return sStart < endTime && sEnd > startTime;
+      const sStartMin = timeStringToMinutes(s.start_time, 9 * 60);
+      const sEndMin = timeStringToMinutes(s.end_time, 11 * 60);
+      return sStartMin < targetEndMin && sEndMin > targetStartMin;
     });
 
     if (conflict) {
@@ -1253,7 +1296,9 @@ export class ScheduleService {
 
     const startH = tech.working_hours?.start || '09:00';
     const endH = tech.working_hours?.end || '18:00';
-    const withinWorkingHours = startTime >= startH && endTime <= endH;
+    const startHMin = timeStringToMinutes(startH, 9 * 60);
+    const endHMin = timeStringToMinutes(endH, 18 * 60);
+    const withinWorkingHours = targetStartMin >= startHMin && targetEndMin <= endHMin;
 
     if (!worksOnDay || !withinWorkingHours) {
       if (!isOverride) {

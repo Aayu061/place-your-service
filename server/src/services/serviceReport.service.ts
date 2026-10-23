@@ -377,6 +377,12 @@ export class ServiceReportService {
     if (insertErr || !newReport) {
       logger.error('Failed to insert service report header', { error: insertErr, trimmedReportNumber });
       if (insertErr?.code === '23505') {
+        if (
+          insertErr.message?.includes('uq_service_reports_active_schedule') ||
+          (insertErr as any).details?.includes('service_schedule_id')
+        ) {
+          throw new ConflictError('A service report has already been recorded for this scheduled appointment.');
+        }
         throw new ConflictError(`Report number "${trimmedReportNumber}" already exists.`);
       }
       throw new BadRequestError('Failed to save service visit report.');
@@ -561,6 +567,23 @@ export class ServiceReportService {
       })
       .eq('id', schedule.id);
 
+    // Synchronize active service assignments to COMPLETED to release technician workload
+    const assignmentsTable = supabase.from('service_assignments');
+    if (assignmentsTable && typeof assignmentsTable.update === 'function') {
+      const updateQuery = assignmentsTable.update({
+        status: 'COMPLETED',
+        updated_at: new Date().toISOString(),
+      });
+      if (updateQuery && typeof updateQuery.eq === 'function') {
+        const eqQuery = updateQuery.eq('service_schedule_id', schedule.id);
+        if (eqQuery && typeof eqQuery.in === 'function') {
+          await eqQuery.in('status', ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS']);
+        } else if (eqQuery) {
+          await eqQuery;
+        }
+      }
+    }
+
     // 9b. If linked to an AMC PM obligation (distinct from current appointment), synchronize it to COMPLETED
     if (
       schedule.pm_obligation_id &&
@@ -576,6 +599,15 @@ export class ServiceReportService {
           updated_at: new Date().toISOString(),
         })
         .eq('id', schedule.pm_obligation_id);
+
+      await supabase
+        .from('service_assignments')
+        .update({
+          status: 'COMPLETED',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('service_schedule_id', schedule.pm_obligation_id)
+        .in('status', ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS']);
     }
 
     // 9c. Update Service Request (if applicable) preserving workflow stages:
@@ -710,13 +742,9 @@ export class ServiceReportService {
       if (followUpSched && followUpSched.status !== 'CANCELLED') {
         followUpScheduleNumber = followUpSched.schedule_number;
       } else {
-        // Follow-up was cancelled or missing: clear stale reference so parent report is unblocked
+        // Follow-up was cancelled or missing: clear stale reference in response without mutating on read
         followUpScheduleNumber = null;
         effectiveFollowUpScheduleId = null;
-        await supabase
-          .from('service_reports')
-          .update({ follow_up_schedule_id: null, updated_at: new Date().toISOString() })
-          .eq('id', row.id);
       }
     }
 
@@ -1266,26 +1294,43 @@ export class ServiceReportService {
 
     // Update outcome items if supplied
     if (payload.items !== undefined) {
+      // Query existing items to preserve is_resolved status across report updates
+      const { data: existingItems } = await supabase
+        .from('service_report_items')
+        .select('item_name, part_number, asset_id, is_resolved')
+        .eq('report_id', id);
+
+      const resolvedSet = new Set<string>();
+      (existingItems || []).forEach((ei: any) => {
+        if (ei.is_resolved) {
+          resolvedSet.add(`${ei.asset_id || ''}_${ei.item_name}_${ei.part_number || ''}`);
+        }
+      });
+
       await supabase.from('service_report_items').delete().eq('report_id', id);
       if (payload.items.length > 0) {
-        const itemInserts = payload.items.map((item) => ({
-          report_id: id,
-          asset_id: item.assetId || null,
-          item_type: item.itemType,
-          item_name: item.itemName,
-          part_number: item.partNumber || null,
-          quantity: item.quantity || 1,
-          reason: item.reason,
-          diagnosis: item.diagnosis || null,
-          work_completed: item.workCompleted || null,
-          recommended_action: item.recommendedAction || null,
-          is_approval_required: item.isApprovalRequired ?? false,
-          is_specialist_required: item.isSpecialistRequired ?? false,
-          is_revisit_required: item.isRevisitRequired ?? true,
-          ac_condition: item.acCondition || null,
-          follow_up_notes: item.followUpNotes || null,
-          is_resolved: false,
-        }));
+        const itemInserts = payload.items.map((item) => {
+          const itemKey = `${item.assetId || ''}_${item.itemName}_${item.partNumber || ''}`;
+          const isResolved = (item as any).isResolved !== undefined ? Boolean((item as any).isResolved) : resolvedSet.has(itemKey);
+          return {
+            report_id: id,
+            asset_id: item.assetId || null,
+            item_type: item.itemType,
+            item_name: item.itemName,
+            part_number: item.partNumber || null,
+            quantity: item.quantity || 1,
+            reason: item.reason,
+            diagnosis: item.diagnosis || null,
+            work_completed: item.workCompleted || null,
+            recommended_action: item.recommendedAction || null,
+            is_approval_required: item.isApprovalRequired ?? false,
+            is_specialist_required: item.isSpecialistRequired ?? false,
+            is_revisit_required: item.isRevisitRequired ?? true,
+            ac_condition: item.acCondition || null,
+            follow_up_notes: item.followUpNotes || null,
+            is_resolved: isResolved,
+          };
+        });
         const { error: iErr } = await supabase.from('service_report_items').insert(itemInserts);
         if (iErr) {
           logger.error('Failed to update service report items', { error: iErr, id });

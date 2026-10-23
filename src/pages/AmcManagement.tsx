@@ -968,6 +968,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-normal)' }}>
                         {c.completedVisitsCount || 0} / {c.totalVisits} Completed
+                        {c.coveredAssetsCount && c.coveredAssetsCount > 1 ? (
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                            ({c.coveredAssetsCount} units)
+                          </span>
+                        ) : null}
                       </div>
                       {c.nextPmDate && (
                         <div style={{ fontSize: '11px', color: 'var(--color-primary-500)' }}>

@@ -58,5 +58,12 @@ assetRouter.get(
   assetController.getAssetAmcHistory.bind(assetController)
 );
 
+// 7. Get asset health & reliability metrics
+assetRouter.get(
+  '/:id/health',
+  validate(assetIdParamSchema),
+  assetController.getAssetHealth.bind(assetController)
+);
+
 export default assetRouter;
 

@@ -176,6 +176,34 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
   const fetchOperationalData = async () => {
     setIsLoadingDashboard(true);
     try {
+      try {
+        const summaryRes = await apiClient.get<{ data: any }>('/analytics/dashboard-summary');
+        if (summaryRes?.data) {
+          const d = summaryRes.data;
+          setActiveAmcCount(d.kpi?.activeAmcCount || 0);
+          setServicesDueCount(d.kpi?.servicesDueCount || 0);
+          setUnassignedRequestsCount(d.kpi?.unassignedRequestsCount || 0);
+          if (d.workDistribution && d.workDistribution.length > 0) {
+            setRealWorkDistribution(d.workDistribution);
+          }
+          setCapacityPercent(d.capacityPercent || 0);
+          setCompliancePercent(d.compliancePercent || 100);
+          if (d.recentServiceRequests && d.recentServiceRequests.length > 0) {
+            setRealServiceRequests(d.recentServiceRequests);
+          }
+          if (d.recentSchedules && d.recentSchedules.length > 0) {
+            setRealSchedules(d.recentSchedules);
+          }
+          if (d.trendData && d.trendData.length > 0) {
+            setRealTrendData(d.trendData);
+          }
+          setIsLoadingDashboard(false);
+          return;
+        }
+      } catch {
+        // Fallback to individual operational queries
+      }
+
       const [amcRes, srRes, schedRes] = await Promise.allSettled([
         apiClient.get<{ metrics: { activeContracts: number; upcomingPmCount: number; overduePmCount: number; coveredAssetsCount: number } }>('/amc-contracts/metrics'),
         apiClient.get<{ serviceRequests: DashboardServiceRequest[]; total: number }>('/service-requests?pageSize=10'),

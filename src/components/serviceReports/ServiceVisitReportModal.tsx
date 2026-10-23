@@ -403,10 +403,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
   // Parts items management
   const addPartItem = () => {
+    const defaultAssetId = assets.length > 0 ? assets[0].assetId : (schedule?.assetId || undefined);
     setPartItems((prev) => [
       ...prev,
       {
         id: `part-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        assetId: defaultAssetId,
         itemName: '',
         partNumber: '',
         quantity: 1,
@@ -438,10 +440,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
   // Repair items management
   const addRepairItem = () => {
+    const defaultAssetId = assets.length > 0 ? assets[0].assetId : (schedule?.assetId || undefined);
     setRepairItems((prev) => [
       ...prev,
       {
         id: `repair-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        assetId: defaultAssetId,
         itemName: '',
         reason: '',
         diagnosis: '',
@@ -619,6 +623,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         items:
           primaryOutcome === 'PENDING_PARTS'
             ? partItems.map((p) => ({
+                assetId: p.assetId || (assets.length > 0 ? assets[0].assetId : (schedule?.assetId || null)),
                 itemType: 'PART_REQUIRED',
                 itemName: p.itemName.trim(),
                 partNumber: p.partNumber.trim() || null,
@@ -629,6 +634,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               }))
             : primaryOutcome === 'PENDING_REPAIRS'
             ? repairItems.map((r) => ({
+                assetId: r.assetId || (assets.length > 0 ? assets[0].assetId : (schedule?.assetId || null)),
                 itemType: 'REPAIR_REQUIRED',
                 itemName: r.itemName.trim(),
                 reason: r.reason.trim(),
@@ -1702,6 +1708,34 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   )}
                 </div>
 
+                {assets.length > 1 && (
+                  <div style={{ marginBottom: 'var(--space-2)' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Associated AC Unit
+                    </label>
+                    <select
+                      value={item.assetId || assets[0]?.assetId}
+                      onChange={(e) => updatePartItem(item.id, 'assetId', e.target.value)}
+                      disabled={isSubmitting}
+                      style={{
+                        width: '100%',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-subtle)',
+                        backgroundColor: 'var(--surface-primary)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {assets.map((a) => (
+                        <option key={a.assetId} value={a.assetId}>
+                          {a.assetTag} — {a.brand} ({a.roomLocation || 'General'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-3)' }}>
                   <div style={{ gridColumn: 'span 2' }}>
                     <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
@@ -1842,6 +1876,34 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     </button>
                   )}
                 </div>
+
+                {assets.length > 1 && (
+                  <div style={{ marginBottom: 'var(--space-2)' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Associated AC Unit
+                    </label>
+                    <select
+                      value={item.assetId || assets[0]?.assetId}
+                      onChange={(e) => updateRepairItem(item.id, 'assetId', e.target.value)}
+                      disabled={isSubmitting}
+                      style={{
+                        width: '100%',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-subtle)',
+                        backgroundColor: 'var(--surface-primary)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {assets.map((a) => (
+                        <option key={a.assetId} value={a.assetId}>
+                          {a.assetTag} — {a.brand} ({a.roomLocation || 'General'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>

@@ -4,6 +4,8 @@ import {
   AssetCurrentAmcSummary,
   AssetAmcHistoryResponse,
   AssetAmcHistoryItem,
+  AssetHealthResponse,
+  AssetTimelineEvent,
   CreateAcAssetPayload,
   UpdateAcAssetPayload,
   AcAssetListQuery,
@@ -269,6 +271,16 @@ export class AssetService {
 
     if (query.siteId) {
       assetQuery = assetQuery.eq('site_id', query.siteId);
+    } else if (query.customerId) {
+      const { data: customerSites } = await supabase
+        .from('customer_sites')
+        .select('id')
+        .eq('customer_id', query.customerId);
+      const siteIds = (customerSites || []).map((s: any) => s.id);
+      if (siteIds.length === 0) {
+        return { assets: [], total: 0, page, pageSize, totalPages: 1 };
+      }
+      assetQuery = assetQuery.in('site_id', siteIds);
     }
 
     if (query.status === 'ACTIVE') {
@@ -525,6 +537,221 @@ export class AssetService {
       assetTag: asset.assetTag,
       currentAmc: asset.currentAmc || null,
       history,
+    };
+  }
+
+  /**
+   * Retrieves AC asset reliability score, operational metrics, and maintenance timeline.
+   */
+  public async getAssetHealth(assetId: string): Promise<AssetHealthResponse> {
+    const supabase = getSupabaseClient();
+
+    // 1. Verify asset existence
+    const { data: asset, error: assetErr } = await supabase
+      .from('ac_assets')
+      .select('id, asset_tag, brand, model_number, created_at')
+      .eq('id', assetId)
+      .maybeSingle();
+
+    if (assetErr || !asset) {
+      throw new NotFoundError(`AC Asset with ID '${assetId}' not found`);
+    }
+
+    // 2. Fetch all service report records for this asset
+    const { data: reportAssetRows } = await supabase
+      .from('service_report_assets')
+      .select(`
+        id, report_id, fault_reported, diagnosis_findings, work_performed, asset_outcome,
+        final_condition, refrigerant_added, refrigerant_qty_kg, notes, created_at,
+        service_reports (
+          id, report_number, service_date, visit_type, primary_outcome, resolution_status, technician_remarks, created_at,
+          technicians ( id, name, technician_code )
+        )
+      `)
+      .eq('asset_id', assetId)
+      .order('created_at', { ascending: false });
+
+    // 3. Fetch all parts and repairs items for this asset
+    const { data: itemRows } = await supabase
+      .from('service_report_items')
+      .select(`
+        id, report_id, item_type, item_name, part_number, quantity, reason, is_resolved, created_at,
+        service_reports (
+          report_number, service_date
+        )
+      `)
+      .eq('asset_id', assetId)
+      .order('created_at', { ascending: false });
+
+    // 4. Fetch service requests logged for this asset
+    const { data: requestRows } = await supabase
+      .from('service_requests')
+      .select('id, request_number, request_type, priority, status, description, created_at')
+      .eq('asset_id', assetId)
+      .order('created_at', { ascending: false });
+
+    // Compute metrics
+    const reportList = (reportAssetRows || []).map((ra: any) => ({
+      ...ra,
+      report: Array.isArray(ra.service_reports) ? ra.service_reports[0] : ra.service_reports,
+    }));
+
+    const totalServiceVisits = reportList.length;
+    let breakdownCount = 0;
+    let preventiveCount = 0;
+    let refrigerantLeakIncidents = 0;
+    let totalRefrigerantAddedKg = 0;
+    let lastServiceDate: string | null = null;
+
+    // Timeline collection
+    const timeline: AssetTimelineEvent[] = [];
+
+    // Analyze reports
+    for (const item of reportList) {
+      const rep = item.report;
+      const date = rep?.service_date || item.created_at?.split('T')[0] || asset.created_at?.split('T')[0];
+      if (!lastServiceDate || date > lastServiceDate) {
+        lastServiceDate = date;
+      }
+
+      const isBreakdown =
+        rep?.visit_type === 'BREAKDOWN' ||
+        Boolean(item.fault_reported) ||
+        item.asset_outcome === 'DEFECTIVE';
+
+      if (isBreakdown) {
+        breakdownCount++;
+      }
+      if (rep?.visit_type === 'PREVENTIVE' || rep?.visit_type === 'PM') {
+        preventiveCount++;
+      }
+
+      if (item.refrigerant_added || (Number(item.refrigerant_qty_kg) || 0) > 0) {
+        refrigerantLeakIncidents++;
+        const qty = Number(item.refrigerant_qty_kg) || 0;
+        totalRefrigerantAddedKg += qty;
+
+        timeline.push({
+          id: `refr-${item.id}`,
+          date,
+          type: 'REFRIGERANT_ADDED',
+          title: `Refrigerant Added (${qty > 0 ? `${qty} kg` : 'Recharged'})`,
+          description: item.notes || `Refrigerant topped up during service visit ${rep?.report_number || ''}.`,
+          reportNumber: rep?.report_number || null,
+          technicianName: rep?.technicians?.name || null,
+          outcome: rep?.primary_outcome || null,
+        });
+      }
+
+      const visitTitle = rep?.visit_type === 'PREVENTIVE'
+        ? `Preventive Maintenance (${rep?.report_number || 'Visit'})`
+        : isBreakdown
+          ? `Breakdown Service (${rep?.report_number || 'Visit'})`
+          : `Inspection & Service (${rep?.report_number || 'Visit'})`;
+
+      timeline.push({
+        id: `report-${item.id}`,
+        date,
+        type: rep?.visit_type === 'PREVENTIVE' ? 'PREVENTIVE' : isBreakdown ? 'BREAKDOWN' : 'SERVICE_VISIT',
+        title: visitTitle,
+        description: item.work_performed || item.diagnosis_findings || rep?.technician_remarks || item.fault_reported || 'Maintenance visit conducted.',
+        technicianName: rep?.technicians?.name || null,
+        reportNumber: rep?.report_number || null,
+        outcome: rep?.primary_outcome || null,
+      });
+    }
+
+    // Analyze parts replaced
+    let totalPartsReplaced = 0;
+    for (const p of itemRows || []) {
+      const rep = Array.isArray(p.service_reports) ? p.service_reports[0] : p.service_reports;
+      const date = rep?.service_date || p.created_at?.split('T')[0] || asset.created_at?.split('T')[0];
+      const qty = Number(p.quantity) || 1;
+
+      if (p.item_type === 'PART') {
+        totalPartsReplaced += qty;
+        timeline.push({
+          id: `part-${p.id}`,
+          date,
+          type: 'PARTS_REPLACED',
+          title: `Part Replaced: ${p.item_name}`,
+          description: `Replaced ${qty} unit(s)${p.part_number ? ` (Part #${p.part_number})` : ''}. ${p.reason ? `Reason: ${p.reason}` : ''}`,
+          reportNumber: rep?.report_number || null,
+        });
+      }
+    }
+
+    // Analyze service requests (e.g. BREAKDOWN requests)
+    for (const req of requestRows || []) {
+      if (req.request_type === 'BREAKDOWN') {
+        const date = req.created_at?.split('T')[0] || asset.created_at?.split('T')[0];
+        if (totalServiceVisits === 0) {
+          breakdownCount++;
+        }
+        timeline.push({
+          id: `req-${req.id}`,
+          date,
+          type: 'BREAKDOWN',
+          title: `Breakdown Reported (${req.request_number})`,
+          description: req.description || 'Customer reported cooling failure / breakdown.',
+          outcome: req.status,
+        });
+      }
+    }
+
+    // Sort timeline descending by date
+    timeline.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Calculate days since last service
+    let daysSinceLastService: number | null = null;
+    if (lastServiceDate) {
+      const diffMs = Date.now() - new Date(lastServiceDate).getTime();
+      daysSinceLastService = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
+    // Reliability Score Calculation
+    const baseScore = 100;
+    const breakdownDeduction = Math.min(40, breakdownCount * 10);
+    const refrigerantDeduction = Math.min(30, refrigerantLeakIncidents * 12);
+    const partsDeduction = Math.min(25, totalPartsReplaced * 5);
+    const finalScore = Math.max(0, Math.min(100, baseScore - breakdownDeduction - refrigerantDeduction - partsDeduction));
+
+    let reliabilityRating: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
+    if (finalScore >= 85) {
+      reliabilityRating = 'EXCELLENT';
+    } else if (finalScore >= 70) {
+      reliabilityRating = 'GOOD';
+    } else if (finalScore >= 50) {
+      reliabilityRating = 'FAIR';
+    } else {
+      reliabilityRating = 'POOR';
+    }
+
+    return {
+      assetId: asset.id,
+      assetTag: asset.asset_tag,
+      brand: asset.brand,
+      modelNumber: asset.model_number,
+      reliabilityScore: finalScore,
+      reliabilityRating,
+      metrics: {
+        totalServiceVisits,
+        breakdownCount,
+        preventiveCount,
+        refrigerantLeakIncidents,
+        totalRefrigerantAddedKg: Math.round(totalRefrigerantAddedKg * 100) / 100,
+        totalPartsReplaced,
+        daysSinceLastService,
+        lastServiceDate,
+      },
+      scoreBreakdown: {
+        baseScore,
+        breakdownDeduction,
+        refrigerantDeduction,
+        partsDeduction,
+        finalScore,
+      },
+      timeline,
     };
   }
 

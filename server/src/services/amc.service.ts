@@ -474,6 +474,11 @@ export class AmcService {
       const isExpiringSoon =
         row.status === 'ACTIVE' && row.end_date >= today && row.end_date <= thirtyDaysLater;
 
+      const completedCycles = coveredAssetsCount > 0
+        ? Math.min(row.total_visits, Math.floor(scheduleStats.completed / coveredAssetsCount))
+        : Math.min(row.total_visits, scheduleStats.completed);
+      const remainingCycles = Math.max(0, row.total_visits - completedCycles);
+
       return {
         id: row.id,
         contractNumber: row.contract_number,
@@ -500,8 +505,8 @@ export class AmcService {
         previousContractId: row.previous_contract_id,
         coveredAssetsCount,
         schedulesCount: scheduleStats.total,
-        completedVisitsCount: scheduleStats.completed,
-        remainingVisitsCount: Math.max(0, row.total_visits - scheduleStats.completed),
+        completedVisitsCount: completedCycles,
+        remainingVisitsCount: remainingCycles,
         nextPmDate: scheduleStats.nextDate,
         isExpiringSoon,
         createdBy: row.created_by,
@@ -650,8 +655,16 @@ export class AmcService {
       coveredAssetsCount: coveredAssets.length,
       coveredAssets,
       schedulesCount: (schedulesRows || []).length,
-      completedVisitsCount,
-      remainingVisitsCount: Math.max(0, row.total_visits - completedVisitsCount),
+      completedVisitsCount: coveredAssets.length > 0
+        ? Math.min(row.total_visits, Math.floor(completedVisitsCount / coveredAssets.length))
+        : Math.min(row.total_visits, completedVisitsCount),
+      remainingVisitsCount: Math.max(
+        0,
+        row.total_visits -
+          (coveredAssets.length > 0
+            ? Math.min(row.total_visits, Math.floor(completedVisitsCount / coveredAssets.length))
+            : Math.min(row.total_visits, completedVisitsCount))
+      ),
       nextPmDate,
       isExpiringSoon,
       createdBy: row.created_by,

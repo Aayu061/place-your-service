@@ -29,6 +29,8 @@ import {
   Hash,
   Cpu,
   ShieldCheck,
+  Activity,
+  Clock,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import {
@@ -42,6 +44,7 @@ import {
   AcModel,
   AcModelVariant,
   AssetAmcHistoryResponse,
+  AssetHealthResponse,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -298,6 +301,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [assetAmcHistory, setAssetAmcHistory] = useState<AssetAmcHistoryResponse | null>(null);
   const [isLoadingAssetAmcHistory, setIsLoadingAssetAmcHistory] = useState(false);
   const [showAssetAmcHistory, setShowAssetAmcHistory] = useState(false);
+  const [assetHealth, setAssetHealth] = useState<AssetHealthResponse | null>(null);
+  const [isLoadingAssetHealth, setIsLoadingAssetHealth] = useState(false);
+  const [showAssetHealthTimeline, setShowAssetHealthTimeline] = useState(false);
   const [assetFormSiteId, setAssetFormSiteId] = useState('');
   const [assetFormTag, setAssetFormTag] = useState('');
   
@@ -1045,15 +1051,33 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const handleOpenAssetDrawer = async (asset: AcAsset) => {
     setViewingAsset(asset);
     setCopiedSerialKey(null);
-    try {
-      const res = await apiClient.get<{ asset?: AcAsset; data?: { asset: AcAsset } }>(`/assets/${asset.id}`);
-      const freshAsset = res.data?.asset || res.asset;
-      if (freshAsset && freshAsset.id === asset.id) {
-        setViewingAsset(freshAsset);
-      }
-    } catch {
-      // Retain in-memory asset state on request failure
-    }
+    setShowAssetAmcHistory(false);
+    setAssetAmcHistory(null);
+    setShowAssetHealthTimeline(false);
+    setIsLoadingAssetHealth(true);
+    setAssetHealth(null);
+
+    // Fetch fresh asset specs
+    apiClient
+      .get<{ asset?: AcAsset; data?: { asset: AcAsset } }>(`/assets/${asset.id}`)
+      .then((res) => {
+        const freshAsset = res.data?.asset || res.asset;
+        if (freshAsset && freshAsset.id === asset.id) {
+          setViewingAsset(freshAsset);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch asset health and reliability metrics
+    apiClient
+      .get<AssetHealthResponse>(`/assets/${asset.id}/health`)
+      .then((healthRes) => {
+        if (healthRes && healthRes.assetId === asset.id) {
+          setAssetHealth(healthRes);
+        }
+      })
+      .catch(() => setAssetHealth(null))
+      .finally(() => setIsLoadingAssetHealth(false));
   };
 
   const handleCopySerial = async (serial: string, key: 'idu' | 'odu') => {
@@ -4948,6 +4972,196 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                           </div>
                         );
                       })()}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 5. ASSET RELIABILITY & MAINTENANCE INTELLIGENCE */}
+            <div
+              className="card"
+              style={{
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                backgroundColor: 'var(--bg-surface)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-3)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Activity size={16} style={{ color: 'var(--color-brand)' }} />
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-primary)' }}>
+                    Asset Reliability & Health
+                  </span>
+                </div>
+                {assetHealth && (
+                  <Badge
+                    variant={
+                      assetHealth.reliabilityRating === 'EXCELLENT'
+                        ? 'success'
+                        : assetHealth.reliabilityRating === 'GOOD'
+                        ? 'brand'
+                        : assetHealth.reliabilityRating === 'FAIR'
+                        ? 'warning'
+                        : 'danger'
+                    }
+                  >
+                    {assetHealth.reliabilityRating} ({assetHealth.reliabilityScore}/100)
+                  </Badge>
+                )}
+              </div>
+
+              {isLoadingAssetHealth ? (
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: 'var(--space-2)' }}>
+                  Calculating equipment reliability index...
+                </div>
+              ) : !assetHealth ? (
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  Reliability metrics will populate as service visits and inspection reports are logged.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  {/* Reliability Score Bar */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      <span>Equipment Reliability Index</span>
+                      <span style={{ fontWeight: 600 }}>{assetHealth.reliabilityScore}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: '999px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${assetHealth.reliabilityScore}%`,
+                          height: '100%',
+                          backgroundColor:
+                            assetHealth.reliabilityScore >= 85
+                              ? '#10b981'
+                              : assetHealth.reliabilityScore >= 70
+                              ? 'var(--color-brand)'
+                              : assetHealth.reliabilityScore >= 50
+                              ? '#f59e0b'
+                              : '#ef4444',
+                          transition: 'width 0.4s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4 Metrics Grid */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                      gap: 'var(--space-2)',
+                    }}
+                  >
+                    <div style={{ padding: 'var(--space-2)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Service Visits</div>
+                      <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                        {assetHealth.metrics.totalServiceVisits}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        {assetHealth.metrics.preventiveCount} PM / {assetHealth.metrics.breakdownCount} Breakdown
+                      </div>
+                    </div>
+
+                    <div style={{ padding: 'var(--space-2)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Refrigerant Status</div>
+                      <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: assetHealth.metrics.refrigerantLeakIncidents > 0 ? '#ef4444' : '#10b981', marginTop: '2px' }}>
+                        {assetHealth.metrics.totalRefrigerantAddedKg > 0 ? `${assetHealth.metrics.totalRefrigerantAddedKg} kg` : 'Intact'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        {assetHealth.metrics.refrigerantLeakIncidents > 0 ? `${assetHealth.metrics.refrigerantLeakIncidents} top-up incident(s)` : 'No leaks recorded'}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: 'var(--space-2)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Parts Replaced</div>
+                      <div style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                        {assetHealth.metrics.totalPartsReplaced}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        Components replaced
+                      </div>
+                    </div>
+
+                    <div style={{ padding: 'var(--space-2)', backgroundColor: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Last Serviced</div>
+                      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+                        {assetHealth.metrics.lastServiceDate || 'None'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        {assetHealth.metrics.daysSinceLastService !== null ? `${assetHealth.metrics.daysSinceLastService} days ago` : 'No past visit'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Toggle Timeline Button */}
+                  {assetHealth.timeline.length > 0 && (
+                    <div style={{ marginTop: '2px' }}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAssetHealthTimeline((prev) => !prev)}
+                        leftIcon={<Clock size={14} />}
+                      >
+                        {showAssetHealthTimeline ? 'Hide Maintenance Timeline' : `Maintenance Activity Timeline (${assetHealth.timeline.length})`}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Maintenance Timeline */}
+                  {showAssetHealthTimeline && assetHealth.timeline.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 'var(--space-2)',
+                        paddingTop: 'var(--space-2)',
+                        borderTop: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Activity Timeline
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', maxHeight: '280px', overflowY: 'auto' }}>
+                        {assetHealth.timeline.map((event) => (
+                          <div
+                            key={event.id}
+                            style={{
+                              padding: 'var(--space-2)',
+                              backgroundColor: 'var(--bg-surface-subtle)',
+                              borderRadius: 'var(--radius-sm)',
+                              borderLeft: `3px solid ${
+                                event.type === 'BREAKDOWN'
+                                  ? '#ef4444'
+                                  : event.type === 'REFRIGERANT_ADDED'
+                                  ? '#f59e0b'
+                                  : event.type === 'PARTS_REPLACED'
+                                  ? 'var(--color-brand)'
+                                  : '#10b981'
+                              }`,
+                              fontSize: 'var(--text-xs)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{event.title}</span>
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{event.date}</span>
+                            </div>
+                            <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>{event.description}</div>
+                            {(event.technicianName || event.reportNumber) && (
+                              <div style={{ display: 'flex', gap: 'var(--space-3)', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                {event.technicianName && <span>Tech: {event.technicianName}</span>}
+                                {event.reportNumber && <span>Report: {event.reportNumber}</span>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

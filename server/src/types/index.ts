@@ -1128,6 +1128,45 @@ export interface AssetAmcHistoryResponse {
   history: AssetAmcHistoryItem[];
 }
 
+export interface AssetTimelineEvent {
+  id: string;
+  date: string;
+  type: 'SERVICE_VISIT' | 'BREAKDOWN' | 'PREVENTIVE' | 'PARTS_REPLACED' | 'REFRIGERANT_ADDED';
+  title: string;
+  description: string;
+  technicianName?: string | null;
+  reportNumber?: string | null;
+  outcome?: string | null;
+}
+
+export interface AssetHealthResponse {
+  assetId: string;
+  assetTag: string;
+  brand: string;
+  modelNumber?: string | null;
+  reliabilityScore: number;
+  reliabilityRating: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
+  metrics: {
+    totalServiceVisits: number;
+    breakdownCount: number;
+    preventiveCount: number;
+    refrigerantLeakIncidents: number;
+    totalRefrigerantAddedKg: number;
+    totalPartsReplaced: number;
+    daysSinceLastService: number | null;
+    lastServiceDate: string | null;
+  };
+  scoreBreakdown: {
+    baseScore: number;
+    breakdownDeduction: number;
+    refrigerantDeduction: number;
+    partsDeduction: number;
+    finalScore: number;
+  };
+  timeline: AssetTimelineEvent[];
+}
+
+
 export interface AmcContractListQuery {
   search?: string;
   status?: 'ALL' | AmcStatus | 'HISTORY';
