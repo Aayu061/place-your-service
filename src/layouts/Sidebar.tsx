@@ -225,9 +225,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           {!isCollapsed && (
-            <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)' }}>
-              <div>Phase 1 Shell</div>
-              <div style={{ color: 'var(--color-neutral-500)', fontSize: '10px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--color-neutral-300)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--color-neutral-200)', letterSpacing: '0.02em' }}>
+                Place Your Service
+              </div>
+              <div style={{ color: 'var(--color-neutral-400)', fontSize: '10px' }}>
                 Role: {currentRole}
               </div>
             </div>

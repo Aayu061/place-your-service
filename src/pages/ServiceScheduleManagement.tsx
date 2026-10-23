@@ -603,7 +603,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             </h1>
           </div>
           <p style={{ margin: 'var(--space-1) 0 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-            Phase 9 operational dispatch: appointment booking, skill/area matching, and conflict-free technician assignment.
+            Operational dispatch: appointment booking, skill/area matching, and conflict-free technician assignment.
           </p>
         </div>
 

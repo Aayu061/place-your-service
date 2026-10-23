@@ -1536,7 +1536,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                   }}
                 >
                   <Info size={14} />
-                  <span>Subsequent stages (Scheduling, Technician Assignment, Execution) activate in Phase 7+.</span>
+                  <span>Subsequent stages (Scheduling, Technician Assignment, Execution) are managed via Service Schedules and Dispatches.</span>
                 </div>
               </div>
             </div>

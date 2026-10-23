@@ -47,7 +47,7 @@ export const ModuleShellPlaceholder: React.FC<ModuleShellPlaceholderProps> = ({
           <div>
             <CardTitle>{moduleName} Workspace</CardTitle>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Architectural Shell Ready — Scheduled for implementation in {plannedPhase}.
+              Enterprise Module — Scheduled for release in {plannedPhase}.
             </div>
           </div>
           <span className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -101,7 +101,7 @@ export const ModuleShellPlaceholder: React.FC<ModuleShellPlaceholderProps> = ({
               color: 'var(--color-warning-text)',
             }}
           >
-            <strong>Zero-Fake-Functionality Principle:</strong> In accordance with project policy, no synthetic business data or mock records are presented. Real PostgreSQL schemas and APIs will populate this interface in future development phases.
+            <strong>Enterprise Notice:</strong> In accordance with strict data integrity standards, no synthetic or placeholder data is displayed. Real operational database models and endpoints will activate this workspace upon deployment.
           </div>
         </CardBody>
       </Card>

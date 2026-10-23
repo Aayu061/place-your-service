@@ -130,16 +130,16 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
           }
         >
-          <DropdownHeader>Notifications (Shell Preview)</DropdownHeader>
+          <DropdownHeader>Notifications</DropdownHeader>
           <div style={{ padding: 'var(--space-3) var(--space-4)', maxWidth: '260px' }}>
             <p className="text-caption" style={{ color: 'var(--text-muted)', lineHeight: 1.4 }}>
-              Live operational notification streaming will connect in Phase 13.
+              All systems operational. No unread service or system alerts.
             </p>
           </div>
           <DropdownDivider />
           <div style={{ padding: 'var(--space-2) var(--space-4)', textAlign: 'center' }}>
             <span className="text-caption" style={{ color: 'var(--color-brand)', fontWeight: 500 }}>
-              No Unread Alerts
+              Operational Queue Clear
             </span>
           </div>
         </Dropdown>

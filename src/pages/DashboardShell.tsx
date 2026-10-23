@@ -5,18 +5,14 @@ import {
   AlertTriangle,
   Package,
   Plus,
-  Layers,
-  Sparkles,
   ExternalLink,
   ShieldCheck,
-  CheckCircle2,
   Calendar,
-  Send,
   Sliders,
-  Activity,
   RefreshCw,
+  Users,
+  Wrench,
 } from 'lucide-react';
-import { healthApi, HealthResponse } from '@/services/api';
 import { apiClient } from '@/services/api/client';
 import { UserRole } from '@/domain/types';
 import { Card, CardHeader, CardTitle, CardBody, CardFooter } from '@/components/ui/Card';
@@ -28,12 +24,7 @@ import { useGsapCountUp } from '@/hooks/useGsapCountUp';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Textarea } from '@/components/ui/Textarea';
-import { Modal } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   Table,
   TableHeader,
@@ -45,7 +36,6 @@ import {
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { formatDate } from '@/utils/formatters';
-import { useToast } from '@/components/ui/useToast';
 
 interface DashboardServiceRequest {
   id: string;
@@ -92,11 +82,21 @@ const KpiCounterCard: React.FC<KpiCounterCardProps> = ({
   subText,
   onClick,
 }) => {
-  const countRef = useGsapCountUp(value);
+  const countRef = useGsapCountUp(value, { duration: 1.2 });
 
   return (
-    <GlassCard enableTilt variant="hybrid" style={{ cursor: 'pointer' }} onClick={onClick}>
-      <div style={{ padding: 'var(--space-4) var(--space-5)' }}>
+    <GlassCard
+      enableTilt
+      variant="hybrid"
+      onClick={onClick}
+      style={{
+        cursor: onClick ? 'pointer' : 'default',
+        padding: 'var(--space-4)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-2)' }}>
           <span className="text-caption" style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
             {title}
@@ -132,16 +132,8 @@ interface DashboardShellProps {
 }
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onNavigate }) => {
-  const { showToast } = useToast();
-
-  // Overlay state triggers for testing
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
-
-  // Component gallery interactive states
-  const [isButtonLoading, setIsButtonLoading] = useState(false);
-  const [formInputVal, setFormInputVal] = useState('');
-  const [formHasError, setFormHasError] = useState(false);
+  // Quick Actions Drawer State
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
 
   // Live Operational Backend Data States
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -306,35 +298,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
     fetchOperationalData();
   }, []);
 
-  // Phase 2 Backend API Health Verification
-  const [apiHealth, setApiHealth] = useState<HealthResponse | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-  const [apiHealthChecked, setApiHealthChecked] = useState(false);
-
-  const handleCheckApiHealth = async () => {
-    setIsCheckingHealth(true);
-    try {
-      const data = await healthApi.getHealth();
-      setApiHealth(data);
-      setApiHealthChecked(true);
-      showToast({
-        type: 'success',
-        title: 'Backend API Connected',
-        message: `${data.service} is reachable (${data.environment})`,
-      });
-    } catch {
-      setApiHealth(null);
-      setApiHealthChecked(true);
-      showToast({
-        type: 'warning',
-        title: 'API Status: Disconnected',
-        message: 'Ensure the Render/Node backend server is running.',
-      });
-    } finally {
-      setIsCheckingHealth(false);
-    }
-  };
-
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       {/* Page Header */}
@@ -342,30 +305,30 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
             <h1 className="text-page-title">Operations Dashboard</h1>
-            <Badge variant="brand">Phase 1 Shell</Badge>
+            <Badge variant="success">Live Operations</Badge>
           </div>
           <p className="text-body-sm">
-            Operational service management shell for air-conditioning contracts, field assignments, and assets.
+            Centralized operational command center for HVAC service requests, AMC contracts, technician dispatch, and asset health.
           </p>
         </div>
 
-        {/* Quick Action Buttons */}
+        {/* Header Action Buttons */}
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           <Button
             variant="outline"
             size="sm"
             leftIcon={<Sliders size={15} />}
-            onClick={() => setIsTestDrawerOpen(true)}
+            onClick={() => setIsQuickActionsOpen(true)}
           >
-            Quick Actions (Drawer)
+            Quick Actions
           </Button>
           <Button
             variant="primary"
             size="sm"
             leftIcon={<Plus size={15} />}
-            onClick={() => setIsTestModalOpen(true)}
+            onClick={() => onNavigate('service-requests')}
           >
-            New Request (Modal)
+            New Request
           </Button>
         </div>
       </div>
@@ -388,10 +351,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
           <ShieldCheck size={20} style={{ color: 'var(--color-brand)', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Live Operational Dashboard: Real Database Telemetry
+              Operational Telemetry &amp; Field Dispatch
             </div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-              All metrics, work order categories, and dispatch queues are computed live from your PostgreSQL database.
+              Synchronized in real-time with your active HVAC maintenance database and service records.
             </div>
           </div>
         </div>
@@ -405,609 +368,316 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
           >
             Refresh Telemetry
           </Button>
-          {apiHealthChecked && (
-            <Badge variant={apiHealth?.status === 'healthy' ? 'success' : 'error'}>
-              API: {apiHealth ? `${apiHealth.status.toUpperCase()} (${apiHealth.environment})` : 'OFFLINE'}
-            </Badge>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            isLoading={isCheckingHealth}
-            leftIcon={<Activity size={14} />}
-            onClick={handleCheckApiHealth}
-          >
-            {apiHealthChecked ? 'Re-verify API' : 'Verify Backend API'}
-          </Button>
           <span className="badge badge-neutral" style={{ fontSize: '11px' }}>
             Current View: {currentRole}
           </span>
         </div>
       </div>
 
-      {/* Primary Dashboard Tabs */}
-      <Tabs defaultValue="structure">
-        <TabsList>
-          <TabsTrigger value="structure" icon={<Layers size={16} />}>
-            Operational Dashboard Layout
-          </TabsTrigger>
-          <TabsTrigger value="gallery" icon={<Sparkles size={16} />}>
-            Design System Component Gallery
-          </TabsTrigger>
-        </TabsList>
+      {/* Operational Dashboard Content Layout */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        {/* Level 1: Tactical Neumorphic Glass KPI Cards with GSAP Count-Up */}
+        <div className="grid grid-cols-4 gap-4">
+          <KpiCounterCard
+            title="Active AMC Contracts"
+            badgeText="Live Target"
+            badgeClass="badge-amc"
+            value={activeAmcCount}
+            unit="contracts"
+            subIcon={<FileCheck2 size={13} style={{ color: 'var(--color-amc-solid)' }} />}
+            subText="Preventive maintenance active"
+            onClick={() => onNavigate('amc')}
+          />
+          <KpiCounterCard
+            title="Services Due Today"
+            badgeText="Operational"
+            badgeClass="badge-info"
+            value={servicesDueCount}
+            unit="visits"
+            subIcon={<Clock size={13} style={{ color: 'var(--color-info-solid)' }} />}
+            subText="Calculated by schedule date"
+            onClick={() => onNavigate('service-schedule')}
+          />
+          <KpiCounterCard
+            title="Unassigned Requests"
+            badgeText={unassignedRequestsCount > 0 ? 'Attention' : 'Clear'}
+            badgeClass={unassignedRequestsCount > 0 ? 'badge-warning' : 'badge-neutral'}
+            value={unassignedRequestsCount}
+            unit="tickets"
+            subIcon={<AlertTriangle size={13} style={{ color: 'var(--color-warning-solid)' }} />}
+            subText="Requires technician dispatch"
+            onClick={() => onNavigate('service-requests')}
+          />
+          <KpiCounterCard
+            title="Parts at Low Stock"
+            badgeText="Inventory"
+            badgeClass="badge-neutral"
+            value={lowStockCount}
+            unit="SKUs"
+            subIcon={<Package size={13} style={{ color: 'var(--color-neutral-solid)' }} />}
+            subText="Below minimum reorder level"
+          />
+        </div>
 
-        {/* ========================================================
-            TAB 1: OPERATIONAL DASHBOARD LAYOUT STRUCTURE
-           ======================================================== */}
-        <TabsContent value="structure">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-            {/* Level 1: Tactical Neumorphic Glass KPI Cards with GSAP Count-Up */}
-            <div className="grid grid-cols-4 gap-4">
-              <KpiCounterCard
-                title="Active AMC Contracts"
-                badgeText="Live Target"
-                badgeClass="badge-amc"
-                value={activeAmcCount}
-                unit="contracts"
-                subIcon={<FileCheck2 size={13} style={{ color: 'var(--color-amc-solid)' }} />}
-                subText="Preventive maintenance active"
-                onClick={() => onNavigate('amc')}
-              />
-              <KpiCounterCard
-                title="Services Due Today"
-                badgeText="Operational"
-                badgeClass="badge-info"
-                value={servicesDueCount}
-                unit="visits"
-                subIcon={<Clock size={13} style={{ color: 'var(--color-info-solid)' }} />}
-                subText="Calculated by schedule date"
-                onClick={() => onNavigate('service-schedule')}
-              />
-              <KpiCounterCard
-                title="Unassigned Requests"
-                badgeText={unassignedRequestsCount > 0 ? 'Attention' : 'Clear'}
-                badgeClass={unassignedRequestsCount > 0 ? 'badge-warning' : 'badge-neutral'}
-                value={unassignedRequestsCount}
-                unit="tickets"
-                subIcon={<AlertTriangle size={13} style={{ color: 'var(--color-warning-solid)' }} />}
-                subText="Requires technician dispatch"
-                onClick={() => onNavigate('service-requests')}
-              />
-              <KpiCounterCard
-                title="Parts at Low Stock"
-                badgeText="Inventory"
-                badgeClass="badge-neutral"
-                value={lowStockCount}
-                unit="SKUs"
-                subIcon={<Package size={13} style={{ color: 'var(--color-neutral-solid)' }} />}
-                subText="Below minimum reorder level"
-              />
-            </div>
-
-            {/* Level 2: Visual Operational Analytics Cockpit (GSAP Animated Charts) */}
-            <div className="grid grid-cols-3 gap-6">
-              <div style={{ gridColumn: 'span 2' }}>
-                <OperationalTrendChart
-                  data={realTrendData}
-                  title="Operational Service Volume & Velocity"
-                  subtitle="7-Day Catmull-Rom spline curve of scheduled visits vs. breakdown tickets"
-                />
-              </div>
-              <div>
-                <CapacityRadialGauge
-                  capacityPercent={capacityPercent}
-                  compliancePercent={compliancePercent}
-                  title="Field Capacity & Health"
-                  subtitle="Active technician completion & AMC compliance index"
-                />
-              </div>
-            </div>
-
-            {/* Level 3: Work Queue Category Distribution */}
-            <div>
-              <WorkDistributionBarChart
-                items={realWorkDistribution}
-                title="Service Category Distribution"
-                subtitle="Live breakdown vs preventive maintenance distribution across active tickets"
-              />
-            </div>
-
-            {/* Level 4: Operational Data Streams */}
-            <div className="grid grid-cols-3 gap-6">
-              {/* Left Column (Span 2): Active Service Workspace Shell */}
-              <div style={{ gridColumn: 'span 2' }}>
-                <Card variant="hybrid">
-                  <CardHeader>
-                    <div>
-                      <CardTitle>Active Service Operations Stream</CardTitle>
-                      <div className="text-caption">
-                        Live service requests from PostgreSQL database
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onNavigate('service-requests')}
-                      rightIcon={<ExternalLink size={14} />}
-                    >
-                      View All
-                    </Button>
-                  </CardHeader>
-                  <CardBody style={{ padding: realServiceRequests.length > 0 ? 0 : 'var(--space-4)' }}>
-                    {isLoadingDashboard ? (
-                      <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                        <Skeleton height="36px" borderRadius="var(--radius-md)" />
-                        <Skeleton height="36px" borderRadius="var(--radius-md)" />
-                        <Skeleton height="36px" borderRadius="var(--radius-md)" />
-                      </div>
-                    ) : realServiceRequests.length === 0 ? (
-                      <EmptyState
-                        title="No Active Service Requests"
-                        description="Your operational queue is currently empty. Click 'New Request' to create and dispatch a new breakdown or maintenance ticket."
-                        actionLabel="+ New Request"
-                        onAction={() => onNavigate('service-requests')}
-                      />
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Service ID</TableHead>
-                            <TableHead>Customer / Site</TableHead>
-                            <TableHead>AC Asset</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Priority</TableHead>
-                            <TableHead>Technician</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {realServiceRequests.slice(0, 5).map((sr: DashboardServiceRequest) => (
-                            <TableRow key={sr.id} isInteractive onClick={() => onNavigate('service-requests')}>
-                              <TableCell><span className="text-mono font-medium">{sr.requestNumber}</span></TableCell>
-                              <TableCell>
-                                <div className="font-medium">{sr.customerName || 'Customer'}</div>
-                                <div className="text-caption">{sr.siteName || 'Site Location'}</div>
-                              </TableCell>
-                              <TableCell>{sr.assetBrand ? `${sr.assetBrand} ${sr.assetModel || ''}` : 'AC Unit'}</TableCell>
-                              <TableCell><StatusBadge status={sr.status} /></TableCell>
-                              <TableCell>
-                                <Badge variant={sr.priority === 'EMERGENCY' || sr.priority === 'URGENT' ? 'error' : sr.priority === 'HIGH' ? 'warning' : 'info'}>
-                                  {sr.priority}
-                                </Badge>
-                              </TableCell>
-                              <TableCell><span className="text-body-sm">{sr.assignedTechnicianName || 'Unassigned (Pending)'}</span></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardBody>
-                </Card>
-              </div>
-
-              {/* Right Column: Upcoming PM Schedules & Quick Overview */}
-              <div>
-                <Card variant="hybrid">
-                  <CardHeader>
-                    <div>
-                      <CardTitle>Preventive Schedules</CardTitle>
-                      <div className="text-caption">Generated AMC Maintenance Queue</div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onNavigate('service-schedule')}
-                      rightIcon={<Calendar size={14} />}
-                    >
-                      Calendar
-                    </Button>
-                  </CardHeader>
-                  <CardBody>
-                    {isLoadingDashboard ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                        <Skeleton height="54px" borderRadius="var(--radius-md)" />
-                        <Skeleton height="54px" borderRadius="var(--radius-md)" />
-                      </div>
-                    ) : realSchedules.length === 0 ? (
-                      <EmptyState
-                        title="No Schedules in Queue"
-                        description="No preventive maintenance visits currently scheduled. Generate visits from AMC contracts."
-                        actionLabel="Manage AMC"
-                        onAction={() => onNavigate('amc')}
-                      />
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                        {realSchedules.slice(0, 3).map((s: DashboardSchedule) => (
-                          <div
-                            key={s.id}
-                            style={{
-                              padding: 'var(--space-3)',
-                              borderRadius: 'var(--radius-md)',
-                              border: '1px solid var(--border-default)',
-                              backgroundColor: 'var(--bg-surface-subtle)',
-                              cursor: 'pointer',
-                            }}
-                            onClick={() => onNavigate('service-schedule')}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                              <span className="text-mono" style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>
-                                {s.scheduleNumber}
-                              </span>
-                              <StatusBadge status={s.status} />
-                            </div>
-                            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
-                              {s.customerName || s.siteName || 'Customer Facility'}
-                            </div>
-                            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                              Target: {s.scheduledDate ? formatDate(s.scheduledDate) : 'Pending Date'} • {s.brand || 'AC Asset'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardBody>
-                  <CardFooter>
-                    <span className="text-caption">Algorithm: Calendar-Aware PM Schedule Generation</span>
-                  </CardFooter>
-                </Card>
-              </div>
-            </div>
+        {/* Level 2: Visual Operational Analytics Cockpit (GSAP Animated Charts) */}
+        <div className="grid grid-cols-3 gap-6">
+          <div style={{ gridColumn: 'span 2' }}>
+            <OperationalTrendChart
+              data={realTrendData}
+              title="Operational Service Volume &amp; Velocity"
+              subtitle="7-Day Catmull-Rom spline curve of scheduled visits vs. breakdown tickets"
+            />
           </div>
-        </TabsContent>
+          <div>
+            <CapacityRadialGauge
+              capacityPercent={capacityPercent}
+              compliancePercent={compliancePercent}
+              title="Field Capacity &amp; Health"
+              subtitle="Active technician completion &amp; AMC compliance index"
+            />
+          </div>
+        </div>
 
-        {/* ========================================================
-            TAB 2: DESIGN SYSTEM COMPONENT GALLERY
-           ======================================================== */}
-        <TabsContent value="gallery">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
-            {/* Section 1: Buttons */}
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>1. Buttons &amp; Action Primitives</CardTitle>
-                  <div className="text-caption">Variants, sizing, loading states, and disabled feedback</div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsButtonLoading((prev) => !prev)}
-                >
-                  Toggle Loading: {isButtonLoading ? 'ON' : 'OFF'}
-                </Button>
-              </CardHeader>
-              <CardBody>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Variants:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Button variant="primary" isLoading={isButtonLoading}>Primary Button</Button>
-                      <Button variant="secondary" isLoading={isButtonLoading}>Secondary Button</Button>
-                      <Button variant="outline" isLoading={isButtonLoading}>Outline Button</Button>
-                      <Button variant="ghost" isLoading={isButtonLoading}>Ghost Button</Button>
-                      <Button variant="danger" isLoading={isButtonLoading}>Danger Button</Button>
-                      <Button variant="primary" disabled>Disabled State</Button>
-                    </div>
-                  </div>
+        {/* Level 3: Work Queue Category Distribution */}
+        <div>
+          <WorkDistributionBarChart
+            items={realWorkDistribution}
+            title="Service Category Distribution"
+            subtitle="Live breakdown vs preventive maintenance distribution across active tickets"
+          />
+        </div>
 
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Sizes:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Button variant="primary" size="sm">Small (sm)</Button>
-                      <Button variant="primary" size="md">Medium (md)</Button>
-                      <Button variant="primary" size="lg">Large (lg)</Button>
-                    </div>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Section 2: Badges & Semantic Status Badges */}
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>2. Badges &amp; Status Indicators</CardTitle>
-                  <div className="text-caption">Accessible contrast and multi-cue status representation</div>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Semantic Badges:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                      <Badge variant="neutral">Neutral Badge</Badge>
-                      <Badge variant="brand">Brand Badge</Badge>
-                      <Badge variant="success">Success Badge</Badge>
-                      <Badge variant="warning">Warning Badge</Badge>
-                      <Badge variant="error">Error Badge</Badge>
-                      <Badge variant="info">Info Badge</Badge>
-                      <Badge variant="amc">AMC Badge</Badge>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Service Lifecycle Status Badges:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                      <StatusBadge status="REQUESTED" />
-                      <StatusBadge status="PENDING" />
-                      <StatusBadge status="SCHEDULED" />
-                      <StatusBadge status="ASSIGNED" />
-                      <StatusBadge status="IN_PROGRESS" />
-                      <StatusBadge status="AWAITING_PARTS" />
-                      <StatusBadge status="ON_HOLD" />
-                      <StatusBadge status="REVISIT_REQUIRED" />
-                      <StatusBadge status="RESOLVED" />
-                      <StatusBadge status="COMPLETED" />
-                      <StatusBadge status="PAYMENT" />
-                      <StatusBadge status="CLOSED" />
-                      <StatusBadge status="CANCELLED" />
-                    </div>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Section 3: Form Controls */}
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>3. Form Controls &amp; Input Fields</CardTitle>
-                  <div className="text-caption">Text input, search variant, select, textarea, error feedback</div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFormHasError((prev) => !prev)}
-                >
-                  Toggle Form Error: {formHasError ? 'ON' : 'OFF'}
-                </Button>
-              </CardHeader>
-              <CardBody>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Standard Customer Name"
-                    required
-                    placeholder="e.g. Apex Corporation"
-                    value={formInputVal}
-                    onChange={(e) => setFormInputVal(e.target.value)}
-                    error={formHasError ? 'Customer name is a required operational field.' : undefined}
-                    helperText="Enter the official business or individual name."
-                  />
-
-                  <Input
-                    label="Global Search Control"
-                    isSearch
-                    placeholder="Search by AC Serial, QR Code, or ID..."
-                  />
-
-                  <Select
-                    label="Equipment Type"
-                    required
-                    options={[
-                      { value: 'SPLIT', label: 'Split Wall Unit' },
-                      { value: 'CASSETTE', label: 'Ceiling Cassette Unit' },
-                      { value: 'DUCTABLE', label: 'Ductable AC System' },
-                      { value: 'VRV_VRF', label: 'VRV / VRF Central Plant' },
-                    ]}
-                  />
-
-                  <Textarea
-                    label="Operational Notes"
-                    placeholder="Specific site instructions, floor access notes..."
-                    rows={3}
-                  />
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Section 4: Overlay & Feedback Triggers */}
-            <Card>
-              <CardHeader>
-                <div>
-                  <CardTitle>4. Overlays &amp; Toast Feedback System</CardTitle>
-                  <div className="text-caption">Accessible Modals, Drawers, Dropdowns, and Toast notifications</div>
-                </div>
-              </CardHeader>
-              <CardBody>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Dialog &amp; Drawer Overlays:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-                      <Button variant="primary" onClick={() => setIsTestModalOpen(true)}>
-                        Open Accessible Modal
-                      </Button>
-                      <Button variant="secondary" onClick={() => setIsTestDrawerOpen(true)}>
-                        Open Slide-Over Drawer
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>Trigger Toast Feedback:</div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<CheckCircle2 size={14} style={{ color: 'var(--color-success-solid)' }} />}
-                        onClick={() => showToast({ type: 'success', title: 'Record Saved', message: 'The operational customer record has been created.' })}
-                      >
-                        Success Toast
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<AlertTriangle size={14} style={{ color: 'var(--color-warning-solid)' }} />}
-                        onClick={() => showToast({ type: 'warning', title: 'Contract Expiring', message: 'AMC contract reaches completion within 15 days.' })}
-                      >
-                        Warning Toast
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<AlertTriangle size={14} style={{ color: 'var(--color-error-solid)' }} />}
-                        onClick={() => showToast({ type: 'error', title: 'Network Error', message: 'Could not connect to the backend API.' })}
-                      >
-                        Error Toast
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<Send size={14} style={{ color: 'var(--color-info-solid)' }} />}
-                        onClick={() => showToast({ type: 'info', title: 'Technician Dispatched', message: 'Assigned resource has accepted the schedule.' })}
-                      >
-                        Info Toast
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* Section 5: Neumorphic Glass & Motion Primitives */}
+        {/* Level 4: Operational Data Streams */}
+        <div className="grid grid-cols-3 gap-6">
+          {/* Left Column (Span 2): Active Service Workspace */}
+          <div style={{ gridColumn: 'span 2' }}>
             <Card variant="hybrid">
               <CardHeader>
                 <div>
-                  <CardTitle>5. Neumorphic Glass &amp; Advanced GSAP Motion</CardTitle>
-                  <div className="text-caption">Frosted glass, soft dual-shadow extrusion, inset inputs, and 3D magnetic tilt physics</div>
+                  <CardTitle>Active Service Operations Stream</CardTitle>
+                  <div className="text-caption">
+                    Live service requests from PostgreSQL database
+                  </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onNavigate('service-requests')}
+                  rightIcon={<ExternalLink size={14} />}
+                >
+                  View All
+                </Button>
               </CardHeader>
-              <CardBody>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
-                      Interactive Neumorphic &amp; Glass Buttons:
-                    </div>
-                    <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <Button variant="neomorph">Neumorphic Soft Extrusion</Button>
-                      <Button variant="glass">Frosted Glass Specular</Button>
-                      <Button variant="primary">Primary Brand Radiant</Button>
-                    </div>
+              <CardBody style={{ padding: realServiceRequests.length > 0 ? 0 : 'var(--space-4)' }}>
+                {isLoadingDashboard ? (
+                  <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                    <Skeleton height="36px" borderRadius="var(--radius-md)" />
+                    <Skeleton height="36px" borderRadius="var(--radius-md)" />
+                    <Skeleton height="36px" borderRadius="var(--radius-md)" />
                   </div>
-
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
-                      Inset Neumorphic Input Groove:
-                    </div>
-                    <div style={{ maxWidth: '400px' }}>
-                      <Input
-                        variant="neomorph"
-                        placeholder="Type inside inset neumorphic groove..."
-                        helperText="Soft inset dual shadows create tactile depth without sacrificing contrast."
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-label" style={{ marginBottom: 'var(--space-2)' }}>
-                      Interactive 3D Magnetic Glass Cards (Hover to tilt &amp; gleam):
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <GlassCard enableTilt variant="hybrid">
-                        <div style={{ padding: 'var(--space-4)' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                            Hybrid Neumorphic Glass Card
-                          </div>
-                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                            Combines backdrop blur, specular light gradient borders, and soft extruded dual-shadow geometry.
-                          </div>
-                        </div>
-                      </GlassCard>
-
-                      <GlassCard enableTilt variant="glass">
-                        <div style={{ padding: 'var(--space-4)' }}>
-                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                            Frosted Pure Glass Card
-                          </div>
-                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                            Ultra-light atmospheric frosted refraction with dynamic mouse ray tracking.
-                          </div>
-                        </div>
-                      </GlassCard>
-                    </div>
-                  </div>
-                </div>
+                ) : realServiceRequests.length === 0 ? (
+                  <EmptyState
+                    title="No Active Service Requests"
+                    description="Your operational queue is currently empty. Click 'New Request' to create and dispatch a new breakdown or maintenance ticket."
+                    actionLabel="+ New Request"
+                    onAction={() => onNavigate('service-requests')}
+                  />
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Service ID</TableHead>
+                        <TableHead>Customer / Site</TableHead>
+                        <TableHead>AC Asset</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Technician</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {realServiceRequests.slice(0, 5).map((sr: DashboardServiceRequest) => (
+                        <TableRow key={sr.id} isInteractive onClick={() => onNavigate('service-requests')}>
+                          <TableCell><span className="text-mono font-medium">{sr.requestNumber}</span></TableCell>
+                          <TableCell>
+                            <div className="font-medium">{sr.customerName || 'Customer'}</div>
+                            <div className="text-caption">{sr.siteName || 'Site Location'}</div>
+                          </TableCell>
+                          <TableCell>{sr.assetBrand ? `${sr.assetBrand} ${sr.assetModel || ''}` : 'AC Unit'}</TableCell>
+                          <TableCell><StatusBadge status={sr.status} /></TableCell>
+                          <TableCell>
+                            <Badge variant={sr.priority === 'EMERGENCY' || sr.priority === 'URGENT' ? 'error' : sr.priority === 'HIGH' ? 'warning' : 'info'}>
+                              {sr.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell><span className="text-body-sm">{sr.assignedTechnicianName || 'Unassigned (Pending)'}</span></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardBody>
             </Card>
           </div>
-        </TabsContent>
-      </Tabs>
 
-      {/* ========================================================
-          TEST MODAL OVERLAY (Phase 1 Component Verification)
-         ======================================================== */}
-      <Modal
-        isOpen={isTestModalOpen}
-        onClose={() => setIsTestModalOpen(false)}
-        title="Create Service Request (Shell Preview)"
-        description="Verify accessible modal dialog with backdrop and escape key support."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setIsTestModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setIsTestModalOpen(false);
-                showToast({
-                  type: 'success',
-                  title: 'Modal Validated',
-                  message: 'Dialog action closed and confirmed.',
-                });
-              }}
-            >
-              Confirm Action
-            </Button>
-          </>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <Input label="Customer Search" isSearch placeholder="Search customer name or ID..." />
-          <Select
-            label="Service Urgency Level"
-            options={[
-              { value: 'EMERGENCY', label: 'Emergency Breakdown (Priority 1)' },
-              { value: 'HIGH', label: 'High Priority Repair' },
-              { value: 'MEDIUM', label: 'Standard Maintenance' },
-              { value: 'LOW', label: 'Routine Inspection' },
-            ]}
-          />
-          <Textarea label="Reported Malfunction Symptoms" rows={3} placeholder="Customer states unit is not cooling and leaking water..." />
+          {/* Right Column: Upcoming PM Schedules & Quick Overview */}
+          <div>
+            <Card variant="hybrid">
+              <CardHeader>
+                <div>
+                  <CardTitle>Preventive Schedules</CardTitle>
+                  <div className="text-caption">Generated AMC Maintenance Queue</div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onNavigate('service-schedule')}
+                  rightIcon={<Calendar size={14} />}
+                >
+                  Calendar
+                </Button>
+              </CardHeader>
+              <CardBody>
+                {isLoadingDashboard ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                    <Skeleton height="54px" borderRadius="var(--radius-md)" />
+                    <Skeleton height="54px" borderRadius="var(--radius-md)" />
+                  </div>
+                ) : realSchedules.length === 0 ? (
+                  <EmptyState
+                    title="No Schedules in Queue"
+                    description="No preventive maintenance visits currently scheduled. Generate visits from AMC contracts."
+                    actionLabel="Manage AMC"
+                    onAction={() => onNavigate('amc')}
+                  />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                    {realSchedules.slice(0, 3).map((s: DashboardSchedule) => (
+                      <div
+                        key={s.id}
+                        style={{
+                          padding: 'var(--space-3)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border-default)',
+                          backgroundColor: 'var(--bg-surface-subtle)',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => onNavigate('service-schedule')}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <span className="text-mono" style={{ fontWeight: 600, fontSize: 'var(--text-xs)' }}>
+                            {s.scheduleNumber}
+                          </span>
+                          <StatusBadge status={s.status} />
+                        </div>
+                        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
+                          {s.customerName || s.siteName || 'Customer Facility'}
+                        </div>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Target: {s.scheduledDate ? formatDate(s.scheduledDate) : 'Pending Date'} • {s.brand || 'AC Asset'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardBody>
+              <CardFooter>
+                <span className="text-caption">Algorithm: Calendar-Aware PM Schedule Generation</span>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
-      </Modal>
+      </div>
 
-      {/* ========================================================
-          TEST DRAWER OVERLAY (Phase 1 Component Verification)
-         ======================================================== */}
+      {/* Quick Actions Navigation Drawer */}
       <Drawer
-        isOpen={isTestDrawerOpen}
-        onClose={() => setIsTestDrawerOpen(false)}
+        isOpen={isQuickActionsOpen}
+        onClose={() => setIsQuickActionsOpen(false)}
         title="Quick Operational Actions"
-        description="Slide-over drawer component with backdrop and smooth transitions."
+        description="Jump directly to core service workflows across your facility operations."
         footer={
-          <Button variant="secondary" onClick={() => setIsTestDrawerOpen(false)}>
-            Close Drawer
+          <Button variant="secondary" onClick={() => setIsQuickActionsOpen(false)}>
+            Close
           </Button>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Choose an operational workflow to simulate:
-          </div>
-          <Card variant="interactive" onClick={() => onNavigate('customers')}>
-            <CardBody style={{ padding: 'var(--space-3) var(--space-4)' }}>
-              <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>+ Onboard Customer</div>
-              <div className="text-caption">Register new customer, branch sites, and AC units</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <Card
+            variant="interactive"
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              onNavigate('customers');
+            }}
+          >
+            <CardBody style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Users size={18} style={{ color: 'var(--color-brand)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>Customer &amp; Sites Directory</div>
+                <div className="text-caption">Register customers, physical locations, and AC assets</div>
+              </div>
             </CardBody>
           </Card>
-          <Card variant="interactive" onClick={() => onNavigate('service-requests')}>
-            <CardBody style={{ padding: 'var(--space-3) var(--space-4)' }}>
-              <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>+ Log Breakdown Ticket</div>
-              <div className="text-caption">Immediate service request and technician recommendation</div>
+
+          <Card
+            variant="interactive"
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              onNavigate('service-requests');
+            }}
+          >
+            <CardBody style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Plus size={18} style={{ color: 'var(--color-brand)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>New Service Request</div>
+                <div className="text-caption">Log breakdown tickets and emergency cooling service</div>
+              </div>
             </CardBody>
           </Card>
-          <Card variant="interactive" onClick={() => onNavigate('amc')}>
-            <CardBody style={{ padding: 'var(--space-3) var(--space-4)' }}>
-              <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>+ Authorize AMC Contract</div>
-              <div className="text-caption">Generate calendar-aware preventive visit dates</div>
+
+          <Card
+            variant="interactive"
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              onNavigate('amc');
+            }}
+          >
+            <CardBody style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <FileCheck2 size={18} style={{ color: 'var(--color-brand)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>AMC Contracts Management</div>
+                <div className="text-caption">Manage annual maintenance contracts and obligations</div>
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card
+            variant="interactive"
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              onNavigate('service-schedule');
+            }}
+          >
+            <CardBody style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Calendar size={18} style={{ color: 'var(--color-brand)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>Dispatch &amp; Scheduling Calendar</div>
+                <div className="text-caption">Assign technicians to pending visits and prevent collisions</div>
+              </div>
+            </CardBody>
+          </Card>
+
+          <Card
+            variant="interactive"
+            onClick={() => {
+              setIsQuickActionsOpen(false);
+              onNavigate('technicians');
+            }}
+          >
+            <CardBody style={{ padding: 'var(--space-3) var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Wrench size={18} style={{ color: 'var(--color-brand)' }} />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>Technician Workforce</div>
+                <div className="text-caption">Monitor active technicians, workloads, and service zones</div>
+              </div>
             </CardBody>
           </Card>
         </div>
