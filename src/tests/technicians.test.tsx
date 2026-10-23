@@ -101,7 +101,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
 
     expect(container.textContent).toContain('Technicians');
     expect(container.textContent).toContain('Manage field personnel');
-    expect(container.textContent).toContain('+ Add Technician');
+    expect(container.textContent).toContain('Add Technician');
     expect(container.textContent).toContain('Refresh');
 
     unmount();
@@ -155,7 +155,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
     const { container, unmount } = await renderComponent();
 
     const addBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('+ Add Technician')
+      b.textContent?.includes('Add Technician')
     );
     expect(addBtn).toBeDefined();
 
@@ -186,7 +186,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
     const { container, unmount } = await renderComponent();
 
     const addBtn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('+ Add Technician')
+      b.textContent?.includes('Add Technician')
     );
 
     await act(async () => {

@@ -489,36 +489,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
               </div>
-
-              <Tooltip content="Collapse (Ctrl+B)" position="top">
-                <button
-                  type="button"
-                  onClick={onToggleCollapse}
-                  aria-label="Collapse sidebar"
-                  style={{
-                    padding: '5px',
-                    borderRadius: 'var(--radius-sm)',
-                    color: 'var(--color-neutral-400)',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = '#ffffff';
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--color-neutral-400)';
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                </button>
-              </Tooltip>
             </div>
           )}
         </div>

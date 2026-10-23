@@ -598,7 +598,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
             onClick={handleOpenCreateModal}
             leftIcon={<Plus size={16} />}
           >
-            + Add Technician
+            Add Technician
           </Button>
         </div>
       </div>

@@ -683,10 +683,10 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             onClick={handleResetFilters}
             disabled={!hasActiveFilters}
             title="Reset All Filters"
-            style={{ height: '38px' }}
+            leftIcon={<RotateCcw size={14} />}
+            style={{ height: '38px', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center' }}
           >
-            <RotateCcw size={14} />
-            <span>Reset</span>
+            Reset
           </Button>
         </div>
       </div>

@@ -229,7 +229,7 @@ describe('AC Master Data & Asset Upgrade Suite', () => {
     });
 
     const addBrandBtn = Array.from(document.body.querySelectorAll('button')).find(
-      (b) => b.textContent?.includes('+ Add New Brand')
+      (b) => b.textContent?.includes('Add New Brand')
     );
     expect(addBrandBtn).toBeTruthy();
 

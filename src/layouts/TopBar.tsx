@@ -54,12 +54,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Menu size={20} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-            Place Your Service
-          </span>
-          <span style={{ color: 'var(--border-strong)', fontSize: 'var(--text-xs)' }}>/</span>
-          <h1 style={{ fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
             {activeItemTitle}
           </h1>
         </div>

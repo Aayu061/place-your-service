@@ -481,11 +481,11 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           {activeTab === 'brands' ? (
             <Button variant="primary" leftIcon={<Plus size={16} />} onClick={openCreateBrandModal}>
-              + Add New Brand
+              Add New Brand
             </Button>
           ) : (
             <Button variant="primary" leftIcon={<Plus size={16} />} onClick={openCreateModelModal} disabled={brands.length === 0}>
-              + Add New Model
+              Add New Model
             </Button>
           )}
         </div>
@@ -1052,7 +1052,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
               leftIcon={<Plus size={14} />}
               onClick={() => setIsAddingVariant(!isAddingVariant)}
             >
-              {isAddingVariant ? 'Cancel Form' : '+ Add Variant'}
+              {isAddingVariant ? 'Cancel Form' : 'Add Variant'}
             </Button>
           </div>
 

@@ -135,6 +135,28 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
   // Quick Actions Drawer State
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
 
+  // Real-time Digital Clock State
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const hours = currentDateTime.getHours();
+  const minutes = currentDateTime.getMinutes().toString().padStart(2, '0');
+  const seconds = currentDateTime.getSeconds().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = (hours % 12 || 12).toString().padStart(2, '0');
+  const formattedDate = currentDateTime.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
   // Live Operational Backend Data States
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   const [activeAmcCount, setActiveAmcCount] = useState(0);
@@ -301,7 +323,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       {/* Page Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-1)' }}>
             <h1 className="text-page-title">Operations Dashboard</h1>
@@ -312,8 +335,74 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({ currentRole, onN
           </p>
         </div>
 
-        {/* Header Action Buttons */}
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        {/* Real-time Digital Clock & Header Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+          {/* Glassmorphic Real-Time Digital Clock */}
+          <div
+            className="realtime-digital-clock"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-lg)',
+              background: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(226, 232, 240, 0.85)',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
+            }}
+          >
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(16, 185, 129, 0.12) 100%)',
+                color: 'var(--color-brand)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Clock size={16} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span
+                  style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                    fontWeight: 700,
+                    fontSize: '15px',
+                    letterSpacing: '0.04em',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1,
+                  }}
+                >
+                  {displayHours}:{minutes}:{seconds}
+                </span>
+                <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-brand)', letterSpacing: '0.02em' }}>
+                  {ampm}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    boxShadow: '0 0 6px #10b981',
+                    marginLeft: '3px',
+                  }}
+                  title="Live Telemetry Synchronized"
+                />
+              </div>
+              <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>
+                {formattedDate}
+              </span>
+            </div>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
