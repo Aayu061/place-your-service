@@ -64,6 +64,20 @@
   .sidebar-overlay.visible {
     display: block;
   }
+
+  .sidebar-collapse-btn-desktop {
+    display: none !important;
+  }
+}
+
+.mobile-menu-trigger {
+  display: none !important;
+}
+
+@media (max-width: 1024px) {
+  .mobile-menu-trigger {
+    display: flex !important;
+  }
 }
 
 /* --------------------------------------------------

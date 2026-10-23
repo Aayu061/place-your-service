@@ -39,13 +39,16 @@ export const TopBar: React.FC<TopBarProps> = ({
           type="button"
           onClick={onOpenMobileSidebar}
           aria-label="Open sidebar navigation"
+          className="mobile-menu-trigger"
           style={{
             padding: 'var(--space-2)',
             borderRadius: 'var(--radius-md)',
             color: 'var(--text-secondary)',
-            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
           }}
         >
           <Menu size={20} />

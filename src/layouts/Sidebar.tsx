@@ -39,72 +39,140 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}
         aria-label="Main Navigation"
       >
-        {/* Branding Area */}
+        {/* Branding & Top Controls Area (Top Side) */}
         <div
           style={{
             height: 'var(--header-height)',
-            padding: isCollapsed ? '0 var(--space-3)' : '0 var(--space-5)',
+            padding: isCollapsed ? '0 var(--space-2)' : '0 var(--space-4)',
             borderBottom: '1px solid var(--bg-sidebar-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'space-between',
-            gap: 'var(--space-3)',
+            gap: 'var(--space-2)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', overflow: 'hidden' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-primary-600)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: 'var(--text-sm)',
-                flexShrink: 0,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              PYS
-            </div>
-            {!isCollapsed && (
-              <div style={{ minWidth: 0 }}>
+          {isCollapsed ? (
+            <Tooltip content={`Place Your Service (Role: ${currentRole}) — Click to expand`} position="right">
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Expand sidebar"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-primary-600)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 'var(--text-sm)',
+                  letterSpacing: '-0.02em',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                }}
+              >
+                PYS
+              </button>
+            </Tooltip>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', overflow: 'hidden', minWidth: 0 }}>
                 <div
                   style={{
-                    fontWeight: 600,
-                    fontSize: 'var(--text-sm)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--color-primary-600)',
                     color: '#ffffff',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: 'var(--text-sm)',
+                    flexShrink: 0,
+                    letterSpacing: '-0.02em',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
                   }}
                 >
-                  Place Your Service
+                  PYS
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)' }}>
-                  AC Management Portal
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 'var(--text-sm)',
+                      color: '#ffffff',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      letterSpacing: '0.01em',
+                    }}
+                  >
+                    Place Your Service
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', lineHeight: 1.2 }}>
+                    Role: <span style={{ color: 'var(--color-brand-light, #38bdf8)', fontWeight: 500 }}>{currentRole}</span>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Mobile Close Button */}
-          {isMobileOpen && (
-            <button
-              type="button"
-              onClick={onCloseMobile}
-              style={{
-                color: 'var(--color-neutral-400)',
-                padding: '4px',
-                borderRadius: 'var(--radius-sm)',
-              }}
-              aria-label="Close sidebar"
-            >
-              <X size={20} />
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                {/* Desktop Collapse Toggle (Top Side) */}
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  aria-label="Collapse sidebar"
+                  className="sidebar-collapse-btn-desktop"
+                  style={{
+                    padding: '6px',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--color-neutral-300)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.15s ease, color 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'var(--color-neutral-300)';
+                  }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {/* Mobile Close Button */}
+                {isMobileOpen && (
+                  <button
+                    type="button"
+                    onClick={onCloseMobile}
+                    style={{
+                      color: 'var(--color-neutral-400)',
+                      padding: '6px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    aria-label="Close sidebar"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
+            </>
           )}
         </div>
 
@@ -213,46 +281,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Sidebar Footer with Collapse Toggle (Desktop) */}
-        <div
-          style={{
-            padding: isCollapsed ? 'var(--space-3)' : 'var(--space-3) var(--space-4)',
-            borderTop: '1px solid var(--bg-sidebar-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: isCollapsed ? 'center' : 'space-between',
-            backgroundColor: 'rgba(0, 0, 0, 0.2)',
-          }}
-        >
-          {!isCollapsed && (
-            <div style={{ fontSize: '11px', color: 'var(--color-neutral-300)' }}>
-              <div style={{ fontWeight: 600, color: 'var(--color-neutral-200)', letterSpacing: '0.02em' }}>
-                Place Your Service
-              </div>
-              <div style={{ color: 'var(--color-neutral-400)', fontSize: '10px' }}>
-                Role: {currentRole}
-              </div>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        {/* Sidebar Bottom (Only show expand toggle when collapsed on desktop) */}
+        {isCollapsed && (
+          <div
             style={{
-              padding: '6px',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--color-neutral-300)',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: 'none',
-              cursor: 'pointer',
+              padding: 'var(--space-3)',
+              borderTop: '1px solid var(--bg-sidebar-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
             }}
           >
-            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-          </button>
-        </div>
+            <Tooltip content="Expand sidebar" position="right">
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Expand sidebar"
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--color-neutral-300)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
       </aside>
     </>
   );
