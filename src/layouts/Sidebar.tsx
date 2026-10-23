@@ -1,10 +1,11 @@
+import React, { useEffect } from 'react';
 import {
   ChevronLeft,
-  ChevronRight,
   X,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useAuth } from '@/hooks/useAuth';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {
@@ -26,6 +27,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const { user } = useAuth();
+
+  // Keyboard shortcut listener: Toggle sidebar with Ctrl+B or Cmd+B
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        onToggleCollapse();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onToggleCollapse]);
+
+  const operatorInitial = user?.fullName
+    ? user.fullName.charAt(0).toUpperCase()
+    : currentRole === 'ADMIN'
+      ? 'A'
+      : 'S';
+
+  const operatorName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin Console' : 'Operations Staff');
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -49,10 +72,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'space-between',
             gap: 'var(--space-2)',
+            flexShrink: 0,
+            overflow: 'hidden',
+            boxSizing: 'border-box',
           }}
         >
           {isCollapsed ? (
-            <Tooltip content={`Place Your Service (Role: ${currentRole}) — Click to expand`} position="right">
+            <Tooltip content={`Place Your Service • Click to expand (Ctrl+B)`} position="right">
               <button
                 type="button"
                 onClick={onToggleCollapse}
@@ -60,18 +86,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 style={{
                   width: '38px',
                   height: '38px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--color-primary-600)',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%)',
                   color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: 'var(--text-sm)',
+                  fontWeight: 800,
+                  fontSize: '13px',
                   letterSpacing: '-0.02em',
                   border: 'none',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.06)';
+                  e.currentTarget.style.boxShadow =
+                    '0 6px 16px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow =
+                    '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
                 }}
               >
                 PYS
@@ -79,76 +116,116 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </Tooltip>
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', overflow: 'hidden', minWidth: 0 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                  overflow: 'hidden',
+                  minWidth: 0,
+                  cursor: 'pointer',
+                }}
+                onClick={() => onItemSelect('dashboard')}
+                title="Go to Operations Dashboard"
+              >
+                {/* 3D Glowing Brand Badge */}
                 <div
                   style={{
                     width: '36px',
                     height: '36px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--color-primary-600)',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%)',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 700,
-                    fontSize: 'var(--text-sm)',
+                    fontWeight: 800,
+                    fontSize: '13px',
                     flexShrink: 0,
                     letterSpacing: '-0.02em',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
                   }}
                 >
                   PYS
                 </div>
+
                 <div style={{ minWidth: 0 }}>
                   <div
                     style={{
-                      fontWeight: 600,
-                      fontSize: 'var(--text-sm)',
+                      fontWeight: 700,
+                      fontSize: '13.5px',
                       color: '#ffffff',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      letterSpacing: '0.01em',
+                      letterSpacing: '-0.01em',
+                      lineHeight: 1.2,
                     }}
                   >
                     Place Your Service
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-neutral-400)', lineHeight: 1.2 }}>
-                    Role: <span style={{ color: 'var(--color-brand-light, #38bdf8)', fontWeight: 500 }}>{currentRole}</span>
+                  <div
+                    style={{
+                      fontSize: '10.5px',
+                      color: 'var(--color-neutral-400)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      marginTop: '2px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        backgroundColor: '#10b981',
+                        boxShadow: '0 0 6px rgba(16, 185, 129, 0.8)',
+                        display: 'inline-block',
+                      }}
+                    />
+                    <span style={{ color: 'var(--color-neutral-300)', fontWeight: 500 }}>
+                      Role: {currentRole}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                {/* Desktop Collapse Toggle (Top Side) */}
-                <button
-                  type="button"
-                  onClick={onToggleCollapse}
-                  aria-label="Collapse sidebar"
-                  className="sidebar-collapse-btn-desktop"
-                  style={{
-                    padding: '6px',
-                    borderRadius: 'var(--radius-sm)',
-                    color: 'var(--color-neutral-300)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background-color 0.15s ease, color 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.color = 'var(--color-neutral-300)';
-                  }}
-                >
-                  <ChevronLeft size={16} />
-                </button>
+                {/* Desktop Collapse Toggle on Top Side */}
+                <Tooltip content="Collapse sidebar (Ctrl+B)" position="bottom">
+                  <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    aria-label="Collapse sidebar"
+                    className="sidebar-collapse-btn-desktop"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--color-neutral-400)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                      e.currentTarget.style.color = 'var(--color-neutral-400)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.06)';
+                    }}
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                </Tooltip>
 
                 {/* Mobile Close Button */}
                 {isMobileOpen && (
@@ -176,32 +253,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Navigation Groups */}
-        <nav
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: isCollapsed ? 'var(--space-3) var(--space-2)' : 'var(--space-4) var(--space-3)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-3)',
-          }}
-        >
+        {/* Navigation Groups with Sleek Custom Scrollbar */}
+        <nav className="sidebar-nav">
           {NAV_STRUCTURE.map((group) => {
-            // Check if group is restricted to Admin
             if (group.adminOnly && currentRole !== 'ADMIN') return null;
 
             return (
-              <div key={group.group} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div
+                key={group.group}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                  marginBottom: isCollapsed ? 'var(--space-1)' : 'var(--space-2)',
+                }}
+              >
                 {!isCollapsed ? (
                   <div
                     style={{
-                      fontSize: '10px',
+                      fontSize: '9.5px',
                       fontWeight: 700,
                       color: 'var(--color-neutral-400)',
                       padding: 'var(--space-1) var(--space-3)',
                       textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
+                      letterSpacing: '0.08em',
+                      opacity: 0.75,
                     }}
                   >
                     {group.group}
@@ -210,8 +286,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div
                     style={{
                       height: '1px',
-                      backgroundColor: 'var(--bg-sidebar-border)',
-                      margin: 'var(--space-2) var(--space-2)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      margin: '4px 8px',
                     }}
                   />
                 )}
@@ -234,34 +310,64 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         alignItems: 'center',
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
                         gap: 'var(--space-3)',
-                        padding: isCollapsed ? '0.6rem 0' : '0.55rem 0.75rem',
+                        padding: isCollapsed ? '9px 0' : '8px 12px',
                         borderRadius: 'var(--radius-md)',
-                        backgroundColor: isActive ? 'var(--color-primary-600)' : 'transparent',
+                        background: isActive
+                          ? 'linear-gradient(90deg, rgba(14, 165, 233, 0.16) 0%, rgba(37, 99, 235, 0.08) 100%)'
+                          : 'transparent',
+                        borderLeft: isActive
+                          ? '3px solid var(--color-brand)'
+                          : '3px solid transparent',
                         color: isActive ? '#ffffff' : 'var(--color-neutral-300)',
                         fontSize: 'var(--text-sm)',
                         fontWeight: isActive ? 600 : 400,
                         width: '100%',
                         textAlign: 'left',
-                        transition: 'all var(--duration-hover) var(--ease-standard)',
-                        border: 'none',
+                        transition: 'all 0.15s ease',
+                        borderTop: 'none',
+                        borderRight: 'none',
+                        borderBottom: 'none',
                         cursor: 'pointer',
+                        position: 'relative',
+                        boxSizing: 'border-box',
                       }}
                       onMouseEnter={(e) => {
-                        if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover)';
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          e.currentTarget.style.color = '#ffffff';
+                          if (!isCollapsed) {
+                            e.currentTarget.style.transform = 'translateX(2px)';
+                          }
+                        }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                          e.currentTarget.style.color = 'var(--color-neutral-300)';
+                          if (!isCollapsed) {
+                            e.currentTarget.style.transform = 'translateX(0)';
+                          }
+                        }
                       }}
                     >
                       <Icon
                         size={18}
                         style={{
-                          color: isActive ? '#ffffff' : 'var(--color-neutral-400)',
+                          color: isActive ? '#38bdf8' : 'var(--color-neutral-400)',
+                          filter: isActive ? 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.45))' : 'none',
                           flexShrink: 0,
+                          transition: 'color 0.15s ease',
                         }}
                       />
                       {!isCollapsed && (
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            letterSpacing: '0.01em',
+                          }}
+                        >
                           {item.label}
                         </span>
                       )}
@@ -269,7 +375,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   );
 
                   return isCollapsed ? (
-                    <Tooltip key={item.id} content={item.label} position="right">
+                    <Tooltip
+                      key={item.id}
+                      content={`${item.label} • ${group.group}`}
+                      position="right"
+                    >
                       {navButton}
                     </Tooltip>
                   ) : (
@@ -281,41 +391,140 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Sidebar Bottom (Only show expand toggle when collapsed on desktop) */}
-        {isCollapsed && (
-          <div
-            style={{
-              padding: 'var(--space-3)',
-              borderTop: '1px solid var(--bg-sidebar-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgba(0, 0, 0, 0.2)',
-            }}
-          >
-            <Tooltip content="Expand sidebar" position="right">
-              <button
-                type="button"
-                onClick={onToggleCollapse}
-                aria-label="Expand sidebar"
-                style={{
-                  padding: '6px',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--color-neutral-300)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </Tooltip>
-          </div>
-        )}
+        {/* Enterprise Bottom Operator / Workspace Card */}
+        <div
+          style={{
+            padding: isCollapsed ? 'var(--space-3) var(--space-2)' : 'var(--space-3) var(--space-3)',
+            borderTop: '1px solid var(--bg-sidebar-border)',
+            backgroundColor: 'rgba(0, 0, 0, 0.25)',
+            flexShrink: 0,
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+          }}
+        >
+          {isCollapsed ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Tooltip content={`${operatorName} (${currentRole}) • Click to expand (Ctrl+B)`} position="right">
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  aria-label="Expand sidebar"
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#93c5fd',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-brand)';
+                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.transform = 'scale(1.06)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.color = '#93c5fd';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                >
+                  {operatorInitial}
+                </button>
+              </Tooltip>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 'var(--space-2)',
+                padding: '6px 8px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#93c5fd',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    flexShrink: 0,
+                  }}
+                >
+                  {operatorInitial}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--color-neutral-200)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {operatorName}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-neutral-400)', whiteSpace: 'nowrap' }}>
+                    {currentRole} Session • Online
+                  </div>
+                </div>
+              </div>
+
+              <Tooltip content="Collapse (Ctrl+B)" position="top">
+                <button
+                  type="button"
+                  onClick={onToggleCollapse}
+                  aria-label="Collapse sidebar"
+                  style={{
+                    padding: '5px',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--color-neutral-400)',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--color-neutral-400)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+        </div>
       </aside>
     </>
   );
 };
+
+export default Sidebar;
