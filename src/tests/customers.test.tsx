@@ -209,10 +209,9 @@ describe('Phase 4 Frontend Customer Management Suite', () => {
     expect(document.body.textContent).toContain('Metropolitan Hospital');
     expect(document.body.textContent).toContain('Code: CUST-100200');
     expect(document.body.textContent).toContain('Contact Information');
-    expect(document.body.textContent).toContain('Location & Site Contact');
-    expect(document.body.textContent).toContain('Planned in Phase 5');
-    expect(document.body.textContent).toContain('Planned in Phase 6');
-    expect(document.body.textContent).toContain('Planned in Phase 7');
+    expect(document.body.textContent).toContain('Sites & Branch Locations');
+    expect(document.body.textContent).toContain('AC Asset Register');
+    expect(document.body.textContent).toContain('Service Requests & Work Orders');
 
     renderResult.cleanup();
   });

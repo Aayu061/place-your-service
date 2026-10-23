@@ -33,13 +33,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const hasError = Boolean(error);
     const resolvedLeftIcon = isSearch ? <Search size={16} /> : leftIcon;
     const variantClass = variant === 'neomorph' ? 'form-input-neomorph' : '';
+    const cleanLabel = label?.replace(/\s*\*+$/, '');
 
     return (
       <div className={`form-group ${className}`.trim()}>
-        {label && (
+        {cleanLabel && (
           <label htmlFor={inputId} className="form-label">
-            {label}
-            {required && <span className="form-required" aria-hidden="true">*</span>}
+            {cleanLabel}
+            {required && <span className="form-required" aria-hidden="true"> *</span>}
           </label>
         )}
         <div

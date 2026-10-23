@@ -55,6 +55,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
+import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
 import {
   calculateDefaultWarrantyEndDate,
   calculateWarrantyStatus,
@@ -220,6 +221,12 @@ interface CustomerListMeta {
   totalPages: number;
 }
 
+const ASSET_WIZARD_STEPS: WizardStepItem[] = [
+  { id: 'specs', label: '1. Equipment & Specs', description: 'Brand, Model & Specs' },
+  { id: 'serials', label: '2. Serials & Location', description: 'IDU/ODU & Room' },
+  { id: 'warranty', label: '3. Warranty & Services', description: 'Dates & PM visits' },
+];
+
 export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
 
@@ -295,6 +302,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
   // Asset Modals & Form
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = useState<boolean>(false);
+  const [assetWizardStep, setAssetWizardStep] = useState<number>(0);
   const [editingAsset, setEditingAsset] = useState<AcAsset | null>(null);
   const [viewingAsset, setViewingAsset] = useState<AcAsset | null>(null);
   const [copiedSerialKey, setCopiedSerialKey] = useState<string | null>(null);
@@ -1240,6 +1248,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       notes: '',
     };
 
+    setAssetWizardStep(0);
     setIsAddAssetModalOpen(true);
     loadAvailableBrands();
   };
@@ -2675,7 +2684,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                   </div>
                 </div>
 
-                {/* Linked Modules Roadmap */}
+                {/* Linked Modules Telemetry */}
                 <div>
                   <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Linked Operational Modules
@@ -2683,93 +2692,114 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                     <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px dashed var(--border-default)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 'var(--text-xs)',
-                      }}
+                      className="telemetry-interactive-card"
+                      onClick={() => setDrawerTab('sites')}
+                      title="View Customer Sites"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Layers size={14} style={{ color: 'var(--color-brand)' }} />
-                        <span>Sites & Branch Locations</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', background: 'rgba(37, 99, 235, 0.1)', color: 'var(--color-brand)' }}>
+                          <Layers size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                            Sites & Branch Locations
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {sites.length} Physical Service Site{sites.length !== 1 ? 's' : ''}
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="neutral">Planned in Phase 5</Badge>
+                      <Badge variant="success">Active</Badge>
                     </div>
 
                     <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px dashed var(--border-default)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 'var(--text-xs)',
-                      }}
+                      className="telemetry-interactive-card"
+                      onClick={() => setDrawerTab('assets')}
+                      title="View Customer Assets"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Wrench size={14} style={{ color: 'var(--color-brand)' }} />
-                        <span>AC Asset Register</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success)' }}>
+                          <Wrench size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                            AC Asset Register
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {assets.length} Registered Equipment Unit{assets.length !== 1 ? 's' : ''}
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="neutral">Planned in Phase 5</Badge>
+                      <Badge variant="success">Active</Badge>
                     </div>
 
                     <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px dashed var(--border-default)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 'var(--text-xs)',
+                      className="telemetry-interactive-card"
+                      onClick={() => {
+                        if (onNavigate) onNavigate('services');
                       }}
+                      title="View Service Requests"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Wrench size={14} style={{ color: 'var(--color-brand)' }} />
-                        <span>Service Requests & Work Orders</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-warning)' }}>
+                          <Wrench size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                            Service Requests & Work Orders
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            Dispatch & Field Job Logging
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="neutral">Planned in Phase 6</Badge>
+                      <Badge variant="brand">Operational</Badge>
                     </div>
 
                     <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px dashed var(--border-default)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 'var(--text-xs)',
+                      className="telemetry-interactive-card"
+                      onClick={() => {
+                        if (onNavigate) onNavigate('amc');
                       }}
+                      title="View AMC Maintenance Agreements"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FileCheck2 size={14} style={{ color: 'var(--color-brand)' }} />
-                        <span>AMC Preventive Contracts</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                          <FileCheck2 size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                            AMC Preventive Contracts
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            Multi-Asset Preventive Coverage
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="neutral">Planned in Phase 7</Badge>
+                      <Badge variant="brand">Operational</Badge>
                     </div>
 
                     <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px dashed var(--border-default)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        fontSize: 'var(--text-xs)',
+                      className="telemetry-interactive-card"
+                      onClick={() => {
+                        if (onNavigate) onNavigate('invoices');
                       }}
+                      title="View Invoices & Payments"
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Receipt size={14} style={{ color: 'var(--color-brand)' }} />
-                        <span>Payment History & Invoices</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ padding: '6px', borderRadius: 'var(--radius-md)', background: 'rgba(100, 116, 139, 0.1)', color: 'var(--text-muted)' }}>
+                          <Receipt size={15} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
+                            Payment History & Invoices
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            Direct Billing & Ledger Integration
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="neutral">Planned in Phase 10</Badge>
+                      <Badge variant="neutral">Connected</Badge>
                     </div>
                   </div>
                 </div>
@@ -3328,13 +3358,23 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         title="Register New AC Asset"
         description="Add a physical AC unit to this customer's site register with permanent ESSC asset code"
       >
-        <form noValidate onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
+        <div style={{ marginBottom: 'var(--space-4)' }}>
+          <ModalStepWizard
+            steps={ASSET_WIZARD_STEPS}
+            activeStep={assetWizardStep}
+            onStepClick={(step) => setAssetWizardStep(step)}
+          />
+        </div>
+
+        <form noValidate onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
           {assetFormError && (
             <div style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', fontSize: 'var(--text-xs)' }}>
               {assetFormError}
             </div>
           )}
 
+          {/* STEP 1: EQUIPMENT SPECS */}
+          <div style={{ display: assetWizardStep === 0 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* 1. BASIC INFORMATION */}
           <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)', marginBottom: 'var(--space-3)' }}>
@@ -3587,7 +3627,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               </div>
             </div>
           </div>
+          </div>
 
+          {/* STEP 2: SERIALS & LOCATION */}
+          <div style={{ display: assetWizardStep === 1 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* 2. UNIT IDENTIFICATION */}
           <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
@@ -3698,7 +3741,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               </div>
             </div>
           </div>
+          </div>
 
+          {/* STEP 3: WARRANTY & LIFECYCLE */}
+          <div style={{ display: assetWizardStep === 2 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* 4. DATES & WARRANTY */}
           <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
@@ -3939,14 +3985,36 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               onChange={(e) => setAssetFormNotes(e.target.value)}
             />
           </div>
+          </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
             <ModalCloseButton type="button" disabled={isSubmittingAsset}>
               Cancel
             </ModalCloseButton>
-            <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
-              Register Asset
-            </Button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              {assetWizardStep > 0 && (
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setAssetWizardStep((s) => Math.max(0, s - 1))}
+                  disabled={isSubmittingAsset}
+                >
+                  Back
+                </Button>
+              )}
+              {assetWizardStep < 2 && (
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setAssetWizardStep((s) => Math.min(2, s + 1))}
+                >
+                  Next Step →
+                </Button>
+              )}
+              <Button variant="primary" type="submit" isLoading={isSubmittingAsset}>
+                Register Asset
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

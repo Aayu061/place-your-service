@@ -252,4 +252,13 @@
   /* Hybrid Neumorphic Glass (Glass frosted surface + dual ambient shadows) */
   --hybrid-glass-neomorph: var(--glass-specular-highlight), 8px 8px 20px rgba(15, 23, 42, 0.06), -6px -6px 16px rgba(255, 255, 255, 0.9);
   --hybrid-glass-neomorph-hover: var(--glass-specular-highlight), 12px 12px 26px rgba(15, 23, 42, 0.09), -8px -8px 20px rgba(255, 255, 255, 1);
+
+  /* Modal & Form Specific Glassmorphic Tokens */
+  --glass-bg-dialog: rgba(255, 255, 255, 0.92);
+  --glass-dialog-backdrop: rgba(15, 23, 42, 0.65);
+  --glass-specular-border: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.35) 50%, rgba(2, 132, 199, 0.25) 100%);
+  --neomorph-inset-clean: inset 2px 2px 5px rgba(15, 23, 42, 0.05), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+  --neomorph-inset-focus: inset 1px 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 3px rgba(2, 132, 199, 0.18);
+  --glass-card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
 }
+

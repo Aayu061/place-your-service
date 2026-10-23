@@ -33,6 +33,13 @@ import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
+
+const AMC_WIZARD_STEPS: WizardStepItem[] = [
+  { id: 'terms', label: '1. Commercial Terms', description: 'Customer & billing' },
+  { id: 'allocation', label: '2. PM Allocation', description: 'Dry / Jet visits' },
+  { id: 'assets', label: '3. Covered Equipment', description: 'Protected units' },
+];
 
 interface AmcContractsApiResponse {
   contracts: AmcContract[];
@@ -140,6 +147,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalStep, setCreateModalStep] = useState<number>(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
@@ -341,6 +349,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormPumpdownVisits(0);
     setFormNotes('');
     setFormCoveredAssetIds([]);
+    setCreateModalStep(0);
   };
 
   const isCreateDirty = Boolean(
@@ -1503,342 +1512,487 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         onClose={() => setIsCreateModalOpen(false)}
         title="Create AMC Maintenance Agreement"
         description="Establish commercial maintenance terms, PM service allocation, and covered AC equipment."
-        maxWidth="680px"
+        maxWidth="780px"
         isDirty={isCreateDirty}
         onConfirmDiscard={resetForm}
       >
         {({ requestClose }) => (
-          <form onSubmit={handleCreateSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Customer Select */}
-                  <div>
-                    <label htmlFor="amc-customer-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      Customer *
-                    </label>
-                    <select
-                      id="amc-customer-select"
-                      className="input-base"
-                      style={{ width: '100%', marginTop: '4px' }}
-                      value={formCustomerId}
-                      onChange={(e) => setFormCustomerId(e.target.value)}
-                      required
-                    >
-                      <option value="">Select Customer</option>
-                      {customersList.map((cust) => (
-                        <option key={cust.id} value={cust.id}>
-                          {cust.name} ({cust.customerCode})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+          <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            {/* Step Wizard Header */}
+            <ModalStepWizard
+              steps={AMC_WIZARD_STEPS}
+              activeStep={createModalStep}
+              onStepClick={setCreateModalStep}
+            />
 
-                  {/* Plan Select */}
-                  <div>
-                    <label htmlFor="amc-plan-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      AMC Plan Template
-                    </label>
-                    <select
-                      id="amc-plan-select"
-                      className="input-base"
-                      style={{ width: '100%', marginTop: '4px' }}
-                      value={formPlanId}
-                      onChange={(e) => handlePlanSelect(e.target.value)}
-                    >
-                      <option value="">Custom Agreement (No Template)</option>
-                      {plans.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.defaultFrequency} • {p.defaultVisitsPerYear} visits)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Start Date */}
-                  <div>
-                    <label htmlFor="amc-start-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      Start Date *
-                    </label>
-                    <Input
-                      id="amc-start-date"
-                      type="date"
-                      value={formStartDate}
-                      onChange={(e) => setFormStartDate(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  {/* End Date */}
-                  <div>
-                    <label htmlFor="amc-end-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      End Date *
-                    </label>
-                    <Input
-                      id="amc-end-date"
-                      type="date"
-                      value={formEndDate}
-                      onChange={(e) => setFormEndDate(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  {/* Frequency */}
-                  <div>
-                    <label htmlFor="amc-frequency" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      PM Frequency *
-                    </label>
-                    <select
-                      id="amc-frequency"
-                      className="input-base"
-                      style={{ width: '100%', marginTop: '4px' }}
-                      value={formFrequency}
-                      onChange={(e) => setFormFrequency(e.target.value as AmcFrequency)}
-                      required
-                    >
-                      <option value="MONTHLY">Monthly (12 visits / yr)</option>
-                      <option value="QUARTERLY">Quarterly (4 visits / yr)</option>
-                      <option value="HALF_YEARLY">Half-Yearly (2 visits / yr)</option>
-                      <option value="YEARLY">Yearly (1 visit / yr)</option>
-                    </select>
-                  </div>
-
-                  {/* Included Visits */}
-                  <div>
-                    <label htmlFor="amc-visits" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      Included Visits *
-                    </label>
-                    <Input
-                      id="amc-visits"
-                      type="number"
-                      min="1"
-                      value={formTotalVisits}
-                      onChange={(e) => setFormTotalVisits(Number(e.target.value))}
-                      required
-                    />
-                  </div>
-
-                  {/* Commercial Amount */}
-                  <div>
-                    <label htmlFor="amc-amount" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      Commercial Amount (INR) *
-                    </label>
-                    <Input
-                      id="amc-amount"
-                      type="number"
-                      min="0"
-                      value={formTotalAmount}
-                      onChange={(e) => setFormTotalAmount(Number(e.target.value))}
-                      required
-                    />
-                  </div>
+            {/* STEP 1: COMMERCIAL TERMS */}
+            <div style={{ display: createModalStep === 0 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Customer Select */}
+                <div>
+                  <label htmlFor="amc-customer-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    Customer *
+                  </label>
+                  <select
+                    id="amc-customer-select"
+                    className="input-neomorph"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formCustomerId}
+                    onChange={(e) => setFormCustomerId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select Customer</option>
+                    {customersList.map((cust) => (
+                      <option key={cust.id} value={cust.id}>
+                        {cust.name} ({cust.customerCode})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Notes */}
-                <div style={{ marginTop: 'var(--space-3)' }}>
-                  <label htmlFor="amc-notes" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                    Contract Notes
+                {/* Plan Select */}
+                <div>
+                  <label htmlFor="amc-plan-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    AMC Plan Template
                   </label>
-                  <Textarea
-                    id="amc-notes"
-                    rows={2}
-                    value={formNotes}
-                    onChange={(e) => setFormNotes(e.target.value)}
-                    placeholder="Commercial terms, special service instructions..."
+                  <select
+                    id="amc-plan-select"
+                    className="input-neomorph"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formPlanId}
+                    onChange={(e) => handlePlanSelect(e.target.value)}
+                  >
+                    <option value="">Custom Agreement (No Template)</option>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.defaultFrequency} • {p.defaultVisitsPerYear} visits)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Start Date */}
+                <div>
+                  <label htmlFor="amc-start-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    Start Date *
+                  </label>
+                  <Input
+                    id="amc-start-date"
+                    type="date"
+                    value={formStartDate}
+                    onChange={(e) => setFormStartDate(e.target.value)}
+                    required
                   />
                 </div>
 
-                {/* PM Service Allocation Section */}
-                <div
-                  style={{
-                    padding: 'var(--space-3)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
-                    backgroundColor: 'var(--surface-subtle, rgba(0, 0, 0, 0.02))',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                      Preventive Maintenance Service Allocation *
+                {/* End Date */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label htmlFor="amc-end-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                      End Date *
                     </label>
-                    <span
-                      style={{
-                        fontSize: 'var(--text-xs)',
-                        fontWeight: 600,
-                        color: isAllocationValid ? 'var(--color-success-600, #16a34a)' : 'var(--color-danger-600, #dc2626)',
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (formStartDate) {
+                          const d = new Date(formStartDate);
+                          d.setFullYear(d.getFullYear() + 1);
+                          setFormEndDate(d.toISOString().split('T')[0]);
+                        }
                       }}
+                      style={{ fontSize: '10px', color: 'var(--color-brand)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                     >
-                      {allocatedVisits} / {formTotalVisits} Allocated
-                    </span>
+                      +1 Year Standard
+                    </button>
                   </div>
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 'var(--space-3)', margin: '0 0 var(--space-3) 0' }}>
-                    Allocate the included PM visits across Dry, Jet and Pumpdown services. The total allocation must equal the number of included visits.
-                  </p>
+                  <Input
+                    id="amc-end-date"
+                    type="date"
+                    value={formEndDate}
+                    onChange={(e) => setFormEndDate(e.target.value)}
+                    required
+                  />
+                </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
-                    <div>
-                      <label htmlFor="amc-dry-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
-                        Dry Service Visits
-                      </label>
-                      <select
-                        id="amc-dry-visits"
-                        className="input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
-                        value={formDryVisits}
-                        onChange={(e) => setFormDryVisits(Number(e.target.value))}
-                      >
-                        {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
-                          <option key={i} value={i}>
-                            {i} {i === 1 ? 'visit' : 'visits'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {/* Frequency */}
+                <div>
+                  <label htmlFor="amc-frequency" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    PM Frequency *
+                  </label>
+                  <select
+                    id="amc-frequency"
+                    className="input-neomorph"
+                    style={{ width: '100%', marginTop: '4px' }}
+                    value={formFrequency}
+                    onChange={(e) => setFormFrequency(e.target.value as AmcFrequency)}
+                    required
+                  >
+                    <option value="MONTHLY">Monthly (12 visits / yr)</option>
+                    <option value="QUARTERLY">Quarterly (4 visits / yr)</option>
+                    <option value="HALF_YEARLY">Half-Yearly (2 visits / yr)</option>
+                    <option value="YEARLY">Yearly (1 visit / yr)</option>
+                  </select>
+                </div>
 
-                    <div>
-                      <label htmlFor="amc-jet-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
-                        Jet Service Visits
-                      </label>
-                      <select
-                        id="amc-jet-visits"
-                        className="input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
-                        value={formJetVisits}
-                        onChange={(e) => setFormJetVisits(Number(e.target.value))}
-                      >
-                        {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
-                          <option key={i} value={i}>
-                            {i} {i === 1 ? 'visit' : 'visits'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {/* Included Visits */}
+                <div>
+                  <label htmlFor="amc-visits" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    Included Visits *
+                  </label>
+                  <Input
+                    id="amc-visits"
+                    type="number"
+                    min="1"
+                    value={formTotalVisits}
+                    onChange={(e) => setFormTotalVisits(Number(e.target.value))}
+                    required
+                  />
+                </div>
 
-                    <div>
-                      <label htmlFor="amc-pumpdown-visits" style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)' }}>
-                        Pumpdown Service Visits
-                      </label>
-                      <select
-                        id="amc-pumpdown-visits"
-                        className="input-base"
-                        style={{ width: '100%', marginTop: '4px' }}
-                        value={formPumpdownVisits}
-                        onChange={(e) => setFormPumpdownVisits(Number(e.target.value))}
-                      >
-                        {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
-                          <option key={i} value={i}>
-                            {i} {i === 1 ? 'visit' : 'visits'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                {/* Commercial Amount */}
+                <div className="sm:col-span-2">
+                  <label htmlFor="amc-amount" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    Commercial Amount (INR) *
+                  </label>
+                  <Input
+                    id="amc-amount"
+                    type="number"
+                    min="0"
+                    value={formTotalAmount}
+                    onChange={(e) => setFormTotalAmount(Number(e.target.value))}
+                    required
+                  />
+                </div>
+              </div>
 
-                  {/* Live calculation summary */}
-                  <div
+              {/* Notes */}
+              <div>
+                <label htmlFor="amc-notes" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  Contract Notes
+                </label>
+                <Textarea
+                  id="amc-notes"
+                  rows={2}
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Commercial terms, special service instructions, payment schedules..."
+                />
+              </div>
+            </div>
+
+            {/* STEP 2: PM VISIT ALLOCATION */}
+            <div style={{ display: createModalStep === 1 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div
+                style={{
+                  padding: 'var(--space-4)',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Preventive Maintenance Service Allocation *
+                  </label>
+                  <span
                     style={{
-                      marginTop: 'var(--space-3)',
-                      padding: '8px 12px',
-                      borderRadius: 'var(--radius-sm, 4px)',
-                      backgroundColor: isAllocationValid ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                      border: `1px solid ${isAllocationValid ? 'var(--color-success-500, #22c55e)' : 'var(--color-danger-500, #ef4444)'}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '11px',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 700,
+                      padding: '4px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: isAllocationValid ? 'var(--color-success-bg)' : 'var(--color-error-bg)',
+                      color: isAllocationValid ? 'var(--color-success-text)' : 'var(--color-error-text)',
+                      border: `1px solid ${isAllocationValid ? 'var(--color-success-border)' : 'var(--color-error-border)'}`,
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '16px' }}>
-                      <span>Total: <strong>{formTotalVisits}</strong></span>
-                      <span>Allocated: <strong>{allocatedVisits}</strong></span>
-                      <span>Remaining: <strong>{remainingVisits}</strong></span>
-                    </div>
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        color: isAllocationValid ? 'var(--color-success-600, #16a34a)' : 'var(--color-danger-600, #dc2626)',
-                      }}
+                    {allocatedVisits} / {formTotalVisits} Allocated
+                  </span>
+                </div>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 'var(--space-4)', margin: '0 0 var(--space-4) 0' }}>
+                  Distribute the {formTotalVisits} included annual PM visits across Dry, Jet, and Pumpdown services. The sum must strictly equal total included visits.
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+                  <div
+                    style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <label htmlFor="amc-dry-visits" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Dry Service Visits
+                    </label>
+                    <select
+                      id="amc-dry-visits"
+                      className="input-neomorph"
+                      style={{ width: '100%' }}
+                      value={formDryVisits}
+                      onChange={(e) => setFormDryVisits(Number(e.target.value))}
                     >
-                      {isAllocationValid
-                        ? '✓ Allocation balanced'
-                        : remainingVisits > 0
-                        ? `⚠️ ${remainingVisits} visit(s) remaining to allocate`
-                        : `⚠️ Allocation exceeds by ${Math.abs(remainingVisits)} visit(s)`}
+                      {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {i} {i === 1 ? 'visit' : 'visits'}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Standard filter & coil check
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <label htmlFor="amc-jet-visits" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Jet Service Visits
+                    </label>
+                    <select
+                      id="amc-jet-visits"
+                      className="input-neomorph"
+                      style={{ width: '100%' }}
+                      value={formJetVisits}
+                      onChange={(e) => setFormJetVisits(Number(e.target.value))}
+                    >
+                      {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {i} {i === 1 ? 'visit' : 'visits'}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      High-pressure deep wash
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      boxShadow: 'var(--shadow-xs)',
+                    }}
+                  >
+                    <label htmlFor="amc-pumpdown-visits" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Pumpdown Visits
+                    </label>
+                    <select
+                      id="amc-pumpdown-visits"
+                      className="input-neomorph"
+                      style={{ width: '100%' }}
+                      value={formPumpdownVisits}
+                      onChange={(e) => setFormPumpdownVisits(Number(e.target.value))}
+                    >
+                      {Array.from({ length: Math.max(0, formTotalVisits) + 1 }, (_, i) => (
+                        <option key={i} value={i}>
+                          {i} {i === 1 ? 'visit' : 'visits'}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                      Refrigerant recovery & overhaul
                     </span>
                   </div>
                 </div>
 
-                {/* Covered Assets Selection */}
-                <div style={{ marginTop: 'var(--space-4)' }}>
-                  <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
-                    Covered AC Assets ({formCoveredAssetIds.length} selected)
-                  </label>
-                  {isAssetsLoading ? (
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Loading equipment...</div>
-                  ) : availableAssets.length === 0 ? (
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      {formCustomerId ? 'No AC equipment registered for this customer yet.' : 'Select a customer on Step 1.'}
-                    </div>
-                  ) : (
-                    <div
+                {/* Live calculation summary */}
+                <div
+                  style={{
+                    marginTop: 'var(--space-4)',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: isAllocationValid ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                    border: `1px solid ${isAllocationValid ? 'var(--color-success-border)' : 'var(--color-error-border)'}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: 'var(--text-xs)',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <span>Total Plan: <strong>{formTotalVisits}</strong></span>
+                    <span>Allocated: <strong>{allocatedVisits}</strong></span>
+                    <span>Remaining: <strong>{remainingVisits}</strong></span>
+                  </div>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: isAllocationValid ? 'var(--color-success-solid)' : 'var(--color-error-solid)',
+                    }}
+                  >
+                    {isAllocationValid
+                      ? '✓ Allocation balanced & verified'
+                      : remainingVisits > 0
+                      ? `⚠️ ${remainingVisits} visit(s) remaining to allocate`
+                      : `⚠️ Allocation exceeds by ${Math.abs(remainingVisits)} visit(s)`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 3: COVERED AC ASSETS */}
+            <div style={{ display: createModalStep === 2 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  Covered AC Assets ({formCoveredAssetIds.length} of {availableAssets.length} selected)
+                </label>
+                {availableAssets.length > 0 && (
+                  <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFormCoveredAssetIds(availableAssets.map((a) => a.id))}
+                      style={{ fontSize: '11px', color: 'var(--color-brand)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      Select All
+                    </button>
+                    <span style={{ color: 'var(--border-default)' }}>|</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormCoveredAssetIds([])}
+                      style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {isAssetsLoading ? (
+                <div style={{ padding: 'var(--space-6)', textAlign: 'center', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  Loading customer equipment register...
+                </div>
+              ) : availableAssets.length === 0 ? (
+                <div
+                  style={{
+                    padding: 'var(--space-6)',
+                    textAlign: 'center',
+                    borderRadius: 'var(--radius-lg)',
+                    border: '1px dashed var(--border-default)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  {formCustomerId ? 'No AC equipment registered for this customer yet.' : 'Select a customer on Step 1 to choose equipment.'}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                  }}
+                >
+                  {availableAssets.map((asset) => (
+                    <label
+                      key={asset.id}
                       style={{
-                        maxHeight: '160px',
-                        overflowY: 'auto',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: '8px',
-                        marginTop: '4px',
                         display: 'flex',
-                        flexDirection: 'column',
-                        gap: '4px',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontSize: 'var(--text-xs)',
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: formCoveredAssetIds.includes(asset.id) ? 'var(--color-primary-50)' : 'var(--bg-surface)',
+                        border: formCoveredAssetIds.includes(asset.id) ? '1px solid var(--color-primary-200)' : '1px solid var(--border-subtle)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {availableAssets.map((asset) => (
-                        <label
-                          key={asset.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: 'var(--text-xs)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={formCoveredAssetIds.includes(asset.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormCoveredAssetIds((prev) => [...prev, asset.id]);
-                              } else {
-                                setFormCoveredAssetIds((prev) => prev.filter((id) => id !== asset.id));
-                              }
-                            }}
-                          />
-                          <span>
-                            <strong>{asset.assetTag}</strong> ({asset.brand} - {asset.modelNumber || 'N/A'}) &bull;{' '}
-                            {asset.siteName}
+                      <input
+                        type="checkbox"
+                        checked={formCoveredAssetIds.includes(asset.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormCoveredAssetIds((prev) => [...prev, asset.id]);
+                          } else {
+                            setFormCoveredAssetIds((prev) => prev.filter((id) => id !== asset.id));
+                          }
+                        }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                            {asset.assetTag}
                           </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            {asset.brand} &bull; {asset.modelNumber || 'Standard Model'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          📍 {asset.siteName || 'Primary Site'} {asset.roomLocation ? `• Room: ${asset.roomLocation}` : ''}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
                 </div>
+              )}
+            </div>
 
-                {/* Modal Actions */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-                  <Button variant="ghost" type="button" onClick={requestClose}>
-                    Cancel
+            {/* Modal Actions */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '8px',
+                paddingTop: 'var(--space-3)',
+                borderTop: '1px solid var(--border-subtle)',
+              }}
+            >
+              <Button variant="ghost" type="button" onClick={requestClose}>
+                Cancel
+              </Button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {createModalStep > 0 && (
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => setCreateModalStep((s) => s - 1)}
+                  >
+                    Back
                   </Button>
+                )}
+
+                {createModalStep < 2 ? (
                   <Button
                     variant="primary"
-                    type="submit"
-                    disabled={isSubmitting || !isAllocationValid}
-                    title={!isAllocationValid ? 'Total allocation must equal included visits to create agreement' : undefined}
-                    id="btn-submit-amc-contract"
+                    type="button"
+                    onClick={() => setCreateModalStep((s) => s + 1)}
                   >
-                    {isSubmitting ? 'Creating...' : 'Create Contract'}
+                    Next Step ➔
                   </Button>
-                </div>
-            </form>
+                ) : null}
+
+                <Button
+                  variant="primary"
+                  type="submit"
+                  disabled={isSubmitting || !isAllocationValid}
+                  title={!isAllocationValid ? 'Total allocation must equal included visits to create agreement' : undefined}
+                  id="btn-submit-amc-contract"
+                >
+                  {isSubmitting ? 'Creating...' : 'Create Contract'}
+                </Button>
+              </div>
+            </div>
+          </form>
         )}
       </Modal>
 

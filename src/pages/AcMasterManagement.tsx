@@ -590,29 +590,28 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
               {filteredBrands.map((b) => (
                 <div
                   key={b.id}
-                  className="card"
-                  style={{
-                    padding: 'var(--space-4)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--space-3)',
-                    borderLeft: `4px solid ${b.isActive ? 'var(--color-success-solid, #10b981)' : 'var(--border-default)'}`,
-                  }}
+                  className="card brand-glass-card"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 700 }}>{b.name}</h4>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                        CODE: {b.code}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="brand-avatar-badge">
+                        {b.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 700 }}>{b.name}</h4>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          CODE: {b.code}
+                        </span>
+                      </div>
                     </div>
                     <Badge variant={b.isActive ? 'success' : 'neutral'}>
                       {b.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
 
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                    Models Registered: <strong>{b.modelCount ?? 0}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    <Badge variant="brand">{b.modelCount ?? 0} Models</Badge>
+                    <span>registered in system</span>
                   </div>
 
                   <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'auto', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-subtle)' }}>
@@ -716,18 +715,11 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
               {filteredModels.map((m) => (
                 <div
                   key={m.id}
-                  className="card"
-                  style={{
-                    padding: 'var(--space-4)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--space-3)',
-                    borderLeft: `4px solid ${m.isActive ? 'var(--color-brand)' : 'var(--border-default)'}`,
-                  }}
+                  className="card brand-glass-card"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-brand)', textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-brand)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         {m.brandName || 'Brand'}
                       </span>
                       <h4 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 700 }}>
@@ -739,7 +731,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                     </Badge>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', background: 'rgba(248, 250, 252, 0.7)', padding: '8px', borderRadius: 'var(--radius-md)' }}>
                     <div>
                       <strong>Type:</strong> {m.acType || 'N/A'}
                     </div>
@@ -752,7 +744,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                     <div>
                       <strong>Rating:</strong> {m.rating || 'N/A'}
                     </div>
-                    <div>
+                    <div style={{ gridColumn: 'span 2' }}>
                       <strong>Gas:</strong> {m.refrigerant || 'N/A'}
                     </div>
                   </div>

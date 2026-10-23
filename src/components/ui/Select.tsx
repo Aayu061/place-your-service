@@ -31,13 +31,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ) => {
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
     const hasError = Boolean(error);
+    const cleanLabel = label?.replace(/\s*\*+$/, '');
 
     return (
       <div className={`form-group ${className}`.trim()}>
-        {label && (
+        {cleanLabel && (
           <label htmlFor={selectId} className="form-label">
-            {label}
-            {required && <span className="form-required" aria-hidden="true">*</span>}
+            {cleanLabel}
+            {required && <span className="form-required" aria-hidden="true"> *</span>}
           </label>
         )}
         <select

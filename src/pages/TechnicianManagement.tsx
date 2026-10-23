@@ -1341,281 +1341,328 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         title={formMode === 'create' ? '+ Add New Technician' : `Edit Technician: ${selectedTech?.technicianCode}`}
-        maxWidth="680px"
+        description="Configure HVAC field service credentials, technical skills, and operational territory coverage."
+        maxWidth="860px"
         isDirty={Boolean(name || phone || email || notes || customAreaInput)}
       >
         {({ requestClose }) => (
           <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          {formError && (
+            {formError && (
+              <div
+                style={{
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-error-bg)',
+                  border: '1px solid var(--color-error-border)',
+                  color: 'var(--color-error-text)',
+                  fontSize: 'var(--text-sm)',
+                }}
+              >
+                {formError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 'var(--space-4)' }}>
+              {/* PANEL 1: PROFILE & WEEKLY SCHEDULE */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.7)',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--border-default)',
+                  padding: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-3)',
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                }}
+              >
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                  1. Profile & Availability
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <Input
+                    label="Full Name *"
+                    placeholder="e.g. Rahul Sharma"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Phone Number *"
+                    placeholder="e.g. 9876543210"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <Input
+                    label="Email Address (Optional)"
+                    type="email"
+                    placeholder="e.g. rahul.sharma@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <Input
+                    label="Joining Date"
+                    type="date"
+                    value={joiningDate}
+                    onChange={(e) => setJoiningDate(e.target.value)}
+                  />
+                </div>
+
+                {/* Working Days & Hours */}
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                  }}
+                >
+                  <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                    Weekly Working Schedule
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                    {ALL_WEEK_DAYS.map((d) => {
+                      const isSelected = selectedDays.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => handleToggleDay(d)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
+                            backgroundColor: isSelected ? 'var(--color-brand)' : 'var(--bg-surface)',
+                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {d.substring(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                    <Input
+                      label="Start Time (HH:MM)"
+                      type="time"
+                      value={workStart}
+                      onChange={(e) => setWorkStart(e.target.value)}
+                      required
+                    />
+                    <Input
+                      label="End Time (HH:MM)"
+                      type="time"
+                      value={workEnd}
+                      onChange={(e) => setWorkEnd(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Capacity & Status */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <Input
+                    label="Max Daily Workload"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={maxDailyWorkload}
+                    onChange={(e) => setMaxDailyWorkload(Number(e.target.value) || 5)}
+                    helperText="Target daily capacity limit"
+                  />
+                  <div>
+                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                      Initial Status
+                    </label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as TechnicianStatus)}
+                      className="input-neomorph"
+                      style={{ height: '36px', width: '100%', fontSize: 'var(--text-xs)' }}
+                    >
+                      <option value="AVAILABLE">AVAILABLE</option>
+                      <option value="BUSY">BUSY</option>
+                      <option value="ON_LEAVE">ON_LEAVE</option>
+                      <option value="OFF_DUTY">OFF_DUTY</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* PANEL 2: SKILLS & SERVICE AREAS */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.7)',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--border-default)',
+                  padding: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-3)',
+                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
+                    2. Specializations & Territory
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {selectedSkills.length} skills, {selectedAreas.length} areas
+                  </span>
+                </div>
+
+                {/* Skills Selection */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+                      Skills & AC Specializations *
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', maxHeight: '140px', overflowY: 'auto', padding: '2px' }}>
+                    {STANDARD_AC_SKILLS.map((sk) => {
+                      const isSelected = selectedSkills.includes(sk);
+                      return (
+                        <button
+                          key={sk}
+                          type="button"
+                          onClick={() => handleToggleSkill(sk)}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
+                            backgroundColor: isSelected ? 'var(--color-brand)' : 'var(--bg-surface)',
+                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {sk} {isSelected ? '✓' : '+'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Custom Skill Input */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      placeholder="Add other specialization..."
+                      value={customSkillInput}
+                      onChange={(e) => setCustomSkillInput(e.target.value)}
+                      className="input-neomorph"
+                      style={{ height: '32px', fontSize: '11px' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomSkill();
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddCustomSkill}>
+                      Add
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Service Areas Selection */}
+                <div>
+                  <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                    Service Areas *
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', maxHeight: '120px', overflowY: 'auto', padding: '2px' }}>
+                    {STANDARD_SERVICE_AREAS.map((ar) => {
+                      const isSelected = selectedAreas.includes(ar);
+                      return (
+                        <button
+                          key={ar}
+                          type="button"
+                          onClick={() => handleToggleArea(ar)}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            border: isSelected ? '1px solid var(--color-info-600)' : '1px solid var(--border-default)',
+                            backgroundColor: isSelected ? 'var(--color-info-600)' : 'var(--bg-surface)',
+                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {ar} {isSelected ? '✓' : '+'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Custom Area Input */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      placeholder="Add other service territory..."
+                      value={customAreaInput}
+                      onChange={(e) => setCustomAreaInput(e.target.value)}
+                      className="input-neomorph"
+                      style={{ height: '32px', fontSize: '11px' }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomArea();
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddCustomArea}>
+                      Add
+                    </Button>
+                  </div>
+                </div>
+
+                <Textarea
+                  label="Internal Notes"
+                  placeholder="Qualifications, vehicle information, or certifications..."
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Form Actions */}
             <div
               style={{
-                padding: 'var(--space-3)',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-danger-50)',
-                border: '1px solid var(--color-danger-200)',
-                color: 'var(--color-danger-700)',
-                fontSize: 'var(--text-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 'var(--space-3)',
+                paddingTop: 'var(--space-2)',
+                borderTop: '1px solid var(--border-subtle)',
               }}
             >
-              {formError}
-            </div>
-          )}
-
-          {/* Basic Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Full Name *"
-              placeholder="e.g. Rahul Sharma"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Input
-              label="Phone Number *"
-              placeholder="e.g. 9876543210"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Email Address (Optional)"
-              type="email"
-              placeholder="e.g. rahul.sharma@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              label="Joining Date"
-              type="date"
-              value={joiningDate}
-              onChange={(e) => setJoiningDate(e.target.value)}
-            />
-          </div>
-
-          {/* Skills Selection */}
-          <div>
-            <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-              Skills & AC Specializations *
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-              {STANDARD_AC_SKILLS.map((sk) => {
-                const isSelected = selectedSkills.includes(sk);
-                return (
-                  <button
-                    key={sk}
-                    type="button"
-                    onClick={() => handleToggleSkill(sk)}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
-                      backgroundColor: isSelected ? 'var(--color-brand)' : 'var(--bg-surface)',
-                      color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {sk} {isSelected ? '✓' : '+'}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Custom Skill Input */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="text"
-                placeholder="Add other specialization..."
-                value={customSkillInput}
-                onChange={(e) => setCustomSkillInput(e.target.value)}
-                className="input-field"
-                style={{ height: '34px', fontSize: '12px' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCustomSkill();
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={handleAddCustomSkill}>
-                Add
-              </Button>
-            </div>
-          </div>
-
-          {/* Service Areas Selection */}
-          <div>
-            <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-              Service Areas *
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-              {STANDARD_SERVICE_AREAS.map((ar) => {
-                const isSelected = selectedAreas.includes(ar);
-                return (
-                  <button
-                    key={ar}
-                    type="button"
-                    onClick={() => handleToggleArea(ar)}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      border: isSelected ? '1px solid var(--color-info-600)' : '1px solid var(--border-default)',
-                      backgroundColor: isSelected ? 'var(--color-info-600)' : 'var(--bg-surface)',
-                      color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    {ar} {isSelected ? '✓' : '+'}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Custom Area Input */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="text"
-                placeholder="Add other service territory..."
-                value={customAreaInput}
-                onChange={(e) => setCustomAreaInput(e.target.value)}
-                className="input-field"
-                style={{ height: '34px', fontSize: '12px' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCustomArea();
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={handleAddCustomArea}>
-                Add
-              </Button>
-            </div>
-          </div>
-
-          {/* Working Days & Hours */}
-          <div
-            style={{
-              padding: 'var(--space-3)',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-surface-subtle)',
-              border: '1px solid var(--border-default)',
-            }}
-          >
-            <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-              Weekly Working Schedule
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-              {ALL_WEEK_DAYS.map((d) => {
-                const isSelected = selectedDays.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => handleToggleDay(d)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
-                      backgroundColor: isSelected ? 'var(--color-brand-subtle)' : 'var(--bg-surface)',
-                      color: isSelected ? 'var(--color-brand-strong)' : 'var(--color-text-secondary)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {d.substring(0, 3)}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-              <Input
-                label="Start Time (HH:MM)"
-                type="time"
-                value={workStart}
-                onChange={(e) => setWorkStart(e.target.value)}
-                required
-              />
-              <Input
-                label="End Time (HH:MM)"
-                type="time"
-                value={workEnd}
-                onChange={(e) => setWorkEnd(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          {/* Operational Capacity & Notes */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-            <Input
-              label="Max Daily Workload"
-              type="number"
-              min={1}
-              max={20}
-              value={maxDailyWorkload}
-              onChange={(e) => setMaxDailyWorkload(Number(e.target.value) || 5)}
-              helperText="Target daily capacity limit"
-            />
-            <div>
-              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-                Initial Status
-              </label>
-              <select
-                value={formStatus}
-                onChange={(e) => setFormStatus(e.target.value as TechnicianStatus)}
-                className="input-field"
-                style={{ height: '38px', width: '100%' }}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={requestClose}
+                disabled={formSubmitting}
               >
-                <option value="AVAILABLE">AVAILABLE</option>
-                <option value="BUSY">BUSY</option>
-                <option value="ON_LEAVE">ON_LEAVE</option>
-                <option value="OFF_DUTY">OFF_DUTY</option>
-              </select>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" disabled={formSubmitting}>
+                {formSubmitting
+                  ? 'Saving...'
+                  : formMode === 'create'
+                  ? 'Create Technician'
+                  : 'Save Changes'}
+              </Button>
             </div>
-          </div>
-
-          <Textarea
-            label="Internal Notes"
-            placeholder="Qualifications, vehicle information, or certifications..."
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-
-          {/* Form Actions */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 'var(--space-3)',
-              marginTop: 'var(--space-2)',
-            }}
-          >
-            <Button
-              type="button"
-              variant="outline"
-              onClick={requestClose}
-              disabled={formSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={formSubmitting}>
-              {formSubmitting
-                ? 'Saving...'
-                : formMode === 'create'
-                ? 'Create Technician'
-                : 'Save Changes'}
-            </Button>
-          </div>
-        </form>
+          </form>
         )}
       </Modal>
 
