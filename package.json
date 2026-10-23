@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "vitest run src/tests/liveE2eFeatures.test.ts",
     "preview": "vite preview",
     "clean": "node --input-type=module -e \"import fs from 'node:fs'; fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('server/dist', { recursive: true, force: true }); console.log('Cleaned dist and server/dist');\"",
     "server:dev": "npm --prefix server run dev",
