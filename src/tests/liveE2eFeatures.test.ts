@@ -65,6 +65,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
       expect(authToken).toBeDefined();
       expect(typeof authToken).toBe('string');
       expect(authToken.length).toBeGreaterThan(20);
+      expect(adminProfile).toBeDefined();
     });
 
     it('verifies /auth/me returns verified System Administrator profile with ADMIN role', async () => {

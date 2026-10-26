@@ -10,11 +10,14 @@ interface AppShellProps {
     currentRole: UserRole;
     activeItem: string;
     onNavigate: (item: string) => void;
+    activeSubTab: 'overview' | 'activity' | 'alerts';
+    onSubTabChange: (tab: 'overview' | 'activity' | 'alerts') => void;
   }) => React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
   const [activeItem, setActiveItem] = useState<string>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'activity' | 'alerts'>('overview');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
 
@@ -35,7 +38,12 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
       <Sidebar
         currentRole={currentRole}
         activeItem={activeItem}
-        onItemSelect={setActiveItem}
+        onItemSelect={(item) => {
+          setActiveItem(item);
+          if (item === 'dashboard') {
+            setActiveSubTab('overview');
+          }
+        }}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
         isMobileOpen={isMobileOpen}
@@ -46,9 +54,15 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
         <TopBar
           currentRole={currentRole}
           activeItemTitle={getActiveItemTitle()}
+          activeItem={activeItem}
+          activeSubTab={activeSubTab}
+          onSubTabChange={setActiveSubTab}
           onOpenMobileSidebar={() => setIsMobileOpen(true)}
           onSearchClick={() => {
-            // Can be expanded to command palette in future phases
+            // Can be expanded to command palette
+          }}
+          onNewServiceClick={() => {
+            setActiveItem('service-requests');
           }}
         />
 
@@ -60,6 +74,8 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
             currentRole,
             activeItem,
             onNavigate: setActiveItem,
+            activeSubTab,
+            onSubTabChange: setActiveSubTab,
           })}
         </main>
       </div>

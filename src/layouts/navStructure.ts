@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  TrendingUp,
   Users,
   Wrench,
   CalendarDays,
@@ -31,7 +32,10 @@ export interface NavGroupDef {
 export const NAV_STRUCTURE: NavGroupDef[] = [
   {
     group: 'OVERVIEW',
-    items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'analytics', label: 'Overall Analytics', icon: TrendingUp },
+    ],
   },
   {
     group: 'OPERATIONS',

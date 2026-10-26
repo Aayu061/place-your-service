@@ -9,23 +9,23 @@
   /* --------------------------------------------------
    * Brand & Primary Colors (Clean, Professional Air-Conditioning & Service Hue)
    * -------------------------------------------------- */
-  --color-primary-50: #f0f9ff;
-  --color-primary-100: #e0f2fe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7; /* Primary Brand Accent */
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c4a6e;
-  --color-primary-950: #082f49;
+  --color-primary-50: #fbf5f2;
+  --color-primary-100: #f6eae4;
+  --color-primary-200: #eed5c9;
+  --color-primary-300: #e3b7a4;
+  --color-primary-400: #d49074;
+  --color-primary-500: #c26947;
+  --color-primary-600: #a8481c; /* Terracotta Primary Brand Accent */
+  --color-primary-700: #8c3b16;
+  --color-primary-800: #743216;
+  --color-primary-900: #602c17;
+  --color-primary-950: #341409;
 
   --color-brand: var(--color-primary-600);
-  --color-brand-hover: var(--color-primary-700);
-  --color-brand-active: var(--color-primary-800);
-  --color-brand-subtle: var(--color-primary-50);
-  --color-brand-border: var(--color-primary-200);
+  --color-brand-hover: #b84e25;
+  --color-brand-active: #8c3b16;
+  --color-brand-subtle: #fbf5f2;
+  --color-brand-border: #eed5c9;
 
   /* --------------------------------------------------
    * Neutral Palette (Slate / Slate-Gray)
@@ -84,34 +84,36 @@
   /* --------------------------------------------------
    * Semantic Surface & Element Tokens
    * -------------------------------------------------- */
-  --bg-app: #f8fafc;
+  --bg-app: #eef0ec;
+  --bg-canvas: #eef0ec;
   --bg-surface: #ffffff;
   --bg-surface-elevated: #ffffff;
-  --bg-surface-muted: #f8fafc;
-  --bg-surface-subtle: #f1f5f9;
+  --bg-surface-muted: #eef0ec;
+  --bg-surface-subtle: #f3f5f1;
 
-  --bg-sidebar: #0f172a;
-  --bg-sidebar-hover: #1e293b;
-  --bg-sidebar-active: #0284c7;
-  --bg-sidebar-border: rgba(255, 255, 255, 0.08);
+  --bg-sidebar: #18201b;
+  --bg-sidebar-hover: #232c26;
+  --bg-sidebar-active: #a8481c;
+  --bg-sidebar-border: rgba(20, 36, 28, 0.086);
 
-  --border-default: #e2e8f0;
-  --border-subtle: #f1f5f9;
-  --border-moderate: #cbd5e1;
-  --border-strong: #94a3b8;
-  --border-focus: var(--color-primary-600);
+  --border-default: rgba(20, 36, 28, 0.09);
+  --border-subtle: rgba(20, 36, 28, 0.05);
+  --border-moderate: rgba(20, 36, 28, 0.15);
+  --border-strong: rgba(20, 36, 28, 0.3);
+  --border-focus: #a8481c;
+  --border-card-hairline: rgba(20, 36, 28, 0.086);
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
+  --text-primary: #18201b;
+  --text-secondary: #4a554e;
+  --text-muted: #667069;
   --text-inverse: #ffffff;
-  --text-brand: var(--color-primary-600);
+  --text-brand: #a8481c;
 
   /* --------------------------------------------------
-   * Typography Scale & Hierarchy (Inter & Outfit)
+   * Typography Scale & Hierarchy (Urbanist)
    * -------------------------------------------------- */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Urbanist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
 
   /* Font Sizes */
@@ -260,5 +262,46 @@
   --neomorph-inset-clean: inset 2px 2px 5px rgba(15, 23, 42, 0.05), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
   --neomorph-inset-focus: inset 1px 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 3px rgba(2, 132, 199, 0.18);
   --glass-card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* --------------------------------------------------
+ * Dark Mode Theme Tokens (Matte Forest Charcoal)
+ * -------------------------------------------------- */
+[data-theme="dark"] {
+  --bg-app: #0f1412;
+  --bg-canvas: #0f1412;
+  --bg-surface: #18201c;
+  --bg-surface-elevated: #1e2823;
+  --bg-surface-muted: #131916;
+  --bg-surface-subtle: #1c2520;
+
+  --bg-sidebar: #131916;
+  --bg-sidebar-hover: #1e2823;
+  --bg-sidebar-active: #a8481c;
+  --bg-sidebar-border: rgba(255, 255, 255, 0.08);
+
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-moderate: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.25);
+  --border-focus: #e06d3b;
+  --border-card-hairline: rgba(255, 255, 255, 0.08);
+
+  --text-primary: #ecf2ee;
+  --text-secondary: #b6c4bb;
+  --text-muted: #92a197;
+  --text-inverse: #0f1412;
+  --text-brand: #e06d3b;
+
+  --glass-bg-surface: rgba(24, 32, 28, 0.85);
+  --glass-bg-elevated: rgba(30, 40, 35, 0.92);
+  --glass-bg-card: rgba(24, 32, 28, 0.88);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+
+  --color-brand: #a8481c;
+  --color-brand-hover: #b84e25;
+  --color-brand-active: #8c3b16;
+  --color-brand-subtle: #251812;
+  --color-brand-border: #4a2717;
 }
 

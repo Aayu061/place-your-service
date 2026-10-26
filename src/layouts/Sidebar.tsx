@@ -2,10 +2,25 @@ import React, { useEffect } from 'react';
 import {
   ChevronLeft,
   X,
+  Sun,
+  Moon,
+  LogOut,
+  LayoutDashboard,
+  TrendingUp,
+  Users,
+  Wrench,
+  CalendarDays,
+  HardHat,
+  FileCheck2,
+  FileText,
+  Boxes,
+  ShieldCheck,
+  Settings,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/context/ThemeContext';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {
@@ -27,7 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   // Keyboard shortcut listener: Toggle sidebar with Ctrl+B or Cmd+B
   useEffect(() => {
@@ -49,8 +65,102 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const operatorName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin Console' : 'Operations Staff');
 
+  const dockItems = [
+    { id: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Overall Analytics', icon: TrendingUp },
+    { id: 'customers', label: 'Customers & Sites', icon: Users },
+    { id: 'service-requests', label: 'Service Requests', icon: Wrench, badge: 3 },
+    { id: 'service-schedule', label: 'Service Schedule', icon: CalendarDays },
+    { id: 'amc', label: 'AMC Contracts', icon: FileCheck2 },
+    { id: 'technicians', label: 'Technicians Master', icon: HardHat },
+    { id: 'ac-master', label: 'AC Master Catalog', icon: Boxes },
+    { id: 'service-reports', label: 'Service Reports', icon: FileText },
+    ...(currentRole === 'ADMIN' ? [{ id: 'staff', label: 'Staff Management', icon: ShieldCheck }] : []),
+    ...(currentRole === 'ADMIN' ? [{ id: 'settings', label: 'System Settings', icon: Settings }] : []),
+  ];
+
   return (
     <>
+      {/* Desktop Floating Capsule Dock Pods (Vessa-inspired 3-tier dock) */}
+      <div className="pys-dock-container" aria-label="Desktop Quick Dock">
+        {/* Pod 1: Theme Switcher Pill */}
+        <div className="pys-dock-pod">
+          <Tooltip content="Light Mode" position="right">
+            <button
+              type="button"
+              className={`pys-dock-theme-btn ${theme === 'light' ? 'active' : ''}`}
+              onClick={() => setTheme('light')}
+              aria-label="Switch to Light Theme"
+            >
+              <Sun size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Dark Mode" position="right">
+            <button
+              type="button"
+              className={`pys-dock-theme-btn ${theme === 'dark' ? 'active' : ''}`}
+              onClick={() => setTheme('dark')}
+              aria-label="Switch to Dark Theme"
+            >
+              <Moon size={17} />
+            </button>
+          </Tooltip>
+        </div>
+
+        {/* Pod 2: Core PYS Navigation Icons */}
+        <div className="pys-dock-pod pys-nav-pod">
+          {dockItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeItem === item.id;
+            return (
+              <Tooltip key={item.id} content={item.label} position="right">
+                <button
+                  type="button"
+                  className={`pys-dock-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => onItemSelect(item.id)}
+                  aria-label={item.label}
+                >
+                  <Icon size={20} />
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className="pys-badge-dot">{item.badge}</span>
+                  )}
+                </button>
+              </Tooltip>
+            );
+          })}
+        </div>
+
+        {/* Pod 3: User Avatar & Logout */}
+        <div className="pys-dock-pod">
+          <Tooltip content={`${operatorName} (${currentRole})`} position="right">
+            <button
+              type="button"
+              className="pys-dock-btn"
+              onClick={() => onItemSelect('settings')}
+              aria-label="User Profile Settings"
+              style={{
+                background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '13px',
+              }}
+            >
+              {operatorInitial}
+            </button>
+          </Tooltip>
+          <Tooltip content="Sign Out" position="right">
+            <button
+              type="button"
+              className="pys-dock-btn"
+              onClick={() => logout()}
+              aria-label="Log Out"
+            >
+              <LogOut size={18} />
+            </button>
+          </Tooltip>
+        </div>
+      </div>
+
       {/* Mobile Backdrop */}
       <div
         className={`sidebar-overlay ${isMobileOpen ? 'visible' : ''}`}
