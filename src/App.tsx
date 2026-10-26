@@ -4,10 +4,12 @@ import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
 
 // Route-level code-splitting: lazy load pages on-demand to optimize bundle size and startup performance
 const DashboardShell = lazy(() => import('@/pages/DashboardShell').then((m) => ({ default: m.DashboardShell })));
+const OverallAnalytics = lazy(() => import('@/pages/OverallAnalytics').then((m) => ({ default: m.OverallAnalytics })));
 const CustomerManagement = lazy(() => import('@/pages/CustomerManagement').then((m) => ({ default: m.CustomerManagement })));
 const AmcManagement = lazy(() => import('@/pages/AmcManagement').then((m) => ({ default: m.AmcManagement })));
 const ServiceRequestManagement = lazy(() => import('@/pages/ServiceRequestManagement').then((m) => ({ default: m.ServiceRequestManagement })));
@@ -250,15 +252,21 @@ const AuthenticatedApp: React.FC = () => {
   // 3. Authenticated State -> Render AppShell with Server-Verified Role
   return (
     <AppShell role={user.role}>
-      {({ currentRole, activeItem, onNavigate }) => {
+      {({ currentRole, activeItem, onNavigate, activeSubTab }) => {
         const renderModule = () => {
           if (activeItem === 'dashboard') {
             return (
               <DashboardShell
                 currentRole={currentRole}
                 onNavigate={onNavigate}
+                activeSubTab={activeSubTab}
               />
             );
+          }
+
+          // Dedicated Phase 11 Overall Operations & SLA Analytics
+          if (activeItem === 'analytics') {
+            return <OverallAnalytics onNavigate={onNavigate} />;
           }
 
           // Dedicated Phase 3 Staff Management (Admin Only)
@@ -325,6 +333,7 @@ const AuthenticatedApp: React.FC = () => {
             <DashboardShell
               currentRole={currentRole}
               onNavigate={onNavigate}
+              activeSubTab={activeSubTab}
             />
           );
         };
@@ -344,7 +353,9 @@ export const App: React.FC = () => {
     <ErrorBoundary>
       <ToastProvider>
         <AuthProvider>
-          <AuthenticatedApp />
+          <ThemeProvider>
+            <AuthenticatedApp />
+          </ThemeProvider>
         </AuthProvider>
       </ToastProvider>
     </ErrorBoundary>
