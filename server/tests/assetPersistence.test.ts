@@ -146,7 +146,7 @@ describe('Phase B: Asset Specification Persistence & Legacy Compatibility Suite'
         refrigerantType: 'R32', // Operator confirms R32 (variant was R410A)
       });
 
-    expect(res.status).toBe(201);
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.success).toBe(true);
 
     // Verify operator specifications were preserved in database insert

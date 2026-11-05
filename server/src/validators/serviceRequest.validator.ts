@@ -70,9 +70,9 @@ export const listServiceRequestsSchema = {
       'UNPLANNED_OTHER',
       'OTHER',
     ]).optional().default('ALL'),
-    customerId: z.string().uuid('Invalid customer UUID').optional(),
-    siteId: z.string().uuid('Invalid site UUID').optional(),
-    assetId: z.string().uuid('Invalid asset UUID').optional(),
+    customerId: z.string().guid('Invalid customer UUID').optional(),
+    siteId: z.string().guid('Invalid site UUID').optional(),
+    assetId: z.string().guid('Invalid asset UUID').optional(),
     page: z.coerce.number().int().min(1).optional().default(1),
     pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
   }),
@@ -80,15 +80,15 @@ export const listServiceRequestsSchema = {
 
 export const serviceRequestIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid service request UUID identifier'),
+    id: z.string().guid('Invalid service request UUID identifier'),
   }),
 };
 
 export const createServiceRequestSchema = {
   body: z.object({
-    customerId: z.string().uuid('Invalid customer UUID identifier'),
-    siteId: z.string().uuid('Invalid site UUID identifier'),
-    assetId: z.string().uuid('Invalid asset UUID identifier').optional().nullable(),
+    customerId: z.string().guid('Invalid customer UUID identifier'),
+    siteId: z.string().guid('Invalid site UUID identifier'),
+    assetId: z.string().guid('Invalid asset UUID identifier').optional().nullable(),
     requestType: requestTypeEnum,
     priority: priorityEnum.optional().default('MEDIUM'),
     description: z.string().min(5, 'Problem description must be at least 5 characters long').max(2000).trim(),
@@ -103,7 +103,7 @@ export const createServiceRequestSchema = {
 
 export const updateServiceRequestSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid service request UUID identifier'),
+    id: z.string().guid('Invalid service request UUID identifier'),
   }),
   body: z.object({
     requestType: requestTypeEnum.optional(),
@@ -115,14 +115,14 @@ export const updateServiceRequestSchema = {
       .optional()
       .nullable(),
     notes: z.string().max(2000).trim().optional().nullable(),
-    siteId: z.string().uuid('Invalid site UUID identifier').optional(),
-    assetId: z.string().uuid('Invalid asset UUID identifier').optional().nullable(),
+    siteId: z.string().guid('Invalid site UUID identifier').optional(),
+    assetId: z.string().guid('Invalid asset UUID identifier').optional().nullable(),
   }),
 };
 
 export const updateServiceRequestStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid service request UUID identifier'),
+    id: z.string().guid('Invalid service request UUID identifier'),
   }),
   body: z.object({
     status: statusEnum,
@@ -132,7 +132,7 @@ export const updateServiceRequestStatusSchema = {
 
 export const cancelServiceRequestSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid service request UUID identifier'),
+    id: z.string().guid('Invalid service request UUID identifier'),
   }),
   body: z.object({
     reason: z.string().max(500).trim().optional(),

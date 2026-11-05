@@ -56,19 +56,19 @@ export const listTechniciansSchema = {
 
 export const technicianIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid technician ID format'),
+    id: z.string().guid('Invalid technician ID format'),
   }),
 };
 
 export const createTechnicianSchema = {
   body: z.object({
     name: z
-      .string({ required_error: 'Technician name is required' })
+      .string({ error: 'Technician name is required' })
       .trim()
       .min(2, 'Name must be at least 2 characters')
       .max(100, 'Name cannot exceed 100 characters'),
     phone: z
-      .string({ required_error: 'Phone number is required' })
+      .string({ error: 'Phone number is required' })
       .trim()
       .regex(/^\+?[0-9\s-]{8,20}$/, 'Invalid phone number format'),
     email: z
@@ -98,7 +98,7 @@ export const createTechnicianSchema = {
 
 export const updateTechnicianSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid technician ID format'),
+    id: z.string().guid('Invalid technician ID format'),
   }),
   body: z.object({
     name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100).optional(),
@@ -130,7 +130,7 @@ export const updateTechnicianSchema = {
 
 export const updateTechnicianStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid technician ID format'),
+    id: z.string().guid('Invalid technician ID format'),
   }),
   body: z
     .object({

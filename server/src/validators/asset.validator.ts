@@ -59,7 +59,7 @@ const assetConditionEnum = z.enum([
 
 export const listSiteAssetsSchema = {
   params: z.object({
-    siteId: z.string().uuid('Invalid site UUID identifier'),
+    siteId: z.string().guid('Invalid site UUID identifier'),
   }),
   query: z.object({
     search: z.string().trim().optional(),
@@ -73,8 +73,8 @@ export const listSiteAssetsSchema = {
 
 export const listGlobalAssetsSchema = {
   query: z.object({
-    siteId: z.string().uuid().optional(),
-    customerId: z.string().uuid().optional(),
+    siteId: z.string().guid().optional(),
+    customerId: z.string().guid().optional(),
     search: z.string().trim().optional(),
     acType: z.string().optional().default('ALL'),
     warrantyStatus: z.enum(['ALL', 'UNDER_WARRANTY', 'EXPIRING_SOON', 'EXPIRED', 'AMC_COVERED', 'OUT_OF_WARRANTY']).optional().default('ALL'),
@@ -87,7 +87,7 @@ export const listGlobalAssetsSchema = {
 
 export const assetIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid asset UUID identifier'),
+    id: z.string().guid('Invalid asset UUID identifier'),
   }),
 };
 
@@ -96,10 +96,10 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const baseAssetBody = z.object({
   assetTag: z.string().min(2).max(50).trim().optional(),
   brand: z.string().min(1, 'Brand is required').max(100).trim(),
-  brandId: z.string().uuid('Invalid brand UUID').optional().nullable(),
+  brandId: z.string().guid('Invalid brand UUID').optional().nullable(),
   modelNumber: z.string().max(100).trim().optional().nullable(),
-  modelId: z.string().uuid('Invalid model UUID').optional().nullable(),
-  variantId: z.string().uuid('Invalid variant UUID').optional().nullable(),
+  modelId: z.string().guid('Invalid model UUID').optional().nullable(),
+  variantId: z.string().guid('Invalid variant UUID').optional().nullable(),
   serialNumber: z.string().max(100).trim().optional().nullable(),
   indoorSerialNumber: z.string().max(100).trim().optional().nullable(),
   outdoorSerialNumber: z.string().max(100).trim().optional().nullable(),
@@ -161,7 +161,7 @@ const baseAssetBody = z.object({
 
 export const createAcAssetSchema = {
   params: z.object({
-    siteId: z.string().uuid('Invalid site UUID identifier'),
+    siteId: z.string().guid('Invalid site UUID identifier'),
   }),
   body: baseAssetBody,
 };
@@ -169,22 +169,22 @@ export const createAcAssetSchema = {
 export const createDirectAcAssetSchema = {
   body: baseAssetBody.and(
     z.object({
-      siteId: z.string().uuid('Valid site ID is required'),
+      siteId: z.string().guid('Valid site ID is required'),
     })
   ),
 };
 
 export const updateAcAssetSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid asset UUID identifier'),
+    id: z.string().guid('Invalid asset UUID identifier'),
   }),
   body: z
     .object({
       brand: z.string().min(1, 'Brand cannot be empty').max(100).trim().optional(),
-      brandId: z.string().uuid('Invalid brand UUID').optional().nullable(),
+      brandId: z.string().guid('Invalid brand UUID').optional().nullable(),
       modelNumber: z.string().max(100).trim().optional().nullable(),
-      modelId: z.string().uuid('Invalid model UUID').optional().nullable(),
-      variantId: z.string().uuid('Invalid variant UUID').optional().nullable(),
+      modelId: z.string().guid('Invalid model UUID').optional().nullable(),
+      variantId: z.string().guid('Invalid variant UUID').optional().nullable(),
       serialNumber: z.string().max(100).trim().optional().nullable(),
       indoorSerialNumber: z.string().max(100).trim().optional().nullable(),
       outdoorSerialNumber: z.string().max(100).trim().optional().nullable(),
@@ -251,9 +251,9 @@ export const updateAcAssetSchema = {
 
 export const updateAcAssetStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid asset UUID identifier'),
+    id: z.string().guid('Invalid asset UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };

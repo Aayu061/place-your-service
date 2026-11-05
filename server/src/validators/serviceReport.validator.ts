@@ -7,7 +7,7 @@ export const itemTypeEnum = z.enum(['PART_REQUIRED', 'REPAIR_REQUIRED']);
 // Helper preprocessors
 const optionalUuid = z.preprocess(
   (val) => (val === null || val === '' || val === undefined ? undefined : val),
-  z.string().uuid({ message: 'Invalid UUID format' }).optional()
+  z.string().guid({ message: 'Invalid UUID format' }).optional()
 );
 
 const optionalTrimmedString = z.preprocess(
@@ -21,7 +21,7 @@ const optionalTime = z.preprocess(
 );
 
 export const reportAssetInputSchema = z.object({
-  assetId: z.string().uuid({ message: 'Valid asset ID is required' }),
+  assetId: z.string().guid({ message: 'Valid asset ID is required' }),
   faultReported: optionalTrimmedString,
   diagnosisFindings: optionalTrimmedString,
   workPerformed: optionalTrimmedString,
@@ -38,13 +38,13 @@ export const reportAssetInputSchema = z.object({
 export const reportItemInputSchema = z.object({
   assetId: optionalUuid,
   itemType: itemTypeEnum,
-  itemName: z.string({ required_error: 'Item/part name is required' }).trim().min(1, 'Item name cannot be empty').max(200),
+  itemName: z.string({ error: 'Item/part name is required' }).trim().min(1, 'Item name cannot be empty').max(200),
   partNumber: optionalTrimmedString,
   quantity: z.preprocess(
     (val) => (val === null || val === '' || val === undefined ? 1 : Number(val)),
     z.number().int().positive().default(1)
   ),
-  reason: z.string({ required_error: 'Reason is required' }).trim().min(2, 'Reason must be provided').max(1000),
+  reason: z.string({ error: 'Reason is required' }).trim().min(2, 'Reason must be provided').max(1000),
   diagnosis: optionalTrimmedString,
   workCompleted: optionalTrimmedString,
   recommendedAction: optionalTrimmedString,
@@ -62,15 +62,15 @@ export const createServiceReportSchema = {
   body: z
     .object({
       reportNumber: z
-        .string({ required_error: 'Report number is mandatory' })
+        .string({ error: 'Report number is mandatory' })
         .trim()
         .min(2, 'Report number must have at least 2 characters')
         .max(50, 'Report number cannot exceed 50 characters')
         .regex(/^[A-Za-z0-9_\-\/\.\s]+$/, 'Report number may only contain alphanumeric characters, spaces, dashes, slashes, and periods'),
-      scheduleId: z.string().uuid({ message: 'Valid schedule ID is required' }),
+      scheduleId: z.string().guid({ message: 'Valid schedule ID is required' }),
       visitType: visitTypeEnum,
       serviceDate: z
-        .string({ required_error: 'Service date is required' })
+        .string({ error: 'Service date is required' })
         .regex(/^\d{4}-\d{2}-\d{2}$/, 'Service date must be in YYYY-MM-DD format'),
       startTime: optionalTime,
       endTime: optionalTime,
@@ -140,7 +140,7 @@ export const createServiceReportSchema = {
 
 export const updateServiceReportSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid report ID format' }),
+    id: z.string().guid({ message: 'Invalid report ID format' }),
   }),
   body: z.object({
     reportNumber: z
@@ -172,13 +172,13 @@ export const updateServiceReportSchema = {
 
 export const reportIdParamSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid report ID format' }),
+    id: z.string().guid({ message: 'Invalid report ID format' }),
   }),
 };
 
 export const scheduleReportParamSchema = {
   params: z.object({
-    scheduleId: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    scheduleId: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
 };
 
@@ -200,11 +200,11 @@ export const listServiceReportsSchema = {
 
 export const createFollowUpScheduleSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid report ID format' }),
+    id: z.string().guid({ message: 'Invalid report ID format' }),
   }),
   body: z.object({
     scheduledDate: z
-      .string({ required_error: 'Follow-up date is required' })
+      .string({ error: 'Follow-up date is required' })
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Follow-up date must be YYYY-MM-DD'),
     startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Start time must be HH:mm').default('09:00'),
     endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'End time must be HH:mm').default('11:00'),

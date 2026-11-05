@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 export const brandIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid brand UUID identifier'),
+    id: z.string().guid('Invalid brand UUID identifier'),
   }),
 };
 
 export const modelIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid model UUID identifier'),
+    id: z.string().guid('Invalid model UUID identifier'),
   }),
 };
 
@@ -36,7 +36,7 @@ export const createBrandSchema = {
 
 export const updateBrandSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid brand UUID identifier'),
+    id: z.string().guid('Invalid brand UUID identifier'),
   }),
   body: z
     .object({
@@ -51,16 +51,16 @@ export const updateBrandSchema = {
 
 export const updateBrandStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid brand UUID identifier'),
+    id: z.string().guid('Invalid brand UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };
 
 export const listModelsQuerySchema = {
   query: z.object({
-    brandId: z.string().uuid('Invalid brand UUID').optional(),
+    brandId: z.string().guid('Invalid brand UUID').optional(),
     search: z.string().trim().optional(),
     activeOnly: z
       .union([z.boolean(), z.string().transform((val) => val === 'true' || val === '1')])
@@ -75,7 +75,7 @@ export const listModelsQuerySchema = {
 
 export const createModelSchema = {
   body: z.object({
-    brandId: z.string().uuid('Brand ID is required'),
+    brandId: z.string().guid('Brand ID is required'),
     modelNumber: z.string().min(1, 'Model number is required').max(100).trim(),
     acType: z.string().max(100).trim().optional().nullable(),
     technology: z.string().max(50).trim().optional().nullable(),
@@ -88,7 +88,7 @@ export const createModelSchema = {
 
 export const updateModelSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid model UUID identifier'),
+    id: z.string().guid('Invalid model UUID identifier'),
   }),
   body: z
     .object({
@@ -107,22 +107,22 @@ export const updateModelSchema = {
 
 export const updateModelStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid model UUID identifier'),
+    id: z.string().guid('Invalid model UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };
 
 export const variantIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid variant UUID identifier'),
+    id: z.string().guid('Invalid variant UUID identifier'),
   }),
 };
 
 export const createVariantSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid model UUID identifier'),
+    id: z.string().guid('Invalid model UUID identifier'),
   }),
   body: z.object({
     variantCode: z.string().max(100).trim().optional(),
@@ -140,7 +140,7 @@ export const createVariantSchema = {
 
 export const updateVariantSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid variant UUID identifier'),
+    id: z.string().guid('Invalid variant UUID identifier'),
   }),
   body: z
     .object({
@@ -162,10 +162,10 @@ export const updateVariantSchema = {
 
 export const updateVariantStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid variant UUID identifier'),
+    id: z.string().guid('Invalid variant UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };
 
