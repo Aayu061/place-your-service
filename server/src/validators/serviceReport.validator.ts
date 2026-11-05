@@ -89,6 +89,24 @@ export const createServiceReportSchema = {
       items: z.array(reportItemInputSchema).optional().default([]),
     })
     .superRefine((data, ctx) => {
+      const reportAssetIds = new Set(data.assets.map((asset) => asset.assetId));
+      for (const [index, item] of data.items.entries()) {
+        if (item.assetId && !reportAssetIds.has(item.assetId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Parts and repair items must reference an asset included in this report.',
+            path: ['items', index, 'assetId'],
+          });
+        }
+        if (item.isRevisitRequired && !item.assetId) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Every unresolved follow-up item must be linked to a report asset.',
+            path: ['items', index, 'assetId'],
+          });
+        }
+      }
+
       // Validate deviation reason if performed differs from planned
       if (
         data.performedServiceType &&
@@ -143,6 +161,7 @@ export const updateServiceReportSchema = {
     id: z.string().guid({ message: 'Invalid report ID format' }),
   }),
   body: z.object({
+    correctionReason: z.string({ error: 'Correction reason is required' }).trim().min(3, 'Correction reason must have at least 3 characters').max(500),
     reportNumber: z
       .string()
       .trim()
@@ -203,6 +222,7 @@ export const createFollowUpScheduleSchema = {
     id: z.string().guid({ message: 'Invalid report ID format' }),
   }),
   body: z.object({
+    assetId: optionalUuid,
     scheduledDate: z
       .string({ error: 'Follow-up date is required' })
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Follow-up date must be YYYY-MM-DD'),

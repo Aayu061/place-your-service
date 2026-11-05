@@ -145,6 +145,10 @@ export class ServiceReportService {
       throw new NotFoundError(`Scheduled appointment with ID "${payload.scheduleId}" not found.`);
     }
 
+    if (['CANCELLED', 'RESCHEDULED', 'SKIPPED'].includes(schedule.status)) {
+      throw new BadRequestError(`Cannot issue a service report for a ${schedule.status.toLowerCase()} appointment.`);
+    }
+
     // 3. Prevent duplicate report submission for the same appointment
     const { data: duplicateScheduleReport } = await supabase
       .from('service_reports')
@@ -200,6 +204,20 @@ export class ServiceReportService {
     const assetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
     if (assetIds.length !== payload.assets.length) {
       throw new BadRequestError('All assets in the service report must have a valid asset ID.');
+    }
+    if (new Set(assetIds).size !== assetIds.length) {
+      throw new BadRequestError('A service report cannot include the same asset more than once.');
+    }
+    if (schedule.asset_id && (assetIds.length !== 1 || assetIds[0] !== schedule.asset_id)) {
+      throw new BadRequestError('The report assets must match the asset attached to the scheduled work.');
+    }
+    for (const item of payload.items || []) {
+      if (item.assetId && !assetIds.includes(item.assetId)) {
+        throw new BadRequestError('Each parts or repair item must belong to an asset included in this report.');
+      }
+      if (item.isRevisitRequired && !item.assetId) {
+        throw new BadRequestError('Every unresolved follow-up item must be linked to a report asset.');
+      }
     }
 
     let assetMap: Record<string, any> = {};
@@ -268,6 +286,11 @@ export class ServiceReportService {
     const plannedServiceType = payload.plannedServiceType || schedule.planned_service_type || null;
     const performedServiceType = payload.performedServiceType || plannedServiceType || null;
     const serviceTypeDeviationReason = payload.serviceTypeDeviationReason?.trim() || null;
+    const reportStartTime = payload.startTime || schedule.start_time || null;
+    const reportEndTime = payload.endTime || schedule.end_time || null;
+    if (reportStartTime && reportEndTime && reportEndTime <= reportStartTime) {
+      throw new BadRequestError('Service report end time must be later than its start time.');
+    }
 
     if (
       performedServiceType &&
@@ -280,29 +303,43 @@ export class ServiceReportService {
       );
     }
 
-    // Resolve originating report if this visit is a follow-up
-    let originatingReportId = payload.originatingReportId || null;
-    if (!originatingReportId && schedule.id) {
-      const { data: parentReport } = await supabase
-        .from('service_reports')
-        .select('id, report_number')
-        .eq('follow_up_schedule_id', schedule.id)
-        .maybeSingle();
-      if (parentReport) {
-        originatingReportId = parentReport.id;
-      } else if (schedule.rescheduled_from_id) {
-        const { data: priorReport } = await supabase
-          .from('service_reports')
-          .select('id, report_number')
-          .eq('service_schedule_id', schedule.rescheduled_from_id)
-          .maybeSingle();
-        if (priorReport) {
-          originatingReportId = priorReport.id;
-        }
+    // Follow-up resolution is derived from the server-created, item-level scope.
+    const scopesTable = supabase.from('service_report_follow_up_scopes');
+    let followUpScopes: Array<{ source_report_id: string; source_item_id: string; asset_id: string }> = [];
+    if (scopesTable && typeof scopesTable.select === 'function') {
+      const { data: scopeRows, error: scopeErr } = await scopesTable
+        .select('source_report_id, source_item_id, asset_id')
+        .eq('follow_up_schedule_id', schedule.id);
+      if (scopeErr) {
+        logger.error('Failed to validate follow-up scope for service report', { error: scopeErr, scheduleId: schedule.id });
+        throw new BadRequestError('Failed to validate the linked follow-up items.');
+      }
+      followUpScopes = (scopeRows || []) as typeof followUpScopes;
+    }
+
+    const scopedReportIds = Array.from(new Set(followUpScopes.map((scope) => scope.source_report_id)));
+    const scopedAssetIds = Array.from(new Set(followUpScopes.map((scope) => scope.asset_id)));
+    if (scopedReportIds.length > 1 || scopedAssetIds.length > 1) {
+      throw new BadRequestError('Follow-up schedule has inconsistent source report or asset scope.');
+    }
+    if (payload.originatingReportId && payload.originatingReportId !== scopedReportIds[0]) {
+      throw new BadRequestError('Originating report must match the follow-up schedule item scope.');
+    }
+    if (payload.originatingReportId && followUpScopes.length === 0) {
+      throw new BadRequestError('A report can only resolve an originating issue through a linked follow-up schedule.');
+    }
+
+    const originatingReportId = scopedReportIds[0] || null;
+    if (followUpScopes.length > 0) {
+      if (followUpScopes.some((scope) => !scope.source_report_id || !scope.source_item_id || !scope.asset_id)) {
+        throw new BadRequestError('Follow-up schedule contains an incomplete issue scope.');
+      }
+      if (assetIds.length !== 1 || assetIds[0] !== scopedAssetIds[0]) {
+        throw new BadRequestError('The follow-up report must include only the asset linked to its pending issue scope.');
       }
     }
 
-    // Step 1: Validate originating report relationship if present
+    // Validate the originating report and ensure it still has an unresolved issue.
     let originatingReport: any = null;
     if (originatingReportId) {
       const { data: orig, error: origErr } = await supabase
@@ -318,6 +355,12 @@ export class ServiceReportService {
       // Reject cross-customer or cross-site follow-up resolution
       if (orig.customer_id !== customerId || orig.site_id !== siteId) {
         throw new BadRequestError('Cross-customer or cross-site follow-up resolution is strictly prohibited.');
+      }
+      if (!['AWAITING_PARTS', 'AWAITING_REPAIR'].includes(orig.resolution_status)) {
+        throw new BadRequestError('The originating report no longer has an unresolved issue to follow up.');
+      }
+      if (orig.resolving_report_id) {
+        throw new ConflictError('The originating report issue has already been resolved.');
       }
 
       originatingReport = orig;
@@ -353,8 +396,8 @@ export class ServiceReportService {
             ? (payload.assistantName ? payload.assistantName.trim() || null : null)
             : ((schedule as any).assistant_name || null),
         service_date: payload.serviceDate,
-        start_time: payload.startTime || schedule.start_time || null,
-        end_time: payload.endTime || schedule.end_time || null,
+        start_time: reportStartTime,
+        end_time: reportEndTime,
         primary_outcome: payload.primaryOutcome,
         planned_service_type: plannedServiceType,
         performed_service_type: performedServiceType,
@@ -367,7 +410,7 @@ export class ServiceReportService {
         customer_representative: payload.customerRepresentative || null,
         customer_acknowledgement: payload.customerAcknowledgement || null,
         customer_signature_url: payload.customerSignatureUrl || null,
-        status: 'SUBMITTED',
+        status: 'DRAFT',
         created_by: actorId || null,
         updated_by: actorId || null,
       })
@@ -458,102 +501,62 @@ export class ServiceReportService {
       }
     }
 
+    let submittedAtomically = false;
+    if (typeof supabase.rpc === 'function') {
+      const { error: submitErr } = await supabase.rpc('submit_service_report_completion', {
+        p_service_report_id: newReport.id,
+        p_actor_profile_id: actorId || null,
+      });
+      if (submitErr) {
+        logger.error('Failed to submit service report transaction', { error: submitErr, reportId: newReport.id });
+        await supabase.from('service_report_items').delete().eq('report_id', newReport.id);
+        await supabase.from('service_report_assets').delete().eq('report_id', newReport.id);
+        await supabase.from('service_reports').delete().eq('id', newReport.id);
+        if (submitErr.code === '23505') {
+          throw new ConflictError('A service report has already been recorded for this scheduled appointment.');
+        }
+        throw new BadRequestError(`Failed to complete report submission: ${submitErr.message || 'Database error'}`);
+      }
+      submittedAtomically = true;
+    }
+
     // 9. State Machine Transitions
 
-    // 9a. If this report follows up on an earlier pending issue, evaluate completion and update resolution state
-    if (originatingReportId && originatingReport) {
-      if (payload.primaryOutcome === 'COMPLETED') {
-        // Multi-asset evaluation:
-        // Query originating report assets to see which AC assets had pending work
-        const { data: origAssets } = await supabase
-          .from('service_report_assets')
-          .select('id, asset_id, asset_outcome')
-          .eq('report_id', originatingReportId);
+    if (!submittedAtomically) {
 
-        const pendingOrigAssets = (origAssets || []).filter(
-          (a: any) => a.asset_outcome === 'PENDING_PARTS' || a.asset_outcome === 'PENDING_REPAIRS'
-        );
-
-        // Assets that were genuinely completed in this follow-up report
-        const completedAssetIdsInFollowUp = new Set(
-          payload.assets.filter((a) => a.assetOutcome === 'COMPLETED').map((a) => a.assetId)
-        );
-
-        const remainingPendingAssets = pendingOrigAssets.filter(
-          (a: any) => !completedAssetIdsInFollowUp.has(a.asset_id)
-        );
-
-        // If all pending assets from originating report are completed (or no pending assets existed)
-        if (remainingPendingAssets.length === 0) {
-          await supabase
-            .from('service_reports')
-            .update({
-              resolving_report_id: newReport.id,
-              resolved_at: new Date().toISOString(),
-              resolution_status: 'RESOLVED',
-              updated_by: actorId || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', originatingReportId);
-
-          // Mark parts and repair items on originating report as resolved
-          await supabase
-            .from('service_report_items')
-            .update({
-              is_resolved: true,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('report_id', originatingReportId);
-
-          await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
-            resolvingReportId: newReport.id,
-            resolvingReportNumber: trimmedReportNumber,
-            primaryOutcome: payload.primaryOutcome,
+    // 9a. Resolve only the exact source items linked to this follow-up schedule.
+    if (originatingReportId && originatingReport && payload.primaryOutcome === 'COMPLETED') {
+      if (typeof supabase.rpc === 'function') {
+        const { error: resolveErr } = await supabase.rpc('resolve_service_report_follow_up_scope', {
+          p_follow_up_schedule_id: schedule.id,
+          p_resolving_report_id: newReport.id,
+          p_actor_profile_id: actorId || null,
+        });
+        if (resolveErr) {
+          logger.error('Failed to resolve scoped source items after completed follow-up', {
+            error: resolveErr,
+            reportId: newReport.id,
+            originatingReportId,
           });
-        } else {
-          // Partial multi-asset resolution: resolve items for completed assets only
-          const completedAssetIdsArray = Array.from(completedAssetIdsInFollowUp);
-          if (completedAssetIdsArray.length > 0) {
-            await supabase
-              .from('service_report_items')
-              .update({
-                is_resolved: true,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('report_id', originatingReportId)
-              .in('asset_id', completedAssetIdsArray);
-          }
-
-          const hasRemainingParts = remainingPendingAssets.some((a: any) => a.asset_outcome === 'PENDING_PARTS');
-          const remainingStatus = hasRemainingParts ? 'AWAITING_PARTS' : 'AWAITING_REPAIR';
-          await supabase
-            .from('service_reports')
-            .update({
-              resolution_status: remainingStatus,
-              updated_by: actorId || null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', originatingReportId);
+          throw new BadRequestError('The follow-up report was saved, but its linked issue could not be resolved.');
         }
-      } else if (payload.primaryOutcome === 'PENDING_PARTS') {
-        await supabase
-          .from('service_reports')
-          .update({
-            resolution_status: 'AWAITING_PARTS',
-            updated_by: actorId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', originatingReportId);
-      } else if (payload.primaryOutcome === 'PENDING_REPAIRS') {
-        await supabase
-          .from('service_reports')
-          .update({
-            resolution_status: 'AWAITING_REPAIR',
-            updated_by: actorId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', originatingReportId);
+      } else {
+        // Test doubles without RPC support use the same exact item boundary.
+        const sourceItemIds = followUpScopes.map((scope) => scope.source_item_id);
+        const { error: itemResolveErr } = await supabase
+          .from('service_report_items')
+          .update({ is_resolved: true, updated_at: new Date().toISOString() })
+          .eq('report_id', originatingReportId)
+          .in('id', sourceItemIds);
+        if (itemResolveErr) {
+          throw new BadRequestError('The follow-up report was saved, but its linked issue could not be resolved.');
+        }
       }
+      await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
+        resolvingReportId: newReport.id,
+        resolvingReportNumber: trimmedReportNumber,
+        sourceItemIds: followUpScopes.map((scope) => scope.source_item_id),
+      });
     }
 
     // 9b. Update the schedule: The visit has been attended by the technician on-site
@@ -633,16 +636,22 @@ export class ServiceReportService {
         .eq('id', schedule.service_request_id);
     }
 
-    // 10. Audit Logging
-    await this.recordAudit(actorId, 'SERVICE_REPORT_CREATED', newReport.id, {
-      reportNumber: trimmedReportNumber,
-      scheduleId: schedule.id,
-      scheduleNumber: schedule.schedule_number,
-      visitType: payload.visitType,
-      primaryOutcome: payload.primaryOutcome,
-      assetCount: payload.assets.length,
-      itemCount: payload.items?.length || 0,
-    });
+    }
+
+    // The transaction RPC creates its immutable activity record in the same
+    // database transaction as completion. The fallback is retained for
+    // lightweight unit-test clients that do not implement RPC.
+    if (!submittedAtomically) {
+      await this.recordAudit(actorId, 'SERVICE_REPORT_CREATED', newReport.id, {
+        reportNumber: trimmedReportNumber,
+        scheduleId: schedule.id,
+        scheduleNumber: schedule.schedule_number,
+        visitType: payload.visitType,
+        primaryOutcome: payload.primaryOutcome,
+        assetCount: payload.assets.length,
+        itemCount: payload.items?.length || 0,
+      });
+    }
 
     return this.getReportById(newReport.id);
   }
@@ -1126,6 +1135,18 @@ export class ServiceReportService {
     const supabase = getSupabaseClient();
     const existing = await this.getReportById(id);
 
+    if (!payload.correctionReason?.trim() || payload.correctionReason.trim().length < 3) {
+      throw new BadRequestError('A correction reason of at least 3 characters is required.');
+    }
+    if (payload.assets !== undefined || payload.items !== undefined) {
+      throw new BadRequestError('Issued equipment and parts/repair snapshots cannot be changed. Update report header and notes only.');
+    }
+    const effectiveStartTime = payload.startTime !== undefined ? payload.startTime : existing.startTime;
+    const effectiveEndTime = payload.endTime !== undefined ? payload.endTime : existing.endTime;
+    if (effectiveStartTime && effectiveEndTime && effectiveEndTime <= effectiveStartTime) {
+      throw new BadRequestError('Service report end time must be later than its start time.');
+    }
+
     // If reportNumber changed, check uniqueness
     if (payload.reportNumber && payload.reportNumber.trim() !== existing.reportNumber) {
       const trimmedNumber = payload.reportNumber.trim();
@@ -1157,6 +1178,7 @@ export class ServiceReportService {
     const updates: Record<string, unknown> = {
       updated_by: actorId || null,
       updated_at: new Date().toISOString(),
+      last_correction_reason: payload.correctionReason.trim(),
     };
 
     if (payload.reportNumber) updates.report_number = payload.reportNumber.trim();
@@ -1177,74 +1199,6 @@ export class ServiceReportService {
     if (payload.customerAcknowledgement !== undefined) updates.customer_acknowledgement = payload.customerAcknowledgement;
     if (payload.customerSignatureUrl !== undefined) updates.customer_signature_url = payload.customerSignatureUrl;
 
-    // Validate and update asset findings if supplied with immutable equipment snapshot
-    let updateAssetMap: Record<string, any> = {};
-    if (payload.assets && payload.assets.length > 0) {
-      const updateAssetIds = payload.assets.map((a) => a.assetId).filter(Boolean);
-      if (updateAssetIds.length !== payload.assets.length) {
-        throw new BadRequestError('All assets in the service report must have a valid asset ID.');
-      }
-
-      const query = supabase.from('ac_assets');
-      if (query && typeof query.select === 'function') {
-        const { data: matchedAssets, error: assetErr } = await query
-          .select(`
-            id, site_id, customer_sites ( id, customer_id ), asset_tag, brand, model_number, indoor_serial_number, outdoor_serial_number, serial_number,
-            ac_type, technology, capacity_tons, star_rating, refrigerant_type, floor_location, room_location
-          `)
-          .in('id', updateAssetIds);
-
-        if (assetErr) {
-          logger.error('Failed to query ac_assets for service report update validation', { error: assetErr });
-          throw new BadRequestError('Failed to validate equipment records.');
-        }
-
-        if (matchedAssets) {
-          if (matchedAssets.length !== updateAssetIds.length) {
-            throw new BadRequestError('One or more referenced AC assets could not be found.');
-          }
-
-          // Fallback batch lookup for customer_id if customer_sites join was not hydrated by caller/mock
-          const fallbackSiteCustomerMap: Record<string, string> = {};
-          const unresolvedSiteIds = matchedAssets
-            .filter((a) => !resolveAssetCustomerId(a) && a.site_id)
-            .map((a) => a.site_id);
-
-          if (unresolvedSiteIds.length > 0) {
-            const uniqueSiteIds = Array.from(new Set(unresolvedSiteIds));
-            const sitesQuery = supabase.from('customer_sites');
-            if (sitesQuery && typeof sitesQuery.select === 'function') {
-              const { data: sitesData } = await sitesQuery
-                .select('id, customer_id')
-                .in('id', uniqueSiteIds);
-              if (sitesData) {
-                for (const s of sitesData) {
-                  if (s.id && s.customer_id) {
-                    fallbackSiteCustomerMap[s.id] = s.customer_id;
-                  }
-                }
-              }
-            }
-          }
-
-          for (const asset of matchedAssets) {
-            const assetCustomerId = resolveAssetCustomerId(asset, fallbackSiteCustomerMap);
-            if (assetCustomerId && assetCustomerId !== existing.customerId) {
-              throw new BadRequestError(
-                `Asset "${asset.asset_tag || asset.id}" does not belong to the report customer.`
-              );
-            }
-            if (asset.site_id && asset.site_id !== existing.siteId) {
-              throw new BadRequestError(
-                `Asset "${asset.asset_tag || asset.id}" does not belong to the report site.`
-              );
-            }
-            updateAssetMap[asset.id] = asset;
-          }
-        }
-      }
-    }
-
     const { error } = await supabase.from('service_reports').update(updates).eq('id', id);
 
     if (error) {
@@ -1252,139 +1206,12 @@ export class ServiceReportService {
       throw new BadRequestError('Failed to update service report.');
     }
 
-    // Update asset findings if supplied with immutable equipment snapshot
-    if (payload.assets && payload.assets.length > 0) {
-      await supabase.from('service_report_assets').delete().eq('report_id', id);
-
-      const assetInserts = payload.assets.map((a) => {
-        const snap = updateAssetMap[a.assetId] || {};
-        const tech = a.technology || snap.technology;
-        return {
-          report_id: id,
-          asset_id: a.assetId,
-          asset_tag: a.assetTag ?? snap.asset_tag ?? null,
-          brand: a.brand ?? snap.brand ?? null,
-          model_number: a.modelNumber ?? snap.model_number ?? null,
-          indoor_serial_number: a.indoorSerialNumber ?? snap.indoor_serial_number ?? null,
-          outdoor_serial_number: a.outdoorSerialNumber ?? snap.outdoor_serial_number ?? null,
-          serial_number: a.serialNumber ?? snap.serial_number ?? null,
-          ac_type: a.acType ?? snap.ac_type ?? null,
-          technology: tech ? normalizeTechnology(tech) : null,
-          capacity_tons: a.capacityTons ?? (snap.capacity_tons != null ? Number(snap.capacity_tons) : null),
-          star_rating: a.starRating ?? snap.star_rating ?? null,
-          refrigerant_type: a.refrigerantType ?? snap.refrigerant_type ?? null,
-          floor_location: a.floorLocation ?? snap.floor_location ?? null,
-          room_location: a.roomLocation ?? snap.room_location ?? null,
-          fault_reported: a.faultReported || null,
-          diagnosis_findings: a.diagnosisFindings || null,
-          work_performed: a.workPerformed || null,
-          asset_outcome: a.assetOutcome,
-          final_condition: a.finalCondition || null,
-          refrigerant_added: a.refrigerantAdded ?? false,
-          refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
-          notes: a.notes || null,
-        };
-      });
-      const { error: aErr } = await supabase.from('service_report_assets').insert(assetInserts);
-      if (aErr) {
-        logger.error('Failed to update service report assets', { error: aErr, id });
-        throw new BadRequestError('Failed to update asset inspection findings.');
-      }
-    }
-
-    // Update outcome items if supplied
-    if (payload.items !== undefined) {
-      // Query existing items to preserve is_resolved status across report updates
-      const { data: existingItems } = await supabase
-        .from('service_report_items')
-        .select('item_name, part_number, asset_id, is_resolved')
-        .eq('report_id', id);
-
-      const resolvedSet = new Set<string>();
-      (existingItems || []).forEach((ei: any) => {
-        if (ei.is_resolved) {
-          resolvedSet.add(`${ei.asset_id || ''}_${ei.item_name}_${ei.part_number || ''}`);
-        }
-      });
-
-      await supabase.from('service_report_items').delete().eq('report_id', id);
-      if (payload.items.length > 0) {
-        const itemInserts = payload.items.map((item) => {
-          const itemKey = `${item.assetId || ''}_${item.itemName}_${item.partNumber || ''}`;
-          const isResolved = (item as any).isResolved !== undefined ? Boolean((item as any).isResolved) : resolvedSet.has(itemKey);
-          return {
-            report_id: id,
-            asset_id: item.assetId || null,
-            item_type: item.itemType,
-            item_name: item.itemName,
-            part_number: item.partNumber || null,
-            quantity: item.quantity || 1,
-            reason: item.reason,
-            diagnosis: item.diagnosis || null,
-            work_completed: item.workCompleted || null,
-            recommended_action: item.recommendedAction || null,
-            is_approval_required: item.isApprovalRequired ?? false,
-            is_specialist_required: item.isSpecialistRequired ?? false,
-            is_revisit_required: item.isRevisitRequired ?? true,
-            ac_condition: item.acCondition || null,
-            follow_up_notes: item.followUpNotes || null,
-            is_resolved: isResolved,
-          };
-        });
-        const { error: iErr } = await supabase.from('service_report_items').insert(itemInserts);
-        if (iErr) {
-          logger.error('Failed to update service report items', { error: iErr, id });
-          throw new BadRequestError('Failed to update parts and repair items.');
-        }
-      }
-    }
-
-    // Synchronize resolution state on originating report if applicable
-    if (existing.originatingReportId && existing.primaryOutcome === 'COMPLETED') {
-      const origId = existing.originatingReportId;
-      const { data: origAssets } = await supabase
-        .from('service_report_assets')
-        .select('id, asset_id, asset_outcome')
-        .eq('report_id', origId);
-
-      const pendingOrigAssets = (origAssets || []).filter(
-        (a: any) => a.asset_outcome === 'PENDING_PARTS' || a.asset_outcome === 'PENDING_REPAIRS'
-      );
-
-      const currentAssets = payload.assets || existing.assets;
-      const completedAssetIds = new Set(
-        currentAssets.filter((a: any) => a.assetOutcome === 'COMPLETED').map((a: any) => a.assetId)
-      );
-
-      const remainingPending = pendingOrigAssets.filter((a: any) => !completedAssetIds.has(a.asset_id));
-
-      if (remainingPending.length === 0) {
-        await supabase
-          .from('service_reports')
-          .update({
-            resolving_report_id: id,
-            resolved_at: new Date().toISOString(),
-            resolution_status: 'RESOLVED',
-            updated_by: actorId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', origId);
-
-        await supabase
-          .from('service_report_items')
-          .update({
-            is_resolved: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('report_id', origId);
-      }
-    }
-
     await this.recordAudit(actorId, 'SERVICE_REPORT_UPDATED', id, {
       reportNumber: updates.report_number || existing.reportNumber,
+      correctionReason: payload.correctionReason.trim(),
       updatedFields: Object.keys(updates),
-      assetCount: payload.assets?.length ?? existing.assets.length,
-      itemCount: payload.items?.length ?? existing.items.length,
+      assetCount: existing.assets.length,
+      itemCount: existing.items.length,
     });
 
     return this.getReportById(id);
@@ -1401,8 +1228,35 @@ export class ServiceReportService {
     const supabase = getSupabaseClient();
     const report = await this.getReportById(reportId);
 
-    if (report.primaryOutcome === 'COMPLETED') {
+    if (report.primaryOutcome === 'COMPLETED' || report.resolutionStatus === 'RESOLVED') {
       throw new BadRequestError('Cannot schedule a follow-up revisit for an already completed visit report.');
+    }
+    if (!['AWAITING_PARTS', 'AWAITING_REPAIR'].includes(report.resolutionStatus)) {
+      throw new BadRequestError('Cannot schedule a follow-up unless the report has an unresolved parts or repair issue.');
+    }
+
+    const pendingAssetIds = new Set(
+      report.assets
+        .filter((asset) => asset.assetOutcome === 'PENDING_PARTS' || asset.assetOutcome === 'PENDING_REPAIRS')
+        .map((asset) => asset.assetId)
+    );
+    const pendingItems = report.items.filter(
+      (item) => !item.isResolved && item.isRevisitRequired && item.assetId && pendingAssetIds.has(item.assetId)
+    );
+    if (pendingItems.length === 0) {
+      throw new BadRequestError('No unresolved revisit items are available to schedule.');
+    }
+    const eligibleAssetIds = Array.from(new Set(pendingItems.map((item) => item.assetId as string)));
+    const targetAssetId = payload.assetId || eligibleAssetIds[0];
+    if (!eligibleAssetIds.includes(targetAssetId)) {
+      throw new BadRequestError('The selected asset does not have an unresolved issue that requires a revisit.');
+    }
+    const scopedItems = pendingItems.filter((item) => item.assetId === targetAssetId);
+
+    const startTime = payload.startTime || '09:00';
+    const endTime = payload.endTime || '11:00';
+    if (endTime <= startTime) {
+      throw new BadRequestError('Follow-up end time must be later than its start time.');
     }
 
     if (report.followUpScheduleId) {
@@ -1422,9 +1276,6 @@ export class ServiceReportService {
     const isPm = report.visitType === 'PREVENTIVE';
     const scheduleNumber = await this.generateScheduleNumber(isPm);
     const effectiveTechId = payload.technicianId || null;
-    const startTime = payload.startTime || '09:00';
-    const endTime = payload.endTime || '11:00';
-
     // Pre-validate technician assignment if technician is assigned
     if (effectiveTechId) {
       await scheduleService.validateTechnicianAssignment(
@@ -1433,36 +1284,58 @@ export class ServiceReportService {
         startTime,
         endTime,
         report.siteId,
-        report.assets[0]?.assetId || null,
+        targetAssetId,
         false,
         undefined
       );
     }
 
+    const followUpSchedulePayload = {
+      schedule_number: scheduleNumber,
+      amc_id: report.amcId || null,
+      service_request_id: report.serviceRequestId || null,
+      pm_obligation_id: report.pmObligationId || null,
+      customer_id: report.customerId,
+      site_id: report.siteId,
+      asset_id: targetAssetId,
+      scheduled_date: payload.scheduledDate,
+      start_time: startTime,
+      end_time: endTime,
+      duration_minutes: payload.durationMinutes || 120,
+      technician_id: effectiveTechId,
+      rescheduled_from_id: report.scheduleId || null,
+      planned_service_type: payload.plannedServiceType || report.plannedServiceType || null,
+      status: effectiveTechId ? 'ASSIGNED' : 'SCHEDULED',
+      is_system_generated: false,
+      notes: `Follow-up revisit for Report #${report.reportNumber}: ${report.primaryOutcome}${payload.notes ? ` - ${payload.notes}` : ''}`,
+      created_by: actorId || null,
+      updated_by: actorId || null,
+    };
+
+    if (typeof supabase.rpc === 'function') {
+      const { error: rpcErr } = await supabase.rpc('create_service_report_follow_up', {
+        p_source_report_id: report.id,
+        p_schedule: followUpSchedulePayload,
+        p_source_item_ids: scopedItems.map((item) => item.id),
+        p_actor_profile_id: actorId || null,
+      });
+      if (rpcErr) {
+        logger.error('Failed to create follow-up appointment transaction', { error: rpcErr, reportId });
+        if (rpcErr.code === '23P01' || rpcErr.message?.includes('TECHNICIAN_OVERLAP_CONFLICT')) {
+          throw new ConflictError('Technician is already booked for another service during this time window. Overlapping assignments are prohibited.');
+        }
+        if (rpcErr.code === '23505' || rpcErr.message?.includes('duplicate key')) {
+          throw new ConflictError('A follow-up appointment is already active or the generated schedule number is already in use.');
+        }
+        throw new BadRequestError(`Failed to create follow-up appointment: ${rpcErr.message || 'Database error'}`);
+      }
+      return this.getReportById(report.id);
+    }
+
     const { data: newSched, error: schedErr } = await supabase
       .from('service_schedules')
       .insert({
-        schedule_number: scheduleNumber,
-        amc_id: report.amcId || null,
-        service_request_id: report.serviceRequestId || null,
-        pm_obligation_id: report.pmObligationId || null,
-        customer_id: report.customerId,
-        site_id: report.siteId,
-        asset_id: report.assets[0]?.assetId || null,
-        scheduled_date: payload.scheduledDate,
-        start_time: startTime,
-        end_time: endTime,
-        duration_minutes: payload.durationMinutes || 120,
-        technician_id: effectiveTechId,
-        rescheduled_from_id: report.scheduleId || null,
-        planned_service_type: payload.plannedServiceType || report.plannedServiceType || null,
-        status: effectiveTechId ? 'ASSIGNED' : 'SCHEDULED',
-        is_system_generated: false,
-        notes: `Follow-up revisit for Report #${report.reportNumber}: ${report.primaryOutcome}${
-          payload.notes ? ` - ${payload.notes}` : ''
-        }`,
-        created_by: actorId || null,
-        updated_by: actorId || null,
+        ...followUpSchedulePayload,
       })
       .select()
       .single();
@@ -1497,7 +1370,7 @@ export class ServiceReportService {
       const scheduledEnd = `${payload.scheduledDate}T${endTime}:00Z`;
       const assignmentQuery = supabase.from('service_assignments');
       if (assignmentQuery && typeof assignmentQuery.insert === 'function') {
-        await assignmentQuery.insert({
+        const { error: assignmentErr } = await assignmentQuery.insert({
           service_schedule_id: newSched.id,
           service_request_id: report.serviceRequestId || null,
           technician_id: effectiveTechId,
@@ -1507,7 +1380,28 @@ export class ServiceReportService {
           scheduled_end_time: scheduledEnd,
           status: 'ASSIGNED',
         });
+        if (assignmentErr) {
+          await supabase.from('service_schedules').delete().eq('id', newSched.id);
+          throw new BadRequestError('Failed to create the follow-up technician assignment.');
+        }
       }
+    }
+
+    const { error: scopeErr } = await supabase.from('service_report_follow_up_scopes').insert(
+      scopedItems.map((item) => ({
+        follow_up_schedule_id: newSched.id,
+        source_report_id: report.id,
+        source_item_id: item.id,
+        asset_id: targetAssetId,
+        created_by: actorId || null,
+      }))
+    );
+    if (scopeErr) {
+      if (effectiveTechId) {
+        await supabase.from('service_assignments').delete().eq('service_schedule_id', newSched.id);
+      }
+      await supabase.from('service_schedules').delete().eq('id', newSched.id);
+      throw new BadRequestError('Failed to record which pending issues this follow-up will address.');
     }
 
     // Link follow_up_schedule_id back to service_reports

@@ -117,6 +117,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [technicianRemarks, setTechnicianRemarks] = useState<string>('');
   const [customerRepresentative, setCustomerRepresentative] = useState<string>('');
   const [customerAcknowledgement, setCustomerAcknowledgement] = useState<string>('');
+  const [correctionReason, setCorrectionReason] = useState<string>('');
   const [isAdditionalOpen, setIsAdditionalOpen] = useState<boolean>(false);
 
   // Service Execution Type & Deviation States
@@ -171,6 +172,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setTechnicianRemarks(initialReport.technicianRemarks || '');
         setCustomerRepresentative(initialReport.customerRepresentative || '');
         setCustomerAcknowledgement(initialReport.customerAcknowledgement || '');
+        setCorrectionReason('');
         setPlannedServiceType(initialReport.plannedServiceType || schedule?.plannedServiceType || null);
         setPerformedServiceType(initialReport.performedServiceType || initialReport.plannedServiceType || '');
         setServiceTypeDeviationReason(initialReport.serviceTypeDeviationReason || '');
@@ -184,6 +186,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setFormStatus('IDLE');
 
         if (
+          mode === 'edit' ||
           initialReport.technicianRemarks ||
           initialReport.customerRepresentative ||
           initialReport.customerAcknowledgement
@@ -280,6 +283,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setTechnicianRemarks('');
         setCustomerRepresentative('');
         setCustomerAcknowledgement('');
+        setCorrectionReason('');
         setIsAdditionalOpen(false);
         setErrorMessage(null);
         setReportNumberError(null);
@@ -517,6 +521,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       return;
     }
 
+    if (mode === 'edit' && correctionReason.trim().length < 3) {
+      const msg = 'Enter a correction reason with at least 3 characters.';
+      setErrorMessage(msg);
+      setFormStatus('ERROR');
+      return;
+    }
+
     // Time validation: when same day, ensure endTime > startTime
     if (startTime && endTime) {
       if (endTime <= startTime) {
@@ -528,7 +539,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       }
     }
 
-    if (assets.length === 0) {
+    if (mode !== 'edit' && assets.length === 0) {
       const msg = 'At least one AC asset must be associated with the report.';
       setErrorMessage(msg);
       setFormStatus('ERROR');
@@ -549,8 +560,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       return;
     }
 
-    // Outcome-specific client validation
-    if (primaryOutcome === 'COMPLETED') {
+    // Outcome-specific client validation only applies while issuing a new report.
+    if (mode !== 'edit' && primaryOutcome === 'COMPLETED') {
       const hasAssetWork = assets.some((a) => a.workPerformed.trim().length > 0);
       const hasSummaryWork = workDescription.trim().length > 0;
       if (!hasAssetWork && !hasSummaryWork) {
@@ -561,7 +572,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setFormStatus('ERROR');
         return;
       }
-    } else if (primaryOutcome === 'PENDING_PARTS') {
+    } else if (mode !== 'edit' && primaryOutcome === 'PENDING_PARTS') {
       const invalidPart = partItems.find((p) => !p.itemName.trim() || !p.reason.trim());
       if (invalidPart) {
         const msg = 'All required part items must have a Part Name and Reason specified.';
@@ -570,7 +581,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setFormStatus('ERROR');
         return;
       }
-    } else if (primaryOutcome === 'PENDING_REPAIRS') {
+    } else if (mode !== 'edit' && primaryOutcome === 'PENDING_REPAIRS') {
       const invalidRepair = repairItems.find(
         (r) => !r.itemName.trim() || !r.reason.trim()
       );
@@ -649,6 +660,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
       if (mode === 'edit' && initialReport) {
         await serviceReportApi.updateReport(initialReport.id, {
+          correctionReason: correctionReason.trim(),
           reportNumber: trimmedNumber,
           serviceDate: visitDate,
           startTime: startTime || null,
@@ -664,8 +676,6 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           technicianRemarks: technicianRemarks.trim() || null,
           customerRepresentative: customerRepresentative.trim() || null,
           customerAcknowledgement: customerAcknowledgement.trim() || null,
-          assets: payload.assets,
-          items: payload.items,
         });
 
         setFormStatus('SUCCESS');
@@ -722,6 +732,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
     technicianRemarks ||
     customerRepresentative ||
     customerAcknowledgement ||
+    correctionReason ||
     serviceTypeDeviationReason ||
     partItems.length > 0 ||
     repairItems.length > 0 ||
@@ -735,7 +746,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       title={mode === 'edit' ? `Edit Service Visit Report #${initialReport?.reportNumber || ''}` : 'Create Service Visit Report'}
       description={
         mode === 'edit'
-          ? `Amend or correct inspection findings for Report #${initialReport?.reportNumber || ''}`
+          ? `Correct report details for #${initialReport?.reportNumber || ''}`
           : `Official execution record for Appointment #${schedule?.scheduleNumber || ''}`
       }
       maxWidth="1040px"
@@ -1229,6 +1240,16 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         </div>
 
         {/* Section 3: Primary Visit Outcome (3 Equal Cards with Rich Visual Tokens) */}
+        {mode === 'edit' && (
+          <div role="note" style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-warning-50, #fffbeb)', border: '1px solid var(--color-warning-200, #fde68a)', color: 'var(--color-warning-900, #78350f)', fontSize: '12px' }}>
+            This report has been issued. Equipment snapshots, visit outcomes, and parts or repair records are preserved as issued. Correct only the report header and remarks below; each correction is recorded with your reason.
+          </div>
+        )}
+        <fieldset
+          disabled={mode === 'edit'}
+          aria-label="Issued inspection and outcome details"
+          style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+        >
         <div>
           <label
             style={{
@@ -1976,6 +1997,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           </div>
         )}
 
+        </fieldset>
+
         {/* Section 6: Additional Details & Customer Feedback (Progressive Disclosure) */}
         <div style={{ marginTop: 'var(--space-2)' }}>
           <button
@@ -2033,6 +2056,26 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 gap: 'var(--space-4)',
               }}
             >
+              {mode === 'edit' && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label htmlFor="service-report-correction-reason" style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                    Correction reason <span style={{ color: 'var(--color-error-solid)' }}>*</span>
+                  </label>
+                  <Textarea
+                    id="service-report-correction-reason"
+                    value={correctionReason}
+                    onChange={(e) => {
+                      setCorrectionReason(e.target.value);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    rows={2}
+                    maxLength={500}
+                    placeholder="Explain why this issued report needs correction..."
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
+              )}
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   General Technician Remarks

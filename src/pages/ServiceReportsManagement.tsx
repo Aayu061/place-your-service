@@ -96,6 +96,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   // Follow-up Revisit Modal State
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState<boolean>(false);
   const [followUpReport, setFollowUpReport] = useState<ServiceVisitReport | null>(null);
+  const [followUpAssetId, setFollowUpAssetId] = useState<string>('');
   const [followUpDate, setFollowUpDate] = useState<string>('');
   const [followUpStartTime, setFollowUpStartTime] = useState<string>('09:00');
   const [followUpEndTime, setFollowUpEndTime] = useState<string>('11:00');
@@ -205,8 +206,37 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   };
 
   // Open follow-up modal
-  const openFollowUpModal = (rep: ServiceVisitReport) => {
-    setFollowUpReport(rep);
+  const getFollowUpAssetOptions = (rep: ServiceVisitReport) => {
+    const eligibleItems = new Set(
+      rep.items
+        .filter((item) => !item.isResolved && item.isRevisitRequired && item.assetId)
+        .map((item) => item.assetId as string)
+    );
+    return rep.assets.filter(
+      (asset) =>
+        (asset.assetOutcome === 'PENDING_PARTS' || asset.assetOutcome === 'PENDING_REPAIRS') &&
+        eligibleItems.has(asset.assetId)
+    );
+  };
+
+  const openFollowUpModal = async (rep: ServiceVisitReport) => {
+    let fullReport = rep;
+    if (!rep.assets?.length || !rep.items?.length) {
+      try {
+        const response = await serviceReportApi.getReportById(rep.id);
+        fullReport = response.report;
+      } catch {
+        showToast({ type: 'error', title: 'Follow-up unavailable', message: 'Could not load the pending report items.' });
+        return;
+      }
+    }
+    const assetOptions = getFollowUpAssetOptions(fullReport);
+    if (assetOptions.length === 0) {
+      showToast({ type: 'error', title: 'Follow-up unavailable', message: 'This report has no unresolved revisit items linked to a pending asset.' });
+      return;
+    }
+    setFollowUpReport(fullReport);
+    setFollowUpAssetId(assetOptions[0].assetId);
     setFollowUpDate(new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)); // default +2 days
     setFollowUpStartTime('09:00');
     setFollowUpEndTime('11:00');
@@ -221,6 +251,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     try {
       setIsSubmittingFollowUp(true);
       const payload: CreateFollowUpSchedulePayload = {
+        assetId: followUpAssetId,
         scheduledDate: followUpDate,
         startTime: followUpStartTime,
         endTime: followUpEndTime,
@@ -914,7 +945,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                         >
                           <Printer size={13} />
                         </Button>
-                        {report.primaryOutcome !== 'COMPLETED' && !report.followUpScheduleId && (
+        {(report.resolutionStatus === 'AWAITING_PARTS' || report.resolutionStatus === 'AWAITING_REPAIR') && !report.followUpScheduleId && (
                           <Button
                             size="sm"
                             variant="primary"
@@ -1367,6 +1398,27 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 This will create a new linked service appointment in the schedule for revisit execution without
                 erasing the original report record.
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="follow-up-asset" className="block text-xs font-semibold text-slate-700 mb-1">
+                Pending asset <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="follow-up-asset"
+                value={followUpAssetId}
+                onChange={(e) => setFollowUpAssetId(e.target.value)}
+                disabled={isSubmittingFollowUp || getFollowUpAssetOptions(followUpReport).length < 2}
+                required
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-100"
+              >
+                {getFollowUpAssetOptions(followUpReport).map((asset) => (
+                  <option key={asset.assetId} value={asset.assetId}>
+                    {asset.assetTag || asset.assetId} · {asset.assetOutcome.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">The revisit will be linked only to unresolved items for this asset.</p>
             </div>
 
             <div>
