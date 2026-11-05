@@ -682,6 +682,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
         ],
         items: [
           {
+            assetId: sampleAssetId,
             itemType: 'PART_REQUIRED',
             itemName: 'Blower Fan Motor',
             partNumber: 'BM-240-X',
@@ -823,6 +824,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
         ],
         items: [
           {
+            assetId: sampleAssetId,
             itemType: 'REPAIR_REQUIRED',
             itemName: 'Outdoor unit copper pipe brazing and nitrogen pressure leak test',
             reason: 'Micro-leak detected near expansion joint',
@@ -951,6 +953,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     const mockPendingReport = {
       ...sampleFullReportRow,
       primary_outcome: 'PENDING_PARTS',
+      resolution_status: 'AWAITING_PARTS',
       follow_up_schedule_id: null,
     };
 
@@ -975,14 +978,25 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
         if (table === 'service_report_assets') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ ...sampleAssetRow, asset_outcome: 'PENDING_PARTS' }], error: null }),
           };
         }
         if (table === 'service_report_items') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              report_id: sampleReportId,
+              asset_id: sampleAssetId,
+              item_type: 'PART_REQUIRED',
+              item_name: 'Blower motor',
+              is_revisit_required: true,
+              is_resolved: false,
+            }], error: null }),
           };
+        }
+        if (table === 'service_report_follow_up_scopes') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
         }
         if (table === 'service_schedules') {
           return {
@@ -1223,6 +1237,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
       .patch(`/api/v1/service-reports/${sampleReportId}`)
       .set('Authorization', adminAuthToken)
       .send({
+        correctionReason: 'Corrected remarks after client feedback',
         technicianRemarks: 'Corrected remarks after client feedback',
         workDescription: 'Updated work description without altering resolution state',
       });
@@ -1300,6 +1315,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
       .patch(`/api/v1/service-reports/${sampleReportId}`)
       .set('Authorization', adminAuthToken)
       .send({
+        correctionReason: 'Corrected after customer feedback',
         reportNumber: 'REP-2026-099',
       });
 
@@ -1376,6 +1392,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
       .patch(`/api/v1/service-reports/${sampleReportId}`)
       .set('Authorization', adminAuthToken)
       .send({
+        correctionReason: 'Corrected after customer feedback',
         reportNumber: 'REP-2026-001',
         technicianRemarks: 'Updated notes',
       });
@@ -1447,6 +1464,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
       ...sampleFullReportRow,
       id: sampleReportId,
       primary_outcome: 'PENDING_PARTS',
+      resolution_status: 'AWAITING_PARTS',
       follow_up_schedule_id: 'active-sched-id-1234',
       service_report_assets: [sampleAssetRow],
       service_report_items: [],
@@ -1480,13 +1498,21 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
         if (table === 'service_report_assets') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ ...sampleAssetRow, asset_outcome: 'PENDING_PARTS' }], error: null }),
           };
         }
         if (table === 'service_report_items') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              report_id: sampleReportId,
+              asset_id: sampleAssetId,
+              item_type: 'PART_REQUIRED',
+              item_name: 'Blower motor',
+              is_revisit_required: true,
+              is_resolved: false,
+            }], error: null }),
           };
         }
         return {};
@@ -1514,6 +1540,7 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
       ...sampleFullReportRow,
       id: sampleReportId,
       primary_outcome: 'PENDING_REPAIRS',
+      resolution_status: 'AWAITING_REPAIR',
       follow_up_schedule_id: 'cancelled-sched-id-5678',
       service_report_assets: [sampleAssetRow],
       service_report_items: [],
@@ -1594,14 +1621,25 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
         if (table === 'service_report_assets') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{ ...sampleAssetRow, asset_outcome: 'PENDING_REPAIRS' }], error: null }),
           };
         }
         if (table === 'service_report_items') {
           return {
             select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+            eq: vi.fn().mockResolvedValue({ data: [{
+              id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+              report_id: sampleReportId,
+              asset_id: sampleAssetId,
+              item_type: 'REPAIR_REQUIRED',
+              item_name: 'Copper joint repair',
+              is_revisit_required: true,
+              is_resolved: false,
+            }], error: null }),
           };
+        }
+        if (table === 'service_report_follow_up_scopes') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) };
         }
         if (table === 'activity_logs') {
           return {

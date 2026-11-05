@@ -1311,6 +1311,7 @@ export interface CreateServiceReportPayload {
 }
 
 export interface UpdateServiceReportPayload {
+  correctionReason: string;
   reportNumber?: string;
   serviceDate?: string;
   startTime?: string | null;
@@ -1404,6 +1405,7 @@ export interface ServiceReportListQuery {
 }
 
 export interface CreateFollowUpSchedulePayload {
+  assetId?: string;
   scheduledDate: string;
   startTime?: string;
   endTime?: string;

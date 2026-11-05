@@ -868,11 +868,15 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     );
     expect(submitBtn).toBeDefined();
 
+    const reasonInput = container.querySelector('#service-report-correction-reason') as HTMLTextAreaElement;
+    await act(async () => setInputValue(reasonInput, 'Correcting a documented report header detail.'));
+
     await act(async () => {
       submitBtn?.click();
     });
 
     expect(serviceReportApi.updateReport).toHaveBeenCalledWith('rep-001', expect.objectContaining({
+      correctionReason: 'Correcting a documented report header detail.',
       reportNumber: 'SVR-2026-9001',
       serviceDate: '2026-10-10',
     }));
@@ -903,6 +907,9 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
       b.textContent?.includes('Update Visit Report')
     );
     expect(submitBtn).toBeDefined();
+
+    const reasonInput = container.querySelector('#service-report-correction-reason') as HTMLTextAreaElement;
+    await act(async () => setInputValue(reasonInput, 'Correcting the report number as requested.'));
 
     await act(async () => {
       submitBtn?.click();
