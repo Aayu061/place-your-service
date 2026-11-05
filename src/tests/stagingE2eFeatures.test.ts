@@ -1,21 +1,43 @@
 /**
- * Comprehensive Live E2E Integration Test Suite
- * Validates all core application modules and live backend features using Admin credentials.
- * Admin: dpk.panchal79@gmail.com
+ * Staging-only API integration suite. It must never default to a deployed production API.
+ * Credentials are supplied by the staging secret store and are never committed.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { ApiClient, ApiError } from '@/services/api/client';
 import { UserRole } from '@/domain/types';
 
-describe('Place Your Service — Live E2E Production Feature Test Suite', () => {
-  const prodApiUrl = import.meta.env.VITE_API_BASE_URL || 'https://place-your-service-api.onrender.com/api/v1';
-  const client = new ApiClient(prodApiUrl);
+const stagingApiUrl = process.env.PYS_E2E_API_BASE_URL || '';
+const stagingAdminEmail = process.env.PYS_E2E_ADMIN_EMAIL || '';
+const stagingAdminPassword = process.env.PYS_E2E_ADMIN_PASSWORD || '';
+const hasStagingCredentials = Boolean(stagingApiUrl && stagingAdminEmail && stagingAdminPassword);
 
-  const adminCredentials = {
-    email: 'dpk.panchal79@gmail.com',
-    password: 'pass@123',
-  };
+function isAllowedStagingTarget(apiUrl: string, mode: string | undefined): boolean {
+  if (mode !== 'staging') return false;
+  try {
+    const target = new URL(apiUrl);
+    const hostname = target.hostname.toLowerCase();
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isStaging = /(^|[.-])(staging|preview)([.-]|$)/.test(hostname);
+    return (isLocal || isStaging) && (isLocal ? target.protocol === 'http:' || target.protocol === 'https:' : target.protocol === 'https:');
+  } catch {
+    return false;
+  }
+}
+
+describe('Staging E2E safety', () => {
+  it('requires an explicit local or staging API target', () => {
+    expect(isAllowedStagingTarget('', undefined)).toBe(false);
+    expect(isAllowedStagingTarget('https://api.example.test/api/v1', 'staging')).toBe(false);
+    expect(isAllowedStagingTarget('http://pys-staging.example.test/api/v1', 'staging')).toBe(false);
+    expect(isAllowedStagingTarget('https://pys-staging.example.test/api/v1', 'staging')).toBe(true);
+    expect(isAllowedStagingTarget('http://localhost:5000/api/v1', 'staging')).toBe(true);
+    expect(isAllowedStagingTarget('https://pys-staging.example.test/api/v1', 'production')).toBe(false);
+  });
+});
+
+describe.skipIf(!hasStagingCredentials)('Place Your Service — Staging E2E Feature Test Suite', () => {
+  const client = new ApiClient(stagingApiUrl);
 
   let authToken: string | null = null;
   let adminProfile: {
@@ -26,7 +48,12 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
     staffId?: string;
   } | null = null;
 
+
   beforeAll(async () => {
+    if (!isAllowedStagingTarget(stagingApiUrl, process.env.PYS_E2E_MODE)) {
+      throw new Error('E2E tests require an explicitly configured local or staging API target.');
+    }
+
     try {
       const loginRes = await client.post<{
         token: string;
@@ -39,7 +66,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
           staffId?: string;
           isActive: boolean;
         };
-      }>('/auth/login', adminCredentials);
+      }>('/auth/login', { email: stagingAdminEmail, password: stagingAdminPassword });
 
       if (loginRes?.token) {
         authToken = loginRes.token;
@@ -48,7 +75,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
       }
     } catch (err) {
       if (err instanceof ApiError && err.code === 'NETWORK_ERROR') {
-        console.warn('[E2E Suite] Production API unreachable in isolated offline environment.');
+        console.warn('[E2E Suite] Staging API unreachable in isolated offline environment.');
       } else {
         console.warn('[E2E Suite] Auth bootstrap error:', err);
       }
@@ -82,7 +109,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
       }>('/auth/me');
 
       expect(res).toBeDefined();
-      expect(res.user.email.toLowerCase()).toBe(adminCredentials.email.toLowerCase());
+      expect(res.user.email.toLowerCase()).toBe(stagingAdminEmail.toLowerCase());
       expect(res.user.role).toBe('ADMIN');
       expect(res.user.isActive).toBe(true);
       expect(res.user.fullName).toBe('System Administrator');
@@ -91,7 +118,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
 
   // 2. SYSTEM HEALTH & TELEMETRY
   describe('2. System Health & Infrastructure Telemetry', () => {
-    it('receives healthy liveness probe from production environment', async () => {
+    it('receives healthy liveness probe from staging environment', async () => {
       const health = await client.get<{
         service: string;
         status: string;
@@ -104,7 +131,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
       expect(health.environment).toBe('production');
     }, 15000);
 
-    it('validates production database readiness and latency', async () => {
+    it('validates staging database readiness and latency', async () => {
       const ready = await client.get<{
         status: string;
         database?: { connected: boolean; latencyMs?: number };
@@ -423,7 +450,7 @@ describe('Place Your Service — Live E2E Production Feature Test Suite', () => 
       expect(res).toBeDefined();
       expect(Array.isArray(res.staff)).toBe(true);
 
-      const adminUser = res.staff.find((s) => s.email.toLowerCase() === adminCredentials.email.toLowerCase());
+      const adminUser = res.staff.find((s) => s.email.toLowerCase() === stagingAdminEmail.toLowerCase());
       if (adminUser) {
         expect(adminUser.role).toBe('ADMIN');
         expect(adminUser.isActive).toBe(true);
