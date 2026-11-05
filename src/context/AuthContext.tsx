@@ -72,19 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       if (!supabase) {
-        const storedToken = localStorage.getItem('pys_auth_token');
-        if (storedToken) {
-          apiClient.setAuthToken(storedToken);
-          try {
-            const profile = await fetchUserProfile();
-            if (isMounted) setUser(profile);
-          } catch {
-            apiClient.setAuthToken(null);
-            localStorage.removeItem('pys_auth_token');
-            if (isMounted) setUser(null);
-          }
+        apiClient.setAuthToken(null);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+          setError('Authentication is not configured. Contact your system administrator.');
+          setIsLoading(false);
         }
-        if (isMounted) setIsLoading(false);
         return;
       }
 
@@ -166,85 +160,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanEmail = email.trim().toLowerCase();
     const supabase = getSupabaseClient();
 
-    if (supabase) {
-      try {
-        const { data, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-
-        if (signInErr || !data.session) {
-          const errorMsg = 'Invalid email or password. Please check your credentials.';
-          setError(errorMsg);
-          setIsLoading(false);
-          return { success: false, error: errorMsg };
-        }
-
-        // Sync bearer token
-        apiClient.setAuthToken(data.session.access_token);
-        setSession(data.session);
-
-        // Verify and resolve server role
-        try {
-          const profile = await fetchUserProfile();
-          if (!profile) {
-            throw new Error('Authorized user record not found.');
-          }
-
-          setUser(profile);
-          setIsLoading(false);
-          return { success: true };
-        } catch (profileErr) {
-          // If inactive account or error, terminate session immediately
-          await supabase.auth.signOut();
-          apiClient.setAuthToken(null);
-          setSession(null);
-          setUser(null);
-
-          const errorMsg =
-            profileErr instanceof Error
-              ? profileErr.message
-              : 'Authentication denied by server authorization.';
-          setError(errorMsg);
-          setIsLoading(false);
-          return { success: false, error: errorMsg };
-        }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred during login.';
-        setError(errorMsg);
-        setIsLoading(false);
-        return { success: false, error: errorMsg };
-      }
+    if (!supabase) {
+      const errorMsg = 'Authentication is not configured. Contact your system administrator.';
+      setError(errorMsg);
+      setIsLoading(false);
+      return { success: false, error: errorMsg };
     }
 
-    // Direct API fallback via Express backend when client-side Supabase credentials are not embedded into bundle
     try {
-      const response = await apiClient.post<{
-        token: string;
-        session: Session;
-        user: UserProfile;
-      }>('/auth/login', {
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
       });
 
-      if (response && response.token && response.user) {
-        apiClient.setAuthToken(response.token);
-        localStorage.setItem('pys_auth_token', response.token);
-        setSession(response.session || null);
-        setUser(response.user);
+      if (signInErr || !data.session) {
+        const errorMsg = 'Invalid email or password. Please check your credentials.';
+        setError(errorMsg);
         setIsLoading(false);
-        return { success: true };
+        return { success: false, error: errorMsg };
       }
 
-      throw new Error('Invalid response received from authentication server.');
-    } catch (apiErr) {
-      const errorMsg =
-        apiErr instanceof ApiError
-          ? apiErr.message
-          : apiErr instanceof Error
-          ? apiErr.message
-          : 'Invalid email or password. Please check your credentials.';
+      // Keep the bearer token in memory and let Supabase Auth own session persistence.
+      apiClient.setAuthToken(data.session.access_token);
+      setSession(data.session);
+
+      // Verify and resolve server role
+      try {
+        const profile = await fetchUserProfile();
+        if (!profile) {
+          throw new Error('Authorized user record not found.');
+        }
+
+        setUser(profile);
+        setIsLoading(false);
+        return { success: true };
+      } catch (err) {
+        // If inactive or unauthorized, terminate the Supabase session immediately.
+        await supabase.auth.signOut();
+        apiClient.setAuthToken(null);
+        setSession(null);
+        setUser(null);
+
+        const errorMsg = err instanceof Error ? err.message : 'Authentication denied by server authorization.';
+        setError(errorMsg);
+        setIsLoading(false);
+        return { success: false, error: errorMsg };
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred during login.';
       setError(errorMsg);
       setIsLoading(false);
       return { success: false, error: errorMsg };
@@ -270,7 +233,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } finally {
       apiClient.setAuthToken(null);
-      localStorage.removeItem('pys_auth_token');
       setSession(null);
       setUser(null);
       setError(null);
