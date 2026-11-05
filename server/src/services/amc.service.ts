@@ -26,13 +26,7 @@ import {
 } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
-
-const FREQUENCY_MONTH_INTERVALS: Record<AmcFrequency, number> = {
-  MONTHLY: 1,
-  QUARTERLY: 3,
-  HALF_YEARLY: 6,
-  YEARLY: 12,
-};
+import { calculateAmcCadenceDates } from '../utils/amcCadence.js';
 
 /**
  * Calendar and UTC-aware month addition handling varying month lengths safely (e.g. Jan 31 -> Feb 28/29).
@@ -56,26 +50,11 @@ export function calculateScheduleDatesUtc(
   endDateStr: string,
   frequency: AmcFrequency
 ): string[] {
-  const [sYear, sMonth, sDay] = startDateStr.split('-').map(Number);
-  const [eYear, eMonth, eDay] = endDateStr.split('-').map(Number);
-
-  const startDate = new Date(Date.UTC(sYear, sMonth - 1, sDay));
-  const endDate = new Date(Date.UTC(eYear, eMonth - 1, eDay));
-
-  if (endDate < startDate) {
-    throw new BadRequestError('AMC contract end date cannot precede start date');
+  try {
+    return calculateAmcCadenceDates(startDateStr, endDateStr, frequency);
+  } catch (error) {
+    throw new BadRequestError(error instanceof Error ? error.message : 'Invalid AMC cadence');
   }
-
-  const interval = FREQUENCY_MONTH_INTERVALS[frequency] || 3;
-  const dates: string[] = [];
-
-  let current = new Date(startDate.getTime());
-  while (current <= endDate) {
-    dates.push(current.toISOString().split('T')[0]);
-    current = addMonthsSafeUtc(current, interval);
-  }
-
-  return dates;
 }
 
 /**
@@ -797,20 +776,27 @@ export class AmcService {
 
     const contractNumber = await this.generateContractNumber();
 
-    // Validate allocation if provided
+    const cadenceSlotCount = calculateScheduleDatesUtc(
+      payload.startDate,
+      payload.endDate,
+      payload.frequency
+    ).length;
+    if (payload.totalVisits !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Included visits (${payload.totalVisits}) must match the ${cadenceSlotCount} cadence dates in this contract term.`
+      );
+    }
+
+    // Allocation is per covered asset and must fully account for each cadence slot.
     let dryVisits = payload.dryServiceVisits != null ? Number(payload.dryServiceVisits) : null;
     let jetVisits = payload.jetServiceVisits != null ? Number(payload.jetServiceVisits) : null;
     let pumpdownVisits = payload.pumpdownServiceVisits != null ? Number(payload.pumpdownServiceVisits) : null;
 
-    if (dryVisits != null || jetVisits != null || pumpdownVisits != null) {
-      const d = dryVisits ?? 0;
-      const j = jetVisits ?? 0;
-      const p = pumpdownVisits ?? 0;
-      if (d + j + p !== payload.totalVisits) {
-        throw new BadRequestError(
-          `Total PM service allocation (${d + j + p}) must exactly equal included visits (${payload.totalVisits}).`
-        );
-      }
+    const allocationCount = (dryVisits ?? 0) + (jetVisits ?? 0) + (pumpdownVisits ?? 0);
+    if (allocationCount !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Dry, Jet, and Pumpdown allocation (${allocationCount}) must match the ${cadenceSlotCount} cadence slots.`
+      );
     }
 
     // 4. Insert contract
@@ -891,6 +877,59 @@ export class AmcService {
 
     const newStart = payload.startDate || existing.startDate;
     const newEnd = payload.endDate || existing.endDate;
+    const newFrequency = payload.frequency || existing.frequency;
+    const newTotalVisits = payload.totalVisits ?? existing.totalVisits;
+    const newDryVisits = payload.dryServiceVisits !== undefined
+      ? payload.dryServiceVisits
+      : existing.dryServiceVisits;
+    const newJetVisits = payload.jetServiceVisits !== undefined
+      ? payload.jetServiceVisits
+      : existing.jetServiceVisits;
+    const newPumpdownVisits = payload.pumpdownServiceVisits !== undefined
+      ? payload.pumpdownServiceVisits
+      : existing.pumpdownServiceVisits;
+
+    const cadenceSlotCount = calculateScheduleDatesUtc(newStart, newEnd, newFrequency).length;
+    if (newTotalVisits !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Included visits (${newTotalVisits}) must match the ${cadenceSlotCount} cadence dates in this contract term.`
+      );
+    }
+    const allocationCount =
+      (newDryVisits ?? 0) + (newJetVisits ?? 0) + (newPumpdownVisits ?? 0);
+    if (allocationCount !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Dry, Jet, and Pumpdown allocation (${allocationCount}) must match the ${cadenceSlotCount} cadence slots.`
+      );
+    }
+
+    const cadenceTermsChanged =
+      newStart !== existing.startDate ||
+      newEnd !== existing.endDate ||
+      newFrequency !== existing.frequency ||
+      newTotalVisits !== existing.totalVisits ||
+      newDryVisits !== existing.dryServiceVisits ||
+      newJetVisits !== existing.jetServiceVisits ||
+      newPumpdownVisits !== existing.pumpdownServiceVisits;
+    if (cadenceTermsChanged) {
+      const { data: existingObligations, error: obligationsError } = await supabase
+        .from('service_schedules')
+        .select('id')
+        .eq('amc_id', id)
+        .limit(1);
+      if (obligationsError) {
+        logger.error('Failed to check existing PM obligations before AMC amendment', {
+          id,
+          error: obligationsError,
+        });
+        throw new BadRequestError('Could not verify whether this AMC cadence can be amended');
+      }
+      if (existingObligations?.length) {
+        throw new BadRequestError(
+          'Cadence and visit allocation are locked after PM obligations exist. Renew the contract to preserve its schedule history.'
+        );
+      }
+    }
 
     if (payload.startDate || payload.endDate) {
       if (newEnd < newStart) {
@@ -1219,6 +1258,21 @@ export class AmcService {
       contract.endDate,
       contract.frequency
     );
+
+    if (contract.totalVisits !== dates.length) {
+      throw new BadRequestError(
+        `AMC included visits (${contract.totalVisits}) do not match the ${dates.length} cadence dates for this contract.`
+      );
+    }
+    const allocationCount =
+      (contract.dryServiceVisits ?? 0) +
+      (contract.jetServiceVisits ?? 0) +
+      (contract.pumpdownServiceVisits ?? 0);
+    if (allocationCount !== dates.length) {
+      throw new BadRequestError(
+        `AMC service allocation (${allocationCount}) does not match the ${dates.length} cadence slots.`
+      );
+    }
 
     // Compute planned service types matching the contract's stored allocation
     const plannedTypes = computePlannedServiceTypes(
@@ -1551,6 +1605,23 @@ export class AmcService {
           );
         }
       }
+    }
+
+    const cadenceSlotCount = calculateScheduleDatesUtc(
+      payload.startDate,
+      payload.endDate,
+      frequency
+    ).length;
+    if (totalVisits !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Included visits (${totalVisits}) must match the ${cadenceSlotCount} cadence dates in the renewal term.`
+      );
+    }
+    const renewalAllocationCount = (dryVisits ?? 0) + (jetVisits ?? 0) + (pumpdownVisits ?? 0);
+    if (renewalAllocationCount !== cadenceSlotCount) {
+      throw new BadRequestError(
+        `Dry, Jet, and Pumpdown allocation (${renewalAllocationCount}) must match the ${cadenceSlotCount} renewal cadence slots.`
+      );
     }
 
     // 4c. Query eligible unperformed predecessor schedules for supersession

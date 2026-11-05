@@ -525,6 +525,23 @@ describe('Batch 4 AMC Integrity, Activation, and Renewal Regression Suite', () =
       });
 
     expect(negativeRes.status).toBe(422);
+
+    // Allocation matches the requested total, but the requested total does not match cadence slots.
+    const cadenceMismatchRes = await request(app)
+      .post(`/api/v1/amc-contracts/${sampleContractId}/renew`)
+      .set('Authorization', staffAuthToken)
+      .send({
+        startDate: '2027-01-01',
+        endDate: '2027-12-31',
+        frequency: 'QUARTERLY',
+        totalVisits: 3,
+        dryServiceVisits: 1,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
+      });
+
+    expect(cadenceMismatchRes.status).toBe(400);
+    expect(cadenceMismatchRes.body.error.message).toContain('cadence dates');
   });
 
   /* ============================================================================
