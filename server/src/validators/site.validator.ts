@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const listCustomerSitesSchema = {
   params: z.object({
-    customerId: z.string().uuid('Invalid customer UUID identifier'),
+    customerId: z.string().guid('Invalid customer UUID identifier'),
   }),
   query: z.object({
     search: z.string().trim().optional(),
@@ -14,7 +14,7 @@ export const listCustomerSitesSchema = {
 
 export const listDirectSitesSchema = {
   query: z.object({
-    customerId: z.string().uuid('Invalid customer UUID identifier'),
+    customerId: z.string().guid('Invalid customer UUID identifier'),
     search: z.string().trim().optional(),
     status: z.enum(['ALL', 'ACTIVE', 'INACTIVE']).optional().default('ALL'),
     page: z.coerce.number().int().min(1).optional().default(1),
@@ -24,7 +24,7 @@ export const listDirectSitesSchema = {
 
 export const siteIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid site UUID identifier'),
+    id: z.string().guid('Invalid site UUID identifier'),
   }),
 };
 
@@ -48,20 +48,20 @@ const baseSiteBody = z.object({
 
 export const createSiteSchema = {
   params: z.object({
-    customerId: z.string().uuid('Invalid customer UUID identifier'),
+    customerId: z.string().guid('Invalid customer UUID identifier'),
   }),
   body: baseSiteBody,
 };
 
 export const createDirectSiteSchema = {
   body: baseSiteBody.extend({
-    customerId: z.string().uuid('Invalid customer UUID identifier'),
+    customerId: z.string().guid('Invalid customer UUID identifier'),
   }),
 };
 
 export const updateSiteSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid site UUID identifier'),
+    id: z.string().guid('Invalid site UUID identifier'),
   }),
   body: z
     .object({
@@ -88,9 +88,9 @@ export const updateSiteSchema = {
 
 export const updateSiteStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid site UUID identifier'),
+    id: z.string().guid('Invalid site UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };

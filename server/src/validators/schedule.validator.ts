@@ -18,7 +18,7 @@ export const scheduleStatusEnum = z.enum([
 // Helper preprocessors to handle null, empty string, or undefined for optional inputs gracefully
 const optionalUuid = z.preprocess(
   (val) => (val === null || val === '' || val === undefined ? undefined : val),
-  z.string().uuid({ message: 'Invalid UUID format' }).optional()
+  z.string().guid({ message: 'Invalid UUID format' }).optional()
 );
 
 const optionalPositiveInt = z.preprocess(
@@ -49,7 +49,7 @@ const optionalTime = z.preprocess(
 
 export const scheduleIdParamSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
 };
 
@@ -113,7 +113,7 @@ export const createScheduleSchema = {
 
 export const updateScheduleSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   body: z.object({
     scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD').optional(),
@@ -128,7 +128,7 @@ export const updateScheduleSchema = {
 
 export const eligibleTechniciansSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   query: z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
@@ -139,10 +139,10 @@ export const eligibleTechniciansSchema = {
 
 export const assignTechnicianSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   body: z.object({
-    technicianId: z.string().uuid({ message: 'Valid technician ID is required' }),
+    technicianId: z.string().guid({ message: 'Valid technician ID is required' }),
     assistantName: optionalTrimmedString,
     scheduledStartTime: z.string().optional(),
     scheduledEndTime: z.string().optional(),
@@ -153,10 +153,10 @@ export const assignTechnicianSchema = {
 
 export const reassignTechnicianSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   body: z.object({
-    technicianId: z.string().uuid({ message: 'Valid technician ID is required' }),
+    technicianId: z.string().guid({ message: 'Valid technician ID is required' }),
     assistantName: optionalTrimmedString,
     scheduledStartTime: z.string().optional(),
     scheduledEndTime: z.string().optional(),
@@ -167,7 +167,7 @@ export const reassignTechnicianSchema = {
 
 export const rescheduleSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   body: z.object({
     scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Scheduled date must be YYYY-MM-DD'),
@@ -186,7 +186,7 @@ export const rescheduleSchema = {
 
 export const cancelScheduleSchema = {
   params: z.object({
-    id: z.string().uuid({ message: 'Invalid schedule ID format' }),
+    id: z.string().guid({ message: 'Invalid schedule ID format' }),
   }),
   body: z.object({
     reason: z.string().trim().min(3, { message: 'Cancellation reason is required (at least 3 characters)' }),

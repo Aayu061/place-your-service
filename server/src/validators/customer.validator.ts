@@ -40,7 +40,7 @@ export const createCustomerSchema = {
 
 export const updateCustomerSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid customer UUID identifier'),
+    id: z.string().guid('Invalid customer UUID identifier'),
   }),
   body: z
     .object({
@@ -76,15 +76,15 @@ export const updateCustomerSchema = {
 
 export const updateCustomerStatusSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid customer UUID identifier'),
+    id: z.string().guid('Invalid customer UUID identifier'),
   }),
   body: z.object({
-    isActive: z.boolean({ required_error: 'isActive boolean flag is required' }),
+    isActive: z.boolean({ error: 'isActive boolean flag is required' }),
   }),
 };
 
 export const customerIdParamSchema = {
   params: z.object({
-    id: z.string().uuid('Invalid customer UUID identifier'),
+    id: z.string().guid('Invalid customer UUID identifier'),
   }),
 };
