@@ -983,6 +983,12 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
       b.textContent?.includes('Create Contract')
     ) as HTMLButtonElement;
     expect(submitBtn).toBeDefined();
+    const startDate = document.body.querySelector('#amc-start-date') as HTMLInputElement;
+    const endDate = document.body.querySelector('#amc-end-date') as HTMLInputElement;
+    await act(async () => {
+      setInputValue(startDate, '2026-01-01');
+      setInputValue(endDate, '2027-01-01');
+    });
 
     // Initial state: default 0, 0, 0 with 4 total visits -> submit disabled
     expect(submitBtn.disabled).toBe(true);
@@ -1006,10 +1012,14 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
     expect(submitBtn.disabled).toBe(true);
     expect(document.body.textContent).toContain('Allocation exceeds by');
 
-    // Exact balanced allocation: 2 dry, 1 jet, 1 pumpdown (=4) -> submit enabled
+    // Exact balanced allocation alone cannot submit until the contract term also produces 4 dates.
     await act(async () => {
       pumpdownSelect.value = '1';
       pumpdownSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(submitBtn.disabled).toBe(true);
+    await act(async () => {
+      setInputValue(endDate, '2026-12-31');
     });
     expect(submitBtn.disabled).toBe(false);
     expect(document.body.textContent).toContain('Allocation balanced');

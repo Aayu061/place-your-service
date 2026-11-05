@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { calculateAmcCadenceDates } from '../utils/amcCadence.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -76,21 +77,29 @@ export const createAmcContractSchema = z
   )
   .refine(
     (data) => {
-      if (
-        data.dryServiceVisits != null ||
-        data.jetServiceVisits != null ||
-        data.pumpdownServiceVisits != null
-      ) {
-        const dry = data.dryServiceVisits ?? 0;
-        const jet = data.jetServiceVisits ?? 0;
-        const pumpdown = data.pumpdownServiceVisits ?? 0;
-        return dry + jet + pumpdown === data.totalVisits;
-      }
-      return true;
+      return (
+        (data.dryServiceVisits ?? 0) +
+          (data.jetServiceVisits ?? 0) +
+          (data.pumpdownServiceVisits ?? 0) ===
+        data.totalVisits
+      );
     },
     {
       message: 'The total allocation across Dry, Jet, and Pumpdown visits must exactly equal total included visits',
       path: ['dryServiceVisits'],
+    }
+  )
+  .refine(
+    (data) => {
+      try {
+        return data.totalVisits === calculateAmcCadenceDates(data.startDate, data.endDate, data.frequency).length;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: 'Included visits must match the cadence dates within the contract term',
+      path: ['totalVisits'],
     }
   );
 

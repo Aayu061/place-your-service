@@ -34,6 +34,7 @@ import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
 import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
+import { getAmcCadenceSlotCount } from '@/utils/amcCadence';
 
 const AMC_WIZARD_STEPS: WizardStepItem[] = [
   { id: 'terms', label: '1. Commercial Terms', description: 'Customer & billing' },
@@ -173,6 +174,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const allocatedVisits = formDryVisits + formJetVisits + formPumpdownVisits;
   const remainingVisits = formTotalVisits - allocatedVisits;
   const isAllocationValid = allocatedVisits === formTotalVisits && formTotalVisits > 0;
+  const cadenceSlotCount = getAmcCadenceSlotCount(formStartDate, formEndDate, formFrequency);
+  const isCadenceValid = cadenceSlotCount > 0 && cadenceSlotCount === Number(formTotalVisits);
 
   // Customer dropdown & asset selection options
   const [customersList, setCustomersList] = useState<Customer[]>([]);
@@ -338,9 +341,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormCustomerId(preselectedCustomerId || '');
     setFormPlanId('');
     const today = new Date().toISOString().split('T')[0];
-    const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const oneYearLater = new Date(`${today}T00:00:00.000Z`);
+    oneYearLater.setUTCFullYear(oneYearLater.getUTCFullYear() + 1);
+    oneYearLater.setUTCDate(oneYearLater.getUTCDate() - 1);
     setFormStartDate(today);
-    setFormEndDate(oneYearLater);
+    setFormEndDate(oneYearLater.toISOString().slice(0, 10));
     setFormFrequency('QUARTERLY');
     setFormTotalAmount(25000);
     setFormTotalVisits(4);
@@ -387,6 +392,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
       showToast({
         title: 'Validation Error',
         message: `Total PM service allocation (${allocatedVisits}) must exactly equal included visits (${formTotalVisits}).`,
+        type: 'warning',
+      });
+      return;
+    }
+    if (!isCadenceValid) {
+      showToast({
+        title: 'Validation Error',
+        message: `This contract term produces ${cadenceSlotCount} cadence dates. Included visits must match that count.`,
         type: 'warning',
       });
       return;
@@ -1984,8 +1997,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 <Button
                   variant="primary"
                   type="submit"
-                  disabled={isSubmitting || !isAllocationValid}
-                  title={!isAllocationValid ? 'Total allocation must equal included visits to create agreement' : undefined}
+                  disabled={isSubmitting || !isAllocationValid || !isCadenceValid}
+                  title={!isCadenceValid ? 'Included visits must match cadence dates in the contract term' : !isAllocationValid ? 'Total allocation must equal included visits to create agreement' : undefined}
                   id="btn-submit-amc-contract"
                 >
                   {isSubmitting ? 'Creating...' : 'Create Contract'}
@@ -2006,6 +2019,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           onSubmit={async (e) => {
             e.preventDefault();
             if (!detailContract) return;
+            if (!isCadenceValid || !isAllocationValid) {
+              showToast({
+                title: 'Validation Error',
+                message: `Contract terms require ${cadenceSlotCount} cadence dates and a matching Dry, Jet, and Pumpdown allocation.`,
+                type: 'warning',
+              });
+              return;
+            }
             setIsSubmitting(true);
             try {
               await apiClient.patch(`/amc-contracts/${detailContract.id}`, {
@@ -2114,6 +2135,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           onSubmit={async (e) => {
             e.preventDefault();
             if (!detailContract) return;
+            if (!isCadenceValid || !isAllocationValid) {
+              showToast({
+                title: 'Validation Error',
+                message: `Renewal requires ${cadenceSlotCount} cadence dates and a matching Dry, Jet, and Pumpdown allocation.`,
+                type: 'warning',
+              });
+              return;
+            }
             setIsSubmitting(true);
             try {
               const res = await apiClient.post<AmcSingleApiResponse>(`/amc-contracts/${detailContract.id}/renew`, {
@@ -2301,11 +2330,16 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   Allocation sum ({allocatedVisits}) must equal total included visits ({formTotalVisits}).
                 </p>
               )}
+              {formStartDate && formEndDate && !isCadenceValid && (
+                <p style={{ fontSize: '11px', color: 'var(--color-danger-600, #dc2626)', marginTop: 'var(--space-2)', fontWeight: 500 }}>
+                  The renewal term has {cadenceSlotCount} cadence dates; included visits must match.
+                </p>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
             <Button type="button" variant="ghost" onClick={() => setIsRenewModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={isSubmitting || !isAllocationValid}>Confirm Renewal</Button>
+            <Button variant="primary" type="submit" disabled={isSubmitting || !isAllocationValid || !isCadenceValid}>Confirm Renewal</Button>
           </div>
         </form>
       </Modal>

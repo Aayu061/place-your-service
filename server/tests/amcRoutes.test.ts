@@ -96,6 +96,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
     frequency: 'QUARTERLY',
     total_amount: 25000,
     total_visits: 4,
+    dry_service_visits: 2,
+    jet_service_visits: 1,
+    pumpdown_service_visits: 1,
     status: 'ACTIVE',
     notes: 'Premium commercial client',
     cancellation_reason: null,
@@ -310,6 +313,7 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
                 })),
               })),
               eq: vi.fn(() => ({
+                limit: vi.fn(async () => ({ data: [{ id: 'sch-1' }], error: null })),
                 order: vi.fn(async () => ({
                   data: [
                     {
@@ -444,6 +448,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 30000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
         coveredAssetIds: [sampleAssetId],
         notes: 'Annual corporate maintenance',
       });
@@ -464,6 +471,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'MONTHLY',
         totalAmount: 48000,
         totalVisits: 12,
+        dryServiceVisits: 12,
+        jetServiceVisits: 0,
+        pumpdownServiceVisits: 0,
       });
 
     expect(res.status).toBe(201);
@@ -481,6 +491,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 10000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
       });
 
     expect([400, 422]).toContain(res.status);
@@ -497,6 +510,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 10000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
       });
 
     expect(res.status).toBe(400);
@@ -513,6 +529,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 10000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
         coveredAssetIds: [otherAssetId], // Belongs to otherCustomerId
       });
 
@@ -557,6 +576,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 10000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
         coveredAssetIds: [sampleAssetId],
       });
 
@@ -606,6 +628,32 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('15a. Rejects a partial amendment that makes included visits disagree with the existing allocation', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/amc-contracts/${sampleContractId}`)
+      .set('Authorization', staffAuthToken)
+      .send({ dryServiceVisits: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('allocation');
+  });
+
+  it('15b. Locks cadence changes after obligations exist so generated history cannot drift', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/amc-contracts/${sampleContractId}`)
+      .set('Authorization', staffAuthToken)
+      .send({
+        endDate: '2027-06-30',
+        totalVisits: 6,
+        dryServiceVisits: 3,
+        jetServiceVisits: 2,
+        pumpdownServiceVisits: 1,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toContain('Renew the contract');
   });
 
   it('16. Updates contract status with PATCH', async () => {
@@ -693,6 +741,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         frequency: 'QUARTERLY',
         totalAmount: 32000,
         totalVisits: 4,
+        dryServiceVisits: 2,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
       });
 
     expect(res.status).toBe(201);
@@ -794,5 +845,25 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(JSON.stringify(res.body.error.details || res.body.error)).toContain('must exactly equal total included visits');
+  });
+
+  it('29. API Validation: Rejects an included visit count that differs from contract cadence slots', async () => {
+    const res = await request(app)
+      .post('/api/v1/amc-contracts')
+      .set('Authorization', adminAuthToken)
+      .send({
+        customerId: sampleCustomerId,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+        frequency: 'QUARTERLY',
+        totalAmount: 25000,
+        totalVisits: 3,
+        dryServiceVisits: 1,
+        jetServiceVisits: 1,
+        pumpdownServiceVisits: 1,
+      });
+
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(res.body.error.details || res.body.error)).toContain('cadence dates within the contract term');
   });
 });
