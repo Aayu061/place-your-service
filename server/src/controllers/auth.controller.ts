@@ -13,15 +13,6 @@ export class AuthController {
     }
   }
 
-  public async bootstrapAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const result = await authService.bootstrapAdmin(req.body, req.ip);
-      sendSuccess(res, result, 201);
-    } catch (err) {
-      next(err);
-    }
-  }
-
   public async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await authService.login(req.body, req.ip);

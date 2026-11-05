@@ -137,110 +137,13 @@ describe('Auth Routes API (/api/v1/auth)', () => {
   });
 
   describe('POST /api/v1/auth/bootstrap-admin', () => {
-    it('returns 422 VALIDATION_ERROR when payload is invalid', async () => {
+    it('is not exposed as an HTTP endpoint', async () => {
       const res = await request(app)
         .post('/api/v1/auth/bootstrap-admin')
-        .send({ email: 'invalid-email', password: '123' });
+        .send({ email: 'admin@example.test', password: 'not-a-real-password', fullName: 'Test Admin' });
 
-      expect(res.status).toBe(422);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-    });
-
-    it('returns 409 CONFLICT if an Admin already exists in the system', async () => {
-      const mockSupabase = {
-        from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'staff') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              limit: vi.fn().mockResolvedValue({
-                data: [{ id: 'existing-admin-id' }],
-                error: null,
-              }),
-            };
-          }
-          return {};
-        }),
-      } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
-
-      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
-
-      const res = await request(app)
-        .post('/api/v1/auth/bootstrap-admin')
-        .send({
-          email: 'admin2@placeyourservice.internal',
-          password: 'SecurePassword123!',
-          fullName: 'Second Admin Attempt',
-        });
-
-      expect(res.status).toBe(409);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error.code).toBe('CONFLICT');
-      expect(res.body.error.message).toContain('Admin account already exists');
-    });
-
-    it('returns 201 CREATED and provisions Admin when no Admin exists', async () => {
-      const mockSupabase = {
-        from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'staff') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              limit: vi.fn().mockResolvedValue({
-                data: [],
-                error: null,
-              }),
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: null,
-                error: null,
-              }),
-              insert: vi.fn().mockResolvedValue({ error: null }),
-            };
-          }
-          if (table === 'profiles') {
-            return {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: null,
-                error: null,
-              }),
-              insert: vi.fn().mockResolvedValue({ error: null }),
-            };
-          }
-          if (table === 'activity_logs') {
-            return {
-              insert: vi.fn().mockResolvedValue({ error: null }),
-            };
-          }
-          return {};
-        }),
-        auth: {
-          admin: {
-            createUser: vi.fn().mockResolvedValue({
-              data: { user: { id: 'new-admin-user-id' } },
-              error: null,
-            }),
-          },
-        },
-      } as unknown as ReturnType<typeof supabaseLib.getSupabaseClient>;
-
-      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
-
-      const res = await request(app)
-        .post('/api/v1/auth/bootstrap-admin')
-        .send({
-          email: 'admin@placeyourservice.internal',
-          password: 'StrongAdminPassword2026!',
-          fullName: 'Founding Admin',
-          phone: '+91 9999999999',
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.user.role).toBe('ADMIN');
-      expect(res.body.data.user.id).toBe('new-admin-user-id');
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
     });
   });
 

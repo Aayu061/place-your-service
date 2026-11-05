@@ -15,6 +15,7 @@
     "server:dev": "npm --prefix server run dev",
     "server:build": "npm --prefix server run build",
     "server:start": "npm --prefix server run start",
+    "server:bootstrap-admin": "npm --prefix server run bootstrap-admin",
     "server:test": "npm --prefix server run test",
     "server:typecheck": "npm --prefix server run typecheck",
     "server:lint": "npm --prefix server run lint",
