@@ -22,8 +22,8 @@ interface TopBarProps {
   onRoleChange?: (role: UserRole) => void;
   activeItemTitle: string;
   activeItem?: string;
-  activeSubTab?: 'overview' | 'activity' | 'alerts';
-  onSubTabChange?: (tab: 'overview' | 'activity' | 'alerts') => void;
+  activeSubTab?: 'overview' | 'activity';
+  onSubTabChange?: (tab: 'overview' | 'activity') => void;
   onOpenMobileSidebar: () => void;
   onSearchClick?: () => void;
   onNewServiceClick?: () => void;
@@ -119,264 +119,192 @@ export const TopBar: React.FC<TopBarProps> = ({
 
   return (
     <>
-      {/* --------------------------------------------------
-       * 1. Mobile TopBar (Shown on screens <= 900px)
-       * -------------------------------------------------- */}
       <header className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <button
-            type="button"
-            onClick={onOpenMobileSidebar}
-            aria-label="Open sidebar navigation"
-            className="mobile-menu-trigger"
-            style={{
-              padding: 'var(--space-2)',
-              borderRadius: 'var(--radius-md)',
-              color: 'var(--text-secondary)',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            <Menu size={20} />
-          </button>
-
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <h1
-              style={{
-                fontSize: 'var(--text-base)',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                margin: 0,
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {activeItemTitle}
-            </h1>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <button type="button" className="pys-icon-circle-btn" aria-label="Search records" onClick={openSearch}>
-            <Search size={17} />
-          </button>
-          <button type="button" className="pys-icon-circle-btn" aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} onClick={() => onNavigate?.('notifications')} style={{ position: 'relative' }}>
-            <Bell size={17} />
-            {unreadCount > 0 && <span aria-hidden="true" style={{ position: 'absolute', right: 3, top: 3, minWidth: 15, height: 15, borderRadius: 999, background: 'var(--color-error-solid)', color: 'white', fontSize: 9, lineHeight: '15px', textAlign: 'center', padding: '0 3px' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
-          </button>
-          {exportKind && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', width: '100%' }}>
+          {/* Left: Mobile Toggle + Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
             <button
               type="button"
-              className="pys-icon-circle-btn"
-              aria-label="Download Excel export"
-              title="Download Excel export"
-              onClick={() => void downloadExport()}
-              disabled={exporting}
-            >
-              {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
-            </button>
-          )}
-          <Badge variant={currentRole === 'ADMIN' ? 'brand' : 'neutral'}>
-            <Shield size={12} />
-            <span>{currentRole}</span>
-          </Badge>
-
-          <Dropdown
-            align="right"
-            trigger={
-              <button
-                type="button"
-                aria-label="User Profile"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '12px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {operatorInitial}
-              </button>
-            }
-          >
-            <DropdownHeader>Active Session</DropdownHeader>
-            <div style={{ padding: 'var(--space-2) var(--space-3)' }}>
-              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>{displayName}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', wordBreak: 'break-all' }}>
-                {displayEmail}
-              </div>
-            </div>
-            <DropdownDivider />
-            <DropdownItem icon={<LogOut size={14} />} onClick={() => logout()}>
-              Sign Out
-            </DropdownItem>
-          </Dropdown>
-        </div>
-      </header>
-
-      {/* --------------------------------------------------
-       * 2. Desktop Floating Island TopBar (Vessa-inspired elevation)
-       * -------------------------------------------------- */}
-      <div className="pys-topbar-island pys-topbar-desktop-only">
-        {/* Row 1: Brand, Live Clock, Global Search, and Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-          {/* Brand lockup */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
+              onClick={onOpenMobileSidebar}
+              aria-label="Open sidebar navigation"
+              className="mobile-menu-trigger"
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                color: '#ffffff',
-                display: 'flex',
+                padding: 'var(--space-2)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-secondary)',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: '14px',
-                letterSpacing: '-0.02em',
-                boxShadow: '0 4px 12px rgba(168, 72, 28, 0.35)',
-                flexShrink: 0,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
-              PYS
+              <Menu size={20} />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <h1
+                style={{
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  margin: 0,
+                  letterSpacing: '-0.01em',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {activeItemTitle}
+              </h1>
             </div>
-            <div>
+          </div>
+
+          {/* Center: Live Digital Clock & Search Bar (Desktop) */}
+          <div className="search-container-desktop" style={{ display: 'none', flex: 1, maxWidth: '480px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
                 style={{
-                  fontSize: '1.05rem',
-                  fontWeight: 800,
-                  letterSpacing: '-0.02em',
-                  color: 'var(--text-primary)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(20, 36, 28, 0.04)',
+                  border: '1px solid var(--border-card-hairline)',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <span>Place Your Service</span>
                 <span
                   style={{
-                    fontSize: '0.72rem',
-                    padding: '2px 7px',
-                    borderRadius: '9999px',
-                    backgroundColor: 'rgba(168, 72, 28, 0.1)',
-                    color: '#a8481c',
-                    fontWeight: 700,
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    boxShadow: '0 0 6px rgba(168, 72, 28, 0.6)',
                   }}
-                >
-                  AC Ops
-                </span>
+                />
+                <Clock size={12} style={{ color: 'var(--text-muted)' }} />
+                <span>{timeString || 'Live'}</span>
               </div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                {activeItemTitle} • Facility Maintenance Platform
-              </div>
-            </div>
-          </div>
 
-          {/* Center: Live Digital Clock & Search */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, maxWidth: '520px', margin: '0 auto' }}>
-            {/* Live Clock Pill */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                borderRadius: '9999px',
-                backgroundColor: 'rgba(20, 36, 28, 0.04)',
-                border: '1px solid var(--border-card-hairline)',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span
+              <button
+                type="button"
+                onClick={openSearch}
                 style={{
-                  width: '7px',
-                  height: '7px',
-                  borderRadius: '50%',
-                  backgroundColor: '#10b981',
-                  boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
-                  animation: 'pulse 2s infinite',
-                }}
-              />
-              <Clock size={13} style={{ color: 'var(--text-muted)' }} />
-              <span>{timeString || 'Live Telemetry'}</span>
-            </div>
-
-            {/* Global Search Pill */}
-            <button
-              type="button"
-              onClick={openSearch}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '6px 14px',
-                backgroundColor: 'rgba(20, 36, 28, 0.04)',
-                border: '1px solid var(--border-card-hairline)',
-                borderRadius: '9999px',
-                color: 'var(--text-muted)',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Search size={14} />
-                <span>Search customers, assets, tickets...</span>
-              </div>
-              <kbd
-                style={{
-                  padding: '1px 6px',
-                  borderRadius: '6px',
-                  backgroundColor: 'var(--bg-surface)',
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 14px',
+                  backgroundColor: 'rgba(20, 36, 28, 0.04)',
                   border: '1px solid var(--border-card-hairline)',
-                  fontSize: '10px',
-                  fontFamily: 'var(--font-mono)',
+                  borderRadius: '9999px',
                   color: 'var(--text-muted)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
                 }}
               >
-                ⌘K
-              </kbd>
-            </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Search size={14} />
+                  <span>Search records...</span>
+                </div>
+                <kbd
+                  style={{
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-card-hairline)',
+                    fontSize: '10px',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  ⌘K
+                </kbd>
+              </button>
+            </div>
           </div>
 
           {/* Right Action Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Badge variant={currentRole === 'ADMIN' ? 'brand' : 'neutral'}>
-              <Shield size={12} />
-              <span>{currentRole} Role</span>
-            </Badge>
-
-            <button type="button" className="pys-icon-circle-btn" aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} onClick={() => onNavigate?.('notifications')} style={{ position: 'relative' }}>
-              <Bell size={17} />
-              {unreadCount > 0 && <span aria-hidden="true" style={{ position: 'absolute', right: 3, top: 3, minWidth: 15, height: 15, borderRadius: 999, background: 'var(--color-error-solid)', color: 'white', fontSize: 9, lineHeight: '15px', textAlign: 'center', padding: '0 3px' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            {/* Mobile search icon */}
+            <button
+              type="button"
+              className="pys-icon-circle-btn mobile-search-trigger"
+              aria-label="Search records"
+              onClick={openSearch}
+            >
+              <Search size={17} />
             </button>
-            {exportKind && <button type="button" className="pys-icon-circle-btn" aria-label="Download Excel export" title="Download Excel export" onClick={() => void downloadExport()} disabled={exporting}>
-              {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
-            </button>}
-            {/* CTA + New Service */}
+
+            {/* Notifications Bell */}
+            <button
+              type="button"
+              className="pys-icon-circle-btn"
+              aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
+              onClick={() => onNavigate?.('notifications')}
+              style={{ position: 'relative' }}
+              title="Notifications & Operational Alerts"
+            >
+              <Bell size={17} />
+              {unreadCount > 0 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    right: 2,
+                    top: 2,
+                    minWidth: 15,
+                    height: 15,
+                    borderRadius: 999,
+                    background: 'var(--color-error-solid)',
+                    color: 'white',
+                    fontSize: 9,
+                    lineHeight: '15px',
+                    textAlign: 'center',
+                    padding: '0 3px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Excel Export */}
+            {exportKind && (
+              <button
+                type="button"
+                className="pys-icon-circle-btn"
+                aria-label="Download Excel export"
+                title="Download Excel export"
+                onClick={() => void downloadExport()}
+                disabled={exporting}
+              >
+                {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
+              </button>
+            )}
+
+            {/* Quick Action + New Service */}
             <button
               type="button"
               onClick={onNewServiceClick}
               className="pys-btn-primary"
-              style={{ padding: '7px 16px', fontSize: '0.82rem' }}
+              style={{ padding: '6px 14px', fontSize: '0.8rem', gap: '6px' }}
+              title="Create new service request"
             >
-              <Plus size={15} />
-              <span>+ New Service</span>
+              <Plus size={14} />
+              <span className="cta-label-desktop">+ New Service</span>
             </button>
+
+            <Badge variant={currentRole === 'ADMIN' ? 'brand' : 'neutral'}>
+              <Shield size={12} />
+              <span>{currentRole}</span>
+            </Badge>
 
             {/* Profile Avatar Dropdown */}
             <Dropdown
@@ -384,39 +312,23 @@ export const TopBar: React.FC<TopBarProps> = ({
               trigger={
                 <button
                   type="button"
-                  aria-label="User Profile Menu"
+                  aria-label="User Profile"
                   style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '12px',
+                    border: 'none',
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '4px 10px 4px 4px',
-                    borderRadius: '9999px',
-                    border: '1px solid var(--border-card-hairline)',
-                    backgroundColor: 'rgba(20, 36, 28, 0.04)',
-                    cursor: 'pointer',
+                    justifyContent: 'center',
                   }}
                 >
-                  <div
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '12px',
-                    }}
-                  >
-                    {operatorInitial}
-                  </div>
-                  <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {displayName}
-                    </div>
-                  </div>
+                  {operatorInitial}
                 </button>
               }
             >
@@ -437,7 +349,12 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Row 2: Segmented Pill Tabs (When activeItem is dashboard) */}
         {activeItem === 'dashboard' && (
-          <div className="pys-pill-tabs-track" role="tablist" aria-label="Dashboard View Modes">
+          <div
+            className="pys-pill-tabs-track"
+            role="tablist"
+            aria-label="Dashboard View Modes"
+            style={{ maxWidth: 320, margin: '10px 0 2px' }}
+          >
             <button
               type="button"
               role="tab"
@@ -456,18 +373,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             >
               Service Activity
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeSubTab === 'alerts'}
-              className={`pys-pill-tab ${activeSubTab === 'alerts' ? 'active' : ''}`}
-              onClick={() => onSubTabChange?.('alerts')}
-            >
-              Operational Alerts
-            </button>
           </div>
         )}
-      </div>
+      </header>
       <GlobalSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={(item, params) => onNavigate?.(item, params)} />
     </>
   );

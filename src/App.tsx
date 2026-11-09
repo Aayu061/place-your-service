@@ -170,7 +170,7 @@ const MODULE_DEFINITIONS: Record<
     ],
   },
   notifications: {
-    name: 'Notifications',
+    name: 'Notifications & Operational Alerts',
     category: 'SYSTEM',
     phase: 'Phase 13 — Notifications & Activity Audit',
     description:
