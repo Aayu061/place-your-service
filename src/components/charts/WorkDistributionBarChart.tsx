@@ -139,7 +139,7 @@ export const WorkDistributionBarChart: React.FC<WorkDistributionBarChartProps> =
                   height: '100%',
                   display: 'flex',
                   alignItems: 'flex-end',
-                  backgroundColor: 'rgba(15, 23, 42, 0.03)',
+                  backgroundColor: 'var(--bg-surface-subtle, rgba(15, 23, 42, 0.04))',
                   borderRadius: 'var(--radius-sm)',
                   boxShadow: 'var(--neomorph-shadow-inset)',
                   padding: '2px',
