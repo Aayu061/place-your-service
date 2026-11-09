@@ -313,7 +313,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               title="Create new service request"
             >
               <Plus size={14} />
-              <span className="cta-label-desktop">+ New Service</span>
+              <span className="cta-label-desktop">New Service</span>
             </button>
 
             <Badge variant={currentRole === 'ADMIN' ? 'brand' : 'neutral'}>
