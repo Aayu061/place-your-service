@@ -40,3 +40,10 @@ export const createPaymentReversalSchema = {
     reason: z.string().trim().min(3).max(500),
   }),
 };
+
+export const sendPaymentInvoiceSchema = {
+  params: z.object({ id: z.string().guid() }),
+  body: z.object({
+    recipientEmail: z.string().trim().email('Valid recipient email address is required'),
+  }),
+};
