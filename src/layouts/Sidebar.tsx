@@ -159,7 +159,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       fontWeight: 700,
                       fontSize: '13.5px',
-                      color: '#ffffff',
+                      color: 'var(--text-sidebar-title, #293B32)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -209,8 +209,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       height: '28px',
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--text-sidebar, #8EB69B)',
-                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      backgroundColor: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.04))',
+                      border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.06))',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -218,14 +218,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       transition: 'all 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)';
-                      e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(255, 255, 255, 0.12))';
+                      e.currentTarget.style.color = 'var(--text-sidebar-title, #ffffff)';
+                      e.currentTarget.style.borderColor = 'var(--border-moderate, rgba(255, 255, 255, 0.2))';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)';
+                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.04))';
                       e.currentTarget.style.color = 'var(--text-sidebar, #8EB69B)';
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.06)';
+                      e.currentTarget.style.borderColor = 'var(--border-sidebar-card, rgba(255, 255, 255, 0.06))';
                     }}
                   >
                     <ChevronLeft size={15} />
@@ -291,7 +291,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div
                     style={{
                       height: '1px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      backgroundColor: 'var(--bg-sidebar-border, rgba(255, 255, 255, 0.06))',
                       margin: '4px 8px',
                     }}
                   />
@@ -318,12 +318,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         padding: isCollapsed ? '9px 0' : '8px 12px',
                         borderRadius: 'var(--radius-md)',
                         background: isActive
-                          ? 'linear-gradient(90deg, rgba(35, 83, 71, 0.55) 0%, rgba(22, 56, 50, 0.35) 100%)'
+                          ? 'var(--bg-sidebar-active, #DCE9DE)'
                           : 'transparent',
                         borderLeft: isActive
-                          ? '3px solid var(--border-focus, #8EB69B)'
+                          ? '3px solid var(--border-focus, #3F765D)'
                           : '3px solid transparent',
-                        color: isActive ? 'var(--text-sidebar-active, #DAF1DE)' : 'var(--text-sidebar, #8EB69B)',
+                        color: isActive ? 'var(--text-sidebar-active, #293B32)' : 'var(--text-sidebar, #64756A)',
                         fontSize: 'var(--text-sm)',
                         fontWeight: isActive ? 600 : 500,
                         width: '100%',
@@ -338,8 +338,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'rgba(35, 83, 71, 0.4)';
-                          e.currentTarget.style.color = '#DAF1DE';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(35, 83, 71, 0.4))';
+                          e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
                           if (!isCollapsed) {
                             e.currentTarget.style.transform = 'translateX(2px)';
                           }
@@ -348,7 +348,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onMouseLeave={(e) => {
                         if (!isActive) {
                           e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = 'var(--text-sidebar, #8EB69B)';
+                          e.currentTarget.style.color = 'var(--text-sidebar, #64756A)';
                           if (!isCollapsed) {
                             e.currentTarget.style.transform = 'translateX(0)';
                           }
@@ -358,8 +358,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <Icon
                         size={18}
                         style={{
-                          color: isActive ? 'var(--text-sidebar-active, #DAF1DE)' : 'var(--text-sidebar-icon, #8EB69B)',
-                          filter: isActive ? 'drop-shadow(0 0 6px rgba(218, 241, 222, 0.45))' : 'none',
+                          color: isActive ? 'var(--text-sidebar-active, #293B32)' : 'var(--text-sidebar-icon, #64756A)',
+                          filter: isActive ? 'drop-shadow(0 0 6px rgba(63, 118, 93, 0.25))' : 'none',
                           flexShrink: 0,
                           transition: 'color 0.15s ease',
                         }}
@@ -401,7 +401,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           style={{
             padding: isCollapsed ? 'var(--space-3) var(--space-2)' : 'var(--space-3) var(--space-3)',
             borderTop: '1px solid var(--bg-sidebar-border)',
-            backgroundColor: 'rgba(0, 0, 0, 0.25)',
+            backgroundColor: 'var(--bg-sidebar-footer, rgba(0, 0, 0, 0.25))',
             flexShrink: 0,
             overflow: 'hidden',
             boxSizing: 'border-box',
@@ -450,8 +450,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     width: '32px',
                     height: '32px',
                     borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.1))',
                     color: 'var(--text-sidebar, #8EB69B)',
                     display: 'flex',
                     alignItems: 'center',
@@ -471,8 +471,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     width: '32px',
                     height: '32px',
                     borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.1))',
                     color: 'var(--text-sidebar, #8EB69B)',
                     display: 'flex',
                     alignItems: 'center',
@@ -493,8 +493,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 gap: 'var(--space-2)',
                 padding: '6px 8px',
                 borderRadius: 'var(--radius-md)',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                backgroundColor: 'var(--bg-sidebar-card, rgba(255, 255, 255, 0.03))',
+                border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.06))',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
@@ -521,7 +521,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     style={{
                       fontSize: '12px',
                       fontWeight: 600,
-                      color: 'var(--text-primary, #DAF1DE)',
+                      color: 'var(--text-sidebar-title, var(--text-primary))',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -555,8 +555,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       transition: 'all 0.15s ease',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#ffffff';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                      e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
+                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(255, 255, 255, 0.1))';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.color = 'var(--text-sidebar-muted, #8EB69B)';

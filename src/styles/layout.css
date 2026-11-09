@@ -19,7 +19,7 @@
 .sidebar {
   width: var(--sidebar-width);
   background-color: var(--bg-sidebar);
-  color: var(--text-inverse);
+  color: var(--text-sidebar);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -47,7 +47,7 @@
   flex-direction: column;
   gap: var(--space-2);
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: var(--border-moderate) transparent;
 }
 
 .sidebar.collapsed .sidebar-nav {
@@ -63,12 +63,12 @@
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.12);
+  background-color: var(--border-moderate);
   border-radius: 9999px;
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.25);
+  background-color: var(--border-strong);
 }
 
 /* Mobile Off-Canvas Sidebar */
@@ -138,6 +138,8 @@
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+  background-color: rgba(247, 249, 246, 0.92);
+  border-bottom: 1px solid var(--border-default);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-sizing: border-box;
@@ -243,8 +245,8 @@
  * -------------------------------------------------- */
 .pys-pill-tabs-track {
   width: 100%;
-  background: rgba(20, 36, 28, 0.04);
-  border: 1px solid var(--border-card-hairline, rgba(20, 36, 28, 0.086));
+  background: var(--bg-surface-muted, #F0F4EF);
+  border: 1px solid var(--border-default, #E2EAE3);
   border-radius: 9999px;
   padding: 4px;
   display: grid;
@@ -266,14 +268,14 @@
   font-family: var(--font-sans);
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-muted, #667069);
+  color: var(--text-secondary, #64756A);
   cursor: pointer;
   text-align: center;
   transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
 .pys-pill-tab:hover {
-  color: var(--text-primary, #18201b);
+  color: var(--text-primary, #293B32);
 }
 
 [data-theme="dark"] .pys-pill-tab:hover {
@@ -281,10 +283,10 @@
 }
 
 .pys-pill-tab.active {
-  background: #18201b;
-  color: #ffffff;
+  background: #FFFFFF;
+  color: var(--text-primary, #293B32);
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(20, 36, 28, 0.15);
+  box-shadow: 0 2px 8px rgba(41, 59, 50, 0.08);
 }
 
 [data-theme="dark"] .pys-pill-tab.active {
@@ -295,14 +297,14 @@
 
 /* 26px Rounded Card Geometry */
 .pys-card-26 {
-  background: var(--glass-bg-surface, rgba(255, 255, 255, 0.92));
-  border: 1px solid var(--border-card-hairline, rgba(20, 36, 28, 0.086));
+  background: var(--bg-surface, #FFFFFF);
+  border: 1px solid var(--border-default, #E2EAE3);
   border-radius: 26px;
   padding: 24px;
-  box-shadow: 0 1px 2px rgba(20, 36, 28, 0.04), 0 14px 34px -22px rgba(20, 36, 28, 0.28);
+  box-shadow: var(--shadow-card, 0 4px 18px rgba(41, 59, 50, 0.045));
   position: relative;
   overflow: hidden;
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s cubic-bezier(0.2, 0, 0, 1);
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s cubic-bezier(0.2, 0, 0, 1), border-color 0.25s cubic-bezier(0.2, 0, 0, 1);
 }
 
 [data-theme="dark"] .pys-card-26 {
@@ -313,7 +315,8 @@
 
 .pys-card-26:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(20, 36, 28, 0.06), 0 20px 42px -20px rgba(20, 36, 28, 0.32);
+  border-color: var(--border-moderate, #CBDACD);
+  box-shadow: 0 8px 24px rgba(41, 59, 50, 0.08);
 }
 
 [data-theme="dark"] .pys-card-26:hover {
@@ -367,9 +370,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(20, 36, 28, 0.05);
-  color: var(--text-primary);
-  border: 1px solid var(--border-card-hairline);
+  background: var(--bg-surface-muted, #F0F4EF);
+  color: var(--text-primary, #293B32);
+  border: 1px solid var(--border-default, #E2EAE3);
   border-radius: 9999px;
   padding: 8px 18px;
   font-family: var(--font-sans);
@@ -380,7 +383,8 @@
 }
 
 .pys-btn-secondary:hover {
-  background: rgba(20, 36, 28, 0.09);
+  background: var(--bg-sidebar-hover, #E8F0E9);
+  border-color: var(--border-moderate, #CBDACD);
   color: var(--text-primary);
   transform: translateY(-1px);
 }
@@ -404,15 +408,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 36, 28, 0.04);
-  border: 1px solid var(--border-card-hairline);
-  color: var(--text-muted);
+  background: var(--bg-surface-muted, #F0F4EF);
+  border: 1px solid var(--border-default, #E2EAE3);
+  color: var(--text-secondary, #64756A);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .pys-icon-circle-btn:hover {
-  background: rgba(20, 36, 28, 0.08);
+  background: var(--bg-sidebar-hover, #E8F0E9);
+  border-color: var(--border-moderate, #CBDACD);
   color: var(--text-primary);
   transform: scale(1.05);
 }
