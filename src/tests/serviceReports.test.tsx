@@ -1764,6 +1764,9 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(paidContainer.textContent).toContain('₹1,250.00');
     expect(paidContainer.textContent).toContain('Online / UPI (UPI-987654321)');
     expect(paidContainer.textContent).toContain('₹0.00'); // Balance Remaining
+    expect(paidContainer.textContent).toContain('Company Bank & UPI Details');
+    expect(paidContainer.textContent).toContain('HDFC0001234');
+    expect(paidContainer.textContent).toContain('placeyourservice@icici');
 
     unmountPaid();
 
@@ -1784,6 +1787,50 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(pendContainer.textContent).toContain('Awaiting Collection');
 
     unmountPend();
+  });
+
+  it('33. ServiceVisitReportModal dynamically renders Company Demo Bank Details and Dynamic UPI QR Code for online collection', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        schedule={sampleSchedule}
+        mode="create"
+        onSuccess={handleSuccess}
+      />
+    );
+
+    // Click Yes, Payment Collected
+    const yesBtn = container.querySelector('[data-testid="payment-received-yes"]') as HTMLButtonElement;
+    expect(yesBtn).toBeDefined();
+    await act(async () => {
+      yesBtn?.click();
+    });
+
+    // Select ONLINE method
+    const methodSelect = container.querySelector('#svr-payment-method') as HTMLSelectElement;
+    expect(methodSelect).toBeDefined();
+    await act(async () => {
+      methodSelect.value = 'ONLINE';
+      methodSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Enter amount ₹850
+    const amountInput = container.querySelector('#svr-payment-amount') as HTMLInputElement;
+    await act(async () => {
+      setInputValue(amountInput, '850');
+    });
+
+    // Check company bank particulars and QR container are rendered
+    expect(container.textContent).toContain('Company Payment Particulars (Online / UPI)');
+    expect(container.textContent).toContain('HDFC0001234');
+    expect(container.textContent).toContain('placeyourservice@icici');
+    expect(container.querySelector('.pys-upi-qr-container')).toBeDefined();
+
+    unmount();
   });
 });
 

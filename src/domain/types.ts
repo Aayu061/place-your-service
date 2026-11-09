@@ -412,6 +412,11 @@ export interface AmcContract {
   remainingVisitsCount?: number;
   nextPmDate?: string | null;
   isExpiringSoon?: boolean;
+  paymentId?: string | null;
+  paymentNumber?: string | null;
+  paymentStatus?: 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | string | null;
+  totalAmountPaid?: number;
+  paymentBalanceDue?: number;
   notes?: string | null;
   cancellationReason?: string | null;
   cancelledAt?: string | null;

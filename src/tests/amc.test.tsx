@@ -1128,5 +1128,82 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
 
     unmount();
   });
+
+  it('14. Renders Quotations / Drafts tab and allows filtering to draft agreements', async () => {
+    const { container, unmount } = await renderComponent();
+    expect(container.textContent).toContain('Quotations / Drafts');
+    expect(container.textContent).toContain('Active');
+    expect(container.textContent).toContain('Expiring Soon');
+    expect(container.textContent).toContain('History (Renewed / Expired)');
+    unmount();
+  });
+
+  it('15. Create AMC Quotation modal renders Payment Mode, Demo Bank Details, and dynamic amount-encoded UPI QR', async () => {
+    const { container, unmount } = await renderComponent();
+
+    const newBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('New AMC Contract')
+    );
+    await act(async () => {
+      newBtn?.click();
+    });
+
+    expect(document.body.textContent).toContain('Payment Mode / Terms');
+    expect(document.body.textContent).toContain('Company Payment Particulars & UPI QR');
+    expect(document.body.textContent).toContain('HDFC0001234');
+    expect(document.body.textContent).toContain('placeyourservice@icici');
+    expect(document.body.querySelector('.pys-upi-qr-container')).toBeDefined();
+
+    unmount();
+  });
+
+  it('16. Draft contract drawer renders Payment Clearance card, Send Quotation button, and Activate Contract button', async () => {
+    const draftContract = {
+      ...sampleContract,
+      status: 'DRAFT',
+      paymentStatus: 'PENDING',
+      paymentBalanceDue: 15000,
+      totalAmountPaid: 0,
+    };
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/metrics')) {
+        return { metrics: { totalContracts: 1, activeContracts: 0, expiringSoon: 0, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
+      }
+      if (url.includes('/plans')) {
+        return { plans: [samplePlan] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/schedules`)) {
+        return { schedules: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/assets`)) {
+        return { assets: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}`)) {
+        return { contract: draftContract } as never;
+      }
+      if (url.includes('/amc-contracts')) {
+        return { contracts: [draftContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+      }
+      return {} as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    expect(document.body.textContent).toContain('Payment & Settlement Status');
+    expect(document.body.textContent).toContain('Quotation Due');
+    expect(document.body.textContent).toContain('Activate Contract');
+    expect(document.body.textContent).toContain('Send Quotation');
+    expect(document.body.textContent).toContain('Record Clearance');
+
+    unmount();
+  });
 });
 

@@ -243,3 +243,14 @@ export const renewAmcContractSchema = z
       path: ['dryServiceVisits'],
     }
   );
+
+export const sendQuotationSchema = z.object({
+  recipientEmail: z.string().email('Valid recipient email address is required'),
+});
+
+export const clearPaymentSchema = z.object({
+  paymentMethod: z.enum(['CASH', 'ONLINE', 'CHEQUE']),
+  amount: z.coerce.number().positive('Payment amount must be greater than zero'),
+  externalPaymentReference: z.string().max(100).optional().nullable(),
+  notes: z.string().max(1000).optional().nullable(),
+});

@@ -1025,6 +1025,11 @@ export interface AmcContractResponse {
   remainingVisitsCount: number;
   nextPmDate: string | null;
   isExpiringSoon: boolean;
+  paymentId?: string | null;
+  paymentNumber?: string | null;
+  paymentStatus?: string | null;
+  totalAmountPaid?: number;
+  paymentBalanceDue?: number;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: string;

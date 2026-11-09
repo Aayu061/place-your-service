@@ -20,3 +20,4 @@ BEGIN
         CREATE INDEX IF NOT EXISTS idx_service_reports_payment ON public.service_reports(payment_id);
     END IF;
 END $$;
+

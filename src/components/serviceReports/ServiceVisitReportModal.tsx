@@ -34,6 +34,8 @@ import {
   ChevronUp,
   CreditCard,
 } from 'lucide-react';
+import { UpiQrCode } from '@/components/common/UpiQrCode';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 export interface ServiceVisitReportModalProps {
   isOpen: boolean;
@@ -2200,6 +2202,58 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   placeholder="e.g. UPI-9876543210 or UTR..."
                   disabled={isSubmitting}
                   style={{ fontSize: '13px' }}
+                />
+              </div>
+            )}
+
+            {/* Company Bank Details & Dynamic UPI QR Code */}
+            {((paymentCollected && paymentMethod === 'ONLINE') || (!paymentCollected && Number(paymentAmount) > 0)) && (
+              <div
+                style={{
+                  gridColumn: '1 / -1',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  marginTop: '4px',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <CreditCard size={14} color="#0284c7" />
+                    Company Payment Particulars (Online / UPI)
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
+                    <div><strong>Payee:</strong> {COMPANY_BANK_DETAILS.accountHolderName}</div>
+                    <div><strong>Bank:</strong> {COMPANY_BANK_DETAILS.bankName} (A/C: {COMPANY_BANK_DETAILS.accountNumber})</div>
+                    <div><strong>IFSC:</strong> {COMPANY_BANK_DETAILS.ifscCode} | <strong>Branch:</strong> {COMPANY_BANK_DETAILS.branchName}</div>
+                    <div><strong>UPI ID:</strong> <span style={{ color: '#0284c7', fontWeight: 600 }}>{COMPANY_BANK_DETAILS.upiId}</span></div>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                    Customer can scan the QR code to auto-populate the exact amount in GPay, PhonePe, or Paytm.
+                  </div>
+                </div>
+
+                <UpiQrCode
+                  amount={parseFloat(paymentAmount) || 0}
+                  note={`Service Report - ${schedule?.scheduleNumber || 'Settlement'}`}
+                  size={95}
+                  showScanText={true}
+                  showDetails={false}
                 />
               </div>
             )}

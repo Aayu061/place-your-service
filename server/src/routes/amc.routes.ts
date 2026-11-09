@@ -14,6 +14,8 @@ import {
   addAmcAssetsSchema,
   generatePmSchema,
   renewAmcContractSchema,
+  sendQuotationSchema,
+  clearPaymentSchema,
 } from '../validators/amc.validator.js';
 
 const amcRouter = Router();
@@ -109,6 +111,20 @@ amcRouter.post(
   '/:id/renew',
   validate({ params: amcIdParamSchema, body: renewAmcContractSchema }),
   amcController.renewContract.bind(amcController)
+);
+
+// 15. Send quotation email
+amcRouter.post(
+  '/:id/send-quotation',
+  validate({ params: amcIdParamSchema, body: sendQuotationSchema }),
+  amcController.sendQuotation.bind(amcController)
+);
+
+// 16. Clear quotation payment
+amcRouter.post(
+  '/:id/clear-payment',
+  validate({ params: amcIdParamSchema, body: clearPaymentSchema }),
+  amcController.clearPayment.bind(amcController)
 );
 
 export { amcRouter };
