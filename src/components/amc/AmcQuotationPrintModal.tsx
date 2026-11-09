@@ -149,17 +149,24 @@ export function AmcQuotationPrintModal({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0284c7', paddingBottom: 16, marginBottom: 18, gap: 16 }}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
               <img
-                src={COMPANY_BANK_DETAILS.logoImageUrl}
+                src={COMPANY_BANK_DETAILS.extremeLogoUrl}
                 alt={COMPANY_BANK_DETAILS.mainCompanyName}
-                style={{ width: 56, height: 56, objectFit: 'contain', marginTop: 2, flexShrink: 0 }}
+                style={{ width: 62, height: 62, objectFit: 'contain', marginTop: 2, flexShrink: 0 }}
               />
               <div>
                 <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
                   {COMPANY_BANK_DETAILS.mainCompanyName}
                 </h1>
-                <p style={{ margin: '2px 0 0', fontSize: '13px', fontWeight: 600, color: '#0284c7' }}>
-                  Air Conditioning Sales, Preventive Maintenance &amp; Services · {COMPANY_BANK_DETAILS.platformBrand} Platform
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: '3px' }}>
+                  <img
+                    src={COMPANY_BANK_DETAILS.pysLogoUrl}
+                    alt="Place Your Service"
+                    style={{ width: 15, height: 15, objectFit: 'contain', flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#0284c7' }}>
+                    Air Conditioning Sales &amp; Services · {COMPANY_BANK_DETAILS.platformBrand} Platform
+                  </span>
+                </div>
                 <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: 1.45, maxWidth: 440 }}>
                   <strong>Office:</strong> {COMPANY_BANK_DETAILS.officeAddress}<br />
                   <strong>Billing:</strong> {COMPANY_BANK_DETAILS.billingAddress}<br />

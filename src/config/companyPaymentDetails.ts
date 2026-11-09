@@ -28,6 +28,8 @@ export interface CompanyBankDetails {
   upiName: string;
   stampImageUrl: string;
   logoImageUrl: string;
+  extremeLogoUrl: string;
+  pysLogoUrl: string;
   fixedQrImageUrl: string;
 }
 
@@ -50,8 +52,10 @@ export const COMPANY_BANK_DETAILS: CompanyBankDetails = {
   accountType: 'CURRENT',
   upiId: '7977805245-1@okbizaxis',
   upiName: 'Extreme Sales and Services',
+  extremeLogoUrl: '/extreme-logo.png',
+  pysLogoUrl: '/pys-logo.png',
   stampImageUrl: '/company-stamp.png',
-  logoImageUrl: '/company-logo.png',
+  logoImageUrl: '/extreme-logo.png',
   fixedQrImageUrl: '/company-qr.png',
 };
 
