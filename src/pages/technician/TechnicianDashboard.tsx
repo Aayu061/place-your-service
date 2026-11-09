@@ -50,15 +50,33 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
     : jobs;
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {/* Header Greeting & Metrics */}
-      <div className="bg-surface-raised border border-brand-border rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
+      <div
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          boxShadow: 'var(--shadow-xs)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h2 className="text-base font-extrabold text-brand-primary">
+            <h2
+              style={{
+                fontSize: 'var(--text-base)',
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                margin: 0,
+              }}
+            >
               Today's Field Dispatch
             </h2>
-            <p className="text-xs text-brand-secondary">
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
               Assigned visits for {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
             </p>
           </div>
@@ -66,74 +84,170 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
             type="button"
             onClick={() => loadJobs(selectedDate)}
             title="Refresh Queue"
-            className="p-2 text-brand-secondary hover:text-brand-primary hover:bg-surface-subtle rounded-xl border border-brand-border transition-colors cursor-pointer"
+            style={{
+              padding: '8px',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
 
         {/* Quick KPI Strip */}
-        <div className="grid grid-cols-3 gap-2 pt-1">
-          <div className="p-2.5 rounded-xl bg-surface-sunken border border-brand-border text-center">
-            <span className="text-[10px] uppercase font-bold text-brand-secondary">Assigned</span>
-            <p className="text-lg font-extrabold text-brand-primary">{jobs.length}</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          <div
+            style={{
+              padding: '10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)' }}>
+              Assigned
+            </span>
+            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
+              {jobs.length}
+            </p>
           </div>
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-            <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Done</span>
-            <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{completedCount}</p>
+          <div
+            style={{
+              padding: '10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-success-bg, rgba(34, 197, 94, 0.1))',
+              border: '1px solid var(--color-success-border, rgba(34, 197, 94, 0.2))',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-success-text, #16a34a)' }}>
+              Done
+            </span>
+            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-success-text, #16a34a)', margin: '2px 0 0 0' }}>
+              {completedCount}
+            </p>
           </div>
-          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-            <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400">Pending</span>
-            <p className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{pendingCount}</p>
+          <div
+            style={{
+              padding: '10px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-warning-bg, rgba(245, 158, 11, 0.1))',
+              border: '1px solid var(--color-warning-border, rgba(245, 158, 11, 0.2))',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-warning-text, #d97706)' }}>
+              Pending
+            </span>
+            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-warning-text, #d97706)', margin: '2px 0 0 0' }}>
+              {pendingCount}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Date Picker Bar */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-bold text-brand-primary tracking-wide">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
           Appointments ({jobs.length})
         </span>
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-2.5 py-1 text-xs bg-surface-raised border border-brand-border rounded-lg text-brand-primary font-medium focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
+          style={{
+            padding: '6px 10px',
+            fontSize: 'var(--text-xs)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-primary)',
+            fontWeight: 600,
+            outline: 'none',
+          }}
         />
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <div
+          style={{
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+            fontSize: 'var(--text-xs)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+          }}
+        >
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
           <span>{error}</span>
         </div>
       )}
 
       {/* Loading Skeleton */}
       {isLoading && (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-36 rounded-2xl bg-surface-raised border border-brand-border animate-pulse p-4 space-y-2">
-              <div className="h-4 bg-brand-border/40 rounded w-1/3" />
-              <div className="h-3 bg-brand-border/30 rounded w-2/3" />
-              <div className="h-3 bg-brand-border/20 rounded w-1/2" />
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                height: '140px',
+                borderRadius: 'var(--radius-lg)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                opacity: 0.6,
+              }}
+            />
           ))}
         </div>
       )}
 
       {/* Empty Queue State */}
       {!isLoading && displayedJobs.length === 0 && (
-        <div className="p-8 text-center rounded-2xl bg-surface-raised border border-brand-border space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-surface-subtle flex items-center justify-center text-brand-secondary border border-brand-border">
-            <Calendar className="w-6 h-6" />
+        <div
+          style={{
+            padding: 'var(--space-8)',
+            textAlign: 'center',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <div
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <Calendar size={24} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-brand-primary">
+            <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
               {filterTab === 'completed' ? 'No Completed Jobs' : 'No Jobs Assigned'}
             </h3>
-            <p className="text-xs text-brand-secondary mt-1">
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: '4px' }}>
               {filterTab === 'completed'
                 ? 'You have not submitted service reports for any jobs on this date.'
                 : 'You have no scheduled visits allocated for this date. Check with dispatch or take a well-deserved rest.'}
@@ -144,7 +258,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
 
       {/* Job Cards */}
       {!isLoading && displayedJobs.length > 0 && (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {displayedJobs.map((job) => {
             const isCompleted = job.status === 'COMPLETED';
             const customerPhone = job.customers?.phone;
@@ -162,79 +276,149 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
             return (
               <div
                 key={job.id}
-                className={`rounded-2xl border transition-all p-4 space-y-3 ${
-                  isCompleted
-                    ? 'bg-surface-raised/70 border-emerald-500/30'
-                    : 'bg-surface-raised border-brand-border shadow-xs hover:border-brand-primary/50'
-                }`}
+                style={{
+                  borderRadius: 'var(--radius-lg)',
+                  border: isCompleted
+                    ? '1px solid rgba(34, 197, 94, 0.3)'
+                    : '1px solid var(--border-default)',
+                  backgroundColor: 'var(--bg-surface)',
+                  padding: 'var(--space-4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-3)',
+                  boxShadow: 'var(--shadow-xs)',
+                }}
               >
                 {/* Card Top: Schedule Number & Status */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-brand-primary">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                      }}
+                    >
                       {job.schedule_number}
                     </span>
                     {job.amc_id ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                          color: '#9333ea',
+                          border: '1px solid rgba(168, 85, 247, 0.2)',
+                        }}
+                      >
                         AMC Preventive
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          color: '#2563eb',
+                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                        }}
+                      >
                         Service Call
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-xs text-brand-secondary">
-                    <Clock className="w-3.5 h-3.5" />
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <Clock size={13} />
                     <span>{job.start_time || '10:00'} - {job.end_time || '12:00'}</span>
                   </div>
                 </div>
 
                 {/* Customer & Site Details */}
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-brand-primary">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                     {job.customers?.name || 'Customer Name'}
                   </h4>
 
                   {/* Site Address */}
-                  <div className="flex items-start gap-1.5 text-xs text-brand-secondary">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-brand-primary" />
-                    <span className="line-clamp-2">{fullAddress || 'Address on file'}</span>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--color-brand)' }} />
+                    <span style={{ lineHeight: 1.4 }}>{fullAddress || 'Address on file'}</span>
                   </div>
 
                   {/* AC Asset Preview */}
                   {job.ac_assets && (
-                    <div className="flex items-center gap-1.5 text-xs text-brand-primary font-medium pt-1">
-                      <Airplay className="w-3.5 h-3.5 text-brand-secondary" />
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                        marginTop: '4px',
+                      }}
+                    >
+                      <Airplay size={14} style={{ color: 'var(--text-muted)' }} />
                       <span>
                         {job.ac_assets.brand} {job.ac_assets.model_number || ''}
                         {job.ac_assets.room_location ? ` (${job.ac_assets.room_location})` : ''}
                       </span>
                       {job.ac_assets.tonnage ? (
-                        <span className="text-[10px] text-brand-secondary">· {job.ac_assets.tonnage}T</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>· {job.ac_assets.tonnage}T</span>
                       ) : null}
                     </div>
                   )}
 
                   {/* Planned Service Type / Notes */}
                   {job.planned_service_type && (
-                    <div className="text-[11px] text-brand-secondary italic pt-0.5">
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
                       Planned: {job.planned_service_type}
                     </div>
                   )}
                 </div>
 
                 {/* Quick Action Bar: Call, Maps & Report Button */}
-                <div className="pt-2 border-t border-brand-border flex items-center gap-2">
+                <div
+                  style={{
+                    paddingTop: 'var(--space-3)',
+                    borderTop: '1px solid var(--border-default)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
                   {/* Phone Call Button */}
                   {customerPhone && (
                     <a
                       href={`tel:${customerPhone}`}
-                      className="p-2.5 rounded-xl bg-surface-sunken hover:bg-surface-subtle border border-brand-border text-brand-primary flex items-center justify-center transition-colors"
                       title="Call Customer"
+                      style={{
+                        padding: '10px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--bg-surface-subtle)',
+                        border: '1px solid var(--border-default)',
+                        color: '#16a34a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textDecoration: 'none',
+                      }}
                     >
-                      <Phone className="w-4 h-4 text-emerald-500" />
+                      <Phone size={16} />
                     </a>
                   )}
 
@@ -243,25 +427,65 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-xl bg-surface-sunken hover:bg-surface-subtle border border-brand-border text-brand-primary flex items-center justify-center transition-colors"
                     title="Open in Google Maps"
+                    style={{
+                      padding: '10px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      border: '1px solid var(--border-default)',
+                      color: '#2563eb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none',
+                    }}
                   >
-                    <Navigation className="w-4 h-4 text-blue-500" />
+                    <Navigation size={16} />
                   </a>
 
                   {/* Main Action: Fill Report or Completed Badge */}
                   {isCompleted ? (
-                    <div className="flex-1 py-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
+                    <div
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--color-success-bg, rgba(34, 197, 94, 0.1))',
+                        border: '1px solid var(--color-success-border, rgba(34, 197, 94, 0.2))',
+                        color: 'var(--color-success-text, #16a34a)',
+                        fontWeight: 700,
+                        fontSize: 'var(--text-xs)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
                       <span>Service Completed</span>
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => onStartReport(job.id)}
-                      className="flex-1 py-2.5 px-4 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-surface-canvas font-bold text-xs shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--color-brand)',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        fontSize: 'var(--text-xs)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: 'var(--shadow-xs)',
+                      }}
                     >
-                      <FileText className="w-4 h-4" />
+                      <FileText size={16} />
                       <span>Start &amp; Fill Report</span>
                     </button>
                   )}

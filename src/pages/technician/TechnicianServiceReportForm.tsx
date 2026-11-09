@@ -98,9 +98,9 @@ export function TechnicianServiceReportForm({
 
     ctx.beginPath();
     ctx.moveTo(x, y);
+    ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#0284c7';
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
@@ -134,16 +134,16 @@ export function TechnicianServiceReportForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scheduleId || !job) return;
+    if (!job) return;
 
     if (!reportNumber.trim()) {
-      setError('Physical carbon booklet report number is required.');
+      setError('Physical booklet report number is mandatory.');
       setStep(1);
       return;
     }
 
     if (!customerRep.trim()) {
-      setError('Customer representative name is required for sign-off.');
+      setError('Customer representative acknowledgement name is required.');
       setStep(4);
       return;
     }
@@ -152,7 +152,6 @@ export function TechnicianServiceReportForm({
       setIsSubmitting(true);
       setError(null);
 
-      // Get signature data URL if signed
       let signatureDataUrl: string | null = null;
       if (canvasRef.current && isDigitallySigned) {
         signatureDataUrl = canvasRef.current.toDataURL('image/png');
@@ -210,93 +209,138 @@ export function TechnicianServiceReportForm({
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center space-y-3">
-        <div className="w-8 h-8 mx-auto border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-brand-secondary">Loading appointment details...</p>
+      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+        Loading appointment details...
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {/* Top Bar with Back Button */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-xs text-brand-secondary hover:text-brand-primary transition-colors font-medium cursor-pointer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-secondary)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            fontWeight: 600,
+          }}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft size={16} />
           <span>Back to Jobs</span>
         </button>
-        <div className="font-mono text-xs font-bold text-brand-primary">
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
           {job?.schedule_number}
         </div>
       </div>
 
       {/* Error Alert Banner */}
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <div
+          style={{
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+            fontSize: 'var(--text-xs)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+          }}
+        >
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
           <span>{error}</span>
         </div>
       )}
 
       {/* Step Indicator Wizard Bar */}
-      <div className="grid grid-cols-4 gap-1.5 bg-surface-raised p-1.5 rounded-xl border border-brand-border text-center text-[10px] font-bold">
-        <button
-          type="button"
-          onClick={() => setStep(1)}
-          className={`py-1.5 rounded-lg transition-all ${
-            step === 1 ? 'bg-brand-primary text-surface-canvas shadow-xs' : 'text-brand-secondary'
-          }`}
-        >
-          1. Serial
-        </button>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className={`py-1.5 rounded-lg transition-all ${
-            step === 2 ? 'bg-brand-primary text-surface-canvas shadow-xs' : 'text-brand-secondary'
-          }`}
-        >
-          2. Check
-        </button>
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          className={`py-1.5 rounded-lg transition-all ${
-            step === 3 ? 'bg-brand-primary text-surface-canvas shadow-xs' : 'text-brand-secondary'
-          }`}
-        >
-          3. Outcome
-        </button>
-        <button
-          type="button"
-          onClick={() => setStep(4)}
-          className={`py-1.5 rounded-lg transition-all ${
-            step === 4 ? 'bg-brand-primary text-surface-canvas shadow-xs' : 'text-brand-secondary'
-          }`}
-        >
-          4. Sign
-        </button>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '6px',
+          backgroundColor: 'var(--bg-surface)',
+          padding: '6px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-default)',
+          textAlign: 'center',
+        }}
+      >
+        {[
+          { num: 1, label: '1. Serial' },
+          { num: 2, label: '2. Check' },
+          { num: 3, label: '3. Outcome' },
+          { num: 4, label: '4. Sign' },
+        ].map((s) => (
+          <button
+            key={s.num}
+            type="button"
+            onClick={() => setStep(s.num as any)}
+            style={{
+              padding: '6px 4px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              fontWeight: 700,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: step === s.num ? 'var(--color-brand)' : 'transparent',
+              color: step === s.num ? '#ffffff' : 'var(--text-muted)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
       {/* Main Form Container */}
-      <form onSubmit={handleSubmit} className="bg-surface-raised border border-brand-border rounded-2xl p-4 shadow-xs space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          boxShadow: 'var(--shadow-xs)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+        }}
+      >
         {/* STEP 1: Context & Serial */}
         {step === 1 && (
-          <div className="space-y-4">
-            <div className="p-3 bg-surface-sunken rounded-xl border border-brand-border space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-secondary">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
                 Customer &amp; Site
               </span>
-              <p className="text-xs font-bold text-brand-primary">{job?.customers?.name}</p>
-              <p className="text-[11px] text-brand-secondary">{job?.sites?.site_name} · {job?.sites?.address}</p>
+              <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
+                {job?.customers?.name}
+              </p>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                {job?.sites?.site_name} · {job?.sites?.address}
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Carbon Booklet Report Number *
               </label>
               <input
@@ -305,13 +349,27 @@ export function TechnicianServiceReportForm({
                 onChange={(e) => setReportNumber(e.target.value)}
                 placeholder="e.g. REP-2026-0042"
                 required
-                className="w-full px-3 py-2 bg-surface-sunken border border-brand-border rounded-xl text-xs font-mono font-bold text-brand-primary focus:outline-hidden focus:ring-2 focus:ring-brand-primary uppercase"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                  textTransform: 'uppercase',
+                }}
               />
-              <p className="text-[10px] text-brand-secondary">Serial number from physical paper slip</p>
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
+                Serial number from physical paper slip
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Assistant / Helper Name (Optional)
               </label>
               <input
@@ -319,36 +377,69 @@ export function TechnicianServiceReportForm({
                 value={assistantName}
                 onChange={(e) => setAssistantName(e.target.value)}
                 placeholder="e.g. Ramesh Kumar"
-                className="w-full px-3 py-2 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary focus:outline-hidden focus:ring-2 focus:ring-brand-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <label className="block text-[11px] font-semibold text-brand-secondary">Service Date</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>Service Date</label>
                 <input
                   type="date"
                   value={reportedDate}
                   onChange={(e) => setReportedDate(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary font-medium"
+                  style={{
+                    padding: '8px 10px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-[11px] font-semibold text-brand-secondary">Start Time</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>Start Time</label>
                 <input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary font-medium"
+                  style={{
+                    padding: '8px 10px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-[11px] font-semibold text-brand-secondary">End Time</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>End Time</label>
                 <input
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full px-2 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary font-medium"
+                  style={{
+                    padding: '8px 10px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
             </div>
@@ -363,7 +454,18 @@ export function TechnicianServiceReportForm({
                 setError(null);
                 setStep(2);
               }}
-              className="w-full py-2.5 rounded-xl bg-brand-primary text-surface-canvas font-bold text-xs"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-brand)',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: 'var(--text-xs)',
+                border: 'none',
+                cursor: 'pointer',
+                marginTop: 'var(--space-2)',
+              }}
             >
               Continue to Inspection &rarr;
             </button>
@@ -372,56 +474,59 @@ export function TechnicianServiceReportForm({
 
         {/* STEP 2: AC Inspection Diagnostics */}
         {step === 2 && (
-          <div className="space-y-4">
-            <div className="p-3 bg-surface-sunken rounded-xl border border-brand-border space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-brand-secondary">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+              }}
+            >
+              <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
                 Inspected AC Equipment
               </span>
-              <p className="text-xs font-bold text-brand-primary">
+              <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
                 {job?.ac_assets?.brand} {job?.ac_assets?.model_number} ({job?.ac_assets?.room_location || 'Main Unit'})
               </p>
-              <p className="text-[11px] text-brand-secondary font-mono">
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '2px 0 0 0' }}>
                 Tag: {job?.ac_assets?.asset_tag || 'ESSC-UNIT'} · {job?.ac_assets?.tonnage || '1.5'} Ton
               </p>
             </div>
 
             {/* Checklist */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-brand-primary">Service Checklist</label>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-sunken border border-brand-border cursor-pointer">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Service Checklist</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: 'var(--text-xs)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={filterCleaned}
                     onChange={(e) => setFilterCleaned(e.target.checked)}
-                    className="w-4 h-4 text-brand-primary rounded"
                   />
                   <span>Filter Cleaned</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-sunken border border-brand-border cursor-pointer">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={coilJetWashed}
                     onChange={(e) => setCoilJetWashed(e.target.checked)}
-                    className="w-4 h-4 text-brand-primary rounded"
                   />
                   <span>Coil Jet Washed</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-sunken border border-brand-border cursor-pointer">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={drainCleared}
                     onChange={(e) => setDrainCleared(e.target.checked)}
-                    className="w-4 h-4 text-brand-primary rounded"
                   />
                   <span>Drain Cleared</span>
                 </label>
-                <label className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-sunken border border-brand-border cursor-pointer">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
                     checked={electricalTightened}
                     onChange={(e) => setElectricalTightened(e.target.checked)}
-                    className="w-4 h-4 text-brand-primary rounded"
                   />
                   <span>Wiring Checked</span>
                 </label>
@@ -429,105 +534,190 @@ export function TechnicianServiceReportForm({
             </div>
 
             {/* Diagnostic Readings */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">Operating Readings</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div>
-                  <span className="text-[10px] text-brand-secondary font-semibold">Suction (PSI)</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Operating Readings</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Suction (PSI)</span>
                   <input
                     type="number"
                     value={suctionPsi}
                     onChange={(e) => setSuctionPsi(e.target.value)}
                     placeholder="e.g. 125"
-                    className="w-full px-2.5 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs font-mono font-bold text-brand-primary"
+                    style={{
+                      padding: '8px 10px',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
                   />
                 </div>
-                <div>
-                  <span className="text-[10px] text-brand-secondary font-semibold">Discharge (PSI)</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Discharge (PSI)</span>
                   <input
                     type="number"
                     value={dischargePsi}
                     onChange={(e) => setDischargePsi(e.target.value)}
                     placeholder="e.g. 320"
-                    className="w-full px-2.5 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs font-mono font-bold text-brand-primary"
+                    style={{
+                      padding: '8px 10px',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
                   />
                 </div>
-                <div>
-                  <span className="text-[10px] text-brand-secondary font-semibold">Run Amps (A)</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Run Amps (A)</span>
                   <input
                     type="number"
                     step="0.1"
                     value={runAmps}
                     onChange={(e) => setRunAmps(e.target.value)}
                     placeholder="e.g. 6.5"
-                    className="w-full px-2.5 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs font-mono font-bold text-brand-primary"
+                    style={{
+                      padding: '8px 10px',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
                   />
                 </div>
-                <div>
-                  <span className="text-[10px] text-brand-secondary font-semibold">Voltage (V)</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Voltage (V)</span>
                   <input
                     type="number"
                     value={voltage}
                     onChange={(e) => setVoltage(e.target.value)}
                     placeholder="e.g. 230"
-                    className="w-full px-2.5 py-1.5 bg-surface-sunken border border-brand-border rounded-xl text-xs font-mono font-bold text-brand-primary"
+                    style={{
+                      padding: '8px 10px',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-xs)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      boxSizing: 'border-box',
+                    }}
                   />
                 </div>
               </div>
             </div>
 
             {/* Gas Top-up Toggle */}
-            <div className="p-3 rounded-xl bg-surface-sunken border border-brand-border space-y-2">
-              <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-xs font-bold text-brand-primary">Refrigerant (Gas) Charged?</span>
+            <div
+              style={{
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                border: '1px solid var(--border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Refrigerant (Gas) Charged?
+                </span>
                 <input
                   type="checkbox"
                   checked={gasAdded}
                   onChange={(e) => setGasAdded(e.target.checked)}
-                  className="w-4 h-4 text-brand-primary rounded"
                 />
               </label>
 
               {gasAdded && (
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-brand-border">
-                  <div>
-                    <span className="text-[10px] text-brand-secondary">Gas Type</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', paddingTop: '4px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Gas Type</span>
                     <select
                       value={gasType}
                       onChange={(e) => setGasType(e.target.value)}
-                      className="w-full px-2 py-1 bg-surface-raised border border-brand-border rounded-lg text-xs"
+                      style={{
+                        padding: '6px 8px',
+                        backgroundColor: 'var(--bg-surface)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-primary)',
+                      }}
                     >
                       <option value="R32">R32</option>
                       <option value="R410A">R410A</option>
                       <option value="R22">R22</option>
                     </select>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-brand-secondary">Quantity (kg)</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Qty Added (kg)</span>
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.05"
                       value={gasQty}
                       onChange={(e) => setGasQty(e.target.value)}
-                      className="w-full px-2 py-1 bg-surface-raised border border-brand-border rounded-lg text-xs font-mono"
+                      style={{
+                        padding: '6px 8px',
+                        backgroundColor: 'var(--bg-surface)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-primary)',
+                      }}
                     />
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-1/3 py-2.5 rounded-xl border border-brand-border text-xs font-bold"
+                style={{
+                  width: '33%',
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  color: 'var(--text-primary)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
               >
                 &larr; Back
               </button>
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="w-2/3 py-2.5 rounded-xl bg-brand-primary text-surface-canvas font-bold text-xs"
+                style={{
+                  width: '67%',
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-brand)',
+                  color: '#ffffff',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
               >
                 Next: Outcome &rarr;
               </button>
@@ -537,88 +727,153 @@ export function TechnicianServiceReportForm({
 
         {/* STEP 3: Outcome & Observations */}
         {step === 3 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-brand-primary">Visit Outcome *</label>
-              <div className="grid grid-cols-3 gap-1.5 text-[11px] font-bold text-center">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Visit Outcome *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center' }}>
                 <button
                   type="button"
                   onClick={() => setPrimaryOutcome('COMPLETED')}
-                  className={`p-2.5 rounded-xl border transition-all ${
-                    primaryOutcome === 'COMPLETED'
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold'
-                      : 'bg-surface-sunken border-brand-border text-brand-secondary'
-                  }`}
+                  style={{
+                    padding: '10px 6px',
+                    borderRadius: 'var(--radius-md)',
+                    border: primaryOutcome === 'COMPLETED' ? '1px solid #16a34a' : '1px solid var(--border-default)',
+                    backgroundColor: primaryOutcome === 'COMPLETED' ? 'rgba(34, 197, 94, 0.12)' : 'var(--bg-surface-subtle)',
+                    color: primaryOutcome === 'COMPLETED' ? '#16a34a' : 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
                 >
                   Completed
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrimaryOutcome('PENDING_PARTS')}
-                  className={`p-2.5 rounded-xl border transition-all ${
-                    primaryOutcome === 'PENDING_PARTS'
-                      ? 'bg-amber-500/10 border-amber-500 text-amber-600 dark:text-amber-400 font-extrabold'
-                      : 'bg-surface-sunken border-brand-border text-brand-secondary'
-                  }`}
+                  style={{
+                    padding: '10px 6px',
+                    borderRadius: 'var(--radius-md)',
+                    border: primaryOutcome === 'PENDING_PARTS' ? '1px solid #d97706' : '1px solid var(--border-default)',
+                    backgroundColor: primaryOutcome === 'PENDING_PARTS' ? 'rgba(245, 158, 11, 0.12)' : 'var(--bg-surface-subtle)',
+                    color: primaryOutcome === 'PENDING_PARTS' ? '#d97706' : 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
                 >
                   Pending Parts
                 </button>
                 <button
                   type="button"
                   onClick={() => setPrimaryOutcome('PENDING_REPAIRS')}
-                  className={`p-2.5 rounded-xl border transition-all ${
-                    primaryOutcome === 'PENDING_REPAIRS'
-                      ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400 font-extrabold'
-                      : 'bg-surface-sunken border-brand-border text-brand-secondary'
-                  }`}
+                  style={{
+                    padding: '10px 6px',
+                    borderRadius: 'var(--radius-md)',
+                    border: primaryOutcome === 'PENDING_REPAIRS' ? '1px solid #dc2626' : '1px solid var(--border-default)',
+                    backgroundColor: primaryOutcome === 'PENDING_REPAIRS' ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-surface-subtle)',
+                    color: primaryOutcome === 'PENDING_REPAIRS' ? '#dc2626' : 'var(--text-secondary)',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
                 >
                   Needs Revisit
                 </button>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">Inspection Findings &amp; Diagnosis</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Inspection Findings &amp; Diagnosis</label>
               <textarea
                 value={diagnosisFindings}
                 onChange={(e) => setDiagnosisFindings(e.target.value)}
                 rows={2}
-                className="w-full p-2.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                }}
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">Work Performed Description</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Work Performed Description</label>
               <textarea
                 value={workPerformed}
                 onChange={(e) => setWorkPerformed(e.target.value)}
                 rows={2}
-                className="w-full p-2.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                }}
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">Technician Observations</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Technician Observations</label>
               <textarea
                 value={technicianRemarks}
                 onChange={(e) => setTechnicianRemarks(e.target.value)}
                 rows={2}
-                className="w-full p-2.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary focus:outline-hidden focus:ring-1 focus:ring-brand-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                }}
               />
             </div>
 
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="w-1/3 py-2.5 rounded-xl border border-brand-border text-xs font-bold"
+                style={{
+                  width: '33%',
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  color: 'var(--text-primary)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
               >
                 &larr; Back
               </button>
               <button
                 type="button"
                 onClick={() => setStep(4)}
-                className="w-2/3 py-2.5 rounded-xl bg-brand-primary text-surface-canvas font-bold text-xs"
+                style={{
+                  width: '67%',
+                  padding: '10px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--color-brand)',
+                  color: '#ffffff',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
               >
                 Next: Customer Sign &rarr;
               </button>
@@ -628,34 +883,63 @@ export function TechnicianServiceReportForm({
 
         {/* STEP 4: Customer Sign-off */}
         {step === 4 && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-brand-primary">Customer Representative Name *</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Customer Representative Name *</label>
               <input
                 type="text"
                 value={customerRep}
                 onChange={(e) => setCustomerRep(e.target.value)}
                 placeholder="Name of person acknowledging visit"
                 required
-                className="w-full px-3 py-2 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary focus:outline-hidden focus:ring-2 focus:ring-brand-primary font-bold"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
 
             {/* Signature Box */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-brand-primary">Customer Digital Signature</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Customer Digital Signature</label>
                 <button
                   type="button"
                   onClick={clearSignature}
-                  className="flex items-center gap-1 text-[10px] text-brand-secondary hover:text-red-500"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <RotateCcw size={12} />
                   <span>Clear</span>
                 </button>
               </div>
 
-              <div className="border border-brand-border rounded-xl bg-white overflow-hidden touch-none relative shadow-inner">
+              <div
+                style={{
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: '#ffffff',
+                  overflow: 'hidden',
+                  touchAction: 'none',
+                  position: 'relative',
+                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.06)',
+                }}
+              >
                 <canvas
                   ref={canvasRef}
                   width={340}
@@ -666,10 +950,22 @@ export function TechnicianServiceReportForm({
                   onTouchStart={startDrawing}
                   onTouchMove={draw}
                   onTouchEnd={stopDrawing}
-                  className="w-full h-[140px] cursor-crosshair"
+                  style={{ width: '100%', height: '140px', cursor: 'crosshair', display: 'block' }}
                 />
                 {!isDigitallySigned && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs italic">
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none',
+                      color: '#94a3b8',
+                      fontSize: 'var(--text-xs)',
+                      fontStyle: 'italic',
+                    }}
+                  >
                     Customer sign with finger here
                   </div>
                 )}
@@ -677,17 +973,33 @@ export function TechnicianServiceReportForm({
             </div>
 
             {/* Final Submit Button */}
-            <div className="space-y-2 pt-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px' }}>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: '#16a34a',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: 'var(--text-sm)',
+                  border: 'none',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: 'var(--shadow-sm)',
+                  opacity: isSubmitting ? 0.6 : 1,
+                }}
               >
                 {isSubmitting ? (
                   <span>Submitting &amp; Syncing Report...</span>
                 ) : (
                   <>
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 size={16} />
                     <span>Submit &amp; Sync Report</span>
                   </>
                 )}
@@ -696,7 +1008,16 @@ export function TechnicianServiceReportForm({
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                className="w-full py-2 rounded-xl text-xs text-brand-secondary hover:text-brand-primary transition-colors font-semibold"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
               >
                 &larr; Back to Outcome
               </button>

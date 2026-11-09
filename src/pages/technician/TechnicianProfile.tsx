@@ -26,71 +26,174 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-xs text-brand-secondary">
+      <div style={{ padding: '32px', textAlign: 'center', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
         Loading technician profile...
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       {onBackToJobs && (
         <button
           type="button"
           onClick={onBackToJobs}
-          className="flex items-center gap-1.5 text-xs text-brand-secondary hover:text-brand-primary transition-colors font-medium cursor-pointer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-secondary)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            fontWeight: 600,
+          }}
         >
-          <ArrowLeft className="w-4 h-4" />
+          <ArrowLeft size={16} />
           <span>Back to Jobs</span>
         </button>
       )}
 
       {/* Profile Card */}
-      <div className="bg-surface-raised border border-brand-border rounded-2xl p-5 shadow-xs text-center space-y-3">
-        <div className="w-16 h-16 mx-auto rounded-full bg-linear-to-tr from-brand-primary to-orange-600 text-white font-extrabold text-2xl flex items-center justify-center shadow-md">
+      <div
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-6)',
+          boxShadow: 'var(--shadow-xs)',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+        }}
+      >
+        <div
+          style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--color-brand)',
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: 'var(--text-2xl)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
           {profile?.name ? profile.name.charAt(0).toUpperCase() : 'T'}
         </div>
         <div>
-          <h2 className="text-base font-extrabold text-brand-primary">{profile?.name}</h2>
-          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-brand-primary/10 text-brand-primary">
+          <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+            {profile?.name}
+          </h2>
+          <span
+            style={{
+              display: 'inline-block',
+              marginTop: '4px',
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              backgroundColor: 'rgba(168, 72, 28, 0.1)',
+              color: 'var(--color-brand)',
+            }}
+          >
             {profile?.technician_code || profile?.technicianCode}
           </span>
-          <p className="text-xs text-brand-secondary mt-1">Extreme Sales &amp; Services Field Staff</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+            Extreme Sales &amp; Services Field Staff
+          </p>
         </div>
       </div>
 
       {/* Details List */}
-      <div className="bg-surface-raised border border-brand-border rounded-2xl p-4 shadow-xs space-y-3 text-xs">
-        <h3 className="font-bold text-brand-primary uppercase text-[10px] tracking-wider text-brand-secondary">
+      <div
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          boxShadow: 'var(--shadow-xs)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+          fontSize: 'var(--text-xs)',
+        }}
+      >
+        <h3
+          style={{
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            fontSize: '10px',
+            letterSpacing: '0.05em',
+            color: 'var(--text-muted)',
+            margin: 0,
+          }}
+        >
           Contact &amp; Identity
         </h3>
 
-        <div className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-sunken border border-brand-border">
-          <Phone className="w-4 h-4 text-emerald-500" />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--bg-surface-subtle)',
+            border: '1px solid var(--border-default)',
+          }}
+        >
+          <Phone size={16} style={{ color: '#16a34a' }} />
           <div>
-            <span className="text-[10px] text-brand-secondary block">Registered Mobile</span>
-            <span className="font-bold text-brand-primary">{profile?.phone || 'Not available'}</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Registered Mobile</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{profile?.phone || 'Not available'}</span>
           </div>
         </div>
 
         {profile?.email && (
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-surface-sunken border border-brand-border">
-            <Mail className="w-4 h-4 text-blue-500" />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+            }}
+          >
+            <Mail size={16} style={{ color: '#2563eb' }} />
             <div>
-              <span className="text-[10px] text-brand-secondary block">Email</span>
-              <span className="font-bold text-brand-primary">{profile.email}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block' }}>Email</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{profile.email}</span>
             </div>
           </div>
         )}
 
         {profile?.specializations?.length > 0 && (
-          <div className="space-y-1 pt-1">
-            <span className="text-[10px] text-brand-secondary block font-semibold">Specializations</span>
-            <div className="flex flex-wrap gap-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Specializations</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {profile.specializations.map((spec: string, i: number) => (
                 <span
                   key={i}
-                  className="px-2 py-0.5 rounded text-[11px] bg-surface-sunken border border-brand-border text-brand-primary"
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 500,
+                  }}
                 >
                   {spec}
                 </span>
@@ -104,9 +207,23 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
       <button
         type="button"
         onClick={handleLogout}
-        className="w-full py-3 px-4 rounded-xl border border-red-500/30 text-red-600 dark:text-red-400 font-bold text-xs hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--color-error-border)',
+          backgroundColor: 'var(--color-error-bg)',
+          color: 'var(--color-error-text)',
+          fontWeight: 700,
+          fontSize: 'var(--text-xs)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+        }}
       >
-        <LogOut className="w-4 h-4" />
+        <LogOut size={16} />
         <span>Sign Out of Field Portal</span>
       </button>
     </div>

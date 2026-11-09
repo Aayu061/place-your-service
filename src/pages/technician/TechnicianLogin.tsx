@@ -42,51 +42,143 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
   };
 
   return (
-    <div className="min-h-screen bg-surface-canvas flex flex-col justify-center items-center p-4 antialiased selection:bg-brand-primary selection:text-white">
-      <div className="w-full max-w-sm space-y-6">
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'var(--space-4)',
+        backgroundColor: 'var(--bg-canvas)',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '400px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+        }}
+      >
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center gap-2 p-2 rounded-2xl bg-surface-raised border border-brand-border shadow-xs">
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-3)',
+              padding: '8px 18px',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              boxShadow: 'var(--shadow-xs)',
+              marginBottom: 'var(--space-3)',
+            }}
+          >
             <img
               src={COMPANY_BANK_DETAILS.extremeLogoUrl}
               alt="Extreme Sales & Services"
-              className="h-10 w-10 object-contain"
+              style={{ width: '40px', height: '40px', objectFit: 'contain' }}
             />
-            <div className="h-6 w-px bg-brand-border" />
+            <div
+              style={{
+                width: '1px',
+                height: '26px',
+                backgroundColor: 'var(--border-default)',
+              }}
+            />
             <img
               src={COMPANY_BANK_DETAILS.pysLogoUrl}
               alt="Place Your Service"
-              className="h-10 w-10 object-contain"
+              style={{ width: '40px', height: '40px', objectFit: 'contain' }}
             />
           </div>
 
-          <h1 className="text-xl font-extrabold tracking-tight text-brand-primary">
+          <h1
+            style={{
+              fontSize: 'var(--text-xl)',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              margin: '0 0 var(--space-1) 0',
+              letterSpacing: '-0.02em',
+            }}
+          >
             Technician Field Portal
           </h1>
-          <p className="text-xs text-brand-secondary">
+          <p
+            style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)',
+              margin: 0,
+            }}
+          >
             On-Site Dispatch &amp; Service Reporting Desk
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-surface-raised border border-brand-border rounded-2xl p-6 shadow-sm space-y-5">
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-6)',
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-4)',
+          }}
+        >
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div
+              style={{
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-error-bg)',
+                border: '1px solid var(--color-error-border)',
+                color: 'var(--color-error-text)',
+                fontSize: 'var(--text-xs)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+          >
             {/* Tech Code or Phone */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-brand-primary">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
                 Technician Code or Mobile
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-brand-secondary">
-                  <Smartphone className="w-4 h-4" />
-                </div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '12px',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <Smartphone size={16} />
+                </span>
                 <input
                   type="text"
                   value={identifier}
@@ -94,23 +186,52 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
                   placeholder="e.g. TECH-0001 or 9876543210"
                   autoCapitalize="characters"
                   required
-                  className="w-full pl-9 pr-3 py-2.5 bg-surface-sunken border border-brand-border rounded-xl text-xs text-brand-primary placeholder:text-brand-secondary/60 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary font-medium transition-all"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px 10px 36px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                  }}
                 />
               </div>
             </div>
 
             {/* 4-digit PIN */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-brand-primary">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                  }}
+                >
                   Security PIN (4-Digits)
                 </label>
-                <span className="text-[10px] text-brand-secondary">Default: 1234</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Default: 1234
+                </span>
               </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-brand-secondary">
-                  <KeyRound className="w-4 h-4" />
-                </div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '12px',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <KeyRound size={16} />
+                </span>
                 <input
                   type="password"
                   value={pin}
@@ -119,7 +240,19 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
                   inputMode="numeric"
                   maxLength={6}
                   required
-                  className="w-full pl-9 pr-3 py-2.5 bg-surface-sunken border border-brand-border rounded-xl text-sm font-mono tracking-widest text-brand-primary placeholder:text-brand-secondary/60 focus:outline-hidden focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition-all text-center sm:text-left"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px 10px 36px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--text-sm)',
+                    fontFamily: 'var(--font-mono)',
+                    letterSpacing: '0.15em',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
             </div>
@@ -128,13 +261,30 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 px-4 bg-brand-primary hover:bg-brand-primary/90 text-surface-canvas font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-brand)',
+                color: '#ffffff',
+                fontSize: 'var(--text-xs)',
+                fontWeight: 700,
+                border: 'none',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: 'var(--shadow-sm)',
+                opacity: isSubmitting ? 0.6 : 1,
+                marginTop: 'var(--space-1)',
+              }}
             >
               {isSubmitting ? (
                 <span>Signing in...</span>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" />
+                  <LogIn size={16} />
                   <span>Sign In to Field Desk</span>
                 </>
               )}
@@ -142,23 +292,50 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
           </form>
 
           {/* Security Notice */}
-          <div className="pt-2 border-t border-brand-border text-center space-y-1">
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5" />
+          <div
+            style={{
+              paddingTop: 'var(--space-3)',
+              borderTop: '1px solid var(--border-subtle)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                fontSize: '11px',
+                color: 'var(--color-success-solid, #2F7654)',
+                fontWeight: 600,
+              }}
+            >
+              <ShieldCheck size={14} />
               <span>Isolated Field Technician Session</span>
             </div>
-            <p className="text-[10px] text-brand-secondary">
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
               Authorized for Extreme Sales &amp; Services field staff only.
             </p>
           </div>
         </div>
 
         {/* Back-office switch link */}
-        <div className="text-center">
+        <div style={{ textAlign: 'center' }}>
           <button
             type="button"
             onClick={onSwitchToAdmin}
-            className="text-xs text-brand-secondary hover:text-brand-primary underline transition-colors cursor-pointer"
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              padding: '6px 12px',
+            }}
           >
             Switch to Admin &amp; Back-Office Portal &rarr;
           </button>
