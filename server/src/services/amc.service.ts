@@ -77,6 +77,12 @@ export function computePlannedServiceTypes(
   const jet = jetVisits ?? 0;
   const pumpdown = pumpdownVisits ?? 0;
 
+  if (dry + jet + pumpdown !== totalVisits) {
+    throw new BadRequestError(
+      `Service allocation sum (${dry + jet + pumpdown}) must exactly match total included visits (${totalVisits})`
+    );
+  }
+
   const remainingCounts: Record<PlannedServiceType, number> = {
     DRY_SERVICE: dry,
     JET_SERVICE: jet,
@@ -96,8 +102,7 @@ export function computePlannedServiceTypes(
       }
     }
     if (!addedInRound) {
-      // Fallback in case sum was less than totalVisits
-      result.push('DRY_SERVICE');
+      break;
     }
   }
 

@@ -1020,16 +1020,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     </td>
 
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-normal)' }}>
-                        {c.completedVisitsCount || 0} / {c.totalVisits} Completed
-                        {c.coveredAssetsCount && c.coveredAssetsCount > 1 ? (
-                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>
-                            ({c.coveredAssetsCount} units)
-                          </span>
-                        ) : null}
+                      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-normal)', fontWeight: 500 }}>
+                        {c.completedVisitsCount || 0} / {c.totalVisits} Cycles Completed
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {c.coveredAssetsCount || 1} units &bull; {c.totalVisits * (c.coveredAssetsCount || 1)} obligations
                       </div>
                       {c.nextPmDate && (
-                        <div style={{ fontSize: '11px', color: 'var(--color-primary-500)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-primary-500)', marginTop: '2px' }}>
                           Next: {formatDate(c.nextPmDate)}
                         </div>
                       )}
@@ -1210,12 +1208,15 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   </div>
                   <div>
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Included Visits</div>
-                    <div style={{ fontWeight: 500 }}>{detailContract.totalVisits} Visits</div>
+                    <div style={{ fontWeight: 500 }}>{detailContract.totalVisits} Visits ({detailContract.totalVisits} Cycles / Unit)</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {detailContract.totalVisits * (detailContract.coveredAssets?.length || 1)} total obligations across {detailContract.coveredAssets?.length || 1} units
+                    </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Visit Progress</div>
                     <div style={{ fontWeight: 600, color: 'var(--color-primary-600)' }}>
-                      {detailContract.completedVisitsCount || 0} / {detailContract.totalVisits} Completed
+                      {detailContract.completedVisitsCount || 0} / {detailContract.totalVisits} Cycles Completed
                     </div>
                   </div>
                 </div>
@@ -1692,6 +1693,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     onChange={(e) => setFormTotalVisits(Number(e.target.value))}
                     required
                   />
+                  {cadenceSlotCount > 0 && cadenceSlotCount !== Number(formTotalVisits) && (
+                    <span style={{ fontSize: '10px', color: 'var(--color-warning-600, #d97706)', marginTop: '2px', display: 'block' }}>
+                      Notice: Term cadence anticipates {cadenceSlotCount} {formFrequency.toLowerCase()} slots
+                    </span>
+                  )}
                 </div>
 
                 {/* Commercial Amount */}
@@ -2110,7 +2116,18 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             </div>
             <div>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Visits</label>
-              <Input type="number" min="1" value={formTotalVisits} onChange={(e) => setFormTotalVisits(Number(e.target.value))} required />
+              <Input
+                type="number"
+                min="1"
+                value={formTotalVisits}
+                onChange={(e) => setFormTotalVisits(Number(e.target.value))}
+                required
+              />
+              {cadenceSlotCount > 0 && cadenceSlotCount !== Number(formTotalVisits) && (
+                <span style={{ fontSize: '10px', color: 'var(--color-warning-600, #d97706)', marginTop: '2px', display: 'block' }}>
+                  Notice: Term cadence anticipates {cadenceSlotCount} {formFrequency.toLowerCase()} slots
+                </span>
+              )}
             </div>
             <div className="col-span-2">
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Amount (INR)</label>
@@ -2263,7 +2280,18 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             </div>
             <div>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Visits</label>
-              <Input type="number" min="1" value={formTotalVisits} onChange={(e) => setFormTotalVisits(Number(e.target.value))} required />
+              <Input
+                type="number"
+                min="1"
+                value={formTotalVisits}
+                onChange={(e) => setFormTotalVisits(Number(e.target.value))}
+                required
+              />
+              {cadenceSlotCount > 0 && cadenceSlotCount !== Number(formTotalVisits) && (
+                <span style={{ fontSize: '10px', color: 'var(--color-warning-600, #d97706)', marginTop: '2px', display: 'block' }}>
+                  Notice: Term cadence anticipates {cadenceSlotCount} {formFrequency.toLowerCase()} slots
+                </span>
+              )}
             </div>
             <div className="col-span-2">
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Commercial Amount (INR)</label>
