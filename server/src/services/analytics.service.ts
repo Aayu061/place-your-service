@@ -34,6 +34,27 @@ export interface DashboardSummaryResponse {
     urgentRequestsCount: number;
     activeTechniciansCount: number;
     completedTodayCount: number;
+    totalRevenueCollected: number;
+    totalOutstandingBalance: number;
+    collectionRatePercent: number;
+    draftQuotationsCount: number;
+    draftQuotationsValue: number;
+  };
+  financials: {
+    totalInvoiced: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    collectionRatePercent: number;
+    cashCollected: number;
+    onlineCollected: number;
+    pendingPaymentsCount: number;
+    paidPaymentsCount: number;
+  };
+  amcPipeline: {
+    draftCount: number;
+    draftValue: number;
+    activeCount: number;
+    expiringSoonCount: number;
   };
   capacityPercent: number;
   /** Share of open schedules that are due today or later, relative to all open schedules. */
@@ -81,7 +102,21 @@ export class AnalyticsService {
     const openStatuses = ['REQUESTED', 'PENDING', 'SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_PARTS', 'REVISIT_REQUIRED', 'ON_HOLD'];
     const dispatchStatuses = ['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'];
 
-    const [coverageMetrics, requestsResult, schedulesResult, technicianResult, dueRequestCount, urgentRequestCount, openScheduleCount, overdueScheduleCount, assignedScheduleCount, completedTodayResult] = await Promise.all([
+    const [
+      coverageMetrics,
+      requestsResult,
+      schedulesResult,
+      technicianResult,
+      dueRequestCount,
+      urgentRequestCount,
+      openScheduleCount,
+      overdueScheduleCount,
+      assignedScheduleCount,
+      completedTodayResult,
+      paymentsResult,
+      transactionsResult,
+      amcContractsResult,
+    ] = await Promise.all([
       amcService.getActiveCoverageMetrics(),
       supabase.from('service_requests')
         .select('id,request_number,request_type,priority,status,created_at,customers(name),customer_sites(site_name),ac_assets(brand,model_number)')
@@ -96,6 +131,9 @@ export class AnalyticsService {
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).lt('scheduled_date', today),
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).not('technician_id', 'is', null),
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).eq('status', 'COMPLETED'),
+      supabase.from('payments').select('id, total_amount_due, total_amount_paid, status'),
+      supabase.from('payment_transactions').select('amount, payment_method, entry_type, payment_status').eq('payment_status', 'SUCCESS'),
+      supabase.from('amc_contracts').select('id, total_amount, status'),
     ]);
 
     for (const [action, result] of [
@@ -130,6 +168,36 @@ export class AnalyticsService {
     const openSchedules = openScheduleCount.count || 0;
     const overdueSchedules = overdueScheduleCount.count || 0;
 
+    const paymentsData = (paymentsResult?.data || []) as any[];
+    const txnsData = (transactionsResult?.data || []) as any[];
+    const amcData = (amcContractsResult?.data || []) as any[];
+
+    const totalInvoiced = paymentsData.reduce((acc, p) => acc + Number(p.total_amount_due || 0), 0);
+    const totalCollected = paymentsData.reduce((acc, p) => acc + Number(p.total_amount_paid || 0), 0);
+    const totalOutstanding = paymentsData.reduce((acc, p) => {
+      if (p.status === 'PAID') return acc;
+      const due = Number(p.total_amount_due || 0);
+      const paid = Number(p.total_amount_paid || 0);
+      return acc + Math.max(0, due - paid);
+    }, 0);
+    const collectionRatePercent = totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0;
+
+    let cashCollected = 0;
+    let onlineCollected = 0;
+    for (const t of txnsData) {
+      const amt = Number(t.amount || 0);
+      const signedAmt = t.entry_type === 'REVERSAL' ? -amt : amt;
+      if (t.payment_method === 'CASH') cashCollected += signedAmt;
+      else if (t.payment_method === 'ONLINE') onlineCollected += signedAmt;
+    }
+
+    const pendingPaymentsCount = paymentsData.filter((p) => p.status === 'PENDING' || p.status === 'PARTIALLY_PAID').length;
+    const paidPaymentsCount = paymentsData.filter((p) => p.status === 'PAID').length;
+
+    const draftContracts = amcData.filter((c) => c.status === 'DRAFT');
+    const draftCount = draftContracts.length;
+    const draftValue = draftContracts.reduce((acc, c) => acc + Number(c.total_amount || 0), 0);
+
     return {
       kpi: {
         activeAmcCount: coverageMetrics.activeContracts,
@@ -140,6 +208,27 @@ export class AnalyticsService {
         urgentRequestsCount: urgentRequestCount.count || 0,
         activeTechniciansCount: technicianResult.count || 0,
         completedTodayCount: completedTodayResult.count || 0,
+        totalRevenueCollected: totalCollected,
+        totalOutstandingBalance: totalOutstanding,
+        collectionRatePercent,
+        draftQuotationsCount: draftCount,
+        draftQuotationsValue: draftValue,
+      },
+      financials: {
+        totalInvoiced,
+        totalCollected,
+        totalOutstanding,
+        collectionRatePercent,
+        cashCollected: Math.max(0, cashCollected),
+        onlineCollected: Math.max(0, onlineCollected),
+        pendingPaymentsCount,
+        paidPaymentsCount,
+      },
+      amcPipeline: {
+        draftCount,
+        draftValue,
+        activeCount: coverageMetrics.activeContracts,
+        expiringSoonCount: coverageMetrics.expiringSoonContracts,
       },
       capacityPercent: openSchedules > 0 ? Math.round(((assignedScheduleCount.count || 0) / openSchedules) * 100) : 0,
       compliancePercent: openSchedules > 0 ? Math.max(0, Math.round(((openSchedules - overdueSchedules) / openSchedules) * 100)) : 0,

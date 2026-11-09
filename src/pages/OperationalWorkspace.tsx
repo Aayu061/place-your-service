@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, Boxes, CheckCheck, ClipboardList, Edit2, Link2, Package, Plus, RefreshCw, RotateCcw, Wallet } from 'lucide-react';
+import { Activity, Bell, Boxes, CheckCheck, CheckCircle, ClipboardList, Copy, Check, CreditCard, Edit2, Link2, Package, Plus, RefreshCw, RotateCcw, Wallet } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import { operationsApi, PageResult, PartRecord, PaymentRecord, NotificationRecord, InventoryTransactionRecord, PaymentTransactionRecord, ActivityLogRecord } from '@/services/operationsApi';
 import { UserRole } from '@/domain/types';
@@ -9,8 +9,10 @@ import { Modal } from '@/components/ui/Modal';
 import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
+import { UpiQrCode } from '@/components/common/UpiQrCode';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
-interface WorkspaceProps { moduleId: string; role: UserRole; onNavigate: (item: string) => void }
+interface WorkspaceProps { moduleId: string; role: UserRole; onNavigate: (item: string, params?: Record<string, string>) => void }
 type CustomerOption = { id: string; name: string; customerCode: string };
 type ReportOption = { id: string; reportNumber: string; serviceDate: string; primaryOutcome: string; status: string };
 type CustomerServiceRequestOption = { id: string; requestNumber: string; requestType: string; status: string };
@@ -325,7 +327,7 @@ function useCustomers() {
   return customers;
 }
 
-function PaymentsWorkspace() {
+function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?: Record<string, string>) => void }) {
   const { showToast } = useToast();
   const customers = useCustomers();
   const { search, setSearch, debouncedSearch, status, setStatus } = useWorkspaceFilters();
@@ -335,6 +337,7 @@ function PaymentsWorkspace() {
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<PaymentTransactionRecord[]>([]);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Payment form with optional SR or AMC link
   const [paymentForm, setPaymentForm] = useState({ customerId: '', totalAmountDue: '', linkType: 'NONE' as 'NONE' | 'SERVICE_REQUEST' | 'AMC', serviceRequestId: '', amcId: '' });
@@ -344,6 +347,45 @@ function PaymentsWorkspace() {
   const [receiptForm, setReceiptForm] = useState({ paymentMethod: 'CASH', amount: '', externalPaymentReference: '', notes: '' });
   const [reversalTarget, setReversalTarget] = useState<string | null>(null);
   const [reversalForm, setReversalForm] = useState({ amount: '', reason: '' });
+
+  const metrics = useMemo(() => {
+    const totalInvoiced = records.reduce((acc, r) => acc + Number(r.total_amount_due || 0), 0);
+    const totalCollected = records.reduce((acc, r) => acc + Number(r.total_amount_paid || 0), 0);
+    const totalOutstanding = records.reduce((acc, r) => {
+      if (r.status === 'PAID') return acc;
+      return acc + Math.max(0, Number(r.total_amount_due || 0) - Number(r.total_amount_paid || 0));
+    }, 0);
+    const rate = totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0;
+    const pendingCount = records.filter((r) => r.status === 'PENDING' || r.status === 'PARTIALLY_PAID').length;
+    return { totalInvoiced, totalCollected, totalOutstanding, rate, pendingCount };
+  }, [records]);
+
+  const selectedRecord = useMemo(() => records.find((r) => r.id === selected) || null, [records, selected]);
+  const balanceDue = useMemo(() => {
+    if (!selectedRecord) return 0;
+    if (selectedRecord.status === 'PAID') return 0;
+    return Math.max(0, Number(selectedRecord.total_amount_due || 0) - Number(selectedRecord.total_amount_paid || 0));
+  }, [selectedRecord]);
+  const isFullyPaid = selectedRecord ? selectedRecord.status === 'PAID' || balanceDue <= 0 : false;
+
+  // Auto-fill amount to balance due when selecting a payment record
+  useEffect(() => {
+    if (selectedRecord) {
+      const bal = selectedRecord.status === 'PAID' ? 0 : Math.max(0, Number(selectedRecord.total_amount_due || 0) - Number(selectedRecord.total_amount_paid || 0));
+      setReceiptForm({
+        paymentMethod: 'CASH',
+        amount: bal > 0 ? String(bal) : '',
+        externalPaymentReference: '',
+        notes: '',
+      });
+    }
+  }, [selectedRecord]);
+
+  const copyToClipboard = (text: string, key: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -399,24 +441,118 @@ function PaymentsWorkspace() {
   };
 
   const collect = async (event: React.FormEvent) => {
-    event.preventDefault(); if (!selected) return; setSaving(true);
-    try { await operationsApi.recordPayment(selected, { ...receiptForm, amount: Number(receiptForm.amount), externalPaymentReference: receiptForm.paymentMethod === 'ONLINE' ? receiptForm.externalPaymentReference : undefined }); showToast({ type: 'success', title: 'Payment recorded', message: 'The entry is attributed to your staff account.' }); setReceiptForm({ paymentMethod: 'CASH', amount: '', externalPaymentReference: '', notes: '' }); await Promise.all([refresh(), loadTransactions(selected)]); }
-    catch (error) { showToast({ type: 'error', title: 'Payment entry rejected', message: error instanceof Error ? error.message : 'Could not record this payment.' }); }
-    finally { setSaving(false); }
+    event.preventDefault();
+    if (!selected || !selectedRecord) return;
+    const amt = Number(receiptForm.amount);
+    if (isNaN(amt) || amt <= 0) {
+      showToast({ type: 'error', title: 'Invalid amount', message: 'Please enter a positive payment amount.' });
+      return;
+    }
+    if (amt > balanceDue) {
+      showToast({
+        type: 'error',
+        title: 'Amount exceeds balance',
+        message: `Payment of ${money(amt)} would exceed the outstanding balance of ${money(balanceDue)}.`,
+      });
+      return;
+    }
+    if (receiptForm.paymentMethod === 'ONLINE' && (!receiptForm.externalPaymentReference || receiptForm.externalPaymentReference.trim().length < 2)) {
+      showToast({
+        type: 'error',
+        title: 'Reference required',
+        message: 'External payment reference (UPI UTR / transaction ID) is required for online payments.',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await operationsApi.recordPayment(selected, {
+        ...receiptForm,
+        amount: amt,
+        externalPaymentReference: receiptForm.paymentMethod === 'ONLINE' ? receiptForm.externalPaymentReference.trim() : undefined,
+      });
+      showToast({ type: 'success', title: 'Payment recorded', message: 'The entry is attributed to your staff account.' });
+      setReceiptForm({ paymentMethod: 'CASH', amount: '', externalPaymentReference: '', notes: '' });
+      await Promise.all([refresh(), loadTransactions(selected)]);
+    } catch (error) {
+      const errorMsg = error instanceof ApiError && Array.isArray(error.details)
+        ? (error.details as Array<{ field?: string; message: string }>).map((d) => `${d.field ? `${d.field}: ` : ''}${d.message}`).join('; ')
+        : error instanceof Error ? error.message : 'Could not record this payment.';
+      showToast({
+        type: 'error',
+        title: 'Payment entry rejected',
+        message: errorMsg,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const reverse = async (event: React.FormEvent) => {
     event.preventDefault(); if (!reversalTarget) return; setSaving(true);
-    try { await operationsApi.reversePayment(reversalTarget, { amount: Number(reversalForm.amount), reason: reversalForm.reason }); showToast({ type: 'success', title: 'Reversal recorded', message: 'A linked reversal entry was added; the original payment remains unchanged.' }); setReversalTarget(null); setReversalForm({ amount: '', reason: '' }); if (selected) await Promise.all([refresh(), loadTransactions(selected)]); }
-    catch (error) { showToast({ type: 'error', title: 'Reversal rejected', message: error instanceof Error ? error.message : 'Could not record this reversal.' }); }
-    finally { setSaving(false); }
+    try {
+      await operationsApi.reversePayment(reversalTarget, { amount: Number(reversalForm.amount), reason: reversalForm.reason });
+      showToast({ type: 'success', title: 'Reversal recorded', message: 'A linked reversal entry was added; the original payment remains unchanged.' });
+      setReversalTarget(null);
+      setReversalForm({ amount: '', reason: '' });
+      if (selected) await Promise.all([refresh(), loadTransactions(selected)]);
+    } catch (error) {
+      showToast({ type: 'error', title: 'Reversal rejected', message: error instanceof Error ? error.message : 'Could not record this reversal.' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return <div style={sectionStyle}>
-    <div style={toolbarStyle}><div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-      <Input label="Search payment number" value={search} onChange={(e) => setSearch(e.target.value)} isSearch placeholder="Payment number" style={{ maxWidth: 290 }} />
-      <div style={fieldStyle}><label style={labelStyle} htmlFor="payment-status">Status</label><select id="payment-status" className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All statuses</option><option>PENDING</option><option>PARTIALLY_PAID</option><option>PAID</option><option>FAILED</option><option>REFUNDED</option></select></div>
-    </div><div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}><Button size="sm" leftIcon={<Plus size={15} />} onClick={() => setShowCreate((open) => !open)}>{showCreate ? 'Close form' : 'New payment record'}</Button></div></div>
+    {/* Financial KPI Summary Cards */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
+      <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+        <div style={hintStyle}>TOTAL INVOICED</div>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0' }}>{money(metrics.totalInvoiced)}</strong>
+        <span style={hintStyle}>{records.length} total payment accounts</span>
+      </div>
+      <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+        <div style={hintStyle}>TOTAL COLLECTED</div>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: 'var(--color-success-dark, #065f46)' }}>{money(metrics.totalCollected)}</strong>
+        <span style={hintStyle}>{metrics.rate}% realized collection rate</span>
+      </div>
+      <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+        <div style={hintStyle}>OUTSTANDING BALANCE</div>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: metrics.totalOutstanding > 0 ? 'var(--color-warning-dark, #b45309)' : 'var(--text-muted)' }}>{money(metrics.totalOutstanding)}</strong>
+        <span style={hintStyle}>{metrics.pendingCount} accounts with balance due</span>
+      </div>
+      <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+        <div style={hintStyle}>COLLECTION REALIZATION</div>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: 'var(--color-brand)' }}>{metrics.rate}%</strong>
+        <div style={{ height: 6, background: 'var(--bg-surface-subtle)', borderRadius: 99, overflow: 'hidden', marginTop: 6 }}>
+          <div style={{ height: '100%', width: `${metrics.rate}%`, background: 'var(--color-success-solid, #10b981)', transition: 'width 0.3s ease' }} />
+        </div>
+      </div>
+    </div>
+
+    <div style={toolbarStyle}>
+      <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <Input label="Search payment number" value={search} onChange={(e) => setSearch(e.target.value)} isSearch placeholder="Payment number" style={{ maxWidth: 290 }} />
+        <div style={fieldStyle}>
+          <label style={labelStyle} htmlFor="payment-status">Status</label>
+          <select id="payment-status" className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            <option>PENDING</option>
+            <option>PARTIALLY_PAID</option>
+            <option>PAID</option>
+            <option>FAILED</option>
+            <option>REFUNDED</option>
+          </select>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+        <Button size="sm" leftIcon={<Plus size={15} />} onClick={() => setShowCreate((open) => !open)}>
+          {showCreate ? 'Close form' : 'New payment record'}
+        </Button>
+      </div>
+    </div>
+
     {showCreate && <Card><CardHeader><CardTitle>Create payment record</CardTitle></CardHeader><CardBody><form onSubmit={createPayment} style={formGridStyle}>
       <div style={fieldStyle}><label style={labelStyle} htmlFor="payment-customer">Customer</label><select id="payment-customer" className="form-select" style={selectStyle} required value={paymentForm.customerId} onChange={(e) => setPaymentForm({ ...paymentForm, customerId: e.target.value, serviceRequestId: '', amcId: '' })}><option value="">Choose a customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.customerCode}</option>)}</select></div>
 
@@ -454,48 +590,258 @@ function PaymentsWorkspace() {
       <Input label="Amount due (₹)" type="number" min="0.01" step="0.01" required value={paymentForm.totalAmountDue} onChange={(e) => setPaymentForm({ ...paymentForm, totalAmountDue: e.target.value })} />
       <Button type="submit" isLoading={saving}>Create record</Button>
     </form></CardBody></Card>}
+
     {loading ? <div role="status">Loading payment records…</div> : records.length ? <div className="table-container"><table className="table">
       <thead><tr><th>Payment</th><th>Customer</th><th>Target</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Created</th></tr></thead>
-      <tbody>{records.map((record) => <tr key={record.id} onClick={() => setSelected(record.id)} style={{ cursor: 'pointer', background: selected === record.id ? 'var(--bg-surface-subtle)' : undefined }}>
-        <td><strong>{record.payment_number}</strong></td>
-        <td>{record.customers?.name || record.customer_id}</td>
-        <td>
-          {record.service_requests?.request_number ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-brand)' }}>
-              <Link2 size={13} /> {record.service_requests.request_number}
-            </span>
-          ) : record.amc_contracts?.contract_number ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-success-solid)' }}>
-              <Link2 size={13} /> {record.amc_contracts.contract_number}
-            </span>
-          ) : (
-            <span style={hintStyle}>General</span>
-          )}
-        </td>
-        <td>{money(record.total_amount_due)}</td>
-        <td>{money(record.total_amount_paid)}</td>
-        <td>{money(Number(record.total_amount_due) - Number(record.total_amount_paid))}</td>
-        <td>{record.status.replace('_', ' ')}</td>
-        <td>{dateOnly(record.created_at)}</td>
-      </tr>)}</tbody>
+      <tbody>{records.map((record) => {
+        const rowBalance = record.status === 'PAID' ? 0 : Math.max(0, Number(record.total_amount_due) - Number(record.total_amount_paid));
+        return (
+          <tr key={record.id} onClick={() => setSelected(record.id)} style={{ cursor: 'pointer', background: selected === record.id ? 'var(--bg-surface-subtle)' : undefined }}>
+            <td><strong>{record.payment_number}</strong></td>
+            <td>{record.customers?.name || record.customer_id}</td>
+            <td>
+              {record.service_requests?.request_number ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate?.('service-requests', { recordId: record.service_request_id || '', recordType: 'service_request' });
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-brand)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}
+                  title="Open Service Request"
+                >
+                  <Link2 size={13} /> {record.service_requests.request_number}
+                </button>
+              ) : record.amc_contracts?.contract_number ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigate?.('amc', { recordId: record.amc_id || '', recordType: 'amc' });
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-success-dark, #065f46)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}
+                  title="Open AMC Contract"
+                >
+                  <Link2 size={13} /> {record.amc_contracts.contract_number}
+                </button>
+              ) : (
+                <span style={hintStyle}>General</span>
+              )}
+            </td>
+            <td>{money(record.total_amount_due)}</td>
+            <td>{money(record.total_amount_paid)}</td>
+            <td>
+              <strong style={{ color: rowBalance > 0 ? 'var(--color-warning-dark, #b45309)' : 'var(--color-success-dark, #065f46)' }}>
+                {money(rowBalance)}
+              </strong>
+            </td>
+            <td>
+              <span style={{
+                display: 'inline-block',
+                padding: '3px 8px',
+                borderRadius: 4,
+                fontSize: '11px',
+                fontWeight: 600,
+                background: record.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : record.status === 'PARTIALLY_PAID' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(2, 132, 199, 0.1)',
+                color: record.status === 'PAID' ? 'var(--color-success-dark, #065f46)' : record.status === 'PARTIALLY_PAID' ? 'var(--color-warning-dark, #b45309)' : 'var(--color-brand)',
+              }}>
+                {record.status.replace('_', ' ')}
+              </span>
+            </td>
+            <td>{dateOnly(record.created_at)}</td>
+          </tr>
+        );
+      })}</tbody>
     </table></div> : <EmptyState title="No payment records" description="Create a payment record for a customer to start tracking cash or trusted external payment references." />}
-    {selected && <Card><CardHeader><CardTitle>Entries · {records.find((record) => record.id === selected)?.payment_number}</CardTitle></CardHeader><CardBody style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-      <form onSubmit={collect} style={formGridStyle}>
-        <div style={fieldStyle}><label style={labelStyle} htmlFor="payment-method">Method</label><select id="payment-method" className="form-select" style={selectStyle} value={receiptForm.paymentMethod} onChange={(e) => setReceiptForm({ ...receiptForm, paymentMethod: e.target.value })}><option value="CASH">Cash</option><option value="ONLINE">External online record</option></select></div>
-        <Input label="Amount received (₹)" type="number" min="0.01" step="0.01" required value={receiptForm.amount} onChange={(e) => setReceiptForm({ ...receiptForm, amount: e.target.value })} />
-        {receiptForm.paymentMethod === 'ONLINE' && <Input label="External payment reference" required value={receiptForm.externalPaymentReference} onChange={(e) => setReceiptForm({ ...receiptForm, externalPaymentReference: e.target.value })} />}
-        <Input label="Notes" value={receiptForm.notes} onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })} />
-        <Button type="submit" isLoading={saving}>Record payment</Button>
-      </form>
-      {reversalTarget && <form onSubmit={reverse} style={formGridStyle} aria-label="Record payment reversal">
-        <Input label="Reversal amount (₹)" type="number" min="0.01" step="0.01" required value={reversalForm.amount} onChange={(e) => setReversalForm({ ...reversalForm, amount: e.target.value })} />
-        <Input label="Reason" required value={reversalForm.reason} onChange={(e) => setReversalForm({ ...reversalForm, reason: e.target.value })} />
-        <Button type="submit" variant="danger" isLoading={saving}>Save reversal</Button><Button variant="ghost" onClick={() => setReversalTarget(null)}>Cancel</Button>
-      </form>}
-      {transactions.length ? <div className="table-container"><table className="table"><thead><tr><th>Reference</th><th>Type</th><th>Method</th><th>Amount</th><th>Recorded by</th><th>Date</th><th>Action</th></tr></thead><tbody>
-        {transactions.map((transaction) => <tr key={transaction.id}><td>{transaction.external_payment_reference || transaction.transaction_reference}<div style={hintStyle}>{transaction.notes || ''}</div></td><td>{transaction.entry_type || 'PAYMENT'}</td><td>{transaction.payment_method}</td><td>{transaction.entry_type === 'REVERSAL' ? '−' : ''}{money(transaction.amount)}</td><td>{transaction.profiles?.full_name || transaction.recorded_by}</td><td>{dateOnly(transaction.created_at)}</td><td>{transaction.entry_type !== 'REVERSAL' && transaction.payment_status === 'SUCCESS' && <Button size="sm" variant="ghost" leftIcon={<RotateCcw size={14} />} onClick={() => setReversalTarget(transaction.id)}>Reverse</Button>}</td></tr>)}
-      </tbody></table></div> : <p>No payment entries yet.</p>}
-    </CardBody></Card>}
+
+    {selected && selectedRecord && (
+      <Card>
+        <CardHeader>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <CardTitle>Entries · {selectedRecord.payment_number}</CardTitle>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Customer: <strong>{selectedRecord.customers?.name || selectedRecord.customer_id}</strong></span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 4,
+                background: isFullyPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                color: isFullyPaid ? 'var(--color-success-dark, #065f46)' : 'var(--color-warning-dark, #b45309)',
+              }}>
+                {isFullyPaid ? 'FULLY SETTLED' : `BALANCE DUE: ${money(balanceDue)}`}
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardBody style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          {isFullyPaid ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '16px 20px',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-success-dark, #065f46)',
+            }}>
+              <CheckCircle size={22} style={{ color: 'var(--color-success-solid, #10b981)', flexShrink: 0 }} />
+              <div>
+                <strong style={{ fontSize: '15px' }}>Payment Fully Settled</strong>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: 2 }}>
+                  All {money(selectedRecord.total_amount_due)} has been received and verified. Balance outstanding is {money(0)}. No further payment entries can be recorded.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              {/* Payment Entry Form */}
+              <form onSubmit={collect} style={formGridStyle}>
+                <div style={fieldStyle}>
+                  <label style={labelStyle} htmlFor="payment-method">Payment Method</label>
+                  <select
+                    id="payment-method"
+                    className="form-select"
+                    style={selectStyle}
+                    value={receiptForm.paymentMethod}
+                    onChange={(e) => setReceiptForm({ ...receiptForm, paymentMethod: e.target.value })}
+                  >
+                    <option value="CASH">Cash Payment</option>
+                    <option value="ONLINE">External online / UPI / Bank transfer</option>
+                  </select>
+                </div>
+
+                <div style={fieldStyle}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={labelStyle} htmlFor="payment-amount">Amount received (₹) *</label>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptForm((f) => ({ ...f, amount: String(balanceDue) }))}
+                      style={{ background: 'transparent', border: 0, color: 'var(--color-brand)', fontSize: '11px', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                    >
+                      Fill balance ({money(balanceDue)})
+                    </button>
+                  </div>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    min="0.01"
+                    max={balanceDue}
+                    step="0.01"
+                    required
+                    value={receiptForm.amount}
+                    onChange={(e) => setReceiptForm({ ...receiptForm, amount: e.target.value })}
+                  />
+                </div>
+
+                {receiptForm.paymentMethod === 'ONLINE' && (
+                  <Input
+                    label="External reference / UPI UTR *"
+                    placeholder="12-digit UTR or transaction ID"
+                    required
+                    value={receiptForm.externalPaymentReference}
+                    onChange={(e) => setReceiptForm({ ...receiptForm, externalPaymentReference: e.target.value })}
+                  />
+                )}
+
+                <Input
+                  label="Notes"
+                  placeholder="Optional operational remarks"
+                  value={receiptForm.notes}
+                  onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })}
+                />
+
+                <Button type="submit" isLoading={saving}>Record payment</Button>
+              </form>
+
+              {/* Dynamic UPI QR Code & Demo Bank Details for ONLINE Method */}
+              {receiptForm.paymentMethod === 'ONLINE' && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'auto 1fr',
+                  gap: 16,
+                  padding: 16,
+                  background: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  alignItems: 'center',
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <UpiQrCode
+                      amount={Number(receiptForm.amount) || balanceDue}
+                      note={`Payment ${selectedRecord.payment_number}`}
+                      size={120}
+                    />
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 4 }}>
+                      Scan to pay {money(Number(receiptForm.amount) || balanceDue)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '13px' }}>
+                    <strong style={{ color: 'var(--color-brand)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CreditCard size={15} /> Company Bank Particulars (Demo)
+                    </strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr auto', gap: '4px 10px', alignItems: 'center' }}>
+                      <span style={hintStyle}>Bank Name:</span>
+                      <strong>{COMPANY_BANK_DETAILS.bankName}</strong>
+                      <span />
+
+                      <span style={hintStyle}>Account Name:</span>
+                      <strong>{COMPANY_BANK_DETAILS.accountHolderName}</strong>
+                      <span />
+
+                      <span style={hintStyle}>Account Number:</span>
+                      <strong style={{ fontFamily: 'monospace' }}>{COMPANY_BANK_DETAILS.accountNumber}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(COMPANY_BANK_DETAILS.accountNumber, 'ac')}
+                        style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--color-brand)' }}
+                        title="Copy account number"
+                      >
+                        {copiedKey === 'ac' ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+
+                      <span style={hintStyle}>IFSC Code:</span>
+                      <strong style={{ fontFamily: 'monospace' }}>{COMPANY_BANK_DETAILS.ifscCode}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(COMPANY_BANK_DETAILS.ifscCode, 'ifsc')}
+                        style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--color-brand)' }}
+                        title="Copy IFSC code"
+                      >
+                        {copiedKey === 'ifsc' ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+
+                      <span style={hintStyle}>UPI ID:</span>
+                      <strong style={{ color: 'var(--color-brand)', fontFamily: 'monospace' }}>{COMPANY_BANK_DETAILS.upiId}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(COMPANY_BANK_DETAILS.upiId, 'upi')}
+                        style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--color-brand)' }}
+                        title="Copy UPI ID"
+                      >
+                        {copiedKey === 'upi' ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {reversalTarget && <form onSubmit={reverse} style={formGridStyle} aria-label="Record payment reversal">
+            <Input label="Reversal amount (₹)" type="number" min="0.01" step="0.01" required value={reversalForm.amount} onChange={(e) => setReversalForm({ ...reversalForm, amount: e.target.value })} />
+            <Input label="Reason" required value={reversalForm.reason} onChange={(e) => setReversalForm({ ...reversalForm, reason: e.target.value })} />
+            <Button type="submit" variant="danger" isLoading={saving}>Save reversal</Button><Button variant="ghost" onClick={() => setReversalTarget(null)}>Cancel</Button>
+          </form>}
+
+          {transactions.length ? <div className="table-container"><table className="table"><thead><tr><th>Reference</th><th>Type</th><th>Method</th><th>Amount</th><th>Recorded by</th><th>Date</th><th>Action</th></tr></thead><tbody>
+            {transactions.map((transaction) => <tr key={transaction.id}><td>{transaction.external_payment_reference || transaction.transaction_reference}<div style={hintStyle}>{transaction.notes || ''}</div></td><td>{transaction.entry_type || 'PAYMENT'}</td><td>{transaction.payment_method}</td><td>{transaction.entry_type === 'REVERSAL' ? '−' : ''}{money(transaction.amount)}</td><td>{transaction.profiles?.full_name || transaction.recorded_by}</td><td>{dateOnly(transaction.created_at)}</td><td>{transaction.entry_type !== 'REVERSAL' && transaction.payment_status === 'SUCCESS' && <Button size="sm" variant="ghost" leftIcon={<RotateCcw size={14} />} onClick={() => setReversalTarget(transaction.id)}>Reverse</Button>}</td></tr>)}
+          </tbody></table></div> : <p>No payment entries yet.</p>}
+        </CardBody>
+      </Card>
+    )}
   </div>;
 }
 
@@ -685,7 +1031,7 @@ export const OperationalWorkspace: React.FC<WorkspaceProps> = ({ moduleId, role,
     switch (moduleId) {
       case 'parts': return <PartCatalog />;
       case 'inventory': return <InventoryLedger />;
-      case 'payments': return <PaymentsWorkspace />;
+      case 'payments': return <PaymentsWorkspace onNavigate={onNavigate} />;
       case 'notifications': return <NotificationsWorkspace moduleId={moduleId} role={role} onNavigate={onNavigate} />;
       case 'activity-logs': return <ActivityLogWorkspace />;
       default: return null;
