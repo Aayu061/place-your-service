@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { AppShell } from '@/layouts/AppShell';
 import { Login } from '@/pages/Login';
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary';
@@ -22,6 +22,7 @@ const ServiceScheduleManagement = lazy(() => import('@/pages/ServiceScheduleMana
 const ServiceReportsManagement = lazy(() => import('@/pages/ServiceReportsManagement').then((m) => ({ default: m.ServiceReportsManagement })));
 const PhaseZeroOverview = lazy(() => import('@/pages/PhaseZeroOverview').then((m) => ({ default: m.PhaseZeroOverview })));
 const ModuleShellPlaceholder = lazy(() => import('@/pages/ModuleShellPlaceholder').then((m) => ({ default: m.ModuleShellPlaceholder })));
+const TechnicianPortal = lazy(() => import('@/pages/technician/TechnicianPortal').then((m) => ({ default: m.TechnicianPortal })));
 
 const RouteLoadingFallback: React.FC = () => (
   <div
@@ -209,7 +210,18 @@ const MODULE_DEFINITIONS: Record<
   },
 };
 
-const AuthenticatedApp: React.FC = () => {
+const getInitialPortal = (): 'admin' | 'tech' => {
+  if (typeof window === 'undefined') return 'admin';
+  const path = window.location.pathname;
+  const search = new URLSearchParams(window.location.search);
+  return path.startsWith('/tech') || search.get('portal') === 'tech' ? 'tech' : 'admin';
+};
+
+interface AuthenticatedAppProps {
+  onSwitchToTech: () => void;
+}
+
+const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ onSwitchToTech }) => {
   const { user, isLoading } = useAuth();
 
   // 1. Session Restoration / Loading State (Eliminates Auth Flicker)
@@ -248,7 +260,7 @@ const AuthenticatedApp: React.FC = () => {
 
   // 2. Unauthenticated State -> Render Secure Login View
   if (!user) {
-    return <Login />;
+    return <Login onSwitchToTech={onSwitchToTech} />;
   }
 
   // 3. Authenticated State -> Render AppShell with Server-Verified Role
@@ -360,14 +372,47 @@ const AuthenticatedApp: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  const [portal, setPortal] = useState<'admin' | 'tech'>(getInitialPortal);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPortal(getInitialPortal());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const switchToTech = () => {
+    setPortal('tech');
+    const url = new URL(window.location.href);
+    url.searchParams.set('portal', 'tech');
+    window.history.pushState({ portal: 'tech' }, '', url.toString());
+  };
+
+  const switchToAdmin = () => {
+    setPortal('admin');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('portal');
+    if (url.pathname.startsWith('/tech')) {
+      url.pathname = '/';
+    }
+    window.history.pushState({ portal: 'admin' }, '', url.toString());
+  };
+
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <AuthenticatedApp />
-          </ThemeProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          {portal === 'tech' ? (
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <TechnicianPortal onSwitchToAdmin={switchToAdmin} />
+            </Suspense>
+          ) : (
+            <AuthProvider>
+              <AuthenticatedApp onSwitchToTech={switchToTech} />
+            </AuthProvider>
+          )}
+        </ThemeProvider>
       </ToastProvider>
     </ErrorBoundary>
   );

@@ -14,6 +14,7 @@ import serviceReportRouter from './serviceReport.routes.js';
 import analyticsRouter from './analytics.routes.js';
 import operationsRouter from './operations.routes.js';
 import exportRouter from './export.routes.js';
+import techRouter from './technicianPortal.routes.js';
 
 const apiV1Router = Router();
 
@@ -55,6 +56,9 @@ apiV1Router.use('/service-reports', serviceReportRouter);
 apiV1Router.use('/analytics', analyticsRouter);
 apiV1Router.use('/', operationsRouter);
 apiV1Router.use('/exports', exportRouter);
+
+// Dedicated Technician Mobile Field Portal Routes
+apiV1Router.use('/tech', techRouter);
 
 export default apiV1Router;
 

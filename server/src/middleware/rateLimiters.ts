@@ -40,3 +40,4 @@ export function createAuthLimiter(options?: RateLimiterCustomOptions) {
  * Default singleton authLimiter applied to POST /api/v1/auth/login
  */
 export const authLimiter = createAuthLimiter();
+
