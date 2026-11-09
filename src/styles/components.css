@@ -263,6 +263,127 @@
 }
 
 /* --------------------------------------------------
+ * 2.1 Unified Form Grids & Layout Containers
+ * -------------------------------------------------- */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.form-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.form-grid-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.form-grid-1-2 {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.form-grid-2 > *,
+.form-grid-3 > *,
+.form-grid-4 > *,
+.form-grid-2-1 > *,
+.form-grid-1-2 > * {
+  min-width: 0;
+}
+
+.form-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  width: 100%;
+}
+
+.form-row > * {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.form-section-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration-hover) var(--ease-standard);
+}
+
+.form-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.form-section-title {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form-section-description {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+@media (max-width: 768px) {
+  .form-grid-3,
+  .form-grid-4,
+  .form-grid-2-1,
+  .form-grid-1-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .form-grid-2,
+  .form-grid-3,
+  .form-grid-4,
+  .form-grid-2-1,
+  .form-grid-1-2 {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .form-section-card {
+    padding: var(--space-4);
+  }
+}
+
+/* --------------------------------------------------
  * 3. Cards (Section 10)
  * -------------------------------------------------- */
 .card {
@@ -1236,9 +1357,9 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-6);
-  background: rgba(248, 250, 252, 0.75);
+  background: var(--bg-surface-subtle);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  border-bottom: 1px solid var(--border-default);
   position: relative;
   z-index: 5;
 }
@@ -1256,7 +1377,7 @@
 }
 
 .wizard-step:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--bg-surface-hover);
 }
 
 .wizard-step:disabled {

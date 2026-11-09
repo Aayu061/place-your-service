@@ -731,7 +731,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                     </Badge>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', background: 'rgba(248, 250, 252, 0.7)', padding: '8px', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', background: 'var(--bg-surface-subtle)', padding: '8px', borderRadius: 'var(--radius-md)' }}>
                     <div>
                       <strong>Type:</strong> {m.acType || 'N/A'}
                     </div>
@@ -896,7 +896,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
             required
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          <div className="form-grid-2">
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
                 AC Type
@@ -949,7 +949,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+          <div className="form-grid-3">
             <Input
               label="Capacity (Tons)"
               type="number"
@@ -1070,7 +1070,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div className="form-grid-2">
                 <Input
                   label="Variant Code / SKU"
                   placeholder="e.g. FTKF50TV16U"
@@ -1085,7 +1085,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div className="form-grid-2">
                 <Input
                   label="Capacity (Tons) *"
                   type="number"
@@ -1108,7 +1108,7 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+              <div className="form-grid-3">
                 <div>
                   <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 600, marginBottom: '4px' }}>
                     Star Rating *

@@ -133,6 +133,12 @@
   --text-inverse: #FFFFFF;
   --text-brand: #A8481C;
   --text-main: var(--text-primary);
+  --text-normal: var(--text-primary);
+
+  /* Compatibility & Semantic Fallback Tokens */
+  --color-error: var(--color-error-solid);
+  --color-text-secondary: var(--text-secondary);
+  --color-surface-hover: var(--bg-surface-hover, rgba(0, 0, 0, 0.04));
 
   /* --------------------------------------------------
    * Typography Scale & Hierarchy (Urbanist)

@@ -27,6 +27,8 @@ export interface CompanyBankDetails {
   upiId: string;
   upiName: string;
   stampImageUrl: string;
+  logoImageUrl: string;
+  fixedQrImageUrl: string;
 }
 
 export const COMPANY_BANK_DETAILS: CompanyBankDetails = {
@@ -46,9 +48,11 @@ export const COMPANY_BANK_DETAILS: CompanyBankDetails = {
   ifscCode: 'SBIN0071073',
   branchName: 'Chembur / Panvel, Mumbai',
   accountType: 'CURRENT',
-  upiId: 'extremess0121@sbi',
+  upiId: '7977805245-1@okbizaxis',
   upiName: 'Extreme Sales and Services',
   stampImageUrl: '/company-stamp.png',
+  logoImageUrl: '/company-logo.png',
+  fixedQrImageUrl: '/company-qr.png',
 };
 
 /**

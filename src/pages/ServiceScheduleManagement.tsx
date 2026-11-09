@@ -1469,7 +1469,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 onChange={(e) => setAssignSlotDate(e.target.value)}
               />
             </div>
-            <div style={{ width: '110px' }}>
+            <div style={{ flex: '1 1 140px', minWidth: '140px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>Start Time</label>
               <Input
                 type="time"
@@ -1477,7 +1477,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 onChange={(e) => setAssignSlotStart(e.target.value)}
               />
             </div>
-            <div style={{ width: '110px' }}>
+            <div style={{ flex: '1 1 140px', minWidth: '140px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>End Time</label>
               <Input
                 type="time"

@@ -198,11 +198,11 @@ function PartCatalog() {
         <form onSubmit={handleUpdatePart} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <Input label="Part name" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
           <Input label="Category" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          <div className="form-grid-2">
             <Input label="Unit" required value={editForm.unitOfMeasure} onChange={(e) => setEditForm({ ...editForm, unitOfMeasure: e.target.value })} />
             <Input label="Low stock threshold" required type="number" min="0" step="1" value={editForm.lowStockThreshold} onChange={(e) => setEditForm({ ...editForm, lowStockThreshold: e.target.value })} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          <div className="form-grid-2">
             <Input label="Unit cost (₹)" required type="number" min="0" step="0.01" value={editForm.unitCost} onChange={(e) => setEditForm({ ...editForm, unitCost: e.target.value })} />
             <Input label="Unit price (₹)" required type="number" min="0" step="0.01" value={editForm.unitPrice} onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })} />
           </div>

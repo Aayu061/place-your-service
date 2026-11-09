@@ -1843,10 +1843,10 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
             {/* STEP 1: COMMERCIAL TERMS */}
             <div style={{ display: createModalStep === 0 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="form-grid-2">
                 {/* Customer Select */}
                 <div>
-                  <label htmlFor="amc-customer-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-customer-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     Customer *
                   </label>
                   <select
@@ -1868,7 +1868,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Plan Select */}
                 <div>
-                  <label htmlFor="amc-plan-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-plan-select" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     AMC Plan Template
                   </label>
                   <select
@@ -1889,7 +1889,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Start Date */}
                 <div>
-                  <label htmlFor="amc-start-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-start-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     Start Date *
                   </label>
                   <Input
@@ -1904,7 +1904,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 {/* End Date */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <label htmlFor="amc-end-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                    <label htmlFor="amc-end-date" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                       End Date *
                     </label>
                     <button
@@ -1932,7 +1932,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Frequency */}
                 <div>
-                  <label htmlFor="amc-frequency" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-frequency" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     PM Frequency *
                   </label>
                   <select
@@ -1952,7 +1952,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Included Visits */}
                 <div>
-                  <label htmlFor="amc-visits" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-visits" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     Included Visits *
                   </label>
                   <Input
@@ -1971,8 +1971,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 </div>
 
                 {/* Commercial Amount */}
-                <div className="sm:col-span-2">
-                  <label htmlFor="amc-amount" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label htmlFor="amc-amount" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     Commercial Amount (INR) *
                   </label>
                   <Input
@@ -1987,7 +1987,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Payment Mode / Terms */}
                 <div>
-                  <label htmlFor="amc-payment-method" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
+                  <label htmlFor="amc-payment-method" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
                     Payment Mode / Terms
                   </label>
                   <select
@@ -2019,8 +2019,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
                 {/* Live Demo Company Bank Details & Dynamic Amount-Encoded UPI QR */}
                 <div
-                  className="sm:col-span-2"
                   style={{
+                    gridColumn: '1 / -1',
                     backgroundColor: 'var(--bg-surface-subtle, #f8fafc)',
                     border: '1px solid var(--border-default, #cbd5e1)',
                     borderRadius: 'var(--radius-md)',
