@@ -488,12 +488,22 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
       <div className="pys-print-document" id="pys-report-printable-content">
         {/* Header */}
         <div className="pys-print-header">
-          <div>
-            <h1 className="pys-company-title">PLACE YOUR SERVICE</h1>
-            <p className="pys-company-sub">HVAC Preventive Maintenance & Technical Service Report</p>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
-              Service Operations Desk | ISO Compliant Maintenance Logs
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <img
+              src={COMPANY_BANK_DETAILS.logoImageUrl}
+              alt={COMPANY_BANK_DETAILS.mainCompanyName}
+              style={{ width: '56px', height: '56px', objectFit: 'contain', flexShrink: 0 }}
+            />
+            <div>
+              <h1 className="pys-company-title">PLACE YOUR SERVICE</h1>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', marginTop: '1px' }}>
+                {COMPANY_BANK_DETAILS.mainCompanyName}
+              </div>
+              <p className="pys-company-sub">HVAC Preventive Maintenance &amp; Technical Service Report</p>
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '3px 0 0 0' }}>
+                Office: {COMPANY_BANK_DETAILS.officeAddress} | Tel: +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone}
+              </p>
+            </div>
           </div>
           <div className="pys-report-meta">
             <span className="pys-report-type-badge">

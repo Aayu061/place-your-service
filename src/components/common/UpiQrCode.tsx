@@ -9,6 +9,7 @@ export interface UpiQrCodeProps {
   className?: string;
   showScanText?: boolean;
   showDetails?: boolean;
+  useFixedQrImage?: boolean;
 }
 
 export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
@@ -18,6 +19,7 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
   className = '',
   showScanText = true,
   showDetails = false,
+  useFixedQrImage = false,
 }) => {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
   const upiUri = buildUpiPaymentUri(numAmount, note);
 
   useEffect(() => {
+    if (useFixedQrImage) return;
     let isMounted = true;
 
     QRCode.toDataURL(upiUri, {
@@ -53,7 +56,7 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [upiUri, size]);
+  }, [upiUri, size, useFixedQrImage]);
 
   return (
     <div
@@ -68,8 +71,8 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
     >
       <div
         style={{
-          width: `${size}px`,
-          height: `${size}px`,
+          width: useFixedQrImage ? `${Math.round(size * 0.85)}px` : `${size}px`,
+          height: useFixedQrImage ? `${Math.round(size * 1.18)}px` : `${size}px`,
           backgroundColor: '#ffffff',
           borderRadius: '6px',
           border: '1px solid var(--border-default, #cbd5e1)',
@@ -81,7 +84,18 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
-        {dataUrl ? (
+        {useFixedQrImage ? (
+          <img
+            src={COMPANY_BANK_DETAILS.fixedQrImageUrl}
+            alt={`Official Extreme Sales & Services UPI QR (${COMPANY_BANK_DETAILS.upiId})`}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+            }}
+          />
+        ) : dataUrl ? (
           <img
             src={dataUrl}
             alt={`Scan & Pay ₹${numAmount > 0 ? numAmount.toFixed(2) : ''} via UPI`}
@@ -101,7 +115,11 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
 
       {showScanText && (
         <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 600, color: 'var(--text-primary, #334155)' }}>
-          {numAmount > 0 ? `Scan & Pay ₹${numAmount.toLocaleString('en-IN')}` : 'Scan to Pay via UPI'}
+          {useFixedQrImage
+            ? 'Scan Official UPI QR'
+            : numAmount > 0
+            ? `Scan & Pay ₹${numAmount.toLocaleString('en-IN')}`
+            : 'Scan to Pay via UPI'}
         </div>
       )}
 

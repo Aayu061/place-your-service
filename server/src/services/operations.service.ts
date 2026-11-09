@@ -204,7 +204,7 @@ export class OperationsService {
       ? `AMC Contract: ${payment.amc_contracts.contract_number} (Annual Maintenance Contract)`
       : 'General Air Conditioning Service & Maintenance';
 
-    const upiPayLink = `upi://pay?pa=extremess0121@sbi&pn=Extreme%20Sales%20and%20Services&am=${balance.toFixed(2)}&cu=INR&tn=Invoice%20${paymentNumber}`;
+    const upiPayLink = `upi://pay?pa=7977805245-1@okbizaxis&pn=Extreme%20Sales%20and%20Services&am=${balance.toFixed(2)}&cu=INR&tn=Invoice%20${paymentNumber}`;
 
     const txRows = (transactions || []).map((t: any) =>
       `• ${new Date(t.created_at).toLocaleDateString('en-IN')}: ₹${Number(t.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} via ${t.payment_method}${t.external_payment_reference ? ` (Ref: ${t.external_payment_reference})` : ''}`
@@ -240,7 +240,7 @@ export class OperationsService {
       `---`,
       `Bank Settlement Details:`,
       `Bank: State Bank of India | Current A/C: 41846055894 | IFSC: SBIN0071073`,
-      `Payee: Extreme Sales And Services | UPI ID: extremess0121@sbi`,
+      `Payee: Extreme Sales And Services | UPI ID: 7977805245-1@okbizaxis`,
       balance > 0 ? `Instant UPI Pay Link: ${upiPayLink}` : 'Invoice fully settled. Thank you!',
       `---`,
       `Authorized Signatory: Extreme Sales & Services (Stamp & Signature Verified)`,
@@ -350,7 +350,7 @@ export class OperationsService {
         Payee Account Name: <strong>Extreme Sales And Services</strong><br>
         Current A/C No: <strong>41846055894</strong><br>
         IFSC Code: <strong>SBIN0071073</strong><br>
-        UPI ID: <strong>extremess0121@sbi</strong>
+        UPI ID: <strong>7977805245-1@okbizaxis</strong>
       </p>
       ${balance > 0 ? `
         <div style="margin-top:10px;">

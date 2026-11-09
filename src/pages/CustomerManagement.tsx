@@ -2113,7 +2113,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               required
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="form-grid-3">
               <Input
                 id="add-customer-city"
                 label="City"
@@ -2288,7 +2288,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               required
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="form-grid-3">
               <Input
                 id="edit-customer-city"
                 label="City"
@@ -3379,7 +3379,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           />
         </div>
 
-        <form noValidate onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '72vh', overflowY: 'auto', paddingRight: '4px' }}>
+        <form noValidate onSubmit={handleCreateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {assetFormError && (
             <div style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', fontSize: 'var(--text-xs)' }}>
               {assetFormError}
@@ -4044,7 +4044,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         title={`Edit AC Asset: ${editingAsset?.assetTag || ''}`}
         description="Update specifications, serial numbers, warranty, or condition"
       >
-        <form noValidate onSubmit={handleUpdateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto', paddingRight: '4px' }}>
+        <form noValidate onSubmit={handleUpdateAsset} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {assetFormError && (
             <div style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-danger-subtle)', color: 'var(--color-danger)', fontSize: 'var(--text-xs)' }}>
               {assetFormError}
@@ -4534,7 +4534,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         description={`${viewingAsset?.brand || ''} ${viewingAsset?.modelNumber ? `• ${viewingAsset.modelNumber}` : ''}`}
       >
         {viewingAsset && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', maxHeight: '75vh', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {/* SECTION A: ASSET IDENTITY & OPERATIONAL STATUSES */}
             <div
               style={{

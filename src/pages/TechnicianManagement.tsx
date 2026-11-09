@@ -571,7 +571,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               <p
                 style={{
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--color-text-secondary)',
+                  color: 'var(--text-secondary)',
                   margin: 0,
                   marginTop: '2px',
                 }}
@@ -855,7 +855,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                               style={{
                                 fontSize: 'var(--text-xs)',
                                 fontFamily: 'monospace',
-                                color: 'var(--color-text-secondary)',
+                                color: 'var(--text-secondary)',
                               }}
                             >
                               {tech.technicianCode}
@@ -905,7 +905,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                                 padding: '2px 6px',
                                 borderRadius: 'var(--radius-sm)',
                                 backgroundColor: 'var(--bg-surface-subtle)',
-                                color: 'var(--color-text-secondary)',
+                                color: 'var(--text-secondary)',
                               }}
                             >
                               +{skills.length - 2}
@@ -943,7 +943,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                                 padding: '2px 6px',
                                 borderRadius: 'var(--radius-sm)',
                                 backgroundColor: 'var(--bg-surface-subtle)',
-                                color: 'var(--color-text-secondary)',
+                                color: 'var(--text-secondary)',
                               }}
                             >
                               +{areas.length - 2}
@@ -1031,7 +1031,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               alignItems: 'center',
               justifyContent: 'space-between',
               fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--text-secondary)',
             }}
           >
             <div>
@@ -1110,7 +1110,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                     style={{
                       fontSize: 'var(--text-xs)',
                       fontFamily: 'monospace',
-                      color: 'var(--color-text-secondary)',
+                      color: 'var(--text-secondary)',
                     }}
                   >
                     Code: {selectedTech.technicianCode}
@@ -1174,17 +1174,17 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Phone size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                  <span style={{ color: 'var(--color-text-secondary)', width: '100px' }}>Primary Phone:</span>
+                  <span style={{ color: 'var(--text-secondary)', width: '100px' }}>Primary Phone:</span>
                   <span style={{ fontWeight: 500 }}>{selectedTech.phone}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Mail size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                  <span style={{ color: 'var(--color-text-secondary)', width: '100px' }}>Email Address:</span>
+                  <span style={{ color: 'var(--text-secondary)', width: '100px' }}>Email Address:</span>
                   <span>{selectedTech.email || 'Not provided'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Calendar size={14} style={{ color: 'var(--color-text-tertiary)' }} />
-                  <span style={{ color: 'var(--color-text-secondary)', width: '100px' }}>Joining Date:</span>
+                  <span style={{ color: 'var(--text-secondary)', width: '100px' }}>Joining Date:</span>
                   <span>{selectedTech.joiningDate ? formatDate(selectedTech.joiningDate) : 'Not specified'}</span>
                 </div>
               </div>
@@ -1239,7 +1239,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>
                 <div>
-                  <span style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: '4px' }}>
+                  <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
                     Working Days:
                   </span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -1261,7 +1261,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                   </div>
                 </div>
                 <div style={{ marginTop: 'var(--space-2)' }}>
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Working Hours: </span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Working Hours: </span>
                   <span style={{ fontWeight: 600 }}>
                     {selectedTech.workingHours?.start || selectedTech.availability?.workingHours?.start || '09:00'}
                     {' — '}
@@ -1287,7 +1287,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                     backgroundColor: 'var(--bg-surface-subtle)',
                   }}
                 >
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                     Active Work Orders
                   </div>
                   <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
@@ -1305,7 +1305,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                     backgroundColor: 'var(--bg-surface-subtle)',
                   }}
                 >
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                     Max Daily Capacity
                   </div>
                   <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--color-text-primary)' }}>
@@ -1327,7 +1327,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                     Operational Notes
                   </h4>
                 </div>
-                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'pre-wrap' }}>
+                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                   {selectedTech.notes}
                 </p>
               </div>
@@ -1366,14 +1366,14 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               {/* PANEL 1: PROFILE & WEEKLY SCHEDULE */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.7)',
+                  background: 'var(--bg-surface-subtle)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--border-default)',
                   padding: 'var(--space-4)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 'var(--space-3)',
-                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                  boxShadow: 'var(--shadow-xs)',
                 }}
               >
                 <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-brand)' }}>
@@ -1438,7 +1438,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                             borderRadius: 'var(--radius-sm)',
                             border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
                             backgroundColor: isSelected ? 'var(--color-brand)' : 'var(--bg-surface)',
-                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)',
                             fontSize: '11px',
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -1502,14 +1502,14 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               {/* PANEL 2: SKILLS & SERVICE AREAS */}
               <div
                 style={{
-                  background: 'rgba(255, 255, 255, 0.7)',
+                  background: 'var(--bg-surface-subtle)',
                   borderRadius: 'var(--radius-lg)',
                   border: '1px solid var(--border-default)',
                   padding: 'var(--space-4)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 'var(--space-3)',
-                  boxShadow: '0 2px 8px rgba(15, 23, 42, 0.03)',
+                  boxShadow: 'var(--shadow-xs)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1541,7 +1541,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                             borderRadius: 'var(--radius-full)',
                             border: isSelected ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
                             backgroundColor: isSelected ? 'var(--color-brand)' : 'var(--bg-surface)',
-                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)',
                             fontSize: '11px',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -1592,7 +1592,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                             borderRadius: 'var(--radius-full)',
                             border: isSelected ? '1px solid var(--color-info-600)' : '1px solid var(--border-default)',
                             backgroundColor: isSelected ? 'var(--color-info-600)' : 'var(--bg-surface)',
-                            color: isSelected ? '#ffffff' : 'var(--color-text-secondary)',
+                            color: isSelected ? '#ffffff' : 'var(--text-secondary)',
                             fontSize: '11px',
                             cursor: 'pointer',
                             transition: 'all 0.15s ease',
@@ -1738,7 +1738,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               {deactivateConflictError}
             </div>
           ) : (
-            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
               Deactivating this technician will mark their record as <strong>INACTIVE</strong> and remove them from future service assignments. All historical records will remain intact.
             </p>
           )}

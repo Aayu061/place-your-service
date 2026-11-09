@@ -978,7 +978,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
         {({ requestClose }) => (
           <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {/* Cascading Selectors */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             {/* Customer Select */}
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
@@ -1098,7 +1098,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
           </div>
 
           {/* Request Type & Priority */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
                 Request Type <span style={{ color: 'var(--color-error)' }}>*</span>
@@ -1668,7 +1668,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
         maxWidth="680px"
       >
         <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          <div className="form-grid-2">
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
                 Request Type
@@ -1801,7 +1801,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          <div className="form-grid-2">
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
                 Start Time

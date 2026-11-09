@@ -3,7 +3,6 @@ import { Printer, Mail, Send, FileText, X } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { operationsApi, PaymentRecord, PaymentTransactionRecord } from '@/services/operationsApi';
 import { useToast } from '@/components/ui/useToast';
@@ -127,18 +126,25 @@ export function PaymentInvoiceModal({
         <div className="invoice-printable-sheet" style={{ background: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: 8, border: '1px solid #e2e8f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           {/* Company Official Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0284c7', paddingBottom: 16, marginBottom: 18, gap: 16 }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                {COMPANY_BANK_DETAILS.mainCompanyName}
-              </h1>
-              <p style={{ margin: '2px 0 0', fontSize: '13px', fontWeight: 600, color: '#0284c7' }}>
-                Air Conditioning Sales, Preventive Maintenance &amp; Services · {COMPANY_BANK_DETAILS.platformBrand} Platform
-              </p>
-              <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: 1.45, maxWidth: 440 }}>
-                <strong>Office:</strong> {COMPANY_BANK_DETAILS.officeAddress}<br />
-                <strong>Billing:</strong> {COMPANY_BANK_DETAILS.billingAddress}<br />
-                <strong>Tel:</strong> +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone} | <strong>Email:</strong> {COMPANY_BANK_DETAILS.email}
-              </p>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <img
+                src={COMPANY_BANK_DETAILS.logoImageUrl}
+                alt={COMPANY_BANK_DETAILS.mainCompanyName}
+                style={{ width: 56, height: 56, objectFit: 'contain', marginTop: 2, flexShrink: 0 }}
+              />
+              <div>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                  {COMPANY_BANK_DETAILS.mainCompanyName}
+                </h1>
+                <p style={{ margin: '2px 0 0', fontSize: '13px', fontWeight: 600, color: '#0284c7' }}>
+                  Air Conditioning Sales, Preventive Maintenance &amp; Services · {COMPANY_BANK_DETAILS.platformBrand} Platform
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: 1.45, maxWidth: 440 }}>
+                  <strong>Office:</strong> {COMPANY_BANK_DETAILS.officeAddress}<br />
+                  <strong>Billing:</strong> {COMPANY_BANK_DETAILS.billingAddress}<br />
+                  <strong>Tel:</strong> +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone} | <strong>Email:</strong> {COMPANY_BANK_DETAILS.email}
+                </p>
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ display: 'inline-block', padding: '4px 12px', background: '#0284c7', color: '#ffffff', fontWeight: 800, fontSize: '13px', borderRadius: 4, letterSpacing: '0.04em' }}>
@@ -323,19 +329,23 @@ export function PaymentInvoiceModal({
                 <span style={{ color: '#64748b' }}>UPI VPA:</span>
                 <strong style={{ color: '#0284c7', fontFamily: 'monospace' }}>{COMPANY_BANK_DETAILS.upiId}</strong>
               </div>
-              {balanceDue > 0 && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <UpiQrCode
-                    amount={balanceDue}
-                    note={`Invoice ${payment.payment_number}`}
-                    size={72}
-                    showScanText={false}
-                  />
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    Scan QR code via PhonePe / GPay / Paytm to pay remaining balance: <strong style={{ color: '#0f172a' }}>₹{balanceDue.toFixed(2)}</strong>
-                  </div>
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img
+                  src={COMPANY_BANK_DETAILS.fixedQrImageUrl}
+                  alt="Official Extreme Sales & Services UPI QR Standee"
+                  style={{ width: 76, height: 106, objectFit: 'contain', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', padding: 2, flexShrink: 0 }}
+                />
+                <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.45 }}>
+                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Official UPI QR Code</div>
+                  <div>UPI ID: <strong style={{ color: '#0284c7', fontFamily: 'monospace' }}>{COMPANY_BANK_DETAILS.upiId}</strong></div>
+                  <div>Accepted: GPay, PhonePe, Paytm, BHIM</div>
+                  {balanceDue > 0 && (
+                    <div style={{ marginTop: 4, color: '#0f172a', fontWeight: 600 }}>
+                      Remaining Balance: <span style={{ color: '#0284c7' }}>₹{balanceDue.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Right: Stamp & Signature */}
