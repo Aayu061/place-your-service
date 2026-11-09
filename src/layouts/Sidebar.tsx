@@ -1,15 +1,11 @@
 import React, { useEffect } from 'react';
 import {
   ChevronLeft,
+  ChevronRight,
   X,
-  Sun,
-  Moon,
-  LogOut,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/hooks/useTheme';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {
@@ -31,9 +27,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
-  const { user, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
-
   // Keyboard shortcut listener: Toggle sidebar with Ctrl+B or Cmd+B
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -45,14 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onToggleCollapse]);
-
-  const operatorInitial = user?.fullName
-    ? user.fullName.charAt(0).toUpperCase()
-    : currentRole === 'ADMIN'
-      ? 'A'
-      : 'S';
-
-  const operatorName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin Console' : 'Operations Staff');
 
   return (
     <>
@@ -396,209 +381,95 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </nav>
 
-        {/* Enterprise Bottom Operator / Workspace Card */}
+        {/* Sleek Collapse / Expand Control Bar */}
         <div
           style={{
-            padding: isCollapsed ? 'var(--space-3) var(--space-2)' : 'var(--space-3) var(--space-3)',
+            padding: isCollapsed ? 'var(--space-2)' : 'var(--space-2) var(--space-3)',
             borderTop: '1px solid var(--bg-sidebar-border)',
-            backgroundColor: 'var(--bg-sidebar-footer, rgba(0, 0, 0, 0.25))',
+            backgroundColor: 'var(--bg-sidebar-footer, rgba(0, 0, 0, 0.02))',
             flexShrink: 0,
-            overflow: 'hidden',
             boxSizing: 'border-box',
           }}
         >
           {isCollapsed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-              <Tooltip content={`${operatorName} (${currentRole}) • Click to expand (Ctrl+B)`} position="right">
-                <button
-                  type="button"
-                  onClick={onToggleCollapse}
-                  aria-label="Expand sidebar"
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#ffffff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    fontSize: '12px',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--color-brand)';
-                    e.currentTarget.style.transform = 'scale(1.06)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                    e.currentTarget.style.transform = 'scale(1)';
-                  }}
-                >
-                  {operatorInitial}
-                </button>
-              </Tooltip>
-              <Tooltip content={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`} position="right">
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                  aria-label="Toggle Theme"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.05))',
-                    border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.1))',
-                    color: 'var(--text-sidebar, #8EB69B)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
-                </button>
-              </Tooltip>
-              <Tooltip content="Sign Out" position="right">
-                <button
-                  type="button"
-                  onClick={() => logout()}
-                  aria-label="Sign Out"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.05))',
-                    border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.1))',
-                    color: 'var(--text-sidebar, #8EB69B)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <LogOut size={15} />
-                </button>
-              </Tooltip>
-            </div>
+            <Tooltip content="Expand sidebar (Ctrl+B)" position="right">
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Expand sidebar"
+                style={{
+                  width: '100%',
+                  height: '36px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-sidebar, #64756A)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, #E8F0E9)';
+                  e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--text-sidebar, #64756A)';
+                }}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </Tooltip>
           ) : (
-            <div
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-label="Collapse sidebar"
               style={{
+                width: '100%',
+                height: '36px',
+                borderRadius: 'var(--radius-md)',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-sidebar, #64756A)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: 'var(--space-2)',
-                padding: '6px 8px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--bg-sidebar-card, rgba(255, 255, 255, 0.03))',
-                border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.06))',
+                padding: '0 8px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, #E8F0E9)';
+                e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--text-sidebar, #64756A)';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 0 }}>
-                <div
-                  style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    fontSize: '11px',
-                    flexShrink: 0,
-                  }}
-                >
-                  {operatorInitial}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      color: 'var(--text-sidebar-title, var(--text-primary))',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {operatorName}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-sidebar-muted, #8EB69B)', whiteSpace: 'nowrap' }}>
-                    {currentRole} Session • Online
-                  </div>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ChevronLeft size={16} />
+                <span>Collapse</span>
               </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                <Tooltip content={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`} position="top">
-                  <button
-                    type="button"
-                    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                    aria-label="Toggle Theme"
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '6px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-sidebar-muted, #8EB69B)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
-                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(255, 255, 255, 0.1))';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--text-sidebar-muted, #8EB69B)';
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="Sign Out" position="top">
-                  <button
-                    type="button"
-                    onClick={() => logout()}
-                    aria-label="Sign Out"
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '6px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-sidebar-muted, #8EB69B)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#ef4444';
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--text-sidebar-muted, #8EB69B)';
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <LogOut size={15} />
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
+              <kbd
+                style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-mono)',
+                  padding: '2px 5px',
+                  borderRadius: '4px',
+                  backgroundColor: 'var(--bg-sidebar-btn, rgba(41, 59, 50, 0.05))',
+                  border: '1px solid var(--border-sidebar-card, rgba(41, 59, 50, 0.08))',
+                  color: 'var(--text-sidebar-muted, #64756A)',
+                }}
+              >
+                Ctrl+B
+              </kbd>
+            </button>
           )}
         </div>
       </aside>
