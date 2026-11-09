@@ -103,7 +103,7 @@ export class OperationsService {
 
   async listPayments(query: PageQuery & { status?: string; customerId?: string; search?: string }) {
     const supabase = getSupabaseClient();
-    let request = supabase.from('payments').select('*, customers(id,name,customer_code,phone,email,address,city,state,postal_code), service_requests(id,request_number,request_type,priority,status,description,reported_date,created_at), amc_contracts(id,contract_number,plan_name,status,start_date,end_date,total_amount)', { count: 'exact' });
+    let request = supabase.from('payments').select('*, customers(id,name,customer_code,phone,email,address,city,state,postal_code), service_requests(id,request_number,request_type,priority,status,description,reported_date,created_at), amc_contracts(id,contract_number,status,start_date,end_date,total_amount)', { count: 'exact' });
     if (query.status) request = request.eq('status', query.status);
     if (query.customerId) request = request.eq('customer_id', query.customerId);
     if (query.search) request = request.ilike('payment_number', `%${query.search}%`);
@@ -171,7 +171,7 @@ export class OperationsService {
     const supabase = getSupabaseClient();
     const { data: payment, error } = await supabase
       .from('payments')
-      .select('*, customers(id,name,customer_code,phone,email,address,city,state,postal_code), service_requests(id,request_number,request_type,priority,status,description,reported_date,created_at), amc_contracts(id,contract_number,plan_name,status,start_date,end_date,total_amount)')
+      .select('*, customers(id,name,customer_code,phone,email,address,city,state,postal_code), service_requests(id,request_number,request_type,priority,status,description,reported_date,created_at), amc_contracts(id,contract_number,status,start_date,end_date,total_amount)')
       .eq('id', paymentId)
       .maybeSingle();
 
@@ -201,7 +201,7 @@ export class OperationsService {
     const serviceInfo = payment.service_requests
       ? `Service Request: ${payment.service_requests.request_number} (${payment.service_requests.request_type || 'AC Repair/Service'}) — ${payment.service_requests.description || 'Diagnosis & Service'}`
       : payment.amc_contracts
-      ? `AMC Contract: ${payment.amc_contracts.contract_number} (${payment.amc_contracts.plan_name || 'Annual Maintenance Contract'})`
+      ? `AMC Contract: ${payment.amc_contracts.contract_number} (Annual Maintenance Contract)`
       : 'General Air Conditioning Service & Maintenance';
 
     const upiPayLink = `upi://pay?pa=extremess0121@sbi&pn=Extreme%20Sales%20and%20Services&am=${balance.toFixed(2)}&cu=INR&tn=Invoice%20${paymentNumber}`;
