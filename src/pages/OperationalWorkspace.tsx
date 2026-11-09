@@ -514,12 +514,12 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
       </div>
       <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
         <div style={hintStyle}>TOTAL COLLECTED</div>
-        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: 'var(--color-success-dark, #065f46)' }}>{money(metrics.totalCollected)}</strong>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: 'var(--color-success-text, #10b981)' }}>{money(metrics.totalCollected)}</strong>
         <span style={hintStyle}>{metrics.rate}% realized collection rate</span>
       </div>
       <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
         <div style={hintStyle}>OUTSTANDING BALANCE</div>
-        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: metrics.totalOutstanding > 0 ? 'var(--color-warning-dark, #b45309)' : 'var(--text-muted)' }}>{money(metrics.totalOutstanding)}</strong>
+        <strong style={{ fontSize: '1.35rem', display: 'block', margin: '4px 0', color: metrics.totalOutstanding > 0 ? 'var(--color-warning-text, #f59e0b)' : 'var(--text-muted)' }}>{money(metrics.totalOutstanding)}</strong>
         <span style={hintStyle}>{metrics.pendingCount} accounts with balance due</span>
       </div>
       <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
@@ -619,7 +619,7 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
                     e.stopPropagation();
                     onNavigate?.('amc', { recordId: record.amc_id || '', recordType: 'amc' });
                   }}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-success-dark, #065f46)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-brand)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontWeight: 600 }}
                   title="Open AMC Contract"
                 >
                   <Link2 size={13} /> {record.amc_contracts.contract_number}
@@ -631,7 +631,7 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
             <td>{money(record.total_amount_due)}</td>
             <td>{money(record.total_amount_paid)}</td>
             <td>
-              <strong style={{ color: rowBalance > 0 ? 'var(--color-warning-dark, #b45309)' : 'var(--color-success-dark, #065f46)' }}>
+              <strong style={{ color: rowBalance > 0 ? 'var(--color-warning-text, #f59e0b)' : 'var(--color-success-text, #10b981)' }}>
                 {money(rowBalance)}
               </strong>
             </td>
@@ -642,8 +642,8 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
                 borderRadius: 4,
                 fontSize: '11px',
                 fontWeight: 600,
-                background: record.status === 'PAID' ? 'rgba(16, 185, 129, 0.1)' : record.status === 'PARTIALLY_PAID' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(2, 132, 199, 0.1)',
-                color: record.status === 'PAID' ? 'var(--color-success-dark, #065f46)' : record.status === 'PARTIALLY_PAID' ? 'var(--color-warning-dark, #b45309)' : 'var(--color-brand)',
+                background: record.status === 'PAID' ? 'var(--color-success-bg, rgba(16, 185, 129, 0.1))' : record.status === 'PARTIALLY_PAID' ? 'var(--color-warning-bg, rgba(245, 158, 11, 0.1))' : 'rgba(2, 132, 199, 0.1)',
+                color: record.status === 'PAID' ? 'var(--color-success-text, #10b981)' : record.status === 'PARTIALLY_PAID' ? 'var(--color-warning-text, #f59e0b)' : 'var(--color-brand)',
               }}>
                 {record.status.replace('_', ' ')}
               </span>
@@ -666,8 +666,8 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
                 fontWeight: 600,
                 padding: '2px 8px',
                 borderRadius: 4,
-                background: isFullyPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                color: isFullyPaid ? 'var(--color-success-dark, #065f46)' : 'var(--color-warning-dark, #b45309)',
+                background: isFullyPaid ? 'var(--color-success-bg, rgba(16, 185, 129, 0.1))' : 'var(--color-warning-bg, rgba(245, 158, 11, 0.1))',
+                color: isFullyPaid ? 'var(--color-success-text, #10b981)' : 'var(--color-warning-text, #f59e0b)',
               }}>
                 {isFullyPaid ? 'FULLY SETTLED' : `BALANCE DUE: ${money(balanceDue)}`}
               </span>
@@ -681,10 +681,10 @@ function PaymentsWorkspace({ onNavigate }: { onNavigate?: (item: string, params?
               alignItems: 'center',
               gap: 14,
               padding: '16px 20px',
-              background: 'rgba(16, 185, 129, 0.08)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
+              background: 'var(--color-success-bg, rgba(16, 185, 129, 0.08))',
+              border: '1px solid var(--color-success-border, rgba(16, 185, 129, 0.25))',
               borderRadius: 'var(--radius-md)',
-              color: 'var(--color-success-dark, #065f46)',
+              color: 'var(--color-success-text, #10b981)',
             }}>
               <CheckCircle size={22} style={{ color: 'var(--color-success-solid, #10b981)', flexShrink: 0 }} />
               <div>

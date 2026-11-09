@@ -1837,9 +1837,9 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
           ) : (
             <div
               style={{
-                backgroundColor: 'var(--bg-warning-subtle, #fffbeb)',
-                border: '1px solid var(--border-warning, #fde68a)',
-                color: 'var(--text-warning, #92400e)',
+                backgroundColor: 'var(--color-warning-bg, #fffbeb)',
+                border: '1px solid var(--color-warning-border, #fde68a)',
+                color: 'var(--color-warning-text, #92400e)',
                 padding: 'var(--space-3)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 'var(--text-xs)',
