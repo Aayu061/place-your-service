@@ -63,81 +63,218 @@ export function TechnicianLayout({
   const statusInfo = getStatusBadge(tech?.status || 'AVAILABLE');
 
   return (
-    <div className="min-h-screen bg-surface-canvas text-brand-primary flex flex-col antialiased selection:bg-brand-primary selection:text-white">
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: 'var(--bg-canvas)',
+        color: 'var(--text-primary)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {/* Mobile Top Navigation Header */}
-      <header className="sticky top-0 z-30 bg-surface-raised border-b border-brand-border shadow-xs backdrop-blur-md px-3.5 py-2.5">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2">
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          backgroundColor: 'var(--bg-surface)',
+          borderBottom: '1px solid var(--border-default)',
+          boxShadow: 'var(--shadow-xs)',
+          padding: '10px 16px',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '640px',
+            margin: '0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
           {/* Brand & Tech Identifier */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-surface-subtle p-0.5 border border-brand-border shrink-0 flex items-center justify-center">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                border: '1px solid var(--border-default)',
+                padding: '3px',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <img
                 src={COMPANY_BANK_DETAILS.pysLogoUrl}
                 alt="PYS Field Portal"
-                className="w-full h-full object-contain"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-xs text-brand-primary truncate">
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-primary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
                   {tech?.name || 'Technician Desk'}
                 </span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-brand-primary/10 text-brand-primary">
+                <span
+                  style={{
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '10px',
+                    fontFamily: 'var(--font-mono)',
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(168, 72, 28, 0.1)',
+                    color: 'var(--color-brand)',
+                  }}
+                >
                   {tech?.technicianCode || 'TECH'}
                 </span>
               </div>
-              <p className="text-[10px] text-brand-secondary truncate">
+              <p
+                style={{
+                  fontSize: '10px',
+                  color: 'var(--text-muted)',
+                  margin: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 Extreme Sales &amp; Services · Field Desk
               </p>
             </div>
           </div>
 
           {/* Right Controls: Duty Status & Logout */}
-          <div className="flex items-center gap-1.5 shrink-0 relative">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
             <button
               type="button"
               onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)}
               disabled={isUpdatingStatus}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold border transition-all cursor-pointer"
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '9999px',
+                fontSize: '11px',
+                fontWeight: 600,
                 backgroundColor: statusInfo.bgColor,
-                borderColor: statusInfo.dotColor,
+                border: `1px solid ${statusInfo.dotColor}`,
                 color: statusInfo.textColor,
+                cursor: 'pointer',
               }}
             >
               <span
-                className="w-2 h-2 rounded-full shrink-0 animate-pulse"
-                style={{ backgroundColor: statusInfo.dotColor }}
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: statusInfo.dotColor,
+                  flexShrink: 0,
+                }}
               />
-              <span className="hidden sm:inline">{statusInfo.label}</span>
-              <span className="sm:hidden">{tech?.status === 'AVAILABLE' ? 'On Duty' : tech?.status === 'BUSY' ? 'Busy' : 'Off'}</span>
-              <ChevronDown className="w-3 h-3 opacity-70" />
+              <span>{statusInfo.label}</span>
+              <ChevronDown size={12} style={{ opacity: 0.7 }} />
             </button>
 
             {/* Status Dropdown Menu */}
             {isStatusMenuOpen && (
-              <div className="absolute right-0 top-10 w-44 rounded-xl bg-surface-raised border border-brand-border shadow-lg p-1.5 z-50 space-y-1">
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '40px',
+                  width: '180px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-surface)',
+                  border: '1px solid var(--border-default)',
+                  boxShadow: 'var(--shadow-lg)',
+                  padding: '6px',
+                  zIndex: 50,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => handleStatusChange('AVAILABLE')}
-                  className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-2 hover:bg-emerald-500/10 text-brand-primary cursor-pointer"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                  }}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
                   <span>Available (On Duty)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleStatusChange('BUSY')}
-                  className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-2 hover:bg-amber-500/10 text-brand-primary cursor-pointer"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                  }}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
                   <span>On Site (Busy)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleStatusChange('OFF_DUTY')}
-                  className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-medium flex items-center gap-2 hover:bg-slate-500/10 text-brand-secondary cursor-pointer"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
                   <span>Off Duty</span>
                 </button>
               </div>
@@ -147,58 +284,125 @@ export function TechnicianLayout({
               type="button"
               onClick={onLogout}
               title="Sign Out"
-              className="p-1.5 text-brand-secondary hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+              style={{
+                padding: '6px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut size={16} />
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Field Workspace */}
-      <main className="flex-1 max-w-2xl w-full mx-auto p-3.5 pb-24 sm:pb-8">
+      <main
+        style={{
+          flex: 1,
+          maxWidth: '640px',
+          width: '100%',
+          margin: '0 auto',
+          padding: '16px',
+          paddingBottom: '88px',
+          boxSizing: 'border-box',
+        }}
+      >
         {children}
       </main>
 
-      {/* Bottom Thumb Navigation Bar (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-surface-raised/95 backdrop-blur-md border-t border-brand-border py-1.5 px-6 sm:hidden">
-        <div className="max-w-md mx-auto flex items-center justify-around">
+      {/* Bottom Thumb Navigation Bar (Mobile / Responsive) */}
+      <nav
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 30,
+          backgroundColor: 'var(--bg-surface)',
+          borderTop: '1px solid var(--border-default)',
+          padding: '6px 16px',
+          boxShadow: 'var(--shadow-md)',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '440px',
+            margin: '0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+          }}
+        >
           <button
             type="button"
             onClick={() => onTabChange('jobs')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-              activeTab === 'jobs'
-                ? 'text-brand-primary font-bold'
-                : 'text-brand-secondary hover:text-brand-primary'
-            }`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '10px',
+              fontWeight: activeTab === 'jobs' ? 700 : 500,
+              color: activeTab === 'jobs' ? 'var(--color-brand)' : 'var(--text-muted)',
+              background: activeTab === 'jobs' ? 'rgba(168, 72, 28, 0.08)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            <Calendar className="w-4 h-4" />
+            <Calendar size={18} />
             <span>Today's Jobs</span>
           </button>
 
           <button
             type="button"
             onClick={() => onTabChange('completed')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-              activeTab === 'completed'
-                ? 'text-brand-primary font-bold'
-                : 'text-brand-secondary hover:text-brand-primary'
-            }`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '10px',
+              fontWeight: activeTab === 'completed' ? 700 : 500,
+              color: activeTab === 'completed' ? 'var(--color-brand)' : 'var(--text-muted)',
+              background: activeTab === 'completed' ? 'rgba(168, 72, 28, 0.08)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 size={18} />
             <span>Completed</span>
           </button>
 
           <button
             type="button"
             onClick={() => onTabChange('profile')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-              activeTab === 'profile'
-                ? 'text-brand-primary font-bold'
-                : 'text-brand-secondary hover:text-brand-primary'
-            }`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '6px 14px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '10px',
+              fontWeight: activeTab === 'profile' ? 700 : 500,
+              color: activeTab === 'profile' ? 'var(--color-brand)' : 'var(--text-muted)',
+              background: activeTab === 'profile' ? 'rgba(168, 72, 28, 0.08)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            <User className="w-4 h-4" />
+            <User size={18} />
             <span>Profile</span>
           </button>
         </div>
