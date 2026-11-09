@@ -10,8 +10,8 @@ interface AppShellProps {
     currentRole: UserRole;
     activeItem: string;
     onNavigate: (item: string, params?: Record<string, string>) => void;
-    activeSubTab: 'overview' | 'activity' | 'alerts';
-    onSubTabChange: (tab: 'overview' | 'activity' | 'alerts') => void;
+    activeSubTab: 'overview' | 'activity';
+    onSubTabChange: (tab: 'overview' | 'activity') => void;
   }) => React.ReactNode;
 }
 
@@ -25,7 +25,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
     return canVisit(candidate) ? candidate : 'dashboard';
   }, [canVisit]);
   const [activeItem, setActiveItem] = useState<string>(readWorkspaceFromUrl);
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'activity' | 'alerts'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'activity'>('overview');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
 
@@ -33,7 +33,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
     const syncFromHistory = () => {
       setActiveItem(readWorkspaceFromUrl());
       const tab = new URLSearchParams(window.location.search).get('tab');
-      if (tab === 'activity' || tab === 'alerts' || tab === 'overview') setActiveSubTab(tab);
+      if (tab === 'activity' || tab === 'overview') setActiveSubTab(tab);
     };
     window.addEventListener('popstate', syncFromHistory);
     return () => window.removeEventListener('popstate', syncFromHistory);
@@ -51,7 +51,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
     window.history.pushState({ workspace: item }, '', `${url.pathname}${url.search}${url.hash}`);
   }, [canVisit]);
 
-  const changeSubTab = useCallback((tab: 'overview' | 'activity' | 'alerts') => {
+  const changeSubTab = useCallback((tab: 'overview' | 'activity') => {
     setActiveSubTab(tab);
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', 'dashboard');

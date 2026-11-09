@@ -128,16 +128,24 @@
 }
 
 .top-bar {
-  height: var(--header-height);
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-default);
+  min-height: var(--header-height);
+  background-color: var(--glass-bg-surface, rgba(255, 255, 255, 0.94));
+  border-bottom: 1px solid var(--border-card-hairline, rgba(20, 36, 28, 0.086));
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-6);
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px var(--space-6);
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .top-bar {
+  background-color: rgba(24, 32, 28, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .content-container {
@@ -200,6 +208,24 @@
   .user-name-desktop {
     display: block !important;
   }
+  .mobile-search-trigger {
+    display: none !important;
+  }
+  .cta-label-desktop {
+    display: inline !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .search-container-desktop {
+    display: none !important;
+  }
+  .mobile-search-trigger {
+    display: flex !important;
+  }
+  .cta-label-desktop {
+    display: none !important;
+  }
 }
 
 @media (max-width: 640px) {
@@ -208,204 +234,13 @@
   .grid-cols-2 {
     grid-template-columns: 1fr;
   }
-  .top-bar { padding: 0 var(--space-4); }
+  .top-bar { padding: 8px var(--space-4); }
   .content-container { padding: var(--space-4); }
 }
 
 /* --------------------------------------------------
- * Place Your Service (PYS) — Elevated Floating Shell & 26px Card Geometry
+ * Place Your Service (PYS) — Elevated Card Geometry & Controls
  * -------------------------------------------------- */
-@media (min-width: 901px) {
-  .sidebar:not(.pys-force-visible) {
-    display: none !important;
-  }
-  .main-wrapper {
-    margin-left: 92px !important;
-    padding: 24px 32px 48px 16px !important;
-    min-height: 100vh;
-  }
-  .content-container {
-    padding: 0 !important;
-    max-width: 1480px !important;
-    width: 100% !important;
-  }
-  .top-bar {
-    display: none !important;
-  }
-}
-
-.pys-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.pys-content-container {
-  margin-left: 88px;
-  padding: 20px 28px 48px 16px;
-  max-width: 1480px;
-  width: calc(100% - 104px);
-  box-sizing: border-box;
-}
-
-@media (max-width: 900px) {
-  .pys-dock-container {
-    display: none !important;
-  }
-  .pys-content-container {
-    margin-left: 0;
-    width: 100%;
-    padding: 16px;
-  }
-  .pys-topbar-desktop-only {
-    display: none !important;
-  }
-}
-
-/* Floating Dock Pods (Left Navigation System) */
-.pys-dock-container {
-  position: fixed;
-  left: 20px;
-  top: 24px;
-  bottom: 24px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 250;
-  pointer-events: none;
-}
-
-.pys-dock-pod {
-  background: var(--glass-bg-surface, rgba(255, 255, 255, 0.92));
-  border: 1px solid var(--border-card-hairline, rgba(20, 36, 28, 0.086));
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border-radius: 9999px;
-  box-shadow: 0 2px 4px rgba(20, 36, 28, 0.04), 0 12px 28px -12px rgba(20, 36, 28, 0.16);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: auto;
-  transition: all 0.25s ease;
-}
-
-[data-theme="dark"] .pys-dock-pod {
-  background: rgba(24, 32, 28, 0.92);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-.pys-nav-pod {
-  border-radius: 36px;
-  padding: 8px 6px;
-}
-
-.pys-dock-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #667069);
-  cursor: pointer;
-  position: relative;
-  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
-}
-
-.pys-dock-btn:hover {
-  color: var(--text-primary, #18201b);
-  background: rgba(20, 36, 28, 0.06);
-  transform: scale(1.05);
-}
-
-[data-theme="dark"] .pys-dock-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ecf2ee;
-}
-
-.pys-dock-btn.active {
-  background: #a8481c !important;
-  color: #ffffff !important;
-  border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(168, 72, 28, 0.4);
-}
-
-.pys-dock-theme-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted, #667069);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pys-dock-theme-btn.active {
-  background: #18201b;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .pys-dock-theme-btn.active {
-  background: #ffffff;
-  color: #0f1412;
-}
-
-.pys-badge-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  background-color: #ef4444;
-  color: #ffffff;
-  border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  border: 2px solid #ffffff;
-}
-
-[data-theme="dark"] .pys-badge-dot {
-  border-color: #18201c;
-}
-
-/* Floating Island TopBar */
-.pys-topbar-island {
-  background: var(--glass-bg-surface, rgba(255, 255, 255, 0.94));
-  border: 1px solid var(--border-card-hairline, rgba(20, 36, 28, 0.086));
-  border-radius: 26px;
-  padding: 14px 22px;
-  box-shadow: 0 1px 2px rgba(20, 36, 28, 0.04), 0 14px 34px -22px rgba(20, 36, 28, 0.28);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  margin-bottom: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  transition: all 0.25s ease;
-}
-
-[data-theme="dark"] .pys-topbar-island {
-  background: rgba(24, 32, 28, 0.92);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
-}
-
 .pys-pill-tabs-track {
   width: 100%;
   background: rgba(20, 36, 28, 0.04);
@@ -413,7 +248,7 @@
   border-radius: 9999px;
   padding: 4px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   box-sizing: border-box;
 }

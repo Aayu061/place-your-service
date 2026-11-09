@@ -5,17 +5,6 @@ import {
   Sun,
   Moon,
   LogOut,
-  LayoutDashboard,
-  TrendingUp,
-  Users,
-  Wrench,
-  CalendarDays,
-  HardHat,
-  FileCheck2,
-  FileText,
-  Boxes,
-  ShieldCheck,
-  Settings,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -65,102 +54,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const operatorName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin Console' : 'Operations Staff');
 
-  const dockItems = [
-    { id: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Overall Analytics', icon: TrendingUp },
-    { id: 'customers', label: 'Customers & Sites', icon: Users },
-    { id: 'service-requests', label: 'Service Requests', icon: Wrench, badge: 3 },
-    { id: 'service-schedule', label: 'Service Schedule', icon: CalendarDays },
-    { id: 'amc', label: 'AMC Contracts', icon: FileCheck2 },
-    { id: 'technicians', label: 'Technicians Master', icon: HardHat },
-    { id: 'ac-master', label: 'AC Master Catalog', icon: Boxes },
-    { id: 'service-reports', label: 'Service Reports', icon: FileText },
-    ...(currentRole === 'ADMIN' ? [{ id: 'staff', label: 'Staff Management', icon: ShieldCheck }] : []),
-    ...(currentRole === 'ADMIN' ? [{ id: 'settings', label: 'System Settings', icon: Settings }] : []),
-  ];
-
   return (
     <>
-      {/* Desktop Floating Capsule Dock Pods (Vessa-inspired 3-tier dock) */}
-      <div className="pys-dock-container" aria-label="Desktop Quick Dock">
-        {/* Pod 1: Theme Switcher Pill */}
-        <div className="pys-dock-pod">
-          <Tooltip content="Light Mode" position="right">
-            <button
-              type="button"
-              className={`pys-dock-theme-btn ${theme === 'light' ? 'active' : ''}`}
-              onClick={() => setTheme('light')}
-              aria-label="Switch to Light Theme"
-            >
-              <Sun size={17} />
-            </button>
-          </Tooltip>
-          <Tooltip content="Dark Mode" position="right">
-            <button
-              type="button"
-              className={`pys-dock-theme-btn ${theme === 'dark' ? 'active' : ''}`}
-              onClick={() => setTheme('dark')}
-              aria-label="Switch to Dark Theme"
-            >
-              <Moon size={17} />
-            </button>
-          </Tooltip>
-        </div>
-
-        {/* Pod 2: Core PYS Navigation Icons */}
-        <div className="pys-dock-pod pys-nav-pod">
-          {dockItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeItem === item.id;
-            return (
-              <Tooltip key={item.id} content={item.label} position="right">
-                <button
-                  type="button"
-                  className={`pys-dock-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => onItemSelect(item.id)}
-                  aria-label={item.label}
-                >
-                  <Icon size={20} />
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className="pys-badge-dot">{item.badge}</span>
-                  )}
-                </button>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        {/* Pod 3: User Avatar & Logout */}
-        <div className="pys-dock-pod">
-          <Tooltip content={`${operatorName} (${currentRole})`} position="right">
-            <button
-              type="button"
-              className="pys-dock-btn"
-              onClick={() => onItemSelect('settings')}
-              aria-label="User Profile Settings"
-              style={{
-                background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '13px',
-              }}
-            >
-              {operatorInitial}
-            </button>
-          </Tooltip>
-          <Tooltip content="Sign Out" position="right">
-            <button
-              type="button"
-              className="pys-dock-btn"
-              onClick={() => logout()}
-              aria-label="Log Out"
-            >
-              <LogOut size={18} />
-            </button>
-          </Tooltip>
-        </div>
-      </div>
-
       {/* Mobile Backdrop */}
       <div
         className={`sidebar-overlay ${isMobileOpen ? 'visible' : ''}`}
@@ -513,7 +408,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }}
         >
           {isCollapsed ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
               <Tooltip content={`${operatorName} (${currentRole}) • Click to expand (Ctrl+B)`} position="right">
                 <button
                   type="button"
@@ -523,9 +418,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     width: '36px',
                     height: '36px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                    background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#93c5fd',
+                    color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -536,16 +431,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = 'var(--color-brand)';
-                    e.currentTarget.style.color = '#ffffff';
                     e.currentTarget.style.transform = 'scale(1.06)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                    e.currentTarget.style.color = '#93c5fd';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
                   {operatorInitial}
+                </button>
+              </Tooltip>
+              <Tooltip content={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`} position="right">
+                <button
+                  type="button"
+                  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                  aria-label="Toggle Theme"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: 'var(--color-neutral-300)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+                </button>
+              </Tooltip>
+              <Tooltip content="Sign Out" position="right">
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  aria-label="Sign Out"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: 'var(--color-neutral-300)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <LogOut size={15} />
                 </button>
               </Tooltip>
             </div>
@@ -568,12 +503,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     width: '30px',
                     height: '30px',
                     borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                    background: 'linear-gradient(135deg, #a8481c 0%, #7c2d12 100%)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#93c5fd',
+                    color: '#ffffff',
                     fontWeight: 700,
                     fontSize: '11px',
                     flexShrink: 0,
@@ -598,6 +533,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {currentRole} Session • Online
                   </div>
                 </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                <Tooltip content={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`} position="top">
+                  <button
+                    type="button"
+                    onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                    aria-label="Toggle Theme"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-neutral-400)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#ffffff';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--color-neutral-400)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+                  </button>
+                </Tooltip>
+
+                <Tooltip content="Sign Out" position="top">
+                  <button
+                    type="button"
+                    onClick={() => logout()}
+                    aria-label="Sign Out"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-neutral-400)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#ef4444';
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--color-neutral-400)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <LogOut size={15} />
+                  </button>
+                </Tooltip>
               </div>
             </div>
           )}

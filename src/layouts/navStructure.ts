@@ -65,7 +65,7 @@ export const NAV_STRUCTURE: NavGroupDef[] = [
   {
     group: 'SYSTEM',
     items: [
-      { id: 'notifications', label: 'Notifications', icon: Bell },
+      { id: 'notifications', label: 'Notifications & Alerts', icon: Bell },
       { id: 'activity-logs', label: 'Activity Log', icon: History },
     ],
   },

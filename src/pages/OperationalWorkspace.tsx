@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, Boxes, ClipboardList, Edit2, Link2, Package, Plus, RefreshCw, RotateCcw, Wallet } from 'lucide-react';
+import { Activity, Bell, Boxes, CheckCheck, ClipboardList, Edit2, Link2, Package, Plus, RefreshCw, RotateCcw, Wallet } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import { operationsApi, PageResult, PartRecord, PaymentRecord, NotificationRecord, InventoryTransactionRecord, PaymentTransactionRecord, ActivityLogRecord } from '@/services/operationsApi';
 import { UserRole } from '@/domain/types';
@@ -505,37 +505,115 @@ function NotificationsWorkspace({ role, onNavigate }: WorkspaceProps) {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try { setPage(await operationsApi.listNotifications({ page: 1, pageSize: 100, unreadOnly: String(unreadOnly) })); }
     catch (error) { showToast({ type: 'error', title: 'Notifications unavailable', message: error instanceof Error ? error.message : 'Could not load notifications.' }); }
     finally { setLoading(false); }
   }, [showToast, unreadOnly]);
+
   useEffect(() => { void refresh(); }, [refresh]);
+
   const generate = async () => {
     setGenerating(true);
-    try { const result = await operationsApi.generateNotifications(); showToast({ type: 'success', title: 'Alerts checked', message: `${result.created} new notification${result.created === 1 ? '' : 's'} added.` }); await refresh(); }
-    catch (error) { showToast({ type: 'error', title: 'Alert generation failed', message: error instanceof Error ? error.message : 'Could not check operational alerts.' }); }
-    finally { setGenerating(false); }
+    try {
+      const result = await operationsApi.generateNotifications();
+      showToast({ type: 'success', title: 'Alerts checked', message: `${result.created} new notification${result.created === 1 ? '' : 's'} added.` });
+      await refresh();
+    } catch (error) {
+      showToast({ type: 'error', title: 'Alert generation failed', message: error instanceof Error ? error.message : 'Could not check operational alerts.' });
+    } finally {
+      setGenerating(false);
+    }
   };
+
   const markRead = async (notification: NotificationRecord) => {
-    try { await operationsApi.markNotificationRead(notification.id, !notification.is_read); await refresh(); }
-    catch (error) { showToast({ type: 'error', title: 'Update failed', message: error instanceof Error ? error.message : 'Could not update this notification.' }); }
+    try {
+      await operationsApi.markNotificationRead(notification.id, !notification.is_read);
+      await refresh();
+    } catch (error) {
+      showToast({ type: 'error', title: 'Update failed', message: error instanceof Error ? error.message : 'Could not update this notification.' });
+    }
   };
+
+  const markAllRead = async () => {
+    const unreadItems = page?.items.filter((item) => !item.is_read) || [];
+    if (!unreadItems.length) return;
+    setMarkingAll(true);
+    try {
+      await Promise.all(unreadItems.map((item) => operationsApi.markNotificationRead(item.id, true)));
+      showToast({ type: 'success', title: 'All alerts marked as read', message: `${unreadItems.length} alerts updated.` });
+      await refresh();
+    } catch (error) {
+      showToast({ type: 'error', title: 'Update failed', message: error instanceof Error ? error.message : 'Could not mark all alerts as read.' });
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   const navigateToEntity = (notification: NotificationRecord) => {
-    const route: Record<string, string> = { customer: 'customers', service_request: 'service-requests', service_schedule: 'service-schedule', service_report: 'service-reports', amc_contract: 'amc', part: 'inventory', payment: 'payments' };
+    const route: Record<string, string> = {
+      customer: 'customers',
+      service_request: 'service-requests',
+      service_schedule: 'service-schedule',
+      service_report: 'service-reports',
+      amc_contract: 'amc',
+      part: 'inventory',
+      payment: 'payments',
+    };
     if (notification.entity_type && route[notification.entity_type]) onNavigate(route[notification.entity_type]);
   };
+
+  const hasUnread = page?.items.some((item) => !item.is_read);
+
   return <div style={sectionStyle}>
-    <div style={toolbarStyle}><p style={{ margin: 0, color: 'var(--text-secondary)' }}>Server generated alerts for work, contract expiry, stock, and payment records.</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 'var(--text-sm)' }}><input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
-      {role === 'ADMIN' && <Button size="sm" leftIcon={<RefreshCw size={14} />} isLoading={generating} onClick={generate}>Check alerts</Button>}
-    </div></div>
-    {loading ? <div role="status">Loading notifications…</div> : page?.items.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={toolbarStyle}>
+      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+        Centralized operational alerts for scheduled service visits, contract renewals, inventory thresholds, and payments.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 'var(--text-sm)', cursor: 'pointer' }}>
+          <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
+          Unread only
+        </label>
+        <Button size="sm" variant="secondary" leftIcon={<RefreshCw size={14} />} isLoading={loading} onClick={() => void refresh()}>
+          Refresh
+        </Button>
+        {hasUnread && (
+          <Button size="sm" variant="ghost" leftIcon={<CheckCheck size={14} />} isLoading={markingAll} onClick={markAllRead}>
+            Mark all read
+          </Button>
+        )}
+        {role === 'ADMIN' && (
+          <Button size="sm" leftIcon={<Bell size={14} />} isLoading={generating} onClick={generate}>
+            Check alerts now
+          </Button>
+        )}
+      </div>
+    </div>
+    {loading ? <div role="status">Loading notifications & alerts…</div> : page?.items.length ? <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {page.items.map((notification) => <Card key={notification.id} style={{ borderLeft: `4px solid ${notification.is_read ? 'var(--border-default)' : notification.type === 'ALERT' ? 'var(--color-error-solid)' : 'var(--color-warning-solid)'}` }}>
         <CardBody style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-          <div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><strong>{notification.title}</strong>{!notification.is_read && <span className="badge badge-brand">New</span>}</div><p style={{ margin: '6px 0' }}>{notification.message}</p><span style={hintStyle}>{notification.category.replace('_', ' ')} · {dateOnly(notification.created_at)}</span></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}><Button size="sm" variant="ghost" onClick={() => void markRead(notification)}>{notification.is_read ? 'Mark unread' : 'Mark read'}</Button>{notification.entity_id && <Button size="sm" variant="secondary" onClick={() => navigateToEntity(notification)}>Open record</Button>}</div>
+          <div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <strong>{notification.title}</strong>
+              {!notification.is_read && <span className="badge badge-brand">New</span>}
+            </div>
+            <p style={{ margin: '6px 0' }}>{notification.message}</p>
+            <span style={hintStyle}>{notification.category.replace(/_/g, ' ')} · {dateOnly(notification.created_at)}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+            <Button size="sm" variant="ghost" onClick={() => void markRead(notification)}>
+              {notification.is_read ? 'Mark unread' : 'Mark read'}
+            </Button>
+            {notification.entity_id && (
+              <Button size="sm" variant="secondary" onClick={() => navigateToEntity(notification)}>
+                Open record
+              </Button>
+            )}
+          </div>
         </CardBody>
       </Card>)}
     </div> : <EmptyState title={unreadOnly ? 'No unread notifications' : 'No notifications yet'} description="When operational work needs attention, generated alerts will appear here." />}
@@ -613,7 +691,7 @@ export const OperationalWorkspace: React.FC<WorkspaceProps> = ({ moduleId, role,
       default: return null;
     }
   }, [moduleId, role, onNavigate]);
-  const title: Record<string, string> = { parts: 'Parts Catalog', inventory: 'Inventory Ledger', payments: 'Payment Records', notifications: 'Notifications', 'activity-logs': 'Activity Log' };
+  const title: Record<string, string> = { parts: 'Parts Catalog', inventory: 'Inventory Ledger', payments: 'Payment Records', notifications: 'Notifications & Operational Alerts', 'activity-logs': 'Activity Log' };
   const icon = moduleId === 'parts' ? <Package size={20} /> : moduleId === 'inventory' ? <Boxes size={20} /> : moduleId === 'payments' ? <Wallet size={20} /> : moduleId === 'notifications' ? <Bell size={20} /> : <Activity size={20} />;
   return <section style={sectionStyle} aria-labelledby="operational-workspace-title">
     <div style={toolbarStyle}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ color: 'var(--color-brand)' }}>{icon}</span><div><h1 id="operational-workspace-title" style={{ margin: 0, fontSize: 'var(--text-xl)' }}>{title[moduleId] || 'Operations'}</h1><p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Connected to the authenticated PYS operations API.</p></div></div>{moduleId === 'inventory' && <Button size="sm" variant="ghost" leftIcon={<ClipboardList size={14} />} onClick={() => onNavigate('parts')}>Part catalog</Button>}{moduleId === 'parts' && <Button size="sm" variant="ghost" leftIcon={<Boxes size={14} />} onClick={() => onNavigate('inventory')}>Inventory ledger</Button>}</div>
