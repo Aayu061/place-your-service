@@ -10,6 +10,7 @@ import {
   CreditCard,
   FileCheck2,
   FileText,
+  Plus,
   RefreshCw,
   ShieldCheck,
   TrendingUp,
@@ -393,8 +394,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'rgba(2, 132, 199, 0.05)', border: '1px solid rgba(2, 132, 199, 0.15)', borderRadius: 'var(--radius-md)', fontSize: '12px' }}>
                 <span>Need to issue a new quotation proposal?</span>
-                <Button size="sm" variant="secondary" onClick={() => onNavigate('amc')}>
-                  + New Quotation
+                <Button size="sm" variant="secondary" onClick={() => onNavigate('amc')} leftIcon={<Plus size={13} />}>
+                  New Quotation
                 </Button>
               </div>
             </article>
