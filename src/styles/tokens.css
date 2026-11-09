@@ -95,6 +95,11 @@
   --bg-sidebar-hover: #232c26;
   --bg-sidebar-active: #a8481c;
   --bg-sidebar-border: rgba(20, 36, 28, 0.086);
+  --text-sidebar: #cbd5e1;
+  --text-sidebar-muted: #94a3b8;
+  --text-sidebar-heading: #94a3b8;
+  --text-sidebar-icon: #94a3b8;
+  --text-sidebar-active: #ffffff;
 
   --border-default: rgba(20, 36, 28, 0.09);
   --border-subtle: rgba(20, 36, 28, 0.05);
@@ -280,11 +285,16 @@
   --bg-surface-muted: #051F20;
   --bg-surface-subtle: #163832;
 
-  /* Sidebar Tokens */
+  /* Sidebar Tokens (Emerald Forest Palette) */
   --bg-sidebar: #051F20;
   --bg-sidebar-hover: #163832;
   --bg-sidebar-active: #235347;
   --bg-sidebar-border: #163832;
+  --text-sidebar: #8EB69B;
+  --text-sidebar-muted: rgba(142, 182, 155, 0.75);
+  --text-sidebar-heading: #8EB69B;
+  --text-sidebar-icon: #8EB69B;
+  --text-sidebar-active: #DAF1DE;
 
   /* Structural Borders & Hairlines (Tone 3: #163832 & Tone 4: #235347) */
   --border-default: #163832;
