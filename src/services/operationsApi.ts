@@ -31,9 +31,36 @@ export interface PaymentRecord {
   total_amount_paid: number;
   status: string;
   created_at: string;
-  customers?: { name: string; customer_code: string };
-  service_requests?: { request_number: string } | null;
-  amc_contracts?: { contract_number: string } | null;
+  customers?: {
+    id?: string;
+    name: string;
+    customer_code: string;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+  } | null;
+  service_requests?: {
+    id?: string;
+    request_number: string;
+    request_type?: string | null;
+    priority?: string | null;
+    status?: string | null;
+    description?: string | null;
+    reported_date?: string | null;
+    created_at?: string | null;
+  } | null;
+  amc_contracts?: {
+    id?: string;
+    contract_number: string;
+    plan_name?: string | null;
+    status?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    total_amount?: number | null;
+  } | null;
 }
 
 export interface NotificationRecord {
@@ -108,6 +135,7 @@ export const operationsApi = {
   listPaymentTransactions: (id: string, params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<PaymentTransactionRecord>>(`/payments/${id}/transactions`, { params }),
   recordPayment: (id: string, body: Record<string, unknown>) => apiClient.post<{ transactionId: string }>(`/payments/${id}/transactions`, body),
   reversePayment: (transactionId: string, body: Record<string, unknown>) => apiClient.post<{ reversalId: string }>(`/payment-transactions/${transactionId}/reversals`, body),
+  sendPaymentInvoice: (id: string, body: { recipientEmail: string }) => apiClient.post<{ success: boolean; messageId?: string }>(`/payments/${id}/send-invoice`, body),
   listNotifications: (params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<NotificationRecord>>('/notifications', { params }),
   markNotificationRead: (id: string, isRead = true) => apiClient.patch<{ notification: NotificationRecord }>(`/notifications/${id}/read`, { isRead }),
   generateNotifications: () => apiClient.post<{ created: number }>('/notifications/generate'),

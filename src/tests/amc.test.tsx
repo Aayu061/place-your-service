@@ -10,6 +10,7 @@ import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { apiClient } from '@/services/api/client';
 import { AmcContract, AmcPlan, Customer, AcAsset } from '@/domain/types';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 describe('Phase 8 Frontend AMC Management Suite', () => {
   beforeEach(() => {
@@ -1150,8 +1151,8 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
 
     expect(document.body.textContent).toContain('Payment Mode / Terms');
     expect(document.body.textContent).toContain('Company Payment Particulars & UPI QR');
-    expect(document.body.textContent).toContain('HDFC0001234');
-    expect(document.body.textContent).toContain('placeyourservice@icici');
+    expect(document.body.textContent).toContain(COMPANY_BANK_DETAILS.ifscCode);
+    expect(document.body.textContent).toContain(COMPANY_BANK_DETAILS.upiId);
     expect(document.body.querySelector('.pys-upi-qr-container')).toBeDefined();
 
     unmount();

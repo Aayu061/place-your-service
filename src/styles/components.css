@@ -1667,4 +1667,71 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
+/* ==========================================================================
+   Payment Expanded Row & Invoice / Quotation Print Media
+   ========================================================================== */
+.payment-expanded-row > td {
+  padding: 0 !important;
+  background-color: var(--bg-surface-subtle) !important;
+  border-top: none !important;
+}
+
+.payment-expanded-row div {
+  animation: fadeInDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Print Rules for Official Tax Invoices & Quotations */
+@media print {
+  /* Hide all navigation, topbars, buttons and modals backdrops */
+  body * {
+    visibility: hidden;
+  }
+
+  .invoice-printable-sheet,
+  .invoice-printable-sheet *,
+  .quotation-printable-sheet,
+  .quotation-printable-sheet * {
+    visibility: visible;
+  }
+
+  .invoice-printable-sheet,
+  .quotation-printable-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    page-break-after: avoid;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure stamp & signature print sharply with full colors */
+  img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+
 

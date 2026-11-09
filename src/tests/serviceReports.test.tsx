@@ -15,6 +15,7 @@ import {
   ServiceSchedule,
 } from '@/domain/types';
 import { ApiError } from '@/services/api/client';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 describe('Service Visit Reports & Completion Management Frontend Suite', () => {
   beforeEach(() => {
@@ -1765,8 +1766,8 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(paidContainer.textContent).toContain('Online / UPI (UPI-987654321)');
     expect(paidContainer.textContent).toContain('₹0.00'); // Balance Remaining
     expect(paidContainer.textContent).toContain('Company Bank & UPI Details');
-    expect(paidContainer.textContent).toContain('HDFC0001234');
-    expect(paidContainer.textContent).toContain('placeyourservice@icici');
+    expect(paidContainer.textContent).toContain(COMPANY_BANK_DETAILS.ifscCode);
+    expect(paidContainer.textContent).toContain(COMPANY_BANK_DETAILS.upiId);
 
     unmountPaid();
 
@@ -1826,8 +1827,8 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     // Check company bank particulars and QR container are rendered
     expect(container.textContent).toContain('Company Payment Particulars (Online / UPI)');
-    expect(container.textContent).toContain('HDFC0001234');
-    expect(container.textContent).toContain('placeyourservice@icici');
+    expect(container.textContent).toContain(COMPANY_BANK_DETAILS.ifscCode);
+    expect(container.textContent).toContain(COMPANY_BANK_DETAILS.upiId);
     expect(container.querySelector('.pys-upi-qr-container')).toBeDefined();
 
     unmount();

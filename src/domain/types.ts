@@ -390,6 +390,8 @@ export interface AmcContract {
   customerName?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   planId?: string | null;
   planName?: string | null;
   planCode?: string | null;
@@ -533,6 +535,8 @@ export interface ServiceRequest {
   customerName?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   siteName?: string | null;
   siteAddress?: string | null;
   assetTag?: string | null;
@@ -682,6 +686,8 @@ export interface ServiceSchedule {
   customerName?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerAddress?: string | null;
   siteId?: string | null;
   siteName?: string | null;
   siteAddress?: string | null;
@@ -943,6 +949,7 @@ export interface ServiceVisitReport {
   customerCode?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;
+  customerAddress?: string | null;
   siteId: string;
   siteName?: string | null;
   siteAddress?: string | null;

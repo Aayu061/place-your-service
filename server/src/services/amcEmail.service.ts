@@ -40,21 +40,24 @@ function formatAmcQuotationEmail(
     maximumFractionDigits: 2,
   });
 
-  const upiPayLink = `upi://pay?pa=placeyourservice@icici&pn=Place%20Your%20Service&am=${Number(contract.totalAmount || contract.total_amount || 0).toFixed(2)}&cu=INR&tn=AMC%20Quotation%20${contract.contractNumber || contract.contract_number}`;
+  const upiPayLink = `upi://pay?pa=extremess0121@sbi&pn=Extreme%20Sales%20and%20Services&am=${Number(contract.totalAmount || contract.total_amount || 0).toFixed(2)}&cu=INR&tn=AMC%20Quotation%20${contract.contractNumber || contract.contract_number}`;
 
   const textLines = [
     `Annual Maintenance Contract (AMC) Quotation - ${contract.contractNumber || contract.contract_number}`,
+    `Extreme Sales & Services (Place Your Service Platform)`,
+    `GSTIN: 27ANTPP9778J1ZO | Phone: +91 7977805245 / +91 9969423500`,
     `Dear ${customerName},`,
-    `Thank you for choosing Place Your Service. Here is the official AMC quotation for your air conditioning systems:`,
+    `Thank you for choosing Extreme Sales & Services. Here is the official AMC quotation for your air conditioning systems:`,
     `Term: ${contract.startDate || contract.start_date} to ${contract.endDate || contract.end_date} (${contract.frequency})`,
     `Total Scheduled Visits: ${contract.totalVisits || contract.total_visits} (Dry: ${contract.dryServiceVisits || contract.dry_service_visits || 0}, Jet: ${contract.jetServiceVisits || contract.jet_service_visits || 0}, Pumpdown: ${contract.pumpdownServiceVisits || contract.pumpdown_service_visits || 0})`,
     `Total Quotation Amount: INR ${amountStr}`,
     assetRows.length ? `Covered Units:\n${assetRows.map((x) => `• ${x}`).join('\n')}` : '',
     `Payment Details:`,
-    `Bank: HDFC Bank | A/C: 50200098765432 | IFSC: HDFC0001234`,
-    `Payee: Place Your Service Pvt Ltd | UPI ID: placeyourservice@icici`,
+    `Bank: State Bank of India | A/C: 41846055894 | IFSC: SBIN0071073`,
+    `Payee: Extreme Sales And Services | UPI ID: extremess0121@sbi`,
     `UPI Payment Link: ${upiPayLink}`,
-    `Thank you,\nPlace Your Service Support Team`,
+    `Authorized Signatory: Extreme Sales & Services`,
+    `Thank you,\nExtreme Sales & Services · Place Your Service Team`,
   ].filter(Boolean).join('\n\n');
 
   const html = `<!doctype html>
@@ -64,15 +67,20 @@ function formatAmcQuotationEmail(
   <title>AMC Quotation ${escapeHtml(contract.contractNumber || contract.contract_number)}</title>
 </head>
 <body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;">
-  <div style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:32px;">
+  <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:32px;">
     <div style="border-bottom:2px solid #0284c7;padding-bottom:16px;margin-bottom:24px;">
-      <h1 style="margin:0;font-size:22px;color:#0284c7;">Place Your Service</h1>
-      <p style="margin:4px 0 0;font-size:13px;color:#64748b;">HVAC Preventive Maintenance & Asset Care</p>
+      <h1 style="margin:0;font-size:22px;color:#0f172a;letter-spacing:-0.02em;">Extreme Sales &amp; Services</h1>
+      <p style="margin:2px 0 0;font-size:12px;color:#0284c7;font-weight:600;">Air Conditioning Sales, Preventive Maintenance &amp; Services · Place Your Service Platform</p>
+      <p style="margin:4px 0 0;font-size:11.5px;color:#64748b;">
+        Office: 1/1, Samrat Ashok Nagar, Chembur, Mumbai - 400043<br>
+        Billing: 204 Kokan Residency, Vikas Wadi, Devad, New Panvel - 410206<br>
+        Tel: +91 7977805245 / 9969423500 | Email: extremess0121@gmail.com | <strong>GSTIN: 27ANTPP9778J1ZO</strong>
+      </p>
     </div>
 
-    <h2 style="font-size:18px;color:#0f172a;margin-top:0;">AMC Contract Quotation: ${escapeHtml(contract.contractNumber || contract.contract_number)}</h2>
-    <p>Dear <strong>${escapeHtml(customerName)}</strong>,</p>
-    <p>Thank you for your interest in our comprehensive AMC protection plans. Below are the commercial quotation and service cadence details for your property:</p>
+    <h2 style="font-size:17px;color:#0f172a;margin-top:0;">AMC Contract Quotation: ${escapeHtml(contract.contractNumber || contract.contract_number)}</h2>
+    <p style="font-size:13.5px;">Dear <strong>${escapeHtml(customerName)}</strong>,</p>
+    <p style="font-size:13px;color:#475569;">Thank you for your interest in our comprehensive AMC protection plans. Below are the commercial quotation and service cadence details for your property:</p>
 
     <div style="background:#f1f5f9;border-radius:6px;padding:16px;margin:16px 0;">
       <table style="width:100%;font-size:13px;border-collapse:collapse;">
@@ -81,7 +89,7 @@ function formatAmcQuotationEmail(
           <td style="padding:4px 0;font-weight:600;text-align:right;">${escapeHtml(contract.startDate || contract.start_date)} to ${escapeHtml(contract.endDate || contract.end_date)}</td>
         </tr>
         <tr>
-          <td style="padding:4px 0;color:#64748b;">Cadence & Visits:</td>
+          <td style="padding:4px 0;color:#64748b;">Cadence &amp; Visits:</td>
           <td style="padding:4px 0;font-weight:600;text-align:right;">${escapeHtml(contract.frequency)} (${escapeHtml(contract.totalVisits || contract.total_visits)} total visits)</td>
         </tr>
         <tr>
@@ -103,30 +111,44 @@ function formatAmcQuotationEmail(
     ` : ''}
 
     <div style="border:1px solid #e2e8f0;background:#f8fafc;border-radius:6px;padding:16px;margin:20px 0;">
-      <h3 style="margin:0 0 8px;font-size:14px;color:#0284c7;">Payment Clearance Options</h3>
-      <p style="font-size:12px;color:#475569;margin:0 0 8px;">
-        <strong>Bank Transfer (NEFT/IMPS):</strong><br>
-        Payee: Place Your Service Pvt Ltd<br>
-        Bank: HDFC Bank | A/C No: 50200098765432<br>
-        IFSC: HDFC0001234 | Branch: Kandivali West, Mumbai
+      <h3 style="margin:0 0 8px;font-size:14px;color:#0f172a;">Bank Transfer &amp; Settlement Particulars</h3>
+      <p style="font-size:12px;color:#475569;margin:0 0 8px;line-height:1.6;">
+        <strong>Bank (NEFT/IMPS):</strong> State Bank of India<br>
+        <strong>Account Name:</strong> Extreme Sales And Services<br>
+        <strong>Current A/C No:</strong> 41846055894<br>
+        <strong>IFSC Code:</strong> SBIN0071073<br>
+        <strong>Branch:</strong> Chembur / Panvel, Mumbai
       </p>
       <p style="font-size:12px;color:#475569;margin:0 0 12px;">
-        <strong>UPI Payment:</strong><br>
-        UPI ID: <span style="color:#0284c7;font-weight:600;">placeyourservice@icici</span>
+        <strong>UPI ID:</strong> <span style="color:#0284c7;font-weight:600;">extremess0121@sbi</span>
       </p>
       <div style="text-align:center;">
         <a href="${upiPayLink}" style="display:inline-block;background:#0284c7;color:#ffffff;text-decoration:none;font-weight:600;font-size:13px;padding:10px 20px;border-radius:6px;">Pay ₹${amountStr} via UPI</a>
       </div>
     </div>
 
-    <p style="font-size:13px;color:#64748b;margin-top:24px;">Upon payment clearance, your AMC agreement will be activated and your preventive maintenance visits will be scheduled.</p>
-    <p style="font-size:13px;color:#334155;margin:20px 0 0;">Thank you,<br><strong>Place Your Service Desk</strong></p>
+    <!-- Official Stamp & Signature Block -->
+    <div style="margin-top:28px;padding-top:16px;border-top:1px dashed #cbd5e1;display:flex;justify-content:space-between;align-items:flex-end;">
+      <div style="font-size:12px;color:#64748b;">
+        <p style="margin:0;">Upon payment clearance, your AMC agreement will be activated.</p>
+        <p style="margin:4px 0 0;">Place Your Service Platform Support Desk</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="display:inline-block;text-align:center;">
+          <div style="width:110px;height:75px;margin:0 auto;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle, rgba(30,64,175,0.06) 0%, transparent 70%);border:1px dashed rgba(37,99,235,0.3);border-radius:8px;">
+            <span style="font-size:10px;color:#1e40af;font-weight:700;text-transform:uppercase;display:block;">[Extreme Sales Stamp &amp; Sign]</span>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:#0f172a;margin-top:4px;">Authorized Signatory</div>
+          <div style="font-size:10px;color:#64748b;">Extreme Sales &amp; Services</div>
+        </div>
+      </div>
+    </div>
   </div>
 </body>
 </html>`;
 
   return {
-    subject: `AMC Quotation ${contract.contractNumber || contract.contract_number} | Place Your Service`,
+    subject: `AMC Quotation ${contract.contractNumber || contract.contract_number} | Extreme Sales & Services`,
     html,
     text: textLines,
   };

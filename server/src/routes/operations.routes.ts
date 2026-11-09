@@ -9,7 +9,7 @@ import {
 } from '../validators/inventory.validator.js';
 import {
   createPaymentReversalSchema, createPaymentSchema, createPaymentTransactionSchema,
-  listPaymentsSchema, paymentIdParamSchema,
+  listPaymentsSchema, paymentIdParamSchema, sendPaymentInvoiceSchema,
 } from '../validators/payments.validator.js';
 import { listNotificationsSchema, markNotificationReadSchema } from '../validators/notification.validator.js';
 import { listActivityLogsSchema } from '../validators/activityLog.validator.js';
@@ -28,6 +28,7 @@ router.get('/payments', ...staffAccess, validate(listPaymentsSchema), operations
 router.post('/payments', ...staffAccess, validate(createPaymentSchema), operationsController.createPayment.bind(operationsController));
 router.get('/payments/:id/transactions', ...staffAccess, validate(paymentIdParamSchema), operationsController.getPaymentTransactions.bind(operationsController));
 router.post('/payments/:id/transactions', ...staffAccess, validate(createPaymentTransactionSchema), operationsController.recordPaymentTransaction.bind(operationsController));
+router.post('/payments/:id/send-invoice', ...staffAccess, validate(sendPaymentInvoiceSchema), operationsController.sendPaymentInvoice.bind(operationsController));
 router.post('/payment-transactions/:transactionId/reversals', ...staffAccess, validate(createPaymentReversalSchema), operationsController.recordPaymentReversal.bind(operationsController));
 
 router.get('/notifications', ...staffAccess, validate(listNotificationsSchema), operationsController.listNotifications.bind(operationsController));

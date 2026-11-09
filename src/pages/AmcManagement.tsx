@@ -16,9 +16,11 @@ import {
   CreditCard,
   CheckCircle,
   Send,
+  Printer,
 } from 'lucide-react';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
+import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { apiClient, ApiError } from '@/services/api/client';
 import {
   AmcContract,
@@ -179,6 +181,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   // Payment & Quotation states
   const [formPaymentMethod, setFormPaymentMethod] = useState<'ONLINE' | 'CASH' | 'CHEQUE'>('ONLINE');
   const [formDirectActivate, setFormDirectActivate] = useState<boolean>(false);
+  const [isPrintQuotationModalOpen, setIsPrintQuotationModalOpen] = useState(false);
   const [isSendQuotationModalOpen, setIsSendQuotationModalOpen] = useState(false);
   const [quotationRecipientEmail, setQuotationRecipientEmail] = useState('');
   const [isSendingQuotation, setIsSendingQuotation] = useState(false);
@@ -1507,6 +1510,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       <Button
                         variant="secondary"
                         size="sm"
+                        onClick={() => setIsPrintQuotationModalOpen(true)}
+                      >
+                        <Printer style={{ width: '14px', height: '14px' }} />
+                        Print Quotation
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => {
                           setQuotationRecipientEmail(
                             detailContract.customerPhone
@@ -1544,6 +1555,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   )}
                   {detailContract.status === 'ACTIVE' && (
                     <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setIsPrintQuotationModalOpen(true)}
+                      >
+                        <Printer style={{ width: '14px', height: '14px' }} />
+                        Print Agreement / Quote
+                      </Button>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -2817,6 +2836,44 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           </div>
         </form>
       </Modal>
+
+      {/* PRINTABLE AMC QUOTATION & PROPOSAL MODAL */}
+      {detailContract && (
+        <AmcQuotationPrintModal
+          isOpen={isPrintQuotationModalOpen}
+          onClose={() => setIsPrintQuotationModalOpen(false)}
+          contract={{
+            id: detailContract.id,
+            contractNumber: detailContract.contractNumber,
+            customerName: detailContract.customerName,
+            customerCode: detailContract.customerCode,
+            customerPhone: detailContract.customerPhone,
+            customerEmail: detailContract.customerEmail,
+            customerAddress: detailContract.customerAddress,
+            planName: detailContract.planName,
+            startDate: detailContract.startDate,
+            endDate: detailContract.endDate,
+            frequency: detailContract.frequency,
+            totalVisits: detailContract.totalVisits,
+            dryServiceVisits: detailContract.dryServiceVisits,
+            jetServiceVisits: detailContract.jetServiceVisits,
+            pumpdownServiceVisits: detailContract.pumpdownServiceVisits,
+            totalAmount: detailContract.totalAmount,
+            paymentBalanceDue: detailContract.paymentBalanceDue,
+            status: detailContract.status,
+            notes: detailContract.notes,
+            coveredAssets: detailContract.coveredAssets?.map((a: any) => ({
+              assetTag: a.assetTag,
+              brand: a.brand,
+              modelNumber: a.modelNumber,
+              serialNumber: a.serialNumber,
+              capacityTonnage: a.capacityTonnage,
+              locationRoom: a.locationRoom,
+            })),
+          }}
+          onEmailSent={fetchContracts}
+        />
+      )}
 
       {/* 11. SEND QUOTATION MODAL */}
       <Modal

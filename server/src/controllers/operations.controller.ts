@@ -33,6 +33,12 @@ class OperationsController {
   async recordPaymentReversal(req: Request, res: Response, next: NextFunction) {
     try { sendSuccess(res, { reversalId: await operationsService.recordPaymentReversal(req.params.transactionId as string, req.body, req.user!.profileId) }, 201); } catch (err) { next(err); }
   }
+  async sendPaymentInvoice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await operationsService.sendPaymentInvoice(req.params.id as string, req.body.recipientEmail as string, req.user!.profileId);
+      sendSuccess(res, result);
+    } catch (err) { next(err); }
+  }
   async listNotifications(req: Request, res: Response, next: NextFunction) {
     try { sendSuccess(res, await operationsService.listNotifications(req.user!.profileId, req.query as any)); } catch (err) { next(err); }
   }

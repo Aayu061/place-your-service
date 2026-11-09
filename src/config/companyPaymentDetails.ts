@@ -8,7 +8,16 @@
  */
 
 export interface CompanyBankDetails {
+  mainCompanyName: string;
+  platformBrand: string;
   companyName: string;
+  companySubtitle: string;
+  officeAddress: string;
+  billingAddress: string;
+  phone: string;
+  altPhone: string;
+  email: string;
+  gstin: string;
   bankName: string;
   accountHolderName: string;
   accountNumber: string;
@@ -17,18 +26,29 @@ export interface CompanyBankDetails {
   accountType: 'CURRENT' | 'SAVINGS';
   upiId: string;
   upiName: string;
+  stampImageUrl: string;
 }
 
 export const COMPANY_BANK_DETAILS: CompanyBankDetails = {
-  companyName: 'Place Your Service Private Limited',
-  bankName: 'HDFC Bank',
-  accountHolderName: 'Place Your Service Pvt Ltd',
-  accountNumber: '50200098765432',
-  ifscCode: 'HDFC0001234',
-  branchName: 'Kandivali West, Mumbai',
+  mainCompanyName: 'Extreme Sales & Services',
+  platformBrand: 'Place Your Service',
+  companyName: 'Extreme Sales & Services',
+  companySubtitle: 'HVAC Air Conditioning Sales, Installation & Maintenance',
+  officeAddress: '1/1, Samrat Ashok Nagar, Chembur, Mumbai, Maharashtra 400043, India',
+  billingAddress: '204 Kokan Residency, 2nd floor, Vikas Wadi, Nr J P Bar, Devad, New Panvel - 410206',
+  phone: '7977805245',
+  altPhone: '9969423500',
+  email: 'extremess0121@gmail.com',
+  gstin: '27ANTPP9778J1ZO',
+  bankName: 'State Bank of India',
+  accountHolderName: 'Extreme Sales And Services',
+  accountNumber: '41846055894',
+  ifscCode: 'SBIN0071073',
+  branchName: 'Chembur / Panvel, Mumbai',
   accountType: 'CURRENT',
-  upiId: 'placeyourservice@icici',
-  upiName: 'Place Your Service',
+  upiId: 'extremess0121@sbi',
+  upiName: 'Extreme Sales and Services',
+  stampImageUrl: '/company-stamp.png',
 };
 
 /**
