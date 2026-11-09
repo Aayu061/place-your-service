@@ -51,3 +51,4 @@ FROM public.amc_contracts c
 WHERE NOT EXISTS (
     SELECT 1 FROM public.payments p WHERE p.amc_id = c.id
 );
+

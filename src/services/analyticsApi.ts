@@ -10,6 +10,27 @@ export interface DashboardSummary {
     urgentRequestsCount: number;
     activeTechniciansCount: number;
     completedTodayCount: number;
+    totalRevenueCollected?: number;
+    totalOutstandingBalance?: number;
+    collectionRatePercent?: number;
+    draftQuotationsCount?: number;
+    draftQuotationsValue?: number;
+  };
+  financials?: {
+    totalInvoiced: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    collectionRatePercent: number;
+    cashCollected: number;
+    onlineCollected: number;
+    pendingPaymentsCount: number;
+    paidPaymentsCount: number;
+  };
+  amcPipeline?: {
+    draftCount: number;
+    draftValue: number;
+    activeCount: number;
+    expiringSoonCount: number;
   };
   capacityPercent: number;
   compliancePercent: number;

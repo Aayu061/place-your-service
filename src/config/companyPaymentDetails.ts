@@ -55,3 +55,4 @@ export function buildUpiPaymentUri(amount?: number | null, transactionNote?: str
 
   return `upi://pay?${params.toString()}`;
 }
+
