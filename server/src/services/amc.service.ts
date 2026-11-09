@@ -233,9 +233,9 @@ export class AmcService {
   }
 
   /**
-   * Real operational AMC dashboard metrics
+   * Active contract and covered asset totals shared with the overall analytics endpoint.
    */
-  async getDashboardMetrics(): Promise<AmcDashboardMetrics> {
+  async getActiveCoverageMetrics(): Promise<Pick<AmcDashboardMetrics, 'activeContracts' | 'expiringSoonContracts' | 'expiredContracts' | 'coveredAssetsCount'>> {
     const supabase = getSupabaseClient();
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -287,16 +287,34 @@ export class AmcService {
       }
     }
 
-    // Schedules
-    const { data: schedules } = await supabase
+    return { activeContracts, expiringSoonContracts, expiredContracts, coveredAssetsCount };
+  }
+
+  /**
+   * Current AMC portfolio and per-contract maintenance schedule metrics.
+   */
+  async getDashboardMetrics(): Promise<AmcDashboardMetrics> {
+    const supabase = getSupabaseClient();
+    const today = new Date().toISOString().split('T')[0];
+    const coverageMetrics = await this.getActiveCoverageMetrics();
+
+    // Only active AMC obligations belong to the AMC due-visit KPI.
+    const { data: schedules, error: scheduleError } = await supabase
       .from('service_schedules')
-      .select('id, scheduled_date, status');
+      .select('id, scheduled_date, status')
+      .not('amc_id', 'is', null)
+      .not('status', 'in', '(COMPLETED,RESOLVED,CANCELLED,SKIPPED,RESCHEDULED)');
+
+    if (scheduleError) {
+      logger.error('Failed to fetch AMC schedules for metrics', { error: scheduleError });
+      throw new BadRequestError('Failed to compute AMC metrics');
+    }
 
     let upcomingPmCount = 0;
     let overduePmCount = 0;
 
     (schedules || []).forEach((s: any) => {
-      const isCompleted = ['COMPLETED', 'RESOLVED', 'CANCELLED'].includes(s.status);
+      const isCompleted = ['COMPLETED', 'RESOLVED', 'CANCELLED', 'SKIPPED', 'RESCHEDULED'].includes(s.status);
       if (!isCompleted) {
         if (s.scheduled_date < today) {
           overduePmCount++;
@@ -307,10 +325,7 @@ export class AmcService {
     });
 
     return {
-      activeContracts,
-      expiringSoonContracts,
-      expiredContracts,
-      coveredAssetsCount,
+      ...coverageMetrics,
       upcomingPmCount,
       overduePmCount,
     };

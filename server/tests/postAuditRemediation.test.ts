@@ -593,7 +593,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+                maybeSingle: vi.fn().mockResolvedValue({ data: { ...sampleScheduleRecord, asset_id: null }, error: null }),
               }),
             };
           }
@@ -659,7 +659,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+                maybeSingle: vi.fn().mockResolvedValue({ data: { ...sampleScheduleRecord, asset_id: null }, error: null }),
               }),
             };
           }
@@ -722,7 +722,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
             return {
               select: vi.fn().mockReturnThis(),
               eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: sampleScheduleRecord, error: null }),
+                maybeSingle: vi.fn().mockResolvedValue({ data: { ...sampleScheduleRecord, asset_id: null }, error: null }),
               }),
             };
           }
@@ -1066,7 +1066,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
       expect(insertedReport.assistant_name).toBe('Mahesh Field Assistant');
     });
 
-    it('10. Rejects report update (PATCH) with 400 when updated asset belongs to different customer or site', async () => {
+    it('10. Preserves issued asset snapshots when a correction attempts to replace them', async () => {
       const authMock = setupAuth('ADMIN');
       const foreignCustomerAsset = {
         ...sampleAssetRecord,
@@ -1126,6 +1126,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
         .patch(`/api/v1/service-reports/${sampleReportId}`)
         .set('Authorization', adminAuthToken)
         .send({
+          correctionReason: 'Corrected the report asset after confirming site ownership.',
           assets: [
             {
               assetId: sampleAssetId,
@@ -1137,7 +1138,7 @@ describe('PYS Post-Audit Remediation: PYS-004, PYS-005, PYS-008 Suite', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('does not belong to the report customer');
+      expect(res.body.error.message).toContain('Issued equipment and parts/repair snapshots cannot be changed');
     });
   });
 

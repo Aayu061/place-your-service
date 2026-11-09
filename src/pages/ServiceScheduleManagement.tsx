@@ -83,9 +83,9 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const [unscheduledTypeFilter, setUnscheduledTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
 
   // Filter states for List View
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => new URLSearchParams(window.location.search).get('search') || '');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceScheduleStatus>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceScheduleStatus>(() => (new URLSearchParams(window.location.search).get('status') as ServiceScheduleStatus) || 'ALL');
   const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
   const [hideCancelledInDaily, setHideCancelledInDaily] = useState<boolean>(true);
 
@@ -97,6 +97,13 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     }, 300);
     return () => clearTimeout(handler);
   }, [searchTerm]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (searchTerm.trim()) url.searchParams.set('search', searchTerm.trim()); else url.searchParams.delete('search');
+    if (statusFilter !== 'ALL') url.searchParams.set('status', statusFilter); else url.searchParams.delete('status');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [searchTerm, statusFilter]);
 
   // Detail Drawer state
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
@@ -221,7 +228,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   }, [activeTab, fetchUnscheduledWork]);
 
   // Load schedule details when drawer opens
-  const openDetailDrawer = async (scheduleId: string) => {
+  const openDetailDrawer = useCallback(async (scheduleId: string) => {
     setSelectedScheduleId(scheduleId);
     setDetailSchedule(null);
     setScheduleReportDetail(null);
@@ -245,7 +252,26 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     } finally {
       setIsLoadingReportDetail(false);
     }
-  };
+  }, [showToast]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('workspace') === 'service-schedule' && params.get('recordType') === 'schedule' && params.get('recordId')) {
+      setActiveTab('list');
+      void openDetailDrawer(params.get('recordId') as string);
+    }
+  }, [openDetailDrawer]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedScheduleId) {
+      url.searchParams.set('recordId', selectedScheduleId);
+      url.searchParams.set('recordType', 'schedule');
+    } else if (url.searchParams.get('recordType') === 'schedule') {
+      url.searchParams.delete('recordId'); url.searchParams.delete('recordType');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [selectedScheduleId]);
 
   // -------------------------------------------------------------------------
   // Recommendation & Assignment Logic

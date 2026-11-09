@@ -20,7 +20,7 @@ import {
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/context/ThemeContext';
+import { useTheme } from '@/hooks/useTheme';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {

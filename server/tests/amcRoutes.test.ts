@@ -304,6 +304,9 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
         if (table === 'service_schedules') {
           return {
             select: vi.fn(() => ({
+              not: vi.fn(() => ({
+                not: vi.fn(async () => ({ data: [], error: null })),
+              })),
               ilike: vi.fn(() => ({
                 order: vi.fn(() => ({
                   limit: vi.fn(async () => ({

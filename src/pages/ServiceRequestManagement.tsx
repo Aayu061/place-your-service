@@ -87,9 +87,9 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
   const [listError, setListError] = useState<string | null>(null);
 
   // Filters & Search
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => new URLSearchParams(window.location.search).get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceStatus>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceStatus>(() => (new URLSearchParams(window.location.search).get('status') as ServiceStatus) || 'ALL');
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | ServicePriority>('ALL');
   const [typeFilter, setTypeFilter] = useState<'ALL' | ServiceType>('ALL');
   const [page, setPage] = useState<number>(1);
@@ -244,6 +244,25 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     fetchRequests();
   }, [fetchRequests]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (searchTerm.trim()) url.searchParams.set('search', searchTerm.trim()); else url.searchParams.delete('search');
+    if (statusFilter !== 'ALL') url.searchParams.set('status', statusFilter); else url.searchParams.delete('status');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('recordType') === 'service_request' && params.get('recordId')) {
+        setSelectedRequestId(params.get('recordId'));
+      }
+    };
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+
   // Load single request detail when drawer opens
   const fetchRequestDetail = useCallback(async (id: string) => {
     try {
@@ -265,6 +284,17 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
       setDetailRequest(null);
     }
   }, [selectedRequestId, fetchRequestDetail]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedRequestId) {
+      url.searchParams.set('recordId', selectedRequestId);
+      url.searchParams.set('recordType', 'service_request');
+    } else if (url.searchParams.get('recordType') === 'service_request') {
+      url.searchParams.delete('recordId'); url.searchParams.delete('recordType');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [selectedRequestId]);
 
   // Load customers for create modal
   const loadCustomersForCreate = async () => {

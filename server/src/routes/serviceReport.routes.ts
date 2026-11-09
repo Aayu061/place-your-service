@@ -3,6 +3,7 @@ import { serviceReportController } from '../controllers/serviceReport.controller
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
 import { validate } from '../middleware/validate.js';
+import { reportEmailController } from '../controllers/reportEmail.controller.js';
 import {
   createServiceReportSchema,
   updateServiceReportSchema,
@@ -10,12 +11,38 @@ import {
   scheduleReportParamSchema,
   listServiceReportsSchema,
   createFollowUpScheduleSchema,
+  reportEmailDeliveryParamSchema,
 } from '../validators/serviceReport.validator.js';
 
 const serviceReportRouter = Router();
 
 // All Service Report endpoints require active authentication and either ADMIN or STAFF role
 serviceReportRouter.use(requireAuth, requireRole('ADMIN', 'STAFF'));
+
+serviceReportRouter.post(
+  '/email-deliveries/retry',
+  requireRole('ADMIN'),
+  reportEmailController.retryPending.bind(reportEmailController)
+);
+
+serviceReportRouter.post(
+  '/:id/email',
+  validate(reportIdParamSchema),
+  reportEmailController.send.bind(reportEmailController)
+);
+
+serviceReportRouter.get(
+  '/:id/email-deliveries',
+  validate(reportIdParamSchema),
+  reportEmailController.list.bind(reportEmailController)
+);
+
+serviceReportRouter.post(
+  '/:id/email-deliveries/:deliveryId/retry',
+  requireRole('ADMIN'),
+  validate(reportEmailDeliveryParamSchema),
+  reportEmailController.retry.bind(reportEmailController)
+);
 
 // 1. List service reports with search, filtering, and pagination
 serviceReportRouter.get(

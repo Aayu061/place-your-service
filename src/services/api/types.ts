@@ -42,4 +42,6 @@ export interface HealthResponse {
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  retries?: number;
+  retryDelayMs?: number;
 }

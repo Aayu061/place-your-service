@@ -6,6 +6,8 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { useAuth } from '@/hooks/useAuth';
+import { OperationalWorkspace, SettingsWorkspace } from '@/pages/OperationalWorkspace';
+import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicator';
 
 // Route-level code-splitting: lazy load pages on-demand to optimize bundle size and startup performance
 const DashboardShell = lazy(() => import('@/pages/DashboardShell').then((m) => ({ default: m.DashboardShell })));
@@ -251,8 +253,10 @@ const AuthenticatedApp: React.FC = () => {
 
   // 3. Authenticated State -> Render AppShell with Server-Verified Role
   return (
-    <AppShell role={user.role}>
-      {({ currentRole, activeItem, onNavigate, activeSubTab }) => {
+    <>
+      <ServerWarmupIndicator />
+      <AppShell role={user.role}>
+        {({ currentRole, activeItem, onNavigate, activeSubTab }) => {
         const renderModule = () => {
           if (activeItem === 'dashboard') {
             return (
@@ -301,7 +305,7 @@ const AuthenticatedApp: React.FC = () => {
 
           // Service Visit Report & Completion Management Module (Admin & Staff)
           if (activeItem === 'service-reports') {
-            return <ServiceReportsManagement onNavigate={onNavigate} />;
+            return <ServiceReportsManagement onNavigate={onNavigate} role={currentRole} />;
           }
 
           // AC Master Data Management (Admin)
@@ -312,6 +316,12 @@ const AuthenticatedApp: React.FC = () => {
           if (activeItem === 'phase-zero-review') {
             return <PhaseZeroOverview currentRole={currentRole} />;
           }
+
+          if (['parts', 'inventory', 'payments', 'notifications', 'activity-logs'].includes(activeItem)) {
+            return <OperationalWorkspace moduleId={activeItem} role={currentRole} onNavigate={onNavigate} />;
+          }
+
+          if (activeItem === 'settings') return <SettingsWorkspace />;
 
           const moduleDef = MODULE_DEFINITIONS[activeItem];
           if (moduleDef) {
@@ -345,6 +355,7 @@ const AuthenticatedApp: React.FC = () => {
         );
       }}
     </AppShell>
+    </>
   );
 };
 

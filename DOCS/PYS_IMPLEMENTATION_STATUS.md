@@ -70,3 +70,21 @@ The following are declared in the PRD/MEMORY but are explicitly shown by App.tsx
 
 Do not represent AMC allocation, AMC visit completion, report resolution, or immutable historical reporting as production-safe until PYS-001 through PYS-013 are remediated and verified against PostgreSQL. Deferred modules should remain clearly marked as unavailable until their server workflows exist.
 
+---
+
+## Current implementation addendum — 5 November 2026
+
+This file's main body is a historical source snapshot from 11 October 2026. The following status supersedes its module classifications and remediation checklist for the current local worktree; it does not assert that the new migrations were applied to any database.
+
+| Area | Current local status | Release verification still needed |
+|---|---|---|
+| Direct database access and initial Admin setup | Public operational grants/policies are revoked in a new migration; public bootstrap route is removed and initial provisioning is an out-of-band script. | Apply to staging, verify effective grants/RLS with anon, Staff, and Admin credentials, and test concurrent provisioning. |
+| AMC obligations and contract history | Cadence slot count, per-asset visit entitlements, allocation equality, and obligation idempotency are enforced in source/migration logic with regression coverage. | PostgreSQL constraint/RPC and concurrency tests. |
+| Service reports and follow-ups | Ownership validation, issue/asset follow-up scoping, issued snapshot preservation, and atomic database functions are implemented in source/migrations. | Apply migrations and test rollback, concurrency, and history immutability on staging. |
+| Scheduling and analytics | Rescheduled unassigned work remains visible in dispatch; assignment/time checks and shared server KPI filters are implemented. | Verify against real staging records and database constraints. |
+| Inventory, payments, notifications, activity, exports | Authenticated API and operational UI workspaces are implemented, with append-only stock/payment history, reversals, deduplicated notifications, server-generated logs, global search, and filtered XLSX exports. | Database-backed role, balance, reversal, export, and workflow checks. |
+| Service report email | Durable delivery/attempt records, retry flow, local log transport, and Resend transport are implemented. | Configure a staging sender and verify delivery plus retry state without a production recipient. |
+| Dashboard, navigation, accessibility | Server-derived dashboard metrics, URL-addressable workspace state, and follow-up label associations are implemented. | Browser-based responsive and assistive-technology review. |
+
+Local verification on 5 November 2026: frontend 211 passed / 15 skipped, backend 343 passed, builds/type checks passed, all four dependency audit scans reported zero vulnerabilities, and all 25 migrations / 28 PL/pgSQL bodies passed grammar parsing and a disposable PGlite migration replay. The replay exposed and helped fix a dynamic SQL argument mismatch in the service-report migration; the additive policy-repair migration was also replayed twice. Hosted Supabase staging checks remain unrun because the owner chose local verification and no staging project/credentials were available. See `IMPLEMENTATION_EVIDENCE.md` and `DEPLOYMENT_NOTES.md` for the full record and rollout checklist.
+
