@@ -124,6 +124,7 @@
   --border-strong: #B8D0BD;
   --border-focus: #3F765D;
   --border-card-hairline: rgba(41, 59, 50, 0.08);
+  --border-neutral: var(--border-default);
 
   /* Typography */
   --text-primary: #293B32;
@@ -131,6 +132,7 @@
   --text-muted: #64756A;
   --text-inverse: #FFFFFF;
   --text-brand: #A8481C;
+  --text-main: var(--text-primary);
 
   /* --------------------------------------------------
    * Typography Scale & Hierarchy (Urbanist)
@@ -330,6 +332,7 @@
   --border-strong: #235347;
   --border-focus: #8EB69B;
   --border-card-hairline: rgba(35, 83, 71, 0.45);
+  --border-neutral: var(--border-default);
 
   /* Typography (Tone 5: #8EB69B & Tone 6: #DAF1DE) */
   --text-primary: #DAF1DE;
@@ -337,6 +340,7 @@
   --text-muted: rgba(142, 182, 155, 0.75);
   --text-inverse: #051F20;
   --text-brand: #e06d3b;
+  --text-main: var(--text-primary);
 
   /* Glassmorphic Surfaces */
   --glass-bg-surface: rgba(11, 43, 38, 0.88);
