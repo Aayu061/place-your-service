@@ -209,7 +209,7 @@ export const OperationalTrendChart: React.FC<OperationalTrendChartProps> = ({
                   cx={p.x}
                   cy={p.y}
                   r={isHovered ? 6 : 4}
-                  fill="#ffffff"
+                  fill="var(--bg-surface, #ffffff)"
                   stroke="var(--color-brand)"
                   strokeWidth={isHovered ? 3 : 2}
                   className="chart-hover-glow"
@@ -242,7 +242,7 @@ export const OperationalTrendChart: React.FC<OperationalTrendChartProps> = ({
               background: 'var(--glass-bg-surface)',
               backdropFilter: 'var(--glass-blur)',
               WebkitBackdropFilter: 'var(--glass-blur)',
-              border: '1px solid rgba(255, 255, 255, 0.85)',
+              border: '1px solid var(--border-default, rgba(255, 255, 255, 0.2))',
               boxShadow: 'var(--hybrid-glass-neomorph)',
               padding: '6px 10px',
               borderRadius: 'var(--radius-md)',
