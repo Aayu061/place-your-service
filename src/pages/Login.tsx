@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, CheckCircle, Wrench } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -7,7 +7,11 @@ import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicat
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LegalTermsModal, LegalTab } from '@/components/legal/LegalTermsModal';
 
-export const Login: React.FC = () => {
+export interface LoginProps {
+  onSwitchToTech?: () => void;
+}
+
+export const Login: React.FC<LoginProps> = ({ onSwitchToTech }) => {
   const { login, error: authError, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -217,6 +221,41 @@ export const Login: React.FC = () => {
             >
               Sign In to Dashboard
             </Button>
+
+            <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSwitchToTech) {
+                    onSwitchToTech();
+                  } else {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('portal', 'tech');
+                    window.history.pushState({ portal: 'tech' }, '', url.toString());
+                    window.dispatchEvent(new Event('popstate'));
+                  }
+                }}
+                style={{
+                  background: 'rgba(235, 94, 40, 0.08)',
+                  border: '1px solid rgba(235, 94, 40, 0.25)',
+                  borderRadius: '10px',
+                  padding: '9px 14px',
+                  color: '#eb5e28',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  justifyContent: 'center',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Wrench size={14} />
+                <span>Field Technician? Open Field Desk &rarr;</span>
+              </button>
+            </div>
           </div>
         </form>
 
