@@ -614,10 +614,16 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
     unmount();
   });
 
-  it('8. Handles contract renewal modal and submits linked renewal', async () => {
+  it('8. Handles contract renewal modal and submits linked renewal for expiring contracts', async () => {
+    const expiringContract: AmcContract = {
+      ...sampleContract,
+      status: 'EXPIRING_SOON',
+      isExpiringSoon: true,
+    };
+
     vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
       if (url.includes('/metrics')) {
-        return { metrics: { totalContracts: 1, activeContracts: 1, expiringSoon: 0, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
+        return { metrics: { totalContracts: 1, activeContracts: 0, expiringSoon: 1, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
       }
       if (url.includes('/plans')) {
         return { plans: [samplePlan] } as never;
@@ -629,10 +635,10 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
         return { assets: [] } as never;
       }
       if (url.includes(`/amc-contracts/${sampleContract.id}`)) {
-        return { contract: sampleContract } as never;
+        return { contract: expiringContract } as never;
       }
       if (url.includes('/amc-contracts')) {
-        return { contracts: [sampleContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+        return { contracts: [expiringContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
       }
       return {} as never;
     });
@@ -684,6 +690,52 @@ describe('Phase 8 Frontend AMC Management Suite', () => {
         customerId: sampleContract.customerId,
       })
     );
+
+    unmount();
+  });
+
+  it('8b. Active AMC contract strictly hides Renew Agreement button', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/metrics')) {
+        return { metrics: { totalContracts: 1, activeContracts: 1, expiringSoon: 0, expiredContracts: 0, totalCoveredAssets: 1, pmDueCount: 0, pmOverdueCount: 0 } } as never;
+      }
+      if (url.includes('/plans')) {
+        return { plans: [samplePlan] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/schedules`)) {
+        return { schedules: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}/assets`)) {
+        return { assets: [] } as never;
+      }
+      if (url.includes(`/amc-contracts/${sampleContract.id}`)) {
+        return { contract: sampleContract } as never;
+      }
+      if (url.includes('/amc-contracts')) {
+        return { contracts: [sampleContract], total: 1, page: 1, pageSize: 15, totalPages: 1 } as never;
+      }
+      return {} as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    // On an ACTIVE contract, Edit Agreement and Cancel Contract exist, but Renew Agreement must NOT exist
+    const renewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Renew Agreement')
+    );
+    expect(renewBtn).toBeUndefined();
+
+    const editBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Edit Agreement')
+    );
+    expect(editBtn).toBeDefined();
 
     unmount();
   });

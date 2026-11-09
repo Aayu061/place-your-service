@@ -1655,6 +1655,136 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     unmount();
   });
+
+  it('31. ServiceVisitReportModal prompts for payment collection, switches payment methods, and includes payment details in payload', async () => {
+    const handleClose = vi.fn();
+    const handleSuccess = vi.fn();
+    const createSpy = vi.spyOn(serviceReportApi, 'createReport').mockResolvedValueOnce({
+      ...mockCompletedReport,
+      id: 'rep-pay-1',
+      reportNumber: 'SVR-2026-PAY-01',
+      paymentCollected: true,
+      paymentAmount: 1500,
+      paymentMethod: 'ONLINE',
+      paymentReference: 'UPI-1234567890',
+    } as any);
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={handleClose}
+        onSuccess={handleSuccess}
+        schedule={sampleSchedule}
+      />
+    );
+
+    // Enter report number
+    const repNumInput = container.querySelector(
+      'input[placeholder="e.g. REP-2026-0042"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      setInputValue(repNumInput, 'SVR-2026-PAY-01');
+    });
+
+    // Enter work performed
+    const workInput = container.querySelector(
+      'input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      setInputValue(workInput, 'Standard AC service completed with filter jet cleaning.');
+    });
+
+    // Verify Payment section exists
+    expect(container.textContent).toContain('Payment & Settlement Details');
+    expect(container.textContent).toContain('Has technician received payment for this service?');
+
+    // Click Yes, Payment Collected
+    const yesBtn = container.querySelector('[data-testid="payment-received-yes"]') as HTMLButtonElement;
+    await act(async () => {
+      yesBtn.click();
+    });
+
+    // Enter payment amount
+    const amountInput = container.querySelector('#svr-payment-amount') as HTMLInputElement;
+    await act(async () => {
+      setInputValue(amountInput, '1500');
+    });
+
+    // Switch payment method to ONLINE
+    const methodSelect = container.querySelector('#svr-payment-method') as HTMLSelectElement;
+    await act(async () => {
+      methodSelect.value = 'ONLINE';
+      methodSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    // Enter reference
+    const refInput = container.querySelector('#svr-payment-ref') as HTMLInputElement;
+    await act(async () => {
+      setInputValue(refInput, 'UPI-1234567890');
+    });
+
+    // Submit report
+    const submitBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Submit Visit Report')
+    );
+    await act(async () => {
+      submitBtn?.click();
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reportNumber: 'SVR-2026-PAY-01',
+        paymentCollected: true,
+        paymentAmount: 1500,
+        paymentMethod: 'ONLINE',
+        paymentReference: 'UPI-1234567890',
+      })
+    );
+    expect(handleSuccess).toHaveBeenCalled();
+    unmount();
+  });
+
+  it('32. ServiceReportPrintView renders Payment & Settlement Details section with accurate balance and status', async () => {
+    const handleClose = vi.fn();
+    const paidReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      reportNumber: 'SVR-2026-PAID-01',
+      paymentCollected: true,
+      paymentAmount: 1250,
+      paymentMethod: 'ONLINE',
+      paymentReference: 'UPI-987654321',
+    };
+
+    const { container: paidContainer, unmount: unmountPaid } = await renderComponent(
+      <ServiceReportPrintView report={paidReport} onClose={handleClose} />
+    );
+
+    expect(paidContainer.textContent).toContain('Payment & Settlement Details');
+    expect(paidContainer.textContent).toContain('PAID ON SITE');
+    expect(paidContainer.textContent).toContain('₹1,250.00');
+    expect(paidContainer.textContent).toContain('Online / UPI (UPI-987654321)');
+    expect(paidContainer.textContent).toContain('₹0.00'); // Balance Remaining
+
+    unmountPaid();
+
+    // Verify unpaid / pending balance display
+    const pendingReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      reportNumber: 'SVR-2026-PEND-01',
+      paymentCollected: false,
+      paymentAmount: 2000,
+    };
+
+    const { container: pendContainer, unmount: unmountPend } = await renderComponent(
+      <ServiceReportPrintView report={pendingReport} onClose={handleClose} />
+    );
+
+    expect(pendContainer.textContent).toContain('PENDING / BALANCED');
+    expect(pendContainer.textContent).toContain('₹2,000.00');
+    expect(pendContainer.textContent).toContain('Awaiting Collection');
+
+    unmountPend();
+  });
 });
 
 

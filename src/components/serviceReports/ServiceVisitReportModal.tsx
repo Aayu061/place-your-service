@@ -32,6 +32,7 @@ import {
   FileCheck,
   ChevronDown,
   ChevronUp,
+  CreditCard,
 } from 'lucide-react';
 
 export interface ServiceVisitReportModalProps {
@@ -127,6 +128,13 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [deviationError, setDeviationError] = useState<string | null>(null);
   const [originatingReportId, setOriginatingReportId] = useState<string | null>(null);
 
+  // Payment Collection States
+  const [paymentCollected, setPaymentCollected] = useState<boolean>(false);
+  const [paymentAmount, setPaymentAmount] = useState<string>('0');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
+  const [paymentReference, setPaymentReference] = useState<string>('');
+  const [paymentNotes, setPaymentNotes] = useState<string>('');
+
   // Asset Finding States
   const [assets, setAssets] = useState<AssetReportState[]>([]);
   const [siteAssets, setSiteAssets] = useState<AcAsset[]>([]);
@@ -177,6 +185,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setPerformedServiceType(initialReport.performedServiceType || initialReport.plannedServiceType || '');
         setServiceTypeDeviationReason(initialReport.serviceTypeDeviationReason || '');
         setOriginatingReportId(initialReport.originatingReportId || null);
+        setPaymentCollected(initialReport.paymentCollected ?? false);
+        setPaymentAmount(initialReport.paymentAmount != null ? String(initialReport.paymentAmount) : '0');
+        setPaymentMethod(initialReport.paymentMethod || 'CASH');
+        setPaymentReference(initialReport.paymentReference || '');
+        setPaymentNotes(initialReport.paymentNotes || '');
         setDeviationError(null);
         setErrorMessage(null);
         setReportNumberError(null);
@@ -284,6 +297,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setCustomerRepresentative('');
         setCustomerAcknowledgement('');
         setCorrectionReason('');
+        setPaymentCollected(false);
+        setPaymentAmount('0');
+        setPaymentMethod('CASH');
+        setPaymentReference('');
+        setPaymentNotes('');
         setIsAdditionalOpen(false);
         setErrorMessage(null);
         setReportNumberError(null);
@@ -620,6 +638,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         technicianRemarks: technicianRemarks.trim() || null,
         customerRepresentative: customerRepresentative.trim() || null,
         customerAcknowledgement: customerAcknowledgement.trim() || null,
+        paymentCollected,
+        paymentAmount: paymentAmount ? Math.max(0, parseFloat(paymentAmount) || 0) : 0,
+        paymentMethod: paymentCollected ? paymentMethod : null,
+        paymentReference: paymentCollected && paymentMethod === 'ONLINE' ? paymentReference.trim() || null : null,
+        paymentNotes: paymentNotes.trim() || null,
         assets: assets.map((a) => ({
           assetId: a.assetId,
           faultReported: a.faultReported.trim() || null,
@@ -676,6 +699,11 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           technicianRemarks: technicianRemarks.trim() || null,
           customerRepresentative: customerRepresentative.trim() || null,
           customerAcknowledgement: customerAcknowledgement.trim() || null,
+          paymentCollected,
+          paymentAmount: paymentAmount ? Math.max(0, parseFloat(paymentAmount) || 0) : 0,
+          paymentMethod: paymentCollected ? paymentMethod : null,
+          paymentReference: paymentCollected && paymentMethod === 'ONLINE' ? paymentReference.trim() || null : null,
+          paymentNotes: paymentNotes.trim() || null,
         });
 
         setFormStatus('SUCCESS');
@@ -1997,6 +2025,185 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           </div>
         )}
 
+        </fieldset>
+
+        {/* Section: Payment & Settlement Details */}
+        <fieldset
+          style={{
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-4)',
+            backgroundColor: 'var(--bg-canvas)',
+            marginTop: 'var(--space-3)',
+          }}
+        >
+          <legend
+            style={{
+              padding: '0 8px',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <CreditCard size={15} style={{ color: 'var(--color-brand)' }} />
+            Payment & Settlement Details
+          </legend>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 'var(--space-3)',
+              alignItems: 'flex-start',
+            }}
+          >
+            {/* Question: Did technician receive payment? */}
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  marginBottom: '6px',
+                }}
+              >
+                Has technician received payment for this service?
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  data-testid="payment-received-yes"
+                  onClick={() => setPaymentCollected(true)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid',
+                    borderColor: paymentCollected ? 'var(--color-success-solid)' : 'var(--border-default)',
+                    backgroundColor: paymentCollected ? 'var(--color-success-100)' : 'var(--bg-surface)',
+                    color: paymentCollected ? 'var(--color-success-800)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✓ Yes, Payment Collected
+                </button>
+                <button
+                  type="button"
+                  data-testid="payment-received-no"
+                  onClick={() => setPaymentCollected(false)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid',
+                    borderColor: !paymentCollected ? 'var(--color-warning-solid)' : 'var(--border-default)',
+                    backgroundColor: !paymentCollected ? 'var(--color-warning-100)' : 'var(--bg-surface)',
+                    color: !paymentCollected ? 'var(--color-warning-800)' : 'var(--text-secondary)',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕ No (Balance Due / Free Visit)
+                </button>
+              </div>
+            </div>
+
+            {/* Service Amount */}
+            <div>
+              <label
+                htmlFor="svr-payment-amount"
+                style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  marginBottom: '6px',
+                }}
+              >
+                {paymentCollected ? 'Amount Received (₹)' : 'Service Fee / Balance Due (₹)'}
+              </label>
+              <Input
+                id="svr-payment-amount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="0.00"
+                disabled={isSubmitting}
+                style={{ fontSize: '13px' }}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {paymentCollected
+                  ? 'Recorded in Finance / Payments as Paid in Full.'
+                  : Number(paymentAmount) > 0
+                  ? 'Will show as Pending Due / Balanced in Finance workspace.'
+                  : 'Free / AMC-included visit (₹0.00).'}
+              </div>
+            </div>
+
+            {/* Payment Method (if collected) */}
+            {paymentCollected && (
+              <div>
+                <label
+                  htmlFor="svr-payment-method"
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    marginBottom: '6px',
+                  }}
+                >
+                  Payment Method
+                </label>
+                <select
+                  id="svr-payment-method"
+                  className="form-select"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as 'CASH' | 'ONLINE')}
+                  disabled={isSubmitting}
+                  style={{ width: '100%', height: '38px', borderRadius: 'var(--radius-md)' }}
+                >
+                  <option value="CASH">Cash Payment</option>
+                  <option value="ONLINE">Online (UPI / QR / Bank Transfer / Card)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Reference ID (if online) */}
+            {paymentCollected && paymentMethod === 'ONLINE' && (
+              <div>
+                <label
+                  htmlFor="svr-payment-ref"
+                  style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    marginBottom: '6px',
+                  }}
+                >
+                  UPI / Transaction Reference ID
+                </label>
+                <Input
+                  id="svr-payment-ref"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  placeholder="e.g. UPI-9876543210 or UTR..."
+                  disabled={isSubmitting}
+                  style={{ fontSize: '13px' }}
+                />
+              </div>
+            )}
+          </div>
         </fieldset>
 
         {/* Section 6: Additional Details & Customer Feedback (Progressive Disclosure) */}

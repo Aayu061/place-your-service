@@ -964,6 +964,12 @@ export interface ServiceVisitReport {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  paymentCollected?: boolean;
+  paymentAmount?: number;
+  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentReference?: string | null;
+  paymentNotes?: string | null;
+  paymentId?: string | null;
   status: string;
   followUpScheduleId?: string | null;
   followUpScheduleNumber?: string | null;
@@ -1001,6 +1007,11 @@ export interface CreateServiceReportPayload {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  paymentCollected?: boolean;
+  paymentAmount?: number;
+  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentReference?: string | null;
+  paymentNotes?: string | null;
   assets: {
     assetId: string;
     assetTag?: string | null;
@@ -1058,6 +1069,11 @@ export interface UpdateServiceReportPayload {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  paymentCollected?: boolean;
+  paymentAmount?: number;
+  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentReference?: string | null;
+  paymentNotes?: string | null;
   assets?: {
     assetId: string;
     assetTag?: string | null;

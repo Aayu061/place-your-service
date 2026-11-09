@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
   ServiceVisitReportResponse,
@@ -410,6 +411,11 @@ export class ServiceReportService {
         customer_representative: payload.customerRepresentative || null,
         customer_acknowledgement: payload.customerAcknowledgement || null,
         customer_signature_url: payload.customerSignatureUrl || null,
+        payment_collected: Boolean(payload.paymentCollected),
+        payment_amount: payload.paymentAmount != null ? Number(payload.paymentAmount) : 0,
+        payment_method: payload.paymentMethod || null,
+        payment_reference: payload.paymentReference ? payload.paymentReference.trim() || null : null,
+        payment_notes: payload.paymentNotes ? payload.paymentNotes.trim() || null : null,
         status: 'DRAFT',
         created_by: actorId || null,
         updated_by: actorId || null,
@@ -429,6 +435,46 @@ export class ServiceReportService {
         throw new ConflictError(`Report number "${trimmedReportNumber}" already exists.`);
       }
       throw new BadRequestError('Failed to save service visit report.');
+    }
+
+    // Synchronize payment collection with Finance / Payments workspace
+    let linkedPaymentId: string | null = null;
+    if (payload.paymentAmount && Number(payload.paymentAmount) > 0) {
+      try {
+        const paymentNumber = `PAY-${new Date().getUTCFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+        if (typeof supabase.rpc === 'function') {
+          const { data: payId, error: payErr } = await supabase.rpc('create_payment_record', {
+            p_payment_number: paymentNumber,
+            p_customer_id: customerId,
+            p_service_request_id: schedule.service_request_id || null,
+            p_amc_id: schedule.amc_id || null,
+            p_total_amount_due: Number(payload.paymentAmount),
+            p_actor_profile_id: actorId || null,
+          });
+
+          if (!payErr && payId) {
+            linkedPaymentId = payId;
+            if (payload.paymentCollected) {
+              await supabase.rpc('record_payment_transaction', {
+                p_payment_id: linkedPaymentId,
+                p_payment_method: payload.paymentMethod || 'CASH',
+                p_amount: Number(payload.paymentAmount),
+                p_external_payment_reference: payload.paymentReference?.trim() || null,
+                p_notes: payload.paymentNotes?.trim() || `Collected on-site for Service Report #${trimmedReportNumber}`,
+                p_actor_profile_id: actorId || null,
+              });
+            }
+            await supabase
+              .from('service_reports')
+              .update({ payment_id: linkedPaymentId })
+              .eq('id', newReport.id);
+          } else if (payErr) {
+            logger.warn('Failed to invoke create_payment_record RPC for service report', { error: payErr });
+          }
+        }
+      } catch (paySyncErr) {
+        logger.warn('Error synchronizing payment record for service report', { error: paySyncErr });
+      }
     }
 
     // 7. Insert Per-Asset Report Details with immutable equipment snapshot
@@ -672,6 +718,7 @@ export class ServiceReportService {
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
+        payment_collected, payment_amount, payment_method, payment_reference, payment_notes, payment_id,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone, email),
         customer_sites (id, site_name, address),
@@ -855,6 +902,12 @@ export class ServiceReportService {
       customerRepresentative: row.customer_representative,
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
+      paymentCollected: row.payment_collected ?? false,
+      paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : 0,
+      paymentMethod: row.payment_method || null,
+      paymentReference: row.payment_reference || null,
+      paymentNotes: row.payment_notes || null,
+      paymentId: row.payment_id || null,
       status: row.status,
       followUpScheduleId: effectiveFollowUpScheduleId,
       followUpScheduleNumber,
@@ -914,6 +967,7 @@ export class ServiceReportService {
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
         customer_acknowledgement, customer_signature_url, status,
+        payment_collected, payment_amount, payment_method, payment_reference, payment_notes, payment_id,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone, email),
         customer_sites (id, site_name, address),
@@ -1050,6 +1104,12 @@ export class ServiceReportService {
       customerRepresentative: row.customer_representative,
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
+      paymentCollected: row.payment_collected ?? false,
+      paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : 0,
+      paymentMethod: row.payment_method || null,
+      paymentReference: row.payment_reference || null,
+      paymentNotes: row.payment_notes || null,
+      paymentId: row.payment_id || null,
       status: row.status,
       followUpScheduleId:
         (row.follow_up_schedules as any)?.status !== 'CANCELLED' ? row.follow_up_schedule_id : null,
@@ -1198,6 +1258,11 @@ export class ServiceReportService {
     if (payload.customerRepresentative !== undefined) updates.customer_representative = payload.customerRepresentative;
     if (payload.customerAcknowledgement !== undefined) updates.customer_acknowledgement = payload.customerAcknowledgement;
     if (payload.customerSignatureUrl !== undefined) updates.customer_signature_url = payload.customerSignatureUrl;
+    if (payload.paymentCollected !== undefined) updates.payment_collected = payload.paymentCollected;
+    if (payload.paymentAmount !== undefined) updates.payment_amount = payload.paymentAmount;
+    if (payload.paymentMethod !== undefined) updates.payment_method = payload.paymentMethod || null;
+    if (payload.paymentReference !== undefined) updates.payment_reference = payload.paymentReference ? payload.paymentReference.trim() || null : null;
+    if (payload.paymentNotes !== undefined) updates.payment_notes = payload.paymentNotes ? payload.paymentNotes.trim() || null : null;
 
     const { error } = await supabase.from('service_reports').update(updates).eq('id', id);
 

@@ -372,6 +372,10 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
         }
 
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
           body * {
             visibility: hidden;
           }
@@ -399,16 +403,73 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             width: 100%;
             max-width: 100%;
             box-shadow: none !important;
-            padding: 20px !important;
+            padding: 10px 14px !important;
             border-radius: 0 !important;
+            font-size: 11px !important;
+            line-height: 1.35 !important;
+          }
+          .pys-company-title {
+            font-size: 18px !important;
+            margin: 0 0 2px 0 !important;
+          }
+          .pys-print-header {
+            padding-bottom: 8px !important;
+            margin-bottom: 8px !important;
+          }
+          .pys-outcome-banner {
+            margin: 6px 0 !important;
+            padding: 5px 10px !important;
+          }
+          .pys-section-title {
+            font-size: 11px !important;
+            margin: 8px 0 4px 0 !important;
+            padding-bottom: 3px !important;
+          }
+          .pys-grid-2, .pys-grid-3 {
+            gap: 8px !important;
+          }
+          .pys-field-label {
+            font-size: 9px !important;
+          }
+          .pys-field-value {
+            font-size: 11px !important;
+          }
+          .pys-asset-cards-container {
+            gap: 6px !important;
+            margin-top: 6px !important;
+          }
+          .pys-asset-card-header {
+            padding: 4px 8px !important;
+          }
+          .pys-asset-card-body {
+            padding: 6px 8px !important;
+          }
+          .pys-serial-grid {
+            gap: 6px !important;
+            margin-bottom: 4px !important;
+          }
+          .pys-serial-box {
+            padding: 3px 6px !important;
+          }
+          .pys-asset-specs-bar {
+            padding: 3px 6px !important;
+            margin-bottom: 4px !important;
+            gap: 8px !important;
+            font-size: 10px !important;
           }
           .pys-asset-print-card {
             page-break-inside: avoid;
             break-inside: avoid;
           }
           .pys-signature-box {
+            margin-top: 12px !important;
+            padding-top: 6px !important;
             page-break-inside: avoid;
             break-inside: avoid;
+            gap: 20px !important;
+          }
+          .pys-sig-line {
+            margin-top: 22px !important;
           }
         }
       `}</style>
@@ -776,9 +837,106 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
         {report.technicianRemarks && (
           <>
             <div className="pys-section-title">Technician Remarks & Recommendations</div>
-            <p style={{ fontSize: '13px', margin: '4px 0', whiteSpace: 'pre-line' }}>{report.technicianRemarks}</p>
+            <p style={{ fontSize: '12px', margin: '3px 0', whiteSpace: 'pre-line' }}>{report.technicianRemarks}</p>
           </>
         )}
+
+        {/* Payment & Settlement Details */}
+        <div className="pys-section-title">Payment & Settlement Details</div>
+        <div
+          style={{
+            border: '1px solid #e2e8f0',
+            borderRadius: '6px',
+            backgroundColor: '#f8fafc',
+            padding: '8px 12px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div className="pys-field-label">Payment Status</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: '2px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: report.paymentCollected
+                    ? '#dcfce7'
+                    : report.paymentAmount && report.paymentAmount > 0
+                    ? '#fef3c7'
+                    : '#f1f5f9',
+                  color: report.paymentCollected
+                    ? '#15803d'
+                    : report.paymentAmount && report.paymentAmount > 0
+                    ? '#b45309'
+                    : '#475569',
+                  border: `1px solid ${
+                    report.paymentCollected
+                      ? '#bbf7d0'
+                      : report.paymentAmount && report.paymentAmount > 0
+                      ? '#fde68a'
+                      : '#e2e8f0'
+                  }`,
+                }}
+              >
+                {report.paymentCollected
+                  ? 'PAID ON SITE'
+                  : report.paymentAmount && report.paymentAmount > 0
+                  ? 'PENDING / BALANCED'
+                  : 'INCLUDED IN AMC'}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <div className="pys-field-label">Total Amount</div>
+            <div className="pys-field-value" style={{ fontWeight: 700, color: '#0f172a' }}>
+              ₹{(report.paymentAmount != null ? Number(report.paymentAmount) : 0).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="pys-field-label">Payment Method</div>
+            <div className="pys-field-value">
+              {report.paymentCollected
+                ? report.paymentMethod === 'ONLINE'
+                  ? `Online / UPI ${report.paymentReference ? `(${report.paymentReference})` : ''}`
+                  : 'Cash Payment'
+                : report.paymentAmount && report.paymentAmount > 0
+                ? 'Awaiting Collection'
+                : 'Covered under Contract'}
+            </div>
+          </div>
+
+          <div>
+            <div className="pys-field-label">Balance Remaining</div>
+            <div
+              className="pys-field-value"
+              style={{
+                fontWeight: 700,
+                color:
+                  report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
+                    ? '#16a34a'
+                    : '#dc2626',
+              }}
+            >
+              ₹
+              {report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
+                ? '0.00'
+                : Number(report.paymentAmount).toLocaleString('en-IN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+            </div>
+          </div>
+        </div>
 
         {/* Signatures & Customer Acknowledgement */}
         <div className="pys-signature-box">
