@@ -334,13 +334,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               </div>
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '12px' }}>
-                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(2, 132, 199, 0.08)', color: 'var(--color-brand)' }}>
+                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--color-brand-soft, #F6E9E1)', color: 'var(--color-brand, #A8481C)', fontWeight: 600 }}>
                   Cash: {formatCurrency(financials?.cashCollected)}
                 </span>
-                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.08)', color: 'var(--color-success-text, #10b981)' }}>
+                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--color-success-bg, #E8F3EA)', color: 'var(--color-success-text, #23573D)', fontWeight: 600 }}>
                   Online/UPI: {formatCurrency(financials?.onlineCollected)}
                 </span>
-                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(245, 158, 11, 0.08)', color: 'var(--color-warning-text, #f59e0b)' }}>
+                <span style={{ padding: '3px 8px', borderRadius: 4, background: 'var(--color-warning-bg, #FFF3E2)', color: 'var(--color-warning-text, #815318)', fontWeight: 600 }}>
                   Pending Accounts: {financials?.pendingPaymentsCount ?? 0}
                 </span>
               </div>

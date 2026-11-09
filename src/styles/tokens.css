@@ -5,74 +5,84 @@
  * Conforms strictly to DOCS/DESIGN.md & Phase 1 requirements.
  */
 
-:root {
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
   /* --------------------------------------------------
-   * Brand & Primary Colors (Clean, Professional Air-Conditioning & Service Hue)
+   * Brand & Primary Colors (Clay Accent & Muted Emerald)
    * -------------------------------------------------- */
-  --color-primary-50: #fbf5f2;
-  --color-primary-100: #f6eae4;
-  --color-primary-200: #eed5c9;
-  --color-primary-300: #e3b7a4;
-  --color-primary-400: #d49074;
-  --color-primary-500: #c26947;
-  --color-primary-600: #a8481c; /* Terracotta Primary Brand Accent */
-  --color-primary-700: #8c3b16;
+  --color-primary-50: #F6E9E1;
+  --color-primary-100: #eed5c9;
+  --color-primary-200: #e3b7a4;
+  --color-primary-300: #d49074;
+  --color-primary-400: #c26947;
+  --color-primary-500: #a8481c;
+  --color-primary-600: #A8481C; /* Clay Brand Accent */
+  --color-primary-700: #8C3B16;
   --color-primary-800: #743216;
   --color-primary-900: #602c17;
   --color-primary-950: #341409;
 
   --color-brand: var(--color-primary-600);
-  --color-brand-hover: #b84e25;
-  --color-brand-active: #8c3b16;
-  --color-brand-subtle: #fbf5f2;
-  --color-brand-border: #eed5c9;
+  --color-brand-hover: #8C3B16;
+  --color-brand-active: #743216;
+  --color-brand-subtle: #F6E9E1;
+  --color-brand-border: #CBDACD;
+  --color-brand-soft: #F6E9E1;
+
+  /* Soft Nature Accent Tones */
+  --color-forest: #235347;
+  --color-emerald: #3F765D;
+  --color-emerald-hover: #325e4a;
+  --color-sage: #B8D0BD;
 
   /* --------------------------------------------------
-   * Neutral Palette (Slate / Slate-Gray)
+   * Neutral Palette (Soft Nature Scale)
    * -------------------------------------------------- */
-  --color-neutral-0: #ffffff;
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e2e8f0;
-  --color-neutral-300: #cbd5e1;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-500: #64748b;
-  --color-neutral-600: #475569;
-  --color-neutral-700: #334155;
-  --color-neutral-800: #1e293b;
-  --color-neutral-900: #0f172a;
-  --color-neutral-950: #020617;
+  --color-neutral-0: #FFFFFF;
+  --color-neutral-50: #F7F9F6;
+  --color-neutral-100: #F4F7F3;
+  --color-neutral-200: #F0F4EF;
+  --color-neutral-300: #E8EDE8;
+  --color-neutral-400: #CBDACD;
+  --color-neutral-500: #B8D0BD;
+  --color-neutral-600: #64756A;
+  --color-neutral-700: #4a5950;
+  --color-neutral-800: #293B32;
+  --color-neutral-900: #1b2822;
+  --color-neutral-950: #0f1713;
 
   /* --------------------------------------------------
-   * Semantic Status Colors (Consistent, Accessible & Auditable)
+   * Semantic Status Colors (Soft Nature Harmonized)
    * -------------------------------------------------- */
   /* Success: Completed, Active, Paid */
-  --color-success-bg: #ecfdf5;
-  --color-success-border: #a7f3d0;
-  --color-success-text: #065f46;
-  --color-success-solid: #10b981;
-  --color-success-hover: #059669;
+  --color-success-bg: #E8F3EA;
+  --color-success-border: #B8D0BD;
+  --color-success-text: #23573D;
+  --color-success-solid: #2F7654;
+  --color-success-hover: #266044;
 
   /* Warning: Pending, Expiring Soon, Due */
-  --color-warning-bg: #fffbeb;
-  --color-warning-border: #fde68a;
-  --color-warning-text: #92400e;
-  --color-warning-solid: #f59e0b;
-  --color-warning-hover: #d97706;
+  --color-warning-bg: #FFF3E2;
+  --color-warning-border: #FDE68A;
+  --color-warning-text: #815318;
+  --color-warning-solid: #A66B22;
+  --color-warning-hover: #8c5a1c;
 
   /* Error / Danger / Urgent: Overdue, Cancelled, Emergency */
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
-  --color-error-text: #991b1b;
-  --color-error-solid: #ef4444;
-  --color-error-hover: #dc2626;
+  --color-error-bg: #FCEDED;
+  --color-error-border: #FECACA;
+  --color-error-text: #983A3A;
+  --color-error-solid: #BC4B4B;
+  --color-error-hover: #a13d3d;
 
   /* Info / In-Progress: Scheduled, Assigned, In-Progress */
-  --color-info-bg: #eff6ff;
-  --color-info-border: #bfdbfe;
-  --color-info-text: #1e40af;
-  --color-info-solid: #3b82f6;
-  --color-info-hover: #2563eb;
+  --color-info-bg: #EAF3F5;
+  --color-info-border: #BFDBFE;
+  --color-info-text: #315E6C;
+  --color-info-solid: #477D8D;
+  --color-info-hover: #386472;
 
   /* AMC / Preventive Maintenance Hue (Purple) */
   --color-amc-bg: #faf5ff;
@@ -82,37 +92,45 @@
   --color-amc-hover: #9333ea;
 
   /* --------------------------------------------------
-   * Semantic Surface & Element Tokens
+   * Semantic Surface & Element Tokens (Soft Nature)
    * -------------------------------------------------- */
-  --bg-app: #eef0ec;
-  --bg-canvas: #eef0ec;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #ffffff;
-  --bg-surface-muted: #eef0ec;
-  --bg-surface-subtle: #f3f5f1;
+  --bg-app: #F7F9F6;
+  --bg-canvas: #F7F9F6;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-surface-muted: #F0F4EF;
+  --bg-surface-subtle: #F5F8F4;
 
-  --bg-sidebar: #18201b;
-  --bg-sidebar-hover: #232c26;
-  --bg-sidebar-active: #a8481c;
-  --bg-sidebar-border: rgba(20, 36, 28, 0.086);
-  --text-sidebar: #cbd5e1;
-  --text-sidebar-muted: #94a3b8;
-  --text-sidebar-heading: #94a3b8;
-  --text-sidebar-icon: #94a3b8;
-  --text-sidebar-active: #ffffff;
+  /* Sidebar Tokens (Airy Light Sage Sidebar) */
+  --bg-sidebar: #F4F7F3;
+  --bg-sidebar-hover: #E8F0E9;
+  --bg-sidebar-active: #DCE9DE;
+  --bg-sidebar-border: #E3EAE3;
+  --bg-sidebar-footer: rgba(41, 59, 50, 0.035);
+  --bg-sidebar-btn: rgba(41, 59, 50, 0.04);
+  --bg-sidebar-card: #FFFFFF;
+  --border-sidebar-card: #E2EAE3;
+  --text-sidebar: #64756A;
+  --text-sidebar-muted: #64756A;
+  --text-sidebar-heading: #64756A;
+  --text-sidebar-icon: #64756A;
+  --text-sidebar-active: #293B32;
+  --text-sidebar-title: #293B32;
 
-  --border-default: rgba(20, 36, 28, 0.09);
-  --border-subtle: rgba(20, 36, 28, 0.05);
-  --border-moderate: rgba(20, 36, 28, 0.15);
-  --border-strong: rgba(20, 36, 28, 0.3);
-  --border-focus: #a8481c;
-  --border-card-hairline: rgba(20, 36, 28, 0.086);
+  /* Structural Hairlines & Borders */
+  --border-default: #E2EAE3;
+  --border-subtle: #E8EDE8;
+  --border-moderate: #CBDACD;
+  --border-strong: #B8D0BD;
+  --border-focus: #3F765D;
+  --border-card-hairline: rgba(41, 59, 50, 0.08);
 
-  --text-primary: #18201b;
-  --text-secondary: #4a554e;
-  --text-muted: #667069;
-  --text-inverse: #ffffff;
-  --text-brand: #a8481c;
+  /* Typography */
+  --text-primary: #293B32;
+  --text-secondary: #64756A;
+  --text-muted: #64756A;
+  --text-inverse: #FFFFFF;
+  --text-brand: #A8481C;
 
   /* --------------------------------------------------
    * Typography Scale & Hierarchy (Urbanist)
@@ -233,40 +251,44 @@
    * -------------------------------------------------- */
   --glass-bg-surface: rgba(255, 255, 255, 0.76);
   --glass-bg-elevated: rgba(255, 255, 255, 0.88);
-  --glass-bg-subtle: rgba(248, 250, 252, 0.65);
-  --glass-bg-card: rgba(255, 255, 255, 0.82);
+  /* Glassmorphic & Frosted Tokens (Soft Nature) */
+  --glass-bg-surface: rgba(255, 255, 255, 0.88);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.96);
+  --glass-bg-subtle: rgba(240, 244, 239, 0.65);
+  --glass-bg-card: rgba(255, 255, 255, 0.92);
   --glass-blur: blur(16px);
   --glass-blur-sm: blur(8px);
   --glass-blur-lg: blur(24px);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.65);
-  --glass-border-specular: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.2) 60%, rgba(2, 132, 199, 0.25) 100%);
-  --glass-border-subtle: 1px solid rgba(226, 232, 240, 0.6);
-  --glass-specular-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(15, 23, 42, 0.03);
+  --glass-border: 1px solid rgba(63, 118, 93, 0.12);
+  --glass-border-specular: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.35) 60%, rgba(63, 118, 93, 0.15) 100%);
+  --glass-border-subtle: 1px solid rgba(226, 234, 227, 0.8);
+  --glass-specular-highlight: inset 0 1px 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(41, 59, 50, 0.03);
 
   /* --------------------------------------------------
    * Neumorphism Tokens (Extrusions, Insets & Tactile Shadows)
    * -------------------------------------------------- */
   /* Soft extruded surfaces (Cards, Raised Buttons) */
-  --neomorph-shadow-flat: 6px 6px 14px rgba(15, 23, 42, 0.06), -5px -5px 12px rgba(255, 255, 255, 0.95);
-  --neomorph-shadow-raised: 10px 10px 22px rgba(15, 23, 42, 0.08), -8px -8px 18px rgba(255, 255, 255, 1);
-  --neomorph-shadow-floating: 16px 16px 32px rgba(15, 23, 42, 0.10), -12px -12px 28px rgba(255, 255, 255, 1);
+  --neomorph-shadow-flat: 4px 4px 12px rgba(41, 59, 50, 0.05), -4px -4px 10px rgba(255, 255, 255, 0.95);
+  --neomorph-shadow-raised: 8px 8px 20px rgba(41, 59, 50, 0.07), -6px -6px 16px rgba(255, 255, 255, 1);
+  --neomorph-shadow-floating: 14px 14px 28px rgba(41, 59, 50, 0.09), -10px -10px 24px rgba(255, 255, 255, 1);
 
   /* Inset / Pressed grooves (Inputs, Active Tabs, Sliders) */
-  --neomorph-shadow-inset: inset 2px 2px 5px rgba(15, 23, 42, 0.07), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
-  --neomorph-shadow-inset-deep: inset 3px 3px 8px rgba(15, 23, 42, 0.10), inset -3px -3px 8px rgba(255, 255, 255, 0.95);
-  --neomorph-shadow-pressed: inset 2px 2px 4px rgba(15, 23, 42, 0.12), inset -2px -2px 4px rgba(255, 255, 255, 0.85);
+  --neomorph-shadow-inset: inset 2px 2px 4px rgba(41, 59, 50, 0.05), inset -2px -2px 4px rgba(255, 255, 255, 0.9);
+  --neomorph-shadow-inset-deep: inset 3px 3px 6px rgba(41, 59, 50, 0.08), inset -3px -3px 6px rgba(255, 255, 255, 0.95);
+  --neomorph-shadow-pressed: inset 2px 2px 4px rgba(41, 59, 50, 0.10), inset -1px -1px 3px rgba(255, 255, 255, 0.85);
 
   /* Hybrid Neumorphic Glass (Glass frosted surface + dual ambient shadows) */
-  --hybrid-glass-neomorph: var(--glass-specular-highlight), 8px 8px 20px rgba(15, 23, 42, 0.06), -6px -6px 16px rgba(255, 255, 255, 0.9);
-  --hybrid-glass-neomorph-hover: var(--glass-specular-highlight), 12px 12px 26px rgba(15, 23, 42, 0.09), -8px -8px 20px rgba(255, 255, 255, 1);
+  --hybrid-glass-neomorph: var(--glass-specular-highlight), 6px 6px 16px rgba(41, 59, 50, 0.045), -5px -5px 14px rgba(255, 255, 255, 0.9);
+  --hybrid-glass-neomorph-hover: var(--glass-specular-highlight), 10px 10px 22px rgba(41, 59, 50, 0.07), -7px -7px 18px rgba(255, 255, 255, 1);
 
   /* Modal & Form Specific Glassmorphic Tokens */
-  --glass-bg-dialog: rgba(255, 255, 255, 0.92);
-  --glass-dialog-backdrop: rgba(15, 23, 42, 0.65);
-  --glass-specular-border: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.35) 50%, rgba(2, 132, 199, 0.25) 100%);
-  --neomorph-inset-clean: inset 2px 2px 5px rgba(15, 23, 42, 0.05), inset -2px -2px 5px rgba(255, 255, 255, 0.9);
-  --neomorph-inset-focus: inset 1px 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 3px rgba(2, 132, 199, 0.18);
-  --glass-card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-bg-dialog: rgba(255, 255, 255, 0.97);
+  --glass-dialog-backdrop: rgba(41, 59, 50, 0.25);
+  --glass-specular-border: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(63, 118, 93, 0.2) 100%);
+  --neomorph-inset-clean: inset 2px 2px 4px rgba(41, 59, 50, 0.04), inset -2px -2px 4px rgba(255, 255, 255, 0.9);
+  --neomorph-inset-focus: inset 1px 1px 3px rgba(41, 59, 50, 0.05), 0 0 0 3px rgba(63, 118, 93, 0.18);
+  --glass-card-shadow: 0 10px 30px -5px rgba(41, 59, 50, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.8), inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
+  --shadow-card: 0 4px 18px rgba(41, 59, 50, 0.045);
 }
 
 /* --------------------------------------------------
@@ -290,11 +312,16 @@
   --bg-sidebar-hover: #163832;
   --bg-sidebar-active: #235347;
   --bg-sidebar-border: #163832;
+  --bg-sidebar-footer: rgba(0, 0, 0, 0.35);
+  --bg-sidebar-btn: rgba(255, 255, 255, 0.04);
+  --bg-sidebar-card: rgba(255, 255, 255, 0.03);
+  --border-sidebar-card: rgba(255, 255, 255, 0.06);
   --text-sidebar: #8EB69B;
   --text-sidebar-muted: rgba(142, 182, 155, 0.75);
   --text-sidebar-heading: #8EB69B;
   --text-sidebar-icon: #8EB69B;
   --text-sidebar-active: #DAF1DE;
+  --text-sidebar-title: #DAF1DE;
 
   /* Structural Borders & Hairlines (Tone 3: #163832 & Tone 4: #235347) */
   --border-default: #163832;
