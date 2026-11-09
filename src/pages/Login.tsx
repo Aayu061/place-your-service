@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicator';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
+import { LegalTermsModal, LegalTab } from '@/components/legal/LegalTermsModal';
 
 export const Login: React.FC = () => {
   const { login, error: authError, clearError } = useAuth();
@@ -12,6 +13,13 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<LegalTab>('privacy');
+
+  const openLegalModal = (tab: LegalTab) => {
+    setLegalModalTab(tab);
+    setLegalModalOpen(true);
+  };
 
   const activeError = localError || authError;
 
@@ -228,8 +236,71 @@ export const Login: React.FC = () => {
             <CheckCircle size={12} style={{ color: 'var(--color-success)' }} />
             <span>End-to-End Server Authorization Boundary</span>
           </div>
-          <div>Role resolution enforced via Render backend & Supabase Auth</div>
+          <div>Extreme Sales & Services (Fiduciary) · Place Your Service (Platform)</div>
+
+          {/* Legal and Privacy Navigation Links */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              marginTop: 'var(--space-2)',
+              fontSize: '11px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => openLegalModal('privacy')}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--color-primary-600, #3b82f6)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Privacy Policy
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => openLegalModal('terms')}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--color-primary-600, #3b82f6)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Terms of Service
+            </button>
+            <span>·</span>
+            <button
+              type="button"
+              onClick={() => openLegalModal('security')}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--color-primary-600, #3b82f6)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              DPDP Compliance
+            </button>
+          </div>
         </div>
+
+        <LegalTermsModal
+          isOpen={legalModalOpen}
+          onClose={() => setLegalModalOpen(false)}
+          initialTab={legalModalTab}
+        />
       </div>
     </div>
   );

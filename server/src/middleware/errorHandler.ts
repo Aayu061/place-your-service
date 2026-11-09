@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors.js';
 import { sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
+import { sanitizeData } from '../utils/piiSanitizer.js';
 import { env } from '../config/env.js';
 
 export function errorHandlerMiddleware(
@@ -17,7 +18,7 @@ export function errorHandlerMiddleware(
   const code = isAppError ? (err as AppError).code : 'INTERNAL_SERVER_ERROR';
   const message = err.message || 'An unexpected internal server error occurred';
   const details = isAppError ? (err as AppError).details : undefined;
-
+  const sanitizedDetails = details ? sanitizeData(details) : undefined;
 
   // Log error
   logger.error(`Error processing request: ${err.message}`, {
@@ -29,7 +30,7 @@ export function errorHandlerMiddleware(
     stack: env.NODE_ENV !== 'production' ? err.stack : undefined,
   });
 
-  sendError(res, statusCode, code, message, details);
+  sendError(res, statusCode, code, message, sanitizedDetails);
 }
 
 export function notFoundHandler(req: Request, res: Response): void {

@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
+import { LEGAL_DISCLAIMERS } from '@/config/legalTerms';
 import { operationsApi, PaymentRecord, PaymentTransactionRecord } from '@/services/operationsApi';
 import { useToast } from '@/components/ui/useToast';
 
@@ -379,9 +380,11 @@ export function PaymentInvoiceModal({
           </div>
 
           {/* Bottom disclaimer */}
-          <div style={{ marginTop: 18, borderTop: '1px solid #f1f5f9', paddingTop: 8, textAlign: 'center', fontSize: '10.5px', color: '#94a3b8' }}>
-            This is a computer generated commercial invoice. Extreme Sales &amp; Services · Operating on Place Your Service Platform.<br />
-            For service inquiries or support, call +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone} or email {COMPANY_BANK_DETAILS.email}
+          <div style={{ marginTop: 18, borderTop: '1px solid #f1f5f9', paddingTop: 8, textAlign: 'center', fontSize: '10px', color: '#64748b', lineHeight: 1.45 }}>
+            <div>{LEGAL_DISCLAIMERS.invoiceFooter}</div>
+            <div style={{ marginTop: 3, color: '#94a3b8' }}>
+              For service inquiries, billing verification, or DPDP rights requests, call +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone} or email {COMPANY_BANK_DETAILS.email}
+            </div>
           </div>
         </div>
       </div>

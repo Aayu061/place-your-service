@@ -3,43 +3,9 @@
  * Safe logging with secret redaction and correlation ID support
  */
 
+import { sanitizeData } from './piiSanitizer.js';
+
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
-
-const SENSITIVE_KEYS = new Set([
-  'password',
-  'token',
-  'access_token',
-  'refresh_token',
-  'authorization',
-  'secret',
-  'service_role_key',
-  'supabase_service_role_key',
-  'apikey',
-  'cookie',
-  'credit_card',
-  'cvv',
-]);
-
-function sanitizeData(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (typeof obj !== 'object') return obj;
-
-  if (Array.isArray(obj)) {
-    return obj.map(sanitizeData);
-  }
-
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-      sanitized[key] = '[REDACTED]';
-    } else if (typeof value === 'object' && value !== null) {
-      sanitized[key] = sanitizeData(value);
-    } else {
-      sanitized[key] = value;
-    }
-  }
-  return sanitized;
-}
 
 function formatLogMessage(
   level: LogLevel,

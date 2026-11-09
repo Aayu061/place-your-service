@@ -1,16 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ChevronLeft,
   X,
   Sun,
   Moon,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
+import { LegalTermsModal } from '@/components/legal/LegalTermsModal';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {
@@ -34,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
 
   // Keyboard shortcut listener: Toggle sidebar with Ctrl+B or Cmd+B
   useEffect(() => {
@@ -464,6 +467,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
                 </button>
               </Tooltip>
+              <Tooltip content="Legal, Privacy & Security Framework" position="right">
+                <button
+                  type="button"
+                  onClick={() => setIsLegalModalOpen(true)}
+                  aria-label="Legal, Privacy & Security"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'var(--bg-sidebar-btn, rgba(255, 255, 255, 0.05))',
+                    border: '1px solid var(--border-sidebar-card, rgba(255, 255, 255, 0.1))',
+                    color: 'var(--text-sidebar, #8EB69B)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ShieldCheck size={15} />
+                </button>
+              </Tooltip>
               <Tooltip content="Sign Out" position="right">
                 <button
                   type="button"
@@ -538,6 +562,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                <Tooltip content="Legal & Privacy Framework" position="top">
+                  <button
+                    type="button"
+                    onClick={() => setIsLegalModalOpen(true)}
+                    aria-label="Legal, Privacy & Security"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-sidebar-muted, #8EB69B)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
+                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(255, 255, 255, 0.1))';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-sidebar-muted, #8EB69B)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <ShieldCheck size={15} />
+                  </button>
+                </Tooltip>
+
                 <Tooltip content={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`} position="top">
                   <button
                     type="button"
@@ -604,6 +659,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
       </aside>
+
+      <LegalTermsModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+      />
     </>
   );
 };
