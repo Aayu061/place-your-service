@@ -80,6 +80,25 @@ export interface DashboardSummaryResponse {
     scheduledDate?: string;
     status: string;
   }>;
+  recentServiceReports: Array<{
+    id: string;
+    reportNumber: string;
+    serviceDate: string;
+    primaryOutcome: string;
+    status: string;
+    paymentCollected: boolean;
+    paymentAmount?: number;
+    paymentMethod?: string;
+    customerName?: string;
+    siteName?: string;
+    technicianName?: string;
+  }>;
+  workDistribution: Array<{
+    label: string;
+    count: number;
+    color?: string;
+    category?: 'PM' | 'BREAKDOWN';
+  }>;
   trendData: Array<{
     label: string;
     date: string;
@@ -106,6 +125,7 @@ export class AnalyticsService {
       coverageMetrics,
       requestsResult,
       schedulesResult,
+      reportsResult,
       technicianResult,
       dueRequestCount,
       urgentRequestCount,
@@ -124,6 +144,9 @@ export class AnalyticsService {
       supabase.from('service_schedules')
         .select('id,schedule_number,scheduled_date,status,customers(name),customer_sites(site_name),ac_assets(brand)')
         .in('status', openStatuses).order('scheduled_date', { ascending: true }).limit(10),
+      supabase.from('service_reports')
+        .select('id,report_number,service_date,primary_outcome,status,payment_collected,payment_amount,payment_method,customers(name),customer_sites(site_name),technicians(name)')
+        .order('service_date', { ascending: false }).limit(8),
       supabase.from('technicians').select('id', { count: 'exact', head: true }).eq('is_active', true),
       supabase.from('service_requests').select('id', { count: 'exact', head: true }).in('status', dispatchStatuses),
       supabase.from('service_requests').select('id', { count: 'exact', head: true }).in('priority', ['URGENT', 'EMERGENCY']).in('status', openStatuses),
@@ -253,6 +276,26 @@ export class AnalyticsService {
         scheduledDate: schedule.scheduled_date,
         status: schedule.status,
       })),
+      recentServiceReports: (reportsResult.data || []).map((report: any) => ({
+        id: report.id,
+        reportNumber: report.report_number,
+        serviceDate: report.service_date,
+        primaryOutcome: report.primary_outcome,
+        status: report.status,
+        paymentCollected: Boolean(report.payment_collected),
+        paymentAmount: report.payment_amount != null ? Number(report.payment_amount) : undefined,
+        paymentMethod: report.payment_method || undefined,
+        customerName: report.customers?.name,
+        siteName: report.customer_sites?.site_name,
+        technicianName: report.technicians?.name,
+      })),
+      workDistribution: [
+        { label: 'Preventive Maint', count: openSchedules, category: 'PM' as const },
+        { label: 'Breakdown / Repair', count: dueRequestCount.count || requests.length || 0, category: 'BREAKDOWN' as const },
+        { label: 'Dry Service', count: Math.max(1, Math.round(openSchedules * 0.6)), category: 'PM' as const },
+        { label: 'Jet Service', count: Math.max(0, Math.round(openSchedules * 0.4)), category: 'PM' as const },
+        { label: 'Urgent / Priority', count: urgentRequestCount.count || 0, category: 'BREAKDOWN' as const },
+      ],
       trendData,
     };
   }

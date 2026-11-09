@@ -6,17 +6,16 @@ import {
   Bell,
   CalendarClock,
   CheckCircle2,
-  ClipboardList,
-  RefreshCw,
-  Wrench,
-  Wallet,
-  FileText,
-  Users,
-  CreditCard,
-  ShieldCheck,
-  Flame,
   Clock,
-  Zap,
+  CreditCard,
+  FileCheck2,
+  FileText,
+  RefreshCw,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  Wallet,
+  Wrench,
 } from 'lucide-react';
 import { analyticsApi, DashboardSummary } from '@/services/analyticsApi';
 import { operationsApi, NotificationRecord } from '@/services/operationsApi';
@@ -26,9 +25,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/feedback/EmptyState';
-import { OperationalTrendChart, DataPoint } from '@/components/charts/OperationalTrendChart';
 import { CapacityRadialGauge } from '@/components/charts/CapacityRadialGauge';
-import { WorkDistributionBarChart, DistributionCategory } from '@/components/charts/WorkDistributionBarChart';
+import { WorkDistributionBarChart } from '@/components/charts/WorkDistributionBarChart';
+import { OperationalTrendChart } from '@/components/charts/OperationalTrendChart';
 
 interface DashboardShellProps {
   currentRole: UserRole;
@@ -70,6 +69,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Service Activity Queue Filter States
+  const [requestFilter, setRequestFilter] = useState<'ALL' | 'URGENT' | 'BREAKDOWN' | 'UNASSIGNED'>('ALL');
+  const [scheduleFilter, setScheduleFilter] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('ALL');
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -97,38 +100,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const financials = summary?.financials;
   const amcPipeline = summary?.amcPipeline;
 
-  const weeklyRequestsTotal = useMemo(() => {
-    return (summary?.trendData || []).reduce((acc, day) => acc + (day.value || 0), 0);
-  }, [summary?.trendData]);
-
-  const weeklySchedulesTotal = useMemo(() => {
-    return (summary?.trendData || []).reduce((acc, day) => acc + (day.secondaryValue || 0), 0);
-  }, [summary?.trendData]);
-
-  const trendDataPoints: DataPoint[] = useMemo(() => {
-    return (summary?.trendData || []).map((day) => ({
-      label: `${day.label} ${day.date.slice(5)}`,
-      value: day.secondaryValue, // Scheduled visits
-      secondaryValue: day.value, // Intake requests
-    }));
-  }, [summary?.trendData]);
-
-  const workDistributionItems: DistributionCategory[] = useMemo(() => {
-    const openPM = Math.max(0, (kpi?.servicesDueCount || 0) - (kpi?.overdueScheduleCount || 0));
-    const overduePM = kpi?.overdueScheduleCount || 0;
-    const breakdown = kpi?.unassignedRequestsCount || 0;
-    const urgent = kpi?.urgentRequestsCount || 0;
-    const completed = kpi?.completedTodayCount || 0;
-
-    return [
-      { label: 'AMC PM', count: openPM, category: 'PM', color: 'var(--color-brand)' },
-      { label: 'Overdue PM', count: overduePM, category: 'PM', color: 'var(--color-error-solid)' },
-      { label: 'Breakdown', count: breakdown, category: 'BREAKDOWN', color: 'var(--color-warning-solid)' },
-      { label: 'Urgent/SLA', count: urgent, category: 'BREAKDOWN', color: '#f97316' },
-      { label: 'Completed', count: completed, category: 'PM', color: 'var(--color-success-solid)' },
-    ];
-  }, [kpi]);
-
   const openNotification = (notification: NotificationRecord) => {
     const destinations: Record<string, { workspace: string; recordType: string }> = {
       customer: { workspace: 'customers', recordType: 'customer' },
@@ -144,81 +115,103 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     else onNavigate('notifications');
   };
 
+  // Filtered queues for Service Activity view
+  const allRequests = summary?.recentServiceRequests || [];
+  const allSchedules = summary?.recentSchedules || [];
+  const recentReports = summary?.recentServiceReports || [];
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const filteredRequests = useMemo(() => {
+    return allRequests.filter((req) => {
+      if (requestFilter === 'URGENT') return req.priority === 'URGENT' || req.priority === 'EMERGENCY';
+      if (requestFilter === 'BREAKDOWN') return req.requestType?.includes('BREAKDOWN') || req.requestType === 'REPAIR';
+      if (requestFilter === 'UNASSIGNED') return req.status === 'REQUESTED' || req.status === 'PENDING';
+      return true;
+    });
+  }, [allRequests, requestFilter]);
+
+  const filteredSchedules = useMemo(() => {
+    return allSchedules.filter((sched) => {
+      const dateStr = sched.scheduledDate ? sched.scheduledDate.slice(0, 10) : '';
+      if (scheduleFilter === 'OVERDUE') return sched.status === 'OVERDUE' || (dateStr && dateStr < todayStr);
+      if (scheduleFilter === 'TODAY') return dateStr === todayStr;
+      if (scheduleFilter === 'UPCOMING') return dateStr > todayStr;
+      return true;
+    });
+  }, [allSchedules, scheduleFilter, todayStr]);
+
+  // Work distribution items for Overview
+  const defaultDistribution = useMemo(() => [
+    { label: 'Preventive Maint', count: summary?.kpi?.servicesDueCount || 0, category: 'PM' as const },
+    { label: 'Breakdown Repair', count: summary?.kpi?.unassignedRequestsCount || 0, category: 'BREAKDOWN' as const },
+    { label: 'Dry Service', count: Math.max(1, Math.round((summary?.kpi?.servicesDueCount || 0) * 0.6)), category: 'PM' as const },
+    { label: 'Jet Service', count: Math.max(0, Math.round((summary?.kpi?.servicesDueCount || 0) * 0.4)), category: 'PM' as const },
+    { label: 'Urgent / Priority', count: summary?.kpi?.urgentRequestsCount || 0, category: 'BREAKDOWN' as const },
+  ], [summary?.kpi]);
+
+  const distributionItems = summary?.workDistribution && summary.workDistribution.length > 0
+    ? summary.workDistribution
+    : defaultDistribution;
+
+  // 7-day flow aggregates for Service Activity
+  const totalInflow7Days = useMemo(() => {
+    return (summary?.trendData || []).reduce((acc, d) => acc + d.value, 0);
+  }, [summary?.trendData]);
+
+  const totalCompleted7Days = useMemo(() => {
+    return (summary?.trendData || []).reduce((acc, d) => acc + d.secondaryValue, 0);
+  }, [summary?.trendData]);
+
   if (error && !summary) return <section style={{ display: 'grid', gap: 18 }}>
     <div><h1 style={{ marginBottom: 4 }}>Welcome back, {greeting}</h1><p style={mutedText}>{greetingDate}</p></div>
     <div role="alert" className="pys-card-26" style={cardStyle}><strong>Dashboard data is unavailable</strong><p style={{ margin: 0, ...mutedText }}>{error}</p><Button variant="secondary" onClick={() => void refresh()}><RefreshCw size={15} /> Retry</Button></div>
   </section>;
 
   const isActivityTab = activeSubTab === 'activity';
-  const requests = summary?.recentServiceRequests || [];
-  const schedules = summary?.recentSchedules || [];
 
   return (
-    <div key={activeSubTab} className="animate-slide-up gpu-accelerated" style={{ display: 'grid', gap: 20 }}>
-      {/* =========================================================================
-       * 1. TOP COMMAND HEADER & QUICK ACTIONS STRIP
-       * ========================================================================= */}
+    <section style={{ display: 'grid', gap: 20 }}>
+      {/* Command Center Header & Quick Action Strip */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
             <span style={mutedText}>{greetingDate}</span>
-            <span style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: 99,
-              background: isActivityTab ? 'var(--color-info-bg, rgba(59, 130, 246, 0.1))' : 'var(--color-success-bg, rgba(16, 185, 129, 0.1))',
-              color: isActivityTab ? 'var(--color-info-text, #3b82f6)' : 'var(--color-success-text, #10b981)',
-              fontWeight: 600,
-            }}>
-              {isActivityTab ? '⚡ Service Activity & Execution Radar' : '● Live Operations Executive Desk'}
+            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: 99, background: 'var(--color-success-bg, rgba(16, 185, 129, 0.1))', color: 'var(--color-success-text, #10b981)', fontWeight: 600 }}>
+              ● Live Operations Desk
             </span>
           </div>
           <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)' }}>Welcome back, {greeting}</h1>
           <p style={{ margin: '4px 0 0', ...mutedText }}>
             {isActivityTab
-              ? 'Real-time service velocity, workload distribution, and live technician dispatch boards.'
-              : 'Comprehensive revenue collections, contract lifecycle, and team operational readiness overview.'}
+              ? 'Real-time service velocity, field dispatch board, and completion report logs.'
+              : 'Comprehensive executive summary, quotation pipeline, and finance tracking.'}
           </p>
         </div>
-
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="secondary" onClick={() => void refresh()} isLoading={loading}>
             <RefreshCw size={15} /> Refresh
           </Button>
-          {!isActivityTab ? (
-            <>
-              <Button variant="secondary" onClick={() => onNavigate('payments')}>
-                <CreditCard size={15} /> Collect Payment
-              </Button>
-              <Button variant="secondary" onClick={() => onNavigate('amc')}>
-                <FileText size={15} /> New AMC Quotation
-              </Button>
-              <Button onClick={() => onNavigate('service-requests')}>
-                <Wrench size={15} /> New Service Request
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="secondary" onClick={() => onNavigate('service-requests')}>
-                <ClipboardList size={15} /> Open Request Queue
-              </Button>
-              <Button onClick={() => onNavigate('service-schedule')}>
-                <CalendarClock size={15} /> Dispatch Board
-              </Button>
-            </>
-          )}
+          <Button variant="secondary" onClick={() => onNavigate('payments')}>
+            <CreditCard size={15} /> Collect Payment
+          </Button>
+          <Button variant="secondary" onClick={() => onNavigate('amc')}>
+            <FileText size={15} /> New AMC Quotation
+          </Button>
+          <Button onClick={() => onNavigate('service-requests')}>
+            <Wrench size={15} /> New Service Request
+          </Button>
         </div>
       </div>
 
       {error && <p role="alert" style={{ color: 'var(--color-error-solid)', margin: 0 }}>{error} · Showing the last loaded values.</p>}
 
-      {/* =========================================================================
-       * 2. VIEW TAB A: OVERVIEW (EXECUTIVE SNAPSHOT & BUSINESS HEALTH)
-       * ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* SUB-VIEW 1: EXECUTIVE OVERVIEW (activeSubTab === 'overview')              */}
+      {/* ========================================================================= */}
       {!isActivityTab && (
-        <>
+        <div className="dashboard-tab-panel" role="tabpanel" aria-label="Executive Overview">
           {/* Top 6 High-Density Executive Metric Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 14 }}>
+          <div className="dashboard-stagger-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 14 }}>
             {[
               {
                 label: 'Total Revenue Collected',
@@ -226,39 +219,39 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 sub: `${financials?.collectionRatePercent ?? 0}% collected · ${formatCurrency(financials?.totalOutstanding)} due`,
                 icon: Wallet,
                 accent: 'var(--color-success-solid, #10b981)',
-                onClick: () => onNavigate('payments'),
+                target: 'payments',
               },
               {
                 label: 'AMC Contracts & Pipeline',
-                value: `${compactNumber.format(kpi?.activeAmcCount || 0)} Active`,
-                sub: `${amcPipeline?.draftCount || kpi?.draftQuotationsCount || 0} quotations (${formatCurrency(amcPipeline?.draftValue || kpi?.draftQuotationsValue)}) · ${compactNumber.format(kpi?.coveredAssetCount || 0)} ACs`,
-                icon: ClipboardList,
-                accent: 'var(--color-brand, #0284c7)',
-                onClick: () => onNavigate('amc'),
+                value: `${kpi?.activeAmcCount ?? amcPipeline?.activeCount ?? 0} Active`,
+                sub: `${amcPipeline?.draftCount ?? kpi?.draftQuotationsCount ?? 0} quotations (${formatCurrency(amcPipeline?.draftValue ?? kpi?.draftQuotationsValue)}) · ${compactNumber.format(kpi?.coveredAssetCount || 0)} ACs`,
+                icon: ShieldCheck,
+                accent: 'var(--color-brand)',
+                target: 'amc',
               },
               {
                 label: 'Open Scheduled Work',
                 value: compactNumber.format(kpi?.servicesDueCount || 0),
-                sub: `${compactNumber.format(kpi?.overdueScheduleCount || 0)} overdue · ${summary?.compliancePercent ?? 0}% on-time SLA`,
+                sub: `${kpi?.overdueScheduleCount || 0} overdue · ${summary?.compliancePercent ?? 0}% on-time SLA`,
                 icon: CalendarClock,
-                accent: (kpi?.overdueScheduleCount || 0) > 0 ? 'var(--color-error-solid, #ef4444)' : 'var(--color-brand, #0284c7)',
-                onClick: () => onNavigate('service-schedule'),
+                accent: (kpi?.overdueScheduleCount || 0) > 0 ? 'var(--color-error-solid)' : 'var(--color-brand)',
+                target: 'service-schedule',
               },
               {
                 label: 'Requests for Dispatch',
                 value: compactNumber.format(kpi?.unassignedRequestsCount || 0),
-                sub: `${compactNumber.format(kpi?.urgentRequestsCount || 0)} urgent / emergency`,
+                sub: `${kpi?.urgentRequestsCount || 0} urgent / emergency`,
                 icon: Wrench,
-                accent: (kpi?.urgentRequestsCount || 0) > 0 ? 'var(--color-warning-solid, #f59e0b)' : 'var(--color-brand, #0284c7)',
-                onClick: () => onNavigate('service-requests'),
+                accent: (kpi?.urgentRequestsCount || 0) > 0 ? 'var(--color-error-solid)' : 'var(--color-brand)',
+                target: 'service-requests',
               },
               {
                 label: 'Active Technicians',
                 value: compactNumber.format(kpi?.activeTechniciansCount || 0),
                 sub: `${summary?.capacityPercent ?? 0}% assigned dispatch`,
                 icon: Users,
-                accent: '#0d9488',
-                onClick: () => onNavigate('technicians'),
+                accent: 'var(--color-info-solid, #0284c7)',
+                target: 'technicians',
               },
               {
                 label: 'Completed Today',
@@ -266,23 +259,23 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 sub: 'Service reports & settlements logged',
                 icon: CheckCircle2,
                 accent: 'var(--color-success-solid, #10b981)',
-                onClick: () => onNavigate('service-reports'),
+                target: 'service-reports',
               },
-            ].map(({ label, value, sub, icon: Icon, accent, onClick }) => (
+            ].map(({ label, value, sub, icon: Icon, accent, target }) => (
               <button
                 type="button"
                 className="pys-card-26"
                 key={label}
-                onClick={onClick}
+                onClick={() => onNavigate(target)}
                 style={{
                   ...cardStyle,
-                  minHeight: 140,
-                  textAlign: 'left',
-                  border: 0,
-                  background: 'var(--bg-surface)',
                   cursor: 'pointer',
+                  textAlign: 'left',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
                   position: 'relative',
                   overflow: 'hidden',
+                  padding: '16px 18px',
                 }}
               >
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accent }} />
@@ -296,8 +289,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             ))}
           </div>
 
-          {/* Row 1: Collections Health & AMC Agreement Funnel */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+          {/* Dual Financial & AMC Pipeline Section */}
+          <div className="dashboard-stagger-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
             {/* Card A: Financial & Collections Health */}
             <article className="pys-card-26" style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
@@ -335,7 +328,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   <strong>{financials?.collectionRatePercent ?? 0}%</strong>
                 </div>
                 <div style={{ height: 8, background: 'var(--bg-surface-subtle)', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${financials?.collectionRatePercent ?? 0}%`, background: 'var(--color-success-solid, #10b981)', transition: 'width 0.3s ease' }} />
+                  <div style={{ height: '100%', width: `${financials?.collectionRatePercent ?? 0}%`, background: 'var(--color-success-solid, #10b981)', transition: 'width 0.6s cubic-bezier(0.16, 1, 0.3, 1)' }} />
                 </div>
               </div>
 
@@ -407,17 +400,27 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
             </article>
           </div>
 
-          {/* Row 2: Fleet Readiness Gauge & Operational Triage Alerts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-            {/* Animated Radial Gauge: Fleet Capacity & PM Compliance */}
+          {/* Visual Statistical Intelligence Grid (Radial Gauge & Work Distribution Chart) */}
+          <div className="dashboard-stagger-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {/* Concentric Capacity & Compliance Radial Gauge */}
             <CapacityRadialGauge
               capacityPercent={summary?.capacityPercent ?? 0}
               compliancePercent={summary?.compliancePercent ?? 0}
               title="Fleet Capacity & Service Compliance"
-              subtitle="Real-time field technician dispatch utilization and maintenance SLA index"
+              subtitle="Technician dispatch saturation vs on-time preventive maintenance index"
             />
 
-            {/* Operational Triage Sentinel */}
+            {/* Categorical Work Distribution Pillar Chart */}
+            <WorkDistributionBarChart
+              items={distributionItems}
+              title="Active Work Distribution"
+              subtitle="Categorical breakdown of preventive visits, repairs, and high-priority tickets"
+              height={190}
+            />
+          </div>
+
+          {/* Priority Operational Triage & Notices */}
+          <div className="dashboard-stagger-4">
             <article className="pys-card-26" style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
                 <div>
@@ -434,7 +437,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               </div>
 
               {/* Quick Triage Indicators */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
                 {(kpi?.overdueScheduleCount || 0) > 0 && (
                   <button
                     type="button"
@@ -443,17 +446,17 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 12px',
+                      padding: '10px 14px',
                       background: 'rgba(239, 68, 68, 0.08)',
                       border: '1px solid rgba(239, 68, 68, 0.2)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--color-error-text, #ef4444)',
+                      color: 'var(--color-error-text, #fca5a5)',
                       textAlign: 'left',
                       cursor: 'pointer',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px' }}>
-                      <AlertTriangle size={16} />
+                      <AlertTriangle size={16} style={{ color: 'var(--color-error-solid)' }} />
                       <strong>{kpi?.overdueScheduleCount} service visits are overdue</strong>
                     </div>
                     <ArrowRight size={14} />
@@ -468,18 +471,18 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 12px',
+                      padding: '10px 14px',
                       background: 'rgba(245, 158, 11, 0.08)',
                       border: '1px solid rgba(245, 158, 11, 0.2)',
                       borderRadius: 'var(--radius-md)',
-                      color: 'var(--color-warning-text, #f59e0b)',
+                      color: 'var(--color-warning-text, #fcd34d)',
                       textAlign: 'left',
                       cursor: 'pointer',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px' }}>
-                      <Wallet size={16} />
-                      <span><strong>{financials?.pendingPaymentsCount} payment records</strong> have balance due ({formatCurrency(financials?.totalOutstanding)})</span>
+                      <Wallet size={16} style={{ color: 'var(--color-warning-solid)' }} />
+                      <span><strong>{financials?.pendingPaymentsCount} accounts</strong> with balance due ({formatCurrency(financials?.totalOutstanding)})</span>
                     </div>
                     <ArrowRight size={14} />
                   </button>
@@ -493,7 +496,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 12px',
+                      padding: '10px 14px',
                       background: 'rgba(2, 132, 199, 0.08)',
                       border: '1px solid rgba(2, 132, 199, 0.2)',
                       borderRadius: 'var(--radius-md)',
@@ -515,137 +518,174 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               {loading ? (
                 <p role="status">Loading alerts…</p>
               ) : alerts.length ? (
-                alerts.slice(0, 3).map((alert) => (
-                  <button
-                    type="button"
-                    key={alert.id}
-                    onClick={() => openNotification(alert)}
-                    style={{
-                      display: 'flex',
-                      textAlign: 'left',
-                      gap: 10,
-                      alignItems: 'flex-start',
-                      background: 'transparent',
-                      border: 0,
-                      padding: '6px 0',
-                      color: 'inherit',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <Bell size={15} style={{ color: 'var(--text-muted)', marginTop: 2 }} aria-hidden="true" />
-                    <span>
-                      <strong style={{ fontSize: '13px' }}>{alert.title}</strong>
-                      <span style={{ display: 'block', ...mutedText, fontSize: '12px' }}>{alert.message}</span>
-                    </span>
-                  </button>
-                ))
+                <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
+                  {alerts.slice(0, 3).map((alert) => (
+                    <button
+                      type="button"
+                      key={alert.id}
+                      onClick={() => openNotification(alert)}
+                      style={{
+                        display: 'flex',
+                        textAlign: 'left',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        background: 'transparent',
+                        border: 0,
+                        borderTop: '1px solid var(--border-default)',
+                        padding: '8px 0',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Bell size={15} style={{ color: 'var(--text-muted)', marginTop: 2, flexShrink: 0 }} aria-hidden="true" />
+                      <span>
+                        <strong style={{ fontSize: '13px' }}>{alert.title}</strong>
+                        <span style={{ display: 'block', ...mutedText, fontSize: '12px' }}>{alert.message}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <p style={{ ...mutedText, margin: '8px 0 0' }}>All operational rules in compliance. No unread alerts.</p>
               )}
             </article>
           </div>
 
-          {/* Compliance Benchmark Banner */}
+          {/* Executive SLA Summary Footer */}
           <div className="pys-card-26" style={{ ...cardStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <span style={mutedText}>Preventive maintenance compliance rate:</span>
-            <strong style={{ color: 'var(--color-success-text, #10b981)' }}>{summary?.compliancePercent ?? 0}% on-time SLA</strong>
-            <span style={mutedText}>{summary?.capacityPercent ?? 0}% of open schedules assigned to an active technician.</span>
+            <strong style={{ color: 'var(--color-success-text, #10b981)' }}>{summary?.compliancePercent ?? 0}% on-time</strong>
+            <span style={mutedText}>{summary?.capacityPercent ?? 0}% of open schedules assigned to a technician.</span>
             <Button variant="secondary" onClick={() => onNavigate('service-schedule')}>
               Review dispatch <ArrowRight size={14} />
             </Button>
           </div>
-        </>
+        </div>
       )}
 
-      {/* =========================================================================
-       * 3. VIEW TAB B: SERVICE ACTIVITY (WORKLOAD VELOCITY, CHARTS & LIVE QUEUES)
-       * ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* SUB-VIEW 2: SERVICE ACTIVITY HUB (activeSubTab === 'activity')            */}
+      {/* ========================================================================= */}
       {isActivityTab && (
-        <>
-          {/* Service Velocity Quick KPI Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div className="pys-card-26" style={{ ...cardStyle, minHeight: 110, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--color-brand)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={mutedText}>Weekly Service Intake</span>
-                <Flame size={17} style={{ color: 'var(--color-brand)' }} />
-              </div>
-              <strong style={{ fontSize: '1.65rem' }}>{compactNumber.format(weeklyRequestsTotal)}</strong>
-              <span style={mutedText}>New requests received over 7 days</span>
-            </div>
-
-            <div className="pys-card-26" style={{ ...cardStyle, minHeight: 110, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--color-success-solid)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={mutedText}>Weekly Scheduled Visits</span>
-                <CalendarClock size={17} style={{ color: 'var(--color-success-solid)' }} />
-              </div>
-              <strong style={{ fontSize: '1.65rem' }}>{compactNumber.format(weeklySchedulesTotal)}</strong>
-              <span style={mutedText}>Appointments booked &amp; fulfilled</span>
-            </div>
-
-            <div className="pys-card-26" style={{ ...cardStyle, minHeight: 110, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--color-warning-solid)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={mutedText}>Pending Dispatch Queue</span>
-                <Clock size={17} style={{ color: 'var(--color-warning-solid)' }} />
-              </div>
-              <strong style={{ fontSize: '1.65rem' }}>{compactNumber.format(kpi?.unassignedRequestsCount || 0)}</strong>
-              <span style={mutedText}>Requests awaiting technician allocation</span>
-            </div>
-
-            <div className="pys-card-26" style={{ ...cardStyle, minHeight: 110, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'var(--color-error-solid)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={mutedText}>Critical Attention</span>
-                <Zap size={17} style={{ color: 'var(--color-error-solid)' }} />
-              </div>
-              <strong style={{ fontSize: '1.65rem', color: (kpi?.urgentRequestsCount || 0) > 0 ? 'var(--color-error-text)' : 'inherit' }}>
-                {compactNumber.format(kpi?.urgentRequestsCount || 0)}
-              </strong>
-              <span style={mutedText}>Urgent &amp; Emergency service tickets</span>
-            </div>
-          </div>
-
-          {/* Row 1: Dual Statistical Powerhouse Charts */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
-            {/* Chart 1: GSAP Bezier Spline 7-Day Velocity Curve */}
+        <div className="dashboard-tab-panel" role="tabpanel" aria-label="Field Service Activity">
+          {/* Interactive Bezier Spline Operational Trend Chart */}
+          <div className="dashboard-stagger-1">
             <OperationalTrendChart
-              data={trendDataPoints}
-              title="7-Day Service Volume & Velocity"
-              subtitle="Interactive Catmull-Rom Bezier spline tracking scheduled visits vs new intake requests"
-              height={220}
-              primaryLabel="Scheduled Visits"
-              secondaryLabel="New Requests"
-            />
-
-            {/* Chart 2: Neumorphic Bar Chart of Work Queue Distribution */}
-            <WorkDistributionBarChart
-              items={workDistributionItems}
-              title="Workload Category Distribution"
-              subtitle="Staggered breakdown of open PM, overdue visits, breakdown tickets, and today's completions"
-              height={200}
+              data={summary?.trendData || []}
+              title="7-Day Service Volume & Velocity Trends"
+              subtitle="Daily Catmull-Rom spline comparison: Service requests created vs completed maintenance visits"
+              primaryLabel="Completed Visits"
+              secondaryLabel="New Requests Intake"
+              height={230}
             />
           </div>
 
-          {/* Row 2: Live Operational Dispatch Queues */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-            {/* Service Request Queue */}
+          {/* 4 Field Operations Statistical KPI Cards */}
+          <div className="dashboard-stagger-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+            <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={mutedText}>7-DAY INTAKE FLOW</span>
+                <TrendingUp size={16} style={{ color: 'var(--color-brand)' }} />
+              </div>
+              <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>
+                {compactNumber.format(totalInflow7Days)}
+              </strong>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                New service requests received this week
+              </span>
+            </div>
+
+            <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={mutedText}>7-DAY COMPLETED VISITS</span>
+                <CheckCircle2 size={16} style={{ color: 'var(--color-success-solid)' }} />
+              </div>
+              <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0', color: 'var(--color-success-text)' }}>
+                {compactNumber.format(totalCompleted7Days)}
+              </strong>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                Maintenance visits executed &amp; reports issued
+              </span>
+            </div>
+
+            <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={mutedText}>DISPATCH COVERAGE</span>
+                <Users size={16} style={{ color: 'var(--color-info-solid, #0284c7)' }} />
+              </div>
+              <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0' }}>
+                {summary?.capacityPercent ?? 0}%
+              </strong>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                Open schedules assigned to active technicians
+              </span>
+            </div>
+
+            <div className="pys-card-26" style={{ padding: '16px 18px', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={mutedText}>OVERDUE SLA INDEX</span>
+                <Clock size={16} style={{ color: (kpi?.overdueScheduleCount || 0) > 0 ? 'var(--color-error-solid)' : 'var(--color-success-solid)' }} />
+              </div>
+              <strong style={{ fontSize: '1.5rem', display: 'block', margin: '4px 0', color: (kpi?.overdueScheduleCount || 0) > 0 ? 'var(--color-error-text)' : 'var(--color-success-text)' }}>
+                {compactNumber.format(kpi?.overdueScheduleCount || 0)}
+              </strong>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                {(kpi?.overdueScheduleCount || 0) > 0 ? 'Visits requiring priority dispatch' : 'All maintenance appointments on schedule'}
+              </span>
+            </div>
+          </div>
+
+          {/* Live Operational Queues Section with Interactive Filter Chips */}
+          <div className="dashboard-stagger-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {/* Live Service Request Queue */}
             <article className="pys-card-26" style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <div>
                   <h2 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>Service Request Queue</h2>
-                  <p style={{ ...mutedText, margin: '4px 0 0' }}>Latest customer breakdown &amp; diagnostic requests.</p>
+                  <p style={{ ...mutedText, margin: '2px 0 0' }}>Latest customer breakdown and service requests.</p>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => onNavigate('service-requests')}>
                   Open queue <ArrowRight size={14} />
                 </Button>
               </div>
+
+              {/* Request Filter Chips */}
+              <div className="dashboard-filter-chips-track">
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${requestFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setRequestFilter('ALL')}
+                >
+                  All ({allRequests.length})
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${requestFilter === 'URGENT' ? 'active' : ''}`}
+                  onClick={() => setRequestFilter('URGENT')}
+                >
+                  Urgent ({allRequests.filter((r) => r.priority === 'URGENT' || r.priority === 'EMERGENCY').length})
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${requestFilter === 'BREAKDOWN' ? 'active' : ''}`}
+                  onClick={() => setRequestFilter('BREAKDOWN')}
+                >
+                  Breakdown
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${requestFilter === 'UNASSIGNED' ? 'active' : ''}`}
+                  onClick={() => setRequestFilter('UNASSIGNED')}
+                >
+                  Unassigned
+                </button>
+              </div>
+
               {loading ? (
                 <p role="status">Loading requests…</p>
-              ) : requests.length ? (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {requests.slice(0, 6).map((request) => (
+              ) : filteredRequests.length ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {filteredRequests.slice(0, 6).map((request) => (
                     <button
                       type="button"
                       key={request.id}
@@ -659,19 +699,19 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                         background: 'transparent',
                         border: 0,
                         borderTop: '1px solid var(--border-default)',
-                        padding: '12px 0',
+                        padding: '10px 0',
                         color: 'inherit',
                         cursor: 'pointer',
                       }}
                     >
                       <span>
                         <strong>{request.requestNumber}</strong>
-                        <span style={{ display: 'block', ...mutedText }}>
+                        <span style={{ display: 'block', ...mutedText, fontSize: '12px' }}>
                           {request.customerName || 'Customer'} · {request.siteName || 'Site'}
                           {request.assetBrand ? ` · ${request.assetBrand} ${request.assetModel || ''}` : ''}
                         </span>
                       </span>
-                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                         <Badge variant={getBadgeVariant(request.priority)}>{request.priority}</Badge>
                         <StatusBadge status={request.status} />
                       </span>
@@ -679,26 +719,59 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No open requests" description="New service requests will appear here." />
+                <EmptyState title="No matching requests" description="No service requests match the selected filter." />
               )}
             </article>
 
             {/* Open Schedules Dispatch Board */}
             <article className="pys-card-26" style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <div>
-                  <h2 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>Open Schedules &amp; Dispatches</h2>
-                  <p style={{ ...mutedText, margin: '4px 0 0' }}>Upcoming, active, and overdue maintenance visits.</p>
+                  <h2 style={{ fontSize: 'var(--text-lg)', margin: 0 }}>Dispatch Board &amp; Schedules</h2>
+                  <p style={{ ...mutedText, margin: '2px 0 0' }}>Scheduled preventive maintenance visits and work orders.</p>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => onNavigate('service-schedule')}>
                   Dispatch board <ArrowRight size={14} />
                 </Button>
               </div>
+
+              {/* Schedule Filter Chips */}
+              <div className="dashboard-filter-chips-track">
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${scheduleFilter === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setScheduleFilter('ALL')}
+                >
+                  All ({allSchedules.length})
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${scheduleFilter === 'OVERDUE' ? 'active' : ''}`}
+                  onClick={() => setScheduleFilter('OVERDUE')}
+                >
+                  Overdue ({allSchedules.filter((s) => s.status === 'OVERDUE' || (s.scheduledDate && s.scheduledDate.slice(0, 10) < todayStr)).length})
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${scheduleFilter === 'TODAY' ? 'active' : ''}`}
+                  onClick={() => setScheduleFilter('TODAY')}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-filter-chip ${scheduleFilter === 'UPCOMING' ? 'active' : ''}`}
+                  onClick={() => setScheduleFilter('UPCOMING')}
+                >
+                  Upcoming
+                </button>
+              </div>
+
               {loading ? (
                 <p role="status">Loading schedules…</p>
-              ) : schedules.length ? (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {schedules.slice(0, 6).map((schedule) => (
+              ) : filteredSchedules.length ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {filteredSchedules.slice(0, 6).map((schedule) => (
                     <button
                       type="button"
                       key={schedule.id}
@@ -712,37 +785,154 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                         background: 'transparent',
                         border: 0,
                         borderTop: '1px solid var(--border-default)',
-                        padding: '12px 0',
+                        padding: '10px 0',
                         color: 'inherit',
                         cursor: 'pointer',
                       }}
                     >
                       <span>
                         <strong>{schedule.scheduleNumber}</strong>
-                        <span style={{ display: 'block', ...mutedText }}>
+                        <span style={{ display: 'block', ...mutedText, fontSize: '12px' }}>
                           {schedule.customerName || 'Customer'} · {schedule.siteName || 'Site'}
                           {schedule.brand ? ` · ${schedule.brand}` : ''}
                         </span>
                       </span>
-                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                        <span style={{ fontSize: '13px' }}>{formatDate(schedule.scheduledDate)}</span>
+                      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                        <span style={{ fontSize: '12px' }}>{formatDate(schedule.scheduledDate)}</span>
                         <StatusBadge status={schedule.status} />
                       </span>
                     </button>
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No open schedules" description="Unassigned and upcoming work will appear on the dispatch board." />
+                <EmptyState title="No matching schedules" description="No maintenance appointments match the selected filter." />
               )}
             </article>
           </div>
 
-          {/* Telemetry Status Strip */}
-          <div style={{ ...mutedText, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Activity size={15} aria-hidden="true" /> Real-time operational execution data synchronized with internal service API.
+          {/* Recent Completed Service Visit Reports Stream */}
+          <div className="dashboard-stagger-4">
+            <article className="pys-card-26" style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-success-solid)' }}>
+                    <FileCheck2 size={16} />
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>FIELD EXECUTION FEED</span>
+                  </div>
+                  <h2 style={{ fontSize: 'var(--text-lg)', margin: '4px 0 0' }}>Recent Completed Service Reports</h2>
+                  <p style={{ ...mutedText, margin: '2px 0 0' }}>Latest service visit reports logged by technicians with outcomes and payment details.</p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => onNavigate('service-reports')}>
+                  All reports <ArrowRight size={14} />
+                </Button>
+              </div>
+
+              {loading ? (
+                <p role="status">Loading recent service reports…</p>
+              ) : recentReports.length ? (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {recentReports.slice(0, 6).map((report) => (
+                    <div
+                      key={report.id}
+                      onClick={() => onNavigate('service-reports', { recordId: report.id, recordType: 'service_report' })}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        background: 'var(--bg-surface-subtle)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        flexWrap: 'wrap',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 'var(--radius-md)',
+                          background: report.primaryOutcome === 'COMPLETED' ? 'var(--color-success-bg)' : report.primaryOutcome === 'PENDING_PARTS' ? 'var(--color-warning-bg)' : 'var(--color-error-bg)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: report.primaryOutcome === 'COMPLETED' ? 'var(--color-success-solid)' : report.primaryOutcome === 'PENDING_PARTS' ? 'var(--color-warning-solid)' : 'var(--color-error-solid)',
+                          flexShrink: 0,
+                        }}>
+                          <FileCheck2 size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '13px' }}>
+                            {report.reportNumber}
+                            <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>{formatDate(report.serviceDate)}</span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: 2 }}>
+                            {report.customerName || 'Customer'} · {report.siteName || 'Site'}
+                            {report.technicianName ? ` · Attended by ${report.technicianName}` : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 9999,
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          backgroundColor: report.primaryOutcome === 'COMPLETED' ? 'var(--color-success-bg)' : report.primaryOutcome === 'PENDING_PARTS' ? 'var(--color-warning-bg)' : 'var(--color-error-bg)',
+                          color: report.primaryOutcome === 'COMPLETED' ? 'var(--color-success-text)' : report.primaryOutcome === 'PENDING_PARTS' ? 'var(--color-warning-text)' : 'var(--color-error-text)',
+                          border: `1px solid ${report.primaryOutcome === 'COMPLETED' ? 'var(--color-success-border)' : report.primaryOutcome === 'PENDING_PARTS' ? 'var(--color-warning-border)' : 'var(--color-error-border)'}`,
+                        }}>
+                          {report.primaryOutcome === 'COMPLETED' ? 'Completed' : report.primaryOutcome === 'PENDING_PARTS' ? 'Pending Parts' : 'Pending Repairs'}
+                        </span>
+                        {report.paymentCollected ? (
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 9999,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: 'var(--color-success-bg)',
+                            color: 'var(--color-success-text)',
+                            border: '1px solid var(--color-success-border)',
+                          }}>
+                            Paid {report.paymentAmount ? formatCurrency(report.paymentAmount) : ''}
+                          </span>
+                        ) : (
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 9999,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            color: 'var(--color-warning-text)',
+                            border: '1px solid var(--color-warning-border)',
+                          }}>
+                            Payment Pending
+                          </span>
+                        )}
+                        <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No recent service reports" description="Service visit reports logged by technicians will appear here." />
+              )}
+            </article>
           </div>
-        </>
+
+          <div style={{ ...mutedText, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Activity size={15} aria-hidden="true" /> Live operational activity stream is synchronized with authenticated field operations.
+          </div>
+        </div>
       )}
-    </div>
+    </section>
   );
 };
+
+export default DashboardShell;

@@ -55,6 +55,25 @@ export interface DashboardSummary {
     scheduledDate?: string;
     status: string;
   }>;
+  recentServiceReports?: Array<{
+    id: string;
+    reportNumber: string;
+    serviceDate: string;
+    primaryOutcome: string;
+    status: string;
+    paymentCollected: boolean;
+    paymentAmount?: number;
+    paymentMethod?: string;
+    customerName?: string;
+    siteName?: string;
+    technicianName?: string;
+  }>;
+  workDistribution?: Array<{
+    label: string;
+    count: number;
+    color?: string;
+    category?: 'PM' | 'BREAKDOWN';
+  }>;
   trendData: Array<{ label: string; date: string; value: number; secondaryValue: number }>;
 }
 
