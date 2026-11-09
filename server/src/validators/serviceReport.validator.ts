@@ -85,6 +85,17 @@ export const createServiceReportSchema = {
       customerRepresentative: optionalTrimmedString,
       customerAcknowledgement: optionalTrimmedString,
       customerSignatureUrl: optionalTrimmedString,
+      paymentCollected: z.boolean().default(false),
+      paymentAmount: z.preprocess(
+        (val) => (val === null || val === '' || val === undefined ? 0 : Number(val)),
+        z.number().min(0, 'Payment amount cannot be negative').default(0)
+      ),
+      paymentMethod: z.preprocess(
+        (val) => (val === null || val === '' || val === undefined ? undefined : val),
+        z.enum(['CASH', 'ONLINE']).optional()
+      ),
+      paymentReference: optionalTrimmedString,
+      paymentNotes: optionalTrimmedString,
       assets: z.array(reportAssetInputSchema).min(1, 'At least one AC asset detail is required'),
       items: z.array(reportItemInputSchema).optional().default([]),
     })
@@ -153,6 +164,14 @@ export const createServiceReportSchema = {
           });
         }
       }
+
+      if (data.paymentCollected && data.paymentAmount > 0 && !data.paymentMethod) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Payment method is mandatory when payment has been collected.',
+          path: ['paymentMethod'],
+        });
+      }
     }),
 };
 
@@ -184,6 +203,17 @@ export const updateServiceReportSchema = {
     customerRepresentative: optionalTrimmedString,
     customerAcknowledgement: optionalTrimmedString,
     customerSignatureUrl: optionalTrimmedString,
+    paymentCollected: z.boolean().optional(),
+    paymentAmount: z.preprocess(
+      (val) => (val === null || val === '' || val === undefined ? undefined : Number(val)),
+      z.number().min(0).optional()
+    ),
+    paymentMethod: z.preprocess(
+      (val) => (val === null || val === '' || val === undefined ? undefined : val),
+      z.enum(['CASH', 'ONLINE']).optional()
+    ),
+    paymentReference: optionalTrimmedString,
+    paymentNotes: optionalTrimmedString,
     assets: z.array(reportAssetInputSchema).optional(),
     items: z.array(reportItemInputSchema).optional(),
   }),

@@ -1336,7 +1336,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       </Button>
                     </>
                   )}
-                  {['ACTIVE', 'EXPIRING_SOON', 'EXPIRED'].includes(detailContract.status) && (
+                  {['EXPIRING_SOON', 'EXPIRED'].includes(detailContract.status) && (
                     <Button
                       variant="primary"
                       size="sm"
