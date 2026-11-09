@@ -66,5 +66,9 @@ describe('AnalyticsService', () => {
     expect(summary.amcPipeline.draftValue).toBe(3000);
     expect(summary.kpi.totalRevenueCollected).toBe(10000);
     expect(summary.kpi.draftQuotationsCount).toBe(1);
+
+    expect(Array.isArray(summary.workDistribution)).toBe(true);
+    expect(summary.workDistribution.length).toBeGreaterThan(0);
+    expect(Array.isArray(summary.recentServiceReports)).toBe(true);
   });
 });

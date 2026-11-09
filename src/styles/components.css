@@ -1609,4 +1609,58 @@
   background: #52665a;
 }
 
+/* Dashboard Operational Queue Filter Chips */
+.dashboard-filter-chips-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dashboard-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.dashboard-filter-chip:hover {
+  background: var(--color-neutral-100);
+  color: var(--text-primary);
+  border-color: var(--border-moderate);
+}
+
+.dashboard-filter-chip.active {
+  background: var(--color-brand);
+  color: #ffffff;
+  border-color: var(--color-brand);
+  box-shadow: 0 2px 6px rgba(168, 72, 28, 0.25);
+}
+
+[data-theme="dark"] .dashboard-filter-chip {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .dashboard-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dashboard-filter-chip.active {
+  background: var(--color-brand);
+  color: #ffffff;
+  border-color: var(--color-brand);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 

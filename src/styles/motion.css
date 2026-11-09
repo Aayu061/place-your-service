@@ -138,6 +138,29 @@
   animation: toastSlideIn var(--duration-toast) var(--ease-decelerate) forwards;
 }
 
+/* Dashboard Tab Transitions & Staggered Reveal */
+.dashboard-tab-panel {
+  animation: slideUpFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: grid;
+  gap: 20px;
+}
+
+.dashboard-stagger-1 {
+  animation: slideUpFade 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.04s backwards;
+}
+
+.dashboard-stagger-2 {
+  animation: slideUpFade 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.08s backwards;
+}
+
+.dashboard-stagger-3 {
+  animation: slideUpFade 0.46s cubic-bezier(0.16, 1, 0.3, 1) 0.12s backwards;
+}
+
+.dashboard-stagger-4 {
+  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.16s backwards;
+}
+
 .animate-spin {
   animation: spin 1s linear infinite;
 }
