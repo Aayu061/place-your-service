@@ -72,7 +72,7 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
           height: `${size}px`,
           backgroundColor: '#ffffff',
           borderRadius: '6px',
-          border: '1px solid #cbd5e1',
+          border: '1px solid var(--border-default, #cbd5e1)',
           padding: '4px',
           boxSizing: 'border-box',
           display: 'flex',
@@ -93,20 +93,20 @@ export const UpiQrCode: React.FC<UpiQrCodeProps> = ({
             }}
           />
         ) : error ? (
-          <div style={{ fontSize: '10px', color: '#dc2626', padding: '4px' }}>{error}</div>
+          <div style={{ fontSize: '10px', color: 'var(--color-error-solid, #dc2626)', padding: '4px' }}>{error}</div>
         ) : (
-          <div style={{ fontSize: '10px', color: '#64748b' }}>Generating...</div>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted, #64748b)' }}>Generating...</div>
         )}
       </div>
 
       {showScanText && (
-        <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 600, color: '#334155' }}>
+        <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 600, color: 'var(--text-primary, #334155)' }}>
           {numAmount > 0 ? `Scan & Pay ₹${numAmount.toLocaleString('en-IN')}` : 'Scan to Pay via UPI'}
         </div>
       )}
 
       {showDetails && (
-        <div style={{ marginTop: '2px', fontSize: '9px', color: '#64748b' }}>
+        <div style={{ marginTop: '2px', fontSize: '9px', color: 'var(--text-secondary, #64748b)' }}>
           UPI: {COMPANY_BANK_DETAILS.upiId}
         </div>
       )}

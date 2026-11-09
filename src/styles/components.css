@@ -1381,4 +1381,232 @@
   box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
 }
 
+/* --------------------------------------------------
+ * 12. Dark Mode Component Enhancements & Overrides
+ * -------------------------------------------------- */
+
+/* Native select options styling across all select elements */
+[data-theme="dark"] select,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .select-neomorph,
+[data-theme="dark"] .svr-filter-select {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] select option,
+[data-theme="dark"] .form-select option,
+[data-theme="dark"] .select-neomorph option,
+[data-theme="dark"] .svr-filter-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Modal Dialog & Drawer surfaces */
+[data-theme="dark"] .modal-dialog {
+  background: var(--glass-bg-dialog);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--glass-card-shadow);
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .drawer-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(28, 38, 33, 0.98) 0%, rgba(24, 32, 28, 0.92) 100%);
+}
+
+[data-theme="dark"] .modal-footer,
+[data-theme="dark"] .drawer-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(24, 32, 28, 0.92) 0%, rgba(19, 25, 22, 0.98) 100%);
+}
+
+[data-theme="dark"] .drawer-container {
+  background-color: var(--bg-surface);
+  border-left-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* Neumorphic and Glass Buttons */
+[data-theme="dark"] .btn-neomorph {
+  background: linear-gradient(145deg, #1c2621, #141b18);
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.45), -2px -2px 6px rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-neomorph:hover:not(:disabled) {
+  background: linear-gradient(145deg, #222e28, #18201c);
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.55), -3px -3px 8px rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .btn-glass {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-glass:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Neumorphic Inset Form Controls */
+[data-theme="dark"] .form-input-neomorph,
+[data-theme="dark"] .input-neomorph,
+[data-theme="dark"] .select-neomorph,
+[data-theme="dark"] .textarea-neomorph {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--neomorph-shadow-inset);
+}
+
+[data-theme="dark"] .form-input-neomorph:focus,
+[data-theme="dark"] .input-neomorph:focus,
+[data-theme="dark"] .select-neomorph:focus,
+[data-theme="dark"] .textarea-neomorph:focus {
+  background-color: var(--bg-surface);
+  border-color: var(--color-brand);
+  box-shadow: var(--neomorph-inset-focus);
+}
+
+/* Glass & Neumorphic Cards */
+[data-theme="dark"] .card-glass {
+  background: rgba(24, 32, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .card-glass:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="dark"] .card-neomorph {
+  background-color: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--neomorph-shadow-flat);
+}
+
+[data-theme="dark"] .card-neomorph:hover {
+  box-shadow: var(--neomorph-shadow-raised);
+}
+
+[data-theme="dark"] .card-hybrid {
+  background: rgba(24, 32, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--hybrid-glass-neomorph);
+}
+
+[data-theme="dark"] .card-hybrid:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: var(--hybrid-glass-neomorph-hover);
+}
+
+[data-theme="dark"] .brand-glass-card {
+  background: rgba(24, 32, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .telemetry-interactive-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .telemetry-interactive-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-brand);
+}
+
+/* Tables in Dark Mode */
+[data-theme="dark"] .table-container {
+  background-color: var(--bg-surface);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .table th {
+  background-color: var(--bg-surface-subtle);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .table td {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .table-pagination {
+  background-color: var(--bg-surface);
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Dropdowns & Overlays */
+[data-theme="dark"] .dropdown-menu {
+  background-color: var(--bg-surface-elevated);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .dropdown-item:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Badges */
+[data-theme="dark"] .badge-brand {
+  background-color: var(--color-brand-subtle);
+  border-color: var(--color-brand-border);
+  color: var(--color-brand-hover);
+}
+
+[data-theme="dark"] .badge-neutral {
+  background-color: var(--color-neutral-200);
+  border-color: var(--border-default);
+  color: var(--color-neutral-700);
+}
+
+/* Skeleton Loading Shimmer */
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* SVR (Service Visit Report) Module Overrides */
+[data-theme="dark"] .svr-kpi-card,
+[data-theme="dark"] .svr-filter-toolbar {
+  background-color: var(--bg-surface);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .svr-kpi-icon-wrapper.total {
+  background-color: var(--color-brand-subtle);
+  color: var(--color-brand);
+}
+
+[data-theme="dark"] .svr-filter-select {
+  background-color: var(--bg-surface-subtle);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Custom Scrollbars */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0f1412;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #2a3730;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #52665a;
+}
+
 

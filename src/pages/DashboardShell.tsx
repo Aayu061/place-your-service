@@ -124,7 +124,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       <div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
           <span style={mutedText}>{greetingDate}</span>
-          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: 99, background: 'rgba(16, 185, 129, 0.1)', color: 'var(--color-success-dark, #065f46)', fontWeight: 600 }}>
+          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: 99, background: 'var(--color-success-bg, rgba(16, 185, 129, 0.1))', color: 'var(--color-success-text, #10b981)', fontWeight: 600 }}>
             ● Live Operations Desk
           </span>
         </div>
@@ -250,13 +250,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 14px', background: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)' }}>
             <div>
               <div style={{ ...mutedText, fontSize: '11px' }}>TOTAL COLLECTED</div>
-              <strong style={{ fontSize: '1.25rem', color: 'var(--color-success-dark, #065f46)' }}>
+              <strong style={{ fontSize: '1.25rem', color: 'var(--color-success-text, #10b981)' }}>
                 {formatCurrency(financials?.totalCollected)}
               </strong>
             </div>
             <div>
               <div style={{ ...mutedText, fontSize: '11px' }}>OUTSTANDING BALANCE</div>
-              <strong style={{ fontSize: '1.25rem', color: (financials?.totalOutstanding || 0) > 0 ? 'var(--color-warning-dark, #b45309)' : 'var(--text-muted)' }}>
+              <strong style={{ fontSize: '1.25rem', color: (financials?.totalOutstanding || 0) > 0 ? 'var(--color-warning-text, #f59e0b)' : 'var(--text-muted)' }}>
                 {formatCurrency(financials?.totalOutstanding)}
               </strong>
             </div>
@@ -628,7 +628,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     {!isActivityTab && (
       <div className="pys-card-26" style={{ ...cardStyle, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <span style={mutedText}>Preventive maintenance compliance rate:</span>
-        <strong style={{ color: 'var(--color-success-dark, #065f46)' }}>{summary?.compliancePercent ?? 0}% on-time</strong>
+        <strong style={{ color: 'var(--color-success-text, #10b981)' }}>{summary?.compliancePercent ?? 0}% on-time</strong>
         <span style={mutedText}>{summary?.capacityPercent ?? 0}% of open schedules assigned to a technician.</span>
         <Button variant="secondary" onClick={() => onNavigate('service-schedule')}>
           Review dispatch <ArrowRight size={14} />

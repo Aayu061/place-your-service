@@ -8,11 +8,14 @@ import {
   Plus,
   Clock,
   Download,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Dropdown, DropdownItem, DropdownDivider, DropdownHeader } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/hooks/useTheme';
 import { operationsApi } from '@/services/operationsApi';
 import { GlobalSearchDialog } from '@/components/search/GlobalSearchDialog';
 import { useToast } from '@/components/ui/useToast';
@@ -42,6 +45,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onNavigate,
 }) => {
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { showToast } = useToast();
   const [searchOpen, setSearchOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -273,6 +277,17 @@ export const TopBar: React.FC<TopBarProps> = ({
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
+            </button>
+
+            {/* Dark / Light Mode Toggle */}
+            <button
+              type="button"
+              className="pys-icon-circle-btn"
+              aria-label={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+              title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
             {/* Excel Export */}

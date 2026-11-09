@@ -1411,7 +1411,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                       fontSize: 'var(--text-sm)',
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-default, #cbd5e1)',
-                      background: '#fff',
+                      background: 'var(--bg-surface, #fff)',
+                      color: 'var(--text-primary, #0f172a)',
                     }}
                     onChange={(e) => {
                       const selected = siteAssets.find((a) => a.id === e.target.value);
@@ -2211,8 +2212,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               <div
                 style={{
                   gridColumn: '1 / -1',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'var(--bg-surface-subtle, #f8fafc)',
+                  border: '1px solid var(--border-default, #cbd5e1)',
                   borderRadius: 'var(--radius-md)',
                   padding: '12px 14px',
                   display: 'flex',
@@ -2227,23 +2228,23 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     style={{
                       fontSize: '12px',
                       fontWeight: 700,
-                      color: '#0f172a',
+                      color: 'var(--text-primary, #0f172a)',
                       marginBottom: '4px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
                     }}
                   >
-                    <CreditCard size={14} color="#0284c7" />
+                    <CreditCard size={14} color="var(--color-info-text, #0284c7)" />
                     Company Payment Particulars (Online / UPI)
                   </div>
-                  <div style={{ fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary, #475569)', lineHeight: 1.5 }}>
                     <div><strong>Payee:</strong> {COMPANY_BANK_DETAILS.accountHolderName}</div>
                     <div><strong>Bank:</strong> {COMPANY_BANK_DETAILS.bankName} (A/C: {COMPANY_BANK_DETAILS.accountNumber})</div>
                     <div><strong>IFSC:</strong> {COMPANY_BANK_DETAILS.ifscCode} | <strong>Branch:</strong> {COMPANY_BANK_DETAILS.branchName}</div>
-                    <div><strong>UPI ID:</strong> <span style={{ color: '#0284c7', fontWeight: 600 }}>{COMPANY_BANK_DETAILS.upiId}</span></div>
+                    <div><strong>UPI ID:</strong> <span style={{ color: 'var(--color-info-text, #0284c7)', fontWeight: 600 }}>{COMPANY_BANK_DETAILS.upiId}</span></div>
                   </div>
-                  <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted, #64748b)', marginTop: '4px', fontStyle: 'italic' }}>
                     Customer can scan the QR code to auto-populate the exact amount in GPay, PhonePe, or Paytm.
                   </div>
                 </div>

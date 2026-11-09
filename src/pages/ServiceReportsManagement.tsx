@@ -487,9 +487,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
               borderRadius: '9999px',
               fontSize: '11px',
               fontWeight: 600,
-              backgroundColor: '#fffbeb',
-              color: '#b45309',
-              border: '1px solid #fde68a',
+              backgroundColor: 'var(--color-warning-bg, #fffbeb)',
+              color: 'var(--color-warning-text, #b45309)',
+              border: '1px solid var(--color-warning-border, #fde68a)',
               width: 'fit-content',
             }}
           >
@@ -497,7 +497,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             <span>Awaiting Parts</span>
           </span>
           {report.followUpScheduleNumber ? (
-            <span style={{ fontSize: '11px', color: 'var(--color-primary-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-primary-400, #ea8558)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
               <Clock size={10} /> Appt #{report.followUpScheduleNumber}
             </span>
           ) : (
@@ -522,9 +522,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
               borderRadius: '9999px',
               fontSize: '11px',
               fontWeight: 600,
-              backgroundColor: '#fff1f2',
-              color: '#be123c',
-              border: '1px solid #fecdd3',
+              backgroundColor: 'var(--color-error-bg, #fff1f2)',
+              color: 'var(--color-error-text, #be123c)',
+              border: '1px solid var(--color-error-border, #fecdd3)',
               width: 'fit-content',
             }}
           >
@@ -532,7 +532,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             <span>Awaiting Repair</span>
           </span>
           {report.followUpScheduleNumber ? (
-            <span style={{ fontSize: '11px', color: 'var(--color-primary-700)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-primary-400, #ea8558)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
               <Clock size={10} /> Appt #{report.followUpScheduleNumber}
             </span>
           ) : (
@@ -950,11 +950,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                               gap: '3px',
                               fontSize: '10px',
                               fontWeight: 600,
-                              color: 'var(--color-warning-700, #b45309)',
-                              backgroundColor: 'var(--color-warning-50, #fffbeb)',
+                              color: 'var(--color-warning-text, #b45309)',
+                              backgroundColor: 'var(--color-warning-bg, #fffbeb)',
                               padding: '1px 5px',
                               borderRadius: '3px',
-                              border: '1px solid var(--color-warning-200, #fde68a)',
+                              border: '1px solid var(--color-warning-border, #fde68a)',
                               width: 'fit-content',
                               marginTop: '2px',
                             }}

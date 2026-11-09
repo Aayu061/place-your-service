@@ -268,6 +268,9 @@
  * Dark Mode Theme Tokens (Matte Forest Charcoal)
  * -------------------------------------------------- */
 [data-theme="dark"] {
+  /* MANDATORY: Adapt native form controls, scrollbars and canvas */
+  color-scheme: dark;
+
   --bg-app: #0f1412;
   --bg-canvas: #0f1412;
   --bg-surface: #18201c;
@@ -303,5 +306,116 @@
   --color-brand-active: #8c3b16;
   --color-brand-subtle: #251812;
   --color-brand-border: #4a2717;
+
+  /* Semantic Status Tokens (Accessible in Dark Mode) */
+  --color-success-bg: rgba(16, 185, 129, 0.16);
+  --color-success-border: rgba(16, 185, 129, 0.35);
+  --color-success-text: #6ee7b7;
+  --color-success-solid: #10b981;
+  --color-success-hover: #34d399;
+
+  --color-warning-bg: rgba(245, 158, 11, 0.16);
+  --color-warning-border: rgba(245, 158, 11, 0.35);
+  --color-warning-text: #fcd34d;
+  --color-warning-solid: #f59e0b;
+  --color-warning-hover: #fbbf24;
+
+  --color-error-bg: rgba(239, 68, 68, 0.16);
+  --color-error-border: rgba(239, 68, 68, 0.35);
+  --color-error-text: #fca5a5;
+  --color-error-solid: #ef4444;
+  --color-error-hover: #f87171;
+
+  --color-info-bg: rgba(59, 130, 246, 0.16);
+  --color-info-border: rgba(59, 130, 246, 0.35);
+  --color-info-text: #93c5fd;
+  --color-info-solid: #3b82f6;
+  --color-info-hover: #60a5fa;
+
+  --color-amc-bg: rgba(168, 85, 247, 0.16);
+  --color-amc-border: rgba(168, 85, 247, 0.35);
+  --color-amc-text: #d8b4fe;
+  --color-amc-solid: #a855f7;
+  --color-amc-hover: #c084fc;
+
+  /* Legacy & Semantic Status Color Dark-Mode Overrides */
+  --color-success-dark: #6ee7b7;
+  --color-warning-dark: #fcd34d;
+  --color-error-dark: #fca5a5;
+  --color-info-dark: #93c5fd;
+  --color-amc-dark: #d8b4fe;
+
+  --color-warning-subtle: rgba(245, 158, 11, 0.16);
+  --color-warning-50: rgba(245, 158, 11, 0.12);
+  --color-warning-200: rgba(245, 158, 11, 0.35);
+  --color-warning-600: #fbbf24;
+  --color-warning-700: #fcd34d;
+  --color-warning-800: #fde68a;
+  --color-warning-900: #fcd34d;
+  --color-warning: #f59e0b;
+
+  --color-success-50: rgba(16, 185, 129, 0.12);
+  --color-success-200: rgba(16, 185, 129, 0.35);
+  --color-success-600: #34d399;
+  --color-success-700: #6ee7b7;
+  --color-success-800: #a7f3d0;
+  --color-success-900: #6ee7b7;
+
+  --color-error-50: rgba(239, 68, 68, 0.12);
+  --color-error-200: rgba(239, 68, 68, 0.35);
+  --color-error-600: #f87171;
+  --color-error-700: #fca5a5;
+  --color-error-800: #fecdd3;
+  --color-error-900: #fca5a5;
+
+  --bg-warning-subtle: rgba(245, 158, 11, 0.16);
+  --border-warning: rgba(245, 158, 11, 0.35);
+  --text-warning: #fcd34d;
+
+  --bg-success-subtle: rgba(16, 185, 129, 0.16);
+  --border-success: rgba(16, 185, 129, 0.35);
+  --text-success: #6ee7b7;
+
+  --bg-error-subtle: rgba(239, 68, 68, 0.16);
+  --border-error: rgba(239, 68, 68, 0.35);
+  --text-error: #fca5a5;
+
+  --color-primary-50: #251812;
+  --color-primary-100: #341a12;
+  --color-primary-200: #4a2717;
+  --color-primary-800: #ea8558;
+  --color-primary-900: #f6eae4;
+
+  /* Inverted Neutral Scale for Dark Mode Components */
+  --color-neutral-0: #0f1412;
+  --color-neutral-50: #131916;
+  --color-neutral-100: #18201c;
+  --color-neutral-200: #1e2823;
+  --color-neutral-300: #2a3730;
+  --color-neutral-400: #52665a;
+  --color-neutral-500: #7b9184;
+  --color-neutral-600: #a3b8ac;
+  --color-neutral-700: #cbd5ce;
+  --color-neutral-800: #e2e9e4;
+  --color-neutral-900: #f1f5f2;
+  --color-neutral-950: #ffffff;
+
+  /* Modal, Dialog & Glassmorphic Tokens for Dark Mode */
+  --glass-bg-dialog: rgba(24, 32, 28, 0.95);
+  --glass-dialog-backdrop: rgba(0, 0, 0, 0.75);
+  --glass-specular-border: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 50%, rgba(168, 72, 28, 0.2) 100%);
+  --glass-card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+  /* Neumorphic Shadows for Dark Mode (Restrained ambient depth without white halos) */
+  --neomorph-shadow-flat: 4px 4px 10px rgba(0, 0, 0, 0.45), -3px -3px 8px rgba(255, 255, 255, 0.03);
+  --neomorph-shadow-raised: 8px 8px 18px rgba(0, 0, 0, 0.55), -5px -5px 12px rgba(255, 255, 255, 0.03);
+  --neomorph-shadow-floating: 12px 12px 24px rgba(0, 0, 0, 0.65), -8px -8px 16px rgba(255, 255, 255, 0.04);
+  --neomorph-shadow-inset: inset 2px 2px 4px rgba(0, 0, 0, 0.45), inset -2px -2px 4px rgba(255, 255, 255, 0.03);
+  --neomorph-shadow-inset-deep: inset 3px 3px 6px rgba(0, 0, 0, 0.55), inset -3px -3px 6px rgba(255, 255, 255, 0.03);
+  --neomorph-shadow-pressed: inset 2px 2px 4px rgba(0, 0, 0, 0.55), inset -1px -1px 3px rgba(255, 255, 255, 0.04);
+  --hybrid-glass-neomorph: 4px 4px 12px rgba(0, 0, 0, 0.45), -2px -2px 8px rgba(255, 255, 255, 0.03);
+  --hybrid-glass-neomorph-hover: 6px 6px 16px rgba(0, 0, 0, 0.55), -3px -3px 10px rgba(255, 255, 255, 0.04);
+  --neomorph-inset-clean: inset 2px 2px 4px rgba(0, 0, 0, 0.45), inset -1px -1px 3px rgba(255, 255, 255, 0.03);
+  --neomorph-inset-focus: inset 1px 1px 3px rgba(0, 0, 0, 0.45), 0 0 0 3px rgba(224, 109, 59, 0.25);
 }
 
