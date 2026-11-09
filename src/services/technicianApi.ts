@@ -7,6 +7,7 @@ export interface TechUser {
   phone: string;
   email: string | null;
   status: 'AVAILABLE' | 'BUSY' | 'ON_DUTY' | 'OFF_DUTY';
+  specializations?: string[];
 }
 
 export interface TechJob {

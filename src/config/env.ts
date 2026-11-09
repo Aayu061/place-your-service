@@ -17,9 +17,10 @@ export interface AppConfig {
   };
 }
 
-// Safe fallback placeholders for public client configuration (actual values provided via .env)
-const DEFAULT_SUPABASE_URL = 'https://placeholder-project.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder_anon_key';
+// Authoritative Supabase project credentials (public anon client for Vercel deployment)
+const DEFAULT_SUPABASE_URL = 'https://jvccvdxfilzlncbgiplk.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2Y2N2ZHhmaWx6bG5jYmdpcGxrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzMTE1MTEsImV4cCI6MjEwNjg4NzUxMX0.IpFhOd0aFWJmR5bDFoZzwerQh2UGk1PCbC06SIDzW6g';
 
 const isPlaceholder = (val?: string) => !val || val.includes('your-project-ref') || val.includes('placeholder');
 
