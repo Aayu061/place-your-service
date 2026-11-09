@@ -16,6 +16,10 @@ export function createApp(): Express {
     helmet({
       contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
       crossOriginEmbedderPolicy: false,
+      frameguard: { action: 'deny' },
+      xContentTypeOptions: true,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      hsts: env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true } : false,
     })
   );
 

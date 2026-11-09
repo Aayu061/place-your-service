@@ -5,6 +5,7 @@ import { Printer, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
+import { LEGAL_DISCLAIMERS } from '@/config/legalTerms';
 
 interface ServiceReportPrintViewProps {
   report: ServiceVisitReport;
@@ -1033,19 +1034,23 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           </div>
         </div>
 
-        {/* Footer timestamp */}
+        {/* Footer timestamp & legal disclaimer */}
         <div
           style={{
             marginTop: '30px',
-            fontSize: '11px',
-            color: '#94a3b8',
+            fontSize: '10px',
+            color: '#64748b',
             textAlign: 'center',
             borderTop: '1px solid #f1f5f9',
             paddingTop: '8px',
+            lineHeight: 1.45,
           }}
         >
-          Generated on {new Date().toLocaleString()} by {report.createdByName || 'System'} | Place Your Service
-          Enterprise Platform
+          <div>{LEGAL_DISCLAIMERS.serviceReportFooter}</div>
+          <div style={{ marginTop: '3px', color: '#94a3b8' }}>
+            Generated on {new Date().toLocaleString()} by {report.createdByName || 'System'} | Place Your Service
+            Enterprise Platform · Extreme Sales &amp; Services
+          </div>
         </div>
       </div>
     </div>
