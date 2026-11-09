@@ -10,6 +10,7 @@ import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { NAV_STRUCTURE } from './navStructure';
 
 interface SidebarProps {
@@ -92,31 +93,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   width: '38px',
                   height: '38px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%)',
-                  color: '#ffffff',
+                  background: 'var(--bg-surface-subtle)',
+                  padding: '3px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: '13px',
-                  letterSpacing: '-0.02em',
-                  border: 'none',
+                  border: '1px solid var(--border-default)',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.06)';
-                  e.currentTarget.style.boxShadow =
-                    '0 6px 16px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
+                  e.currentTarget.style.transform = 'scale(1.08)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.25)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow =
-                    '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
                 }}
               >
-                PYS
+                <img
+                  src={COMPANY_BANK_DETAILS.pysLogoUrl}
+                  alt="Place Your Service Logo"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
               </button>
             </Tooltip>
           ) : (
@@ -139,19 +139,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     width: '36px',
                     height: '36px',
                     borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%)',
-                    color: '#ffffff',
+                    background: 'var(--bg-surface-subtle)',
+                    padding: '2px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 800,
-                    fontSize: '13px',
                     flexShrink: 0,
-                    letterSpacing: '-0.02em',
-                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+                    border: '1px solid var(--border-default)',
+                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.06)',
                   }}
                 >
-                  PYS
+                  <img
+                    src={COMPANY_BANK_DETAILS.pysLogoUrl}
+                    alt="Place Your Service Logo"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
                 </div>
 
                 <div style={{ minWidth: 0 }}>

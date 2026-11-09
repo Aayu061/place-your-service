@@ -490,17 +490,22 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
         <div className="pys-print-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <img
-              src={COMPANY_BANK_DETAILS.logoImageUrl}
-              alt={COMPANY_BANK_DETAILS.mainCompanyName}
+              src={COMPANY_BANK_DETAILS.pysLogoUrl}
+              alt="Place Your Service"
               style={{ width: '56px', height: '56px', objectFit: 'contain', flexShrink: 0 }}
             />
             <div>
               <h1 className="pys-company-title">PLACE YOUR SERVICE</h1>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', marginTop: '1px' }}>
-                {COMPANY_BANK_DETAILS.mainCompanyName}
+              <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img
+                  src={COMPANY_BANK_DETAILS.extremeLogoUrl}
+                  alt={COMPANY_BANK_DETAILS.mainCompanyName}
+                  style={{ width: '22px', height: '22px', objectFit: 'contain' }}
+                />
+                <span>{COMPANY_BANK_DETAILS.mainCompanyName}</span>
               </div>
               <p className="pys-company-sub">HVAC Preventive Maintenance &amp; Technical Service Report</p>
-              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '3px 0 0 0' }}>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0 0' }}>
                 Office: {COMPANY_BANK_DETAILS.officeAddress} | Tel: +91 {COMPANY_BANK_DETAILS.phone} / +91 {COMPANY_BANK_DETAILS.altPhone}
               </p>
             </div>

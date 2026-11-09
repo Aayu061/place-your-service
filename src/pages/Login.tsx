@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Mail, Lock, LogIn, AlertCircle, Shield, CheckCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicator';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 export const Login: React.FC = () => {
   const { login, error: authError, clearError } = useAuth();
@@ -73,15 +74,21 @@ export const Login: React.FC = () => {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '48px',
-              height: '48px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-brand-subtle)',
-              color: 'var(--color-brand)',
+              width: '56px',
+              height: '56px',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              border: '1px solid var(--border-default)',
+              padding: '4px',
               marginBottom: 'var(--space-3)',
+              boxShadow: 'var(--shadow-xs)',
             }}
           >
-            <Shield size={28} />
+            <img
+              src={COMPANY_BANK_DETAILS.pysLogoUrl}
+              alt="Place Your Service Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
           <h1
             style={{
