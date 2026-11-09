@@ -227,3 +227,21 @@
 >    - Root Cause: In `serviceReport.service.ts` lines 181 (`createReport`) and 1110 (`updateReport`), the asset validation query projected `customer_id` directly from `public.ac_assets`. However, `customer_id` does not exist on `ac_assets`; customer ownership is relational via `ac_assets.site_id -> customer_sites.id -> customer_sites.customer_id`. Production service report creation failed with PostgREST schema cache error (`Could not find the 'customer_id' column of 'ac_assets' in the schema cache`).
 >    - Remediation: Removed `customer_id` from direct `ac_assets` projection and replaced with relational join `customer_sites ( id, customer_id )`. Implemented `resolveAssetCustomerId` helper supporting joined objects/arrays, backward-compatible fields, and an automated single fallback batch lookup against `customer_sites.in('id', unresolvedSiteIds)` to avoid N+1 queries. Enforced customer ownership validation before site ownership validation, rejecting foreign customer and foreign site assets with HTTP 400 Bad Request prior to inserting report headers. Atomicity guaranteed (zero partial records).
 >    - Regression Tests & Production Verification: 10 automated scenarios in `server/tests/postAuditRemediation.test.ts` covering valid match, cross-site rejection, cross-customer rejection via join, cross-customer rejection via fallback query, nonexistent asset rejection, mixed ownership, atomicity / zero inserts, assistantName persistence, and report updates. Live production verification executed and confirmed under run `RUN-1792077245663` on deployed commit `1a8d917`: verified foreign customer asset rejection (HTTP 400), valid report creation (HTTP 201), detail/list read-back of `assistantName`, report update (HTTP 200), and complete reverse-dependency cleanup with 100% preservation of protected records.
+
+---
+
+## Current contract status — 5 November 2026
+
+The matrix and production verification records above are historical snapshots. The following source additions supersede the earlier statements that email delivery and Excel exports are unimplemented; it records local source status only and does not claim the current migrations were applied to any environment.
+
+| Capability | Current endpoint/source | Current status |
+|---|---|---|
+| Inventory | `GET/POST /api/v1/inventory/parts`, `GET/POST /api/v1/inventory/transactions` | Staff API with server-side validation, atomic stock/ledger RPC, service-report-linked consumption, returns, and low-stock data. |
+| Payments | `GET/POST /api/v1/payments`, payment transaction and reversal routes | Staff API records cash and external references; reversal/correction history is append-only. No payment gateway is included. |
+| Notifications | `GET /api/v1/notifications`, `PATCH /api/v1/notifications/:id/read`, Admin generation route | Dedupe key, read state, and expiry/overdue/low-stock generation are implemented. |
+| Activity history | `GET /api/v1/activity-logs` | Admin read API for server-generated immutable action records. |
+| Customer email | `service_report_email_deliveries` and retry routes/controller | Durable status and attempt records, development log transport, and Resend transport are implemented; live provider delivery is unverified. |
+| XLSX exports | `GET /api/v1/exports/:kind` | Authenticated server-authorized exports for customers, schedules, reports, and AMC expiry with selected filter parameters. |
+| Global search | `GET /api/v1/search` | Authenticated API searches allowed operational records. |
+
+For request schemas and role checks, use the validators and routes in `server/src/validators`, `server/src/routes/operations.routes.ts`, `server/src/routes/export.routes.ts`, and `server/src/routes/serviceReport.routes.ts`. See `IMPLEMENTATION_EVIDENCE.md` for current local tests and the staging verification gap.

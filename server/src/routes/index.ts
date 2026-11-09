@@ -12,6 +12,8 @@ import { brandRouter, modelRouter, variantRouter } from './masterData.routes.js'
 import scheduleRouter from './schedule.routes.js';
 import serviceReportRouter from './serviceReport.routes.js';
 import analyticsRouter from './analytics.routes.js';
+import operationsRouter from './operations.routes.js';
+import exportRouter from './export.routes.js';
 
 const apiV1Router = Router();
 
@@ -51,6 +53,8 @@ apiV1Router.use('/service-reports', serviceReportRouter);
 
 // Unified Dashboard Analytics Routes
 apiV1Router.use('/analytics', analyticsRouter);
+apiV1Router.use('/', operationsRouter);
+apiV1Router.use('/exports', exportRouter);
 
 export default apiV1Router;
 

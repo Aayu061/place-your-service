@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   Menu,
   Search,
@@ -6,14 +6,16 @@ import {
   Shield,
   LogOut,
   Plus,
-  AlertCircle,
   Clock,
-  Sparkles,
+  Download,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Dropdown, DropdownItem, DropdownDivider, DropdownHeader } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
 import { useAuth } from '@/hooks/useAuth';
+import { operationsApi } from '@/services/operationsApi';
+import { GlobalSearchDialog } from '@/components/search/GlobalSearchDialog';
+import { useToast } from '@/components/ui/useToast';
 
 interface TopBarProps {
   currentRole: UserRole;
@@ -25,6 +27,7 @@ interface TopBarProps {
   onOpenMobileSidebar: () => void;
   onSearchClick?: () => void;
   onNewServiceClick?: () => void;
+  onNavigate?: (item: string, params?: Record<string, string>) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -36,8 +39,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenMobileSidebar,
   onSearchClick,
   onNewServiceClick,
+  onNavigate,
 }) => {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   const displayName = user?.fullName || (currentRole === 'ADMIN' ? 'Admin User' : 'Staff Member');
   const displayEmail = user?.email || 'authenticated-session@pys.internal';
@@ -62,6 +70,52 @@ export const TopBar: React.FC<TopBarProps> = ({
     const interval = setInterval(updateTime, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    onSearchClick?.();
+  }, [onSearchClick]);
+
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        openSearch();
+      }
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, [openSearch]);
+
+  useEffect(() => {
+    let current = true;
+    operationsApi.listNotifications({ unreadOnly: 'true', page: 1, pageSize: 1 })
+      .then((result) => { if (current) setUnreadCount(result.total); })
+      .catch(() => { if (current) setUnreadCount(0); });
+    return () => { current = false; };
+  }, [activeItem]);
+
+  const exportKinds: Record<string, 'customers' | 'schedules' | 'service-reports' | 'amc-expiry'> = {
+    customers: 'customers', 'service-schedule': 'schedules', 'service-reports': 'service-reports', amc: 'amc-expiry',
+  };
+  const exportKind = exportKinds[activeItem];
+  const downloadExport = async () => {
+    if (!exportKind) return;
+    const params = new URLSearchParams(window.location.search);
+    const filters = Object.fromEntries(['from', 'to', 'status', 'customerId', 'search'].map((key) => [key, params.get(key) || undefined]));
+    setExporting(true);
+    try {
+      const blob = await operationsApi.exportXlsx(exportKind, filters);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `pys-${exportKind}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+      showToast({ type: 'success', title: 'Export downloaded', message: 'The workbook reflects the filters in this view.' });
+    } catch (error) {
+      showToast({ type: 'error', title: 'Export failed', message: error instanceof Error ? error.message : 'Could not create the workbook.' });
+    } finally { setExporting(false); }
+  };
 
   return (
     <>
@@ -105,6 +159,25 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <button type="button" className="pys-icon-circle-btn" aria-label="Search records" onClick={openSearch}>
+            <Search size={17} />
+          </button>
+          <button type="button" className="pys-icon-circle-btn" aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} onClick={() => onNavigate?.('notifications')} style={{ position: 'relative' }}>
+            <Bell size={17} />
+            {unreadCount > 0 && <span aria-hidden="true" style={{ position: 'absolute', right: 3, top: 3, minWidth: 15, height: 15, borderRadius: 999, background: 'var(--color-error-solid)', color: 'white', fontSize: 9, lineHeight: '15px', textAlign: 'center', padding: '0 3px' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+          </button>
+          {exportKind && (
+            <button
+              type="button"
+              className="pys-icon-circle-btn"
+              aria-label="Download Excel export"
+              title="Download Excel export"
+              onClick={() => void downloadExport()}
+              disabled={exporting}
+            >
+              {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
+            </button>
+          )}
           <Badge variant={currentRole === 'ADMIN' ? 'brand' : 'neutral'}>
             <Shield size={12} />
             <span>{currentRole}</span>
@@ -244,7 +317,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             {/* Global Search Pill */}
             <button
               type="button"
-              onClick={onSearchClick}
+              onClick={openSearch}
               style={{
                 flex: 1,
                 display: 'flex',
@@ -287,57 +360,13 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span>{currentRole} Role</span>
             </Badge>
 
-            {/* Notifications Dropdown */}
-            <Dropdown
-              align="right"
-              trigger={
-                <button
-                  type="button"
-                  aria-label="View notifications"
-                  className="pys-icon-circle-btn"
-                  style={{ position: 'relative' }}
-                >
-                  <Bell size={17} />
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      width: '7px',
-                      height: '7px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ef4444',
-                    }}
-                  />
-                </button>
-              }
-            >
-              <DropdownHeader>Operational Notifications (3)</DropdownHeader>
-              <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '280px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.82rem' }}>
-                  <AlertCircle size={15} style={{ color: '#ef4444', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Emergency Breakdown Logged</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Tech Park Tower B - Server Room AC trip</div>
-                  </div>
-                </div>
-                <DropdownDivider />
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.82rem' }}>
-                  <Sparkles size={15} style={{ color: '#d97706', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>3 PM Visits Due Tomorrow</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Auto-assigned to South Zone field engineers</div>
-                  </div>
-                </div>
-              </div>
-              <DropdownDivider />
-              <div style={{ padding: '6px 12px', textAlign: 'center' }}>
-                <span style={{ fontSize: '0.76rem', color: '#a8481c', fontWeight: 600, cursor: 'pointer' }}>
-                  View All Operational Logs →
-                </span>
-              </div>
-            </Dropdown>
-
+            <button type="button" className="pys-icon-circle-btn" aria-label={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} onClick={() => onNavigate?.('notifications')} style={{ position: 'relative' }}>
+              <Bell size={17} />
+              {unreadCount > 0 && <span aria-hidden="true" style={{ position: 'absolute', right: 3, top: 3, minWidth: 15, height: 15, borderRadius: 999, background: 'var(--color-error-solid)', color: 'white', fontSize: 9, lineHeight: '15px', textAlign: 'center', padding: '0 3px' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+            </button>
+            {exportKind && <button type="button" className="pys-icon-circle-btn" aria-label="Download Excel export" title="Download Excel export" onClick={() => void downloadExport()} disabled={exporting}>
+              {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
+            </button>}
             {/* CTA + New Service */}
             <button
               type="button"
@@ -439,6 +468,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
         )}
       </div>
+      <GlobalSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={(item, params) => onNavigate?.(item, params)} />
     </>
   );
 };

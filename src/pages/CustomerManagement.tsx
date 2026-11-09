@@ -237,10 +237,10 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [listError, setListError] = useState<string | null>(null);
 
   // Filters & Pagination
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => new URLSearchParams(window.location.search).get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | CustomerType>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>(() => (new URLSearchParams(window.location.search).get('status') as 'ALL' | 'ACTIVE' | 'INACTIVE') || 'ALL');
   const [page, setPage] = useState<number>(1);
   const [paginationMeta, setPaginationMeta] = useState<CustomerListMeta>({
     total: 0,
@@ -727,7 +727,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
           url.searchParams.set('customerId', selectedCustomer.id);
           window.history.replaceState({ inAppCustomer: true }, '', url.pathname + url.search + url.hash);
         }
-      } else {
+      } else if (hasLoadedUrlCustomerRef.current) {
         if (url.searchParams.has('customerId') || url.searchParams.has('customer') || url.searchParams.has('id')) {
           url.searchParams.delete('customerId');
           url.searchParams.delete('customer');
@@ -740,13 +740,26 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     }
   }, [selectedCustomer]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (searchTerm.trim()) url.searchParams.set('search', searchTerm.trim());
+    else url.searchParams.delete('search');
+    if (statusFilter !== 'ALL') url.searchParams.set('status', statusFilter);
+    else url.searchParams.delete('status');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [searchTerm, statusFilter]);
+
   // Support direct URL opening or page refresh with ?customerId=UUID or ?customer=UUID
   useEffect(() => {
     if (typeof window === 'undefined' || hasLoadedUrlCustomerRef.current) return;
     try {
       const params = new URLSearchParams(window.location.search);
-      const urlCustomerId = params.get('customerId') || params.get('customer') || params.get('id');
-      if (!urlCustomerId) return;
+      const urlCustomerId = params.get('customerId') || params.get('recordId') || params.get('customer') || params.get('id');
+      if (!urlCustomerId) {
+        hasLoadedUrlCustomerRef.current = true;
+        return;
+      }
       if (selectedCustomer?.id === urlCustomerId) return;
 
       const match = customers.find((c) => c.id === urlCustomerId);

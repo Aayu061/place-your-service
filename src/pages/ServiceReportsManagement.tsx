@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FileText,
   Search,
@@ -31,7 +31,7 @@ import {
   CreateFollowUpSchedulePayload,
   ServiceReportSummaryCounts,
 } from '@/domain/types';
-import { serviceReportApi } from '@/services/serviceReportApi';
+import { serviceReportApi, ServiceReportEmailDelivery } from '@/services/serviceReportApi';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Drawer } from '@/components/ui/Drawer';
@@ -44,9 +44,10 @@ import { ServiceVisitReportModal } from '@/components/serviceReports/ServiceVisi
 
 interface ServiceReportsManagementProps {
   onNavigate?: (module: string) => void;
+  role?: 'ADMIN' | 'STAFF';
 }
 
-export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> = ({ onNavigate }) => {
+export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> = ({ onNavigate, role = 'STAFF' }) => {
   const { showToast } = useToast();
 
   const [reports, setReports] = useState<ServiceVisitReport[]>([]);
@@ -66,13 +67,13 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   });
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>(() => new URLSearchParams(window.location.search).get('search') || '');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [visitTypeFilter, setVisitTypeFilter] = useState<'ALL' | ServiceVisitType>('ALL');
   const [outcomeFilter, setOutcomeFilter] = useState<'ALL' | ServiceVisitOutcome>('ALL');
   const [resolutionStatusFilter, setResolutionStatusFilter] = useState<'ALL' | ServiceResolutionStatus>('ALL');
-  const [startDateFilter, setStartDateFilter] = useState<string>('');
-  const [endDateFilter, setEndDateFilter] = useState<string>('');
+  const [startDateFilter, setStartDateFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('from') || '');
+  const [endDateFilter, setEndDateFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('to') || '');
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -87,6 +88,10 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [detailedReport, setDetailedReport] = useState<ServiceVisitReport | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
+  const [emailDeliveries, setEmailDeliveries] = useState<ServiceReportEmailDelivery[]>([]);
+  const [emailDeliveriesLoaded, setEmailDeliveriesLoaded] = useState(false);
+  const [isEmailActionLoading, setIsEmailActionLoading] = useState<boolean>(false);
+  const selectedReportIdRef = useRef<string | null>(null);
   const [reportToPrint, setReportToPrint] = useState<ServiceVisitReport | null>(null);
 
   // Edit Report Modal State
@@ -153,6 +158,14 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     fetchReports();
   }, [fetchReports]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (searchTerm.trim()) url.searchParams.set('search', searchTerm.trim()); else url.searchParams.delete('search');
+    if (startDateFilter) url.searchParams.set('from', startDateFilter); else url.searchParams.delete('from');
+    if (endDateFilter) url.searchParams.set('to', endDateFilter); else url.searchParams.delete('to');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [searchTerm, startDateFilter, endDateFilter]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchReports();
@@ -178,8 +191,18 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     Boolean(endDateFilter);
 
   // Open detail drawer
-  const openDetailDrawer = async (reportId: string) => {
+  const openDetailDrawer = useCallback(async (reportId: string) => {
+    selectedReportIdRef.current = reportId;
     setSelectedReportId(reportId);
+    setEmailDeliveries([]);
+    setEmailDeliveriesLoaded(false);
+    void serviceReportApi.listEmailDeliveries(reportId).then((response) => {
+      if (selectedReportIdRef.current === reportId) setEmailDeliveries(response.deliveries);
+    }).catch(() => {
+      if (selectedReportIdRef.current === reportId) setEmailDeliveries([]);
+    }).finally(() => {
+      if (selectedReportIdRef.current === reportId) setEmailDeliveriesLoaded(true);
+    });
     try {
       setIsLoadingDetail(true);
       const res = await serviceReportApi.getReportById(reportId);
@@ -188,6 +211,70 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       showToast({ type: 'error', title: 'Error', message: 'Failed to load report details' });
     } finally {
       setIsLoadingDetail(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('workspace') === 'service-reports' && params.get('recordType') === 'service_report' && params.get('recordId')) {
+      void openDetailDrawer(params.get('recordId') as string);
+    }
+  }, [openDetailDrawer]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedReportId) {
+      url.searchParams.set('recordId', selectedReportId);
+      url.searchParams.set('recordType', 'service_report');
+    } else if (url.searchParams.get('recordType') === 'service_report') {
+      url.searchParams.delete('recordId'); url.searchParams.delete('recordType');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [selectedReportId]);
+
+  const refreshEmailDeliveries = useCallback(async (reportId: string) => {
+    try {
+      const response = await serviceReportApi.listEmailDeliveries(reportId);
+      setEmailDeliveries(response.deliveries);
+      setEmailDeliveriesLoaded(true);
+    } catch (error) {
+      showToast({ type: 'error', title: 'Email status unavailable', message: error instanceof Error ? error.message : 'Could not load email delivery history.' });
+    }
+  }, [showToast]);
+
+  const sendReportByEmail = async () => {
+    if (!detailedReport) return;
+    setIsEmailActionLoading(true);
+    try {
+      const response = await serviceReportApi.sendReportEmail(detailedReport.id);
+      await refreshEmailDeliveries(detailedReport.id);
+      if (response.delivery.status === 'SENT') {
+        showToast({ type: 'success', title: 'Service report emailed', message: `Delivery confirmed for ${response.delivery.recipient_email}.` });
+      } else {
+        showToast({ type: 'warning', title: 'Report saved; email is pending', message: response.delivery.last_error || 'The email remains queued for retry.' });
+      }
+    } catch (error) {
+      showToast({ type: 'error', title: 'Email could not be queued', message: error instanceof Error ? error.message : 'The service report remains saved. Retry the email after resolving the delivery issue.' });
+    } finally {
+      setIsEmailActionLoading(false);
+    }
+  };
+
+  const retryReportEmail = async (deliveryId: string) => {
+    if (!detailedReport) return;
+    setIsEmailActionLoading(true);
+    try {
+      const response = await serviceReportApi.retryEmailDelivery(detailedReport.id, deliveryId);
+      await refreshEmailDeliveries(detailedReport.id);
+      showToast({
+        type: response.delivery.status === 'SENT' ? 'success' : 'warning',
+        title: response.delivery.status === 'SENT' ? 'Email delivered' : 'Email remains pending',
+        message: response.delivery.last_error || `Delivery state: ${response.delivery.status.toLowerCase()}.`,
+      });
+    } catch (error) {
+      showToast({ type: 'error', title: 'Retry failed', message: error instanceof Error ? error.message : 'Could not retry this email delivery.' });
+    } finally {
+      setIsEmailActionLoading(false);
     }
   };
 
@@ -1004,6 +1091,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       <Drawer
         isOpen={Boolean(selectedReportId)}
         onClose={() => {
+          selectedReportIdRef.current = null;
           setSelectedReportId(null);
           setDetailedReport(null);
         }}
@@ -1050,6 +1138,25 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                   )}
               </div>
             </div>
+
+            <section aria-labelledby="report-email-title" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h3 id="report-email-title" className="m-0 text-sm font-bold text-slate-900">Customer email delivery</h3><p className="m-0 mt-1 text-xs text-slate-500">Email status is tracked separately; delivery failure does not change the issued report.</p></div>
+                {['SUBMITTED', 'VERIFIED'].includes(detailedReport.status) && (
+                  detailedReport.customerEmail?.trim() ? (
+                    <Button size="sm" variant="secondary" isLoading={isEmailActionLoading} onClick={() => void sendReportByEmail()}>Email report</Button>
+                  ) : (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--color-warning-text)', background: 'var(--color-warning-subtle)', padding: '4px 8px', borderRadius: 'var(--radius-md)' }}>
+                      <AlertTriangle size={13} aria-hidden="true" /> No customer email on file
+                    </span>
+                  )
+                )}
+              </div>
+              {!emailDeliveriesLoaded ? <p role="status" className="m-0 text-xs text-slate-500">Loading email history…</p> : emailDeliveries.length ? <div className="space-y-2">{emailDeliveries.map((delivery) => <div key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                <div><strong>{delivery.recipient_email}</strong><div className="text-slate-500">{delivery.status} · {delivery.transport || 'pending transport'} · {delivery.attempt_count}/{delivery.max_attempts} attempts{delivery.sent_at ? ` · ${formatDate(delivery.sent_at)}` : ''}</div>{delivery.last_error && <div role="alert" className="mt-1 text-red-700">{delivery.last_error}</div>}</div>
+                {role === 'ADMIN' && delivery.status === 'FAILED' && <Button size="sm" variant="ghost" isLoading={isEmailActionLoading} onClick={() => void retryReportEmail(delivery.id)}>Retry</Button>}
+              </div>)}</div> : <p className="m-0 text-xs text-slate-500">No delivery has been queued for this report.</p>}
+            </section>
 
             {/* Outcome & Resolution Status Banner */}
             <div className="p-3.5 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50">
@@ -1422,10 +1529,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="follow-up-date" className="block text-xs font-semibold text-slate-700 mb-1">
                 Revisit Scheduled Date <span className="text-red-500">*</span>
               </label>
               <Input
+                id="follow-up-date"
                 type="date"
                 value={followUpDate}
                 onChange={(e) => setFollowUpDate(e.target.value)}
@@ -1436,8 +1544,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Start Time</label>
+                <label htmlFor="follow-up-start-time" className="block text-xs font-semibold text-slate-700 mb-1">Start Time</label>
                 <Input
+                  id="follow-up-start-time"
                   type="time"
                   value={followUpStartTime}
                   onChange={(e) => setFollowUpStartTime(e.target.value)}
@@ -1445,8 +1554,9 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">End Time</label>
+                <label htmlFor="follow-up-end-time" className="block text-xs font-semibold text-slate-700 mb-1">End Time</label>
                 <Input
+                  id="follow-up-end-time"
                   type="time"
                   value={followUpEndTime}
                   onChange={(e) => setFollowUpEndTime(e.target.value)}
@@ -1456,10 +1566,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label htmlFor="follow-up-notes" className="block text-xs font-semibold text-slate-700 mb-1">
                 Revisit Notes / Instructions
               </label>
               <Input
+                id="follow-up-notes"
                 value={followUpNotes}
                 onChange={(e) => setFollowUpNotes(e.target.value)}
                 placeholder="e.g. Carry replacement dual-run capacitor and brazing gear"

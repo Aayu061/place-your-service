@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { NAV_STRUCTURE } from './navStructure';
 import { TopBar } from './TopBar';
@@ -9,19 +9,55 @@ interface AppShellProps {
   children: (props: {
     currentRole: UserRole;
     activeItem: string;
-    onNavigate: (item: string) => void;
+    onNavigate: (item: string, params?: Record<string, string>) => void;
     activeSubTab: 'overview' | 'activity' | 'alerts';
     onSubTabChange: (tab: 'overview' | 'activity' | 'alerts') => void;
   }) => React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
-  const [activeItem, setActiveItem] = useState<string>('dashboard');
+  const currentRole: UserRole = role || 'ADMIN';
+  const canVisit = useCallback((item: string) => NAV_STRUCTURE.some((group) => group.items.some((entry) =>
+    entry.id === item && (!entry.adminOnly || currentRole === 'ADMIN') && (!group.adminOnly || currentRole === 'ADMIN')
+  )), [currentRole]);
+  const readWorkspaceFromUrl = useCallback(() => {
+    const candidate = new URLSearchParams(window.location.search).get('workspace') || 'dashboard';
+    return canVisit(candidate) ? candidate : 'dashboard';
+  }, [canVisit]);
+  const [activeItem, setActiveItem] = useState<string>(readWorkspaceFromUrl);
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'activity' | 'alerts'>('overview');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
 
-  const currentRole: UserRole = role || 'ADMIN';
+  useEffect(() => {
+    const syncFromHistory = () => {
+      setActiveItem(readWorkspaceFromUrl());
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (tab === 'activity' || tab === 'alerts' || tab === 'overview') setActiveSubTab(tab);
+    };
+    window.addEventListener('popstate', syncFromHistory);
+    return () => window.removeEventListener('popstate', syncFromHistory);
+  }, [readWorkspaceFromUrl]);
+
+  const navigate = useCallback((item: string, params?: Record<string, string>) => {
+    if (!canVisit(item)) return;
+    setActiveItem(item);
+    if (item === 'dashboard') setActiveSubTab('overview');
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', item);
+    url.searchParams.delete('tab');
+    for (const key of ['recordId', 'recordType', 'search', 'status', 'from', 'to', 'customerId']) url.searchParams.delete(key);
+    if (params) for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+    window.history.pushState({ workspace: item }, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [canVisit]);
+
+  const changeSubTab = useCallback((tab: 'overview' | 'activity' | 'alerts') => {
+    setActiveSubTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('workspace', 'dashboard');
+    url.searchParams.set('tab', tab);
+    window.history.replaceState({ workspace: 'dashboard', tab }, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   // Compute active item title
   const getActiveItemTitle = () => {
@@ -38,12 +74,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
       <Sidebar
         currentRole={currentRole}
         activeItem={activeItem}
-        onItemSelect={(item) => {
-          setActiveItem(item);
-          if (item === 'dashboard') {
-            setActiveSubTab('overview');
-          }
-        }}
+        onItemSelect={(item) => navigate(item)}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
         isMobileOpen={isMobileOpen}
@@ -56,13 +87,12 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
           activeItemTitle={getActiveItemTitle()}
           activeItem={activeItem}
           activeSubTab={activeSubTab}
-          onSubTabChange={setActiveSubTab}
+          onSubTabChange={changeSubTab}
           onOpenMobileSidebar={() => setIsMobileOpen(true)}
-          onSearchClick={() => {
-            // Can be expanded to command palette
-          }}
+          onNavigate={navigate}
+          onSearchClick={() => {}}
           onNewServiceClick={() => {
-            setActiveItem('service-requests');
+            navigate('service-requests');
           }}
         />
 
@@ -73,7 +103,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
           {children({
             currentRole,
             activeItem,
-            onNavigate: setActiveItem,
+            onNavigate: navigate,
             activeSubTab,
             onSubTabChange: setActiveSubTab,
           })}

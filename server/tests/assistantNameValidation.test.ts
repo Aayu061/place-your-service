@@ -93,10 +93,18 @@ describe('Batch 1: Assistant Name Schema Contract & Validation Suite', () => {
 
     it('accepts assistantName in updateServiceReportSchema', () => {
       const parsed = updateServiceReportSchema.body.parse({
+        correctionReason: 'Corrected the technician name after review.',
         assistantName: 'New Assistant Name',
         workDescription: 'Updated work description notes.',
       });
       expect(parsed.assistantName).toBe('New Assistant Name');
+    });
+
+    it('requires a reason for every report correction', () => {
+      const parsed = updateServiceReportSchema.body.safeParse({
+        assistantName: 'New Assistant Name',
+      });
+      expect(parsed.success).toBe(false);
     });
   });
 });

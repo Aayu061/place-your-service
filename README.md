@@ -69,24 +69,14 @@ To maintain focused execution on the core service platform, the following applic
 
 ---
 
-## 4. Current Development Phase
+## 4. Current Development and Verification State
 
-- **Current Phase:** `Phase 2 — Backend Foundation + Render + Supabase`
-- **Status:** **Completed & Verified**
-- **Next Phase:** `Phase 3 — Admin + Staff Authentication & Authorization`
+**Scope:** Internal Admin/Staff V1.
+**Implementation:** The local source includes the security, workflow-integrity, operations, analytics, search, export, and service-report email work described in this repository's current enhancement plan.
+**Release readiness:** Staging database acceptance and the full authenticated staging workflow are not yet verified. No production migration or deployment was performed.
 
-Phase 2 establishes the production-quality backend platform:
-1. Self-contained TypeScript Express backend under `/server` ready for Render deployment.
-2. Centralized server-side Supabase client with protected service-role key handling.
-3. Database migration foundation (`/supabase/migrations/`) defining all relational schemas, UUIDs, check constraints, foreign keys, and Row Level Security (RLS) policies.
-4. Admin singleton enforcement at both the application and database level.
-5. Typed authentication (`requireAuth`) and role authorization (`requireRole`) middleware.
-6. Centralized request validation using Zod.
-7. Structured, secret-redacted logging with UUID request correlation IDs (`X-Request-Id`).
-8. HTTP security headers (Helmet), configurable CORS, and rate limiting.
-9. Health endpoints: `GET /api/v1/health` (liveness) and `GET /api/v1/health/ready` (readiness with database verification).
-10. Frontend API client (`src/services/api/`) consuming `VITE_API_BASE_URL` with typed error normalization.
-11. Full test coverage across both frontend (26 tests) and backend (21 tests).
+The local implementation has passing frontend and backend unit/API suites, type checks, builds, and dependency audits. All migrations also passed a disposable local PGlite replay with basic role checks; hosted Supabase permission, existing-data, transaction, and concurrency checks still require an isolated staging project. The authenticated staging E2E suite requires `PYS_E2E_MODE=staging`, an explicit staging API URL, and staging-only credentials. Local-only verification was selected, so no billed staging branch was created. See [implementation evidence](./IMPLEMENTATION_EVIDENCE.md), [deployment notes](./DEPLOYMENT_NOTES.md), and the [audit report](./AUDIT_REPORT.md) for exact results and remaining handoff steps.
+11. Local verification on 5 November 2026: 211 frontend tests and 343 backend tests passed; 15 staging-only frontend checks were skipped because staging credentials were unavailable.
 
 ---
 
@@ -226,13 +216,13 @@ npm run server:dev
 | `npm run build` | Builds production frontend bundle to `dist/` |
 | `npm run lint` | Lints frontend codebase |
 | `npm run typecheck` | Validates frontend TypeScript types |
-| `npm test` | Runs frontend Vitest test suite (26 tests) |
+| `npm test` | Runs frontend Vitest suite (211 passing in the 5 November 2026 verification run) |
 | `npm run server:dev` | Runs backend API server in watch mode with `tsx` |
 | `npm run server:build` | Compiles backend TypeScript to `server/dist/` |
 | `npm run server:start` | Runs compiled backend production server |
-| `npm run server:test` | Runs backend Vitest & Supertest suite (21 tests) |
+| `npm run server:test` | Runs backend Vitest & Supertest suite (343 passing in the 5 November 2026 verification run) |
 | `npm run server:typecheck` | Validates backend TypeScript types |
-| `npm run test:all` | Executes full test suite across both frontend and backend (47 tests) |
+| `npm run test:all` | Executes frontend and backend test suites; staging-only E2E checks are run separately with `npm run test:e2e` |
 
 ---
 

@@ -129,8 +129,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 15;
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ACTIVE');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('search') || '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('status') || 'ACTIVE');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -261,14 +261,46 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     }
   }, [showToast]);
 
-  const handleOpenDetail = (c: AmcContract) => {
+  const handleOpenDetail = useCallback((c: AmcContract) => {
     setSelectedContractId(c.id);
     setDetailContract(c);
     setIsDetailOpen(true);
     setDetailTab('overview');
     fetchDetailContract(c.id);
     fetchSchedules(c.id);
-  };
+  }, [fetchDetailContract, fetchSchedules]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (search.trim()) url.searchParams.set('search', search.trim()); else url.searchParams.delete('search');
+    if (statusFilter !== 'ALL') url.searchParams.set('status', statusFilter); else url.searchParams.delete('status');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const recordId = params.get('workspace') === 'amc' && params.get('recordType') === 'amc' ? params.get('recordId') : null;
+    if (!recordId || selectedContractId === recordId) return;
+    const contract = contracts.find((item) => item.id === recordId);
+    if (contract) handleOpenDetail(contract);
+    else {
+      setSelectedContractId(recordId);
+      setIsDetailOpen(true);
+      fetchDetailContract(recordId);
+      fetchSchedules(recordId);
+    }
+  }, [contracts, selectedContractId, fetchDetailContract, fetchSchedules, handleOpenDetail]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedContractId) {
+      url.searchParams.set('recordId', selectedContractId);
+      url.searchParams.set('recordType', 'amc');
+    } else if (url.searchParams.get('recordType') === 'amc') {
+      url.searchParams.delete('recordId'); url.searchParams.delete('recordType');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [selectedContractId]);
 
   // Fetch customers when create modal opens
   const fetchCustomers = useCallback(async () => {

@@ -1,22 +1,42 @@
 import { getSupabaseClient } from '../lib/supabase.js';
-import { logger } from '../utils/logger.js';
+import { BadRequestError } from '../utils/errors.js';
+import { amcService } from './amc.service.js';
+
+type RequestRow = {
+  id: string;
+  request_number: string;
+  request_type: string;
+  priority: string;
+  status: string;
+  created_at: string;
+  customers?: { name: string } | null;
+  customer_sites?: { site_name: string } | null;
+  ac_assets?: { brand: string; model_number: string | null } | null;
+};
+
+type ScheduleRow = {
+  id: string;
+  schedule_number: string;
+  scheduled_date: string;
+  status: string;
+  customers?: { name: string } | null;
+  customer_sites?: { site_name: string } | null;
+  ac_assets?: { brand: string } | null;
+};
 
 export interface DashboardSummaryResponse {
   kpi: {
     activeAmcCount: number;
+    coveredAssetCount: number;
     servicesDueCount: number;
-    overduePmCount: number;
+    overdueScheduleCount: number;
     unassignedRequestsCount: number;
     urgentRequestsCount: number;
     activeTechniciansCount: number;
     completedTodayCount: number;
   };
-  workDistribution: Array<{
-    label: string;
-    count: number;
-    category: 'PM' | 'BREAKDOWN';
-  }>;
   capacityPercent: number;
+  /** Share of open schedules that are due today or later, relative to all open schedules. */
   compliancePercent: number;
   recentServiceRequests: Array<{
     id: string;
@@ -41,204 +61,111 @@ export interface DashboardSummaryResponse {
   }>;
   trendData: Array<{
     label: string;
+    date: string;
     value: number;
     secondaryValue: number;
   }>;
 }
 
+function failQuery(action: string, error: { message?: string } | null): never {
+  throw new BadRequestError(`${action} is unavailable.`, error?.message ? { cause: error.message } : undefined);
+}
+
 export class AnalyticsService {
   public async getDashboardSummary(): Promise<DashboardSummaryResponse> {
     const supabase = getSupabaseClient();
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const startDate = new Date(now);
+    startDate.setUTCDate(startDate.getUTCDate() - 6);
+    const openStatuses = ['REQUESTED', 'PENDING', 'SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_PARTS', 'REVISIT_REQUIRED', 'ON_HOLD'];
+    const dispatchStatuses = ['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'];
 
-    try {
-      // 1. Parallel foundational queries
-      const [
-        amcResult,
-        srResult,
-        schedResult,
-        techResult,
-        todaySchedResult,
-      ] = await Promise.all([
-        // Active AMC contracts
-        supabase
-          .from('amc_contracts')
-          .select('id, status, end_date'),
+    const [coverageMetrics, requestsResult, schedulesResult, technicianResult, dueRequestCount, urgentRequestCount, openScheduleCount, overdueScheduleCount, assignedScheduleCount, completedTodayResult] = await Promise.all([
+      amcService.getActiveCoverageMetrics(),
+      supabase.from('service_requests')
+        .select('id,request_number,request_type,priority,status,created_at,customers(name),customer_sites(site_name),ac_assets(brand,model_number)')
+        .in('status', openStatuses).order('created_at', { ascending: false }).limit(10),
+      supabase.from('service_schedules')
+        .select('id,schedule_number,scheduled_date,status,customers(name),customer_sites(site_name),ac_assets(brand)')
+        .in('status', openStatuses).order('scheduled_date', { ascending: true }).limit(10),
+      supabase.from('technicians').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('service_requests').select('id', { count: 'exact', head: true }).in('status', dispatchStatuses),
+      supabase.from('service_requests').select('id', { count: 'exact', head: true }).in('priority', ['URGENT', 'EMERGENCY']).in('status', openStatuses),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).lt('scheduled_date', today),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).not('technician_id', 'is', null),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).eq('status', 'COMPLETED'),
+    ]);
 
-        // All non-closed service requests for aggregated metrics
-        supabase
-          .from('service_requests')
-          .select('id, request_number, customer_id, site_id, asset_id, request_type, priority, status, created_at, customers(name), customer_sites(site_name), ac_assets(brand, model_number)')
-          .order('created_at', { ascending: false }),
+    for (const [action, result] of [
+      ['recent service requests', requestsResult], ['recent schedules', schedulesResult], ['active technician count', technicianResult],
+      ['dispatch request count', dueRequestCount], ['urgent request count', urgentRequestCount], ['open schedule count', openScheduleCount],
+      ['overdue schedule count', overdueScheduleCount], ['assigned schedule count', assignedScheduleCount], ['completed visits today', completedTodayResult],
+    ] as const) if (result.error) failQuery(action, result.error);
 
-        // Schedules for due/overdue and recent activities
-        supabase
-          .from('service_schedules')
-          .select('id, schedule_number, customer_id, site_id, asset_id, amc_id, scheduled_date, status, customers(name), customer_sites(site_name), ac_assets(brand)')
-          .order('scheduled_date', { ascending: true }),
-
-        // Active technicians count
-        supabase
-          .from('technicians')
-          .select('id, is_active, status')
-          .eq('is_active', true)
-          .eq('status', 'ACTIVE'),
-
-        // Today's completed schedules
-        supabase
-          .from('service_schedules')
-          .select('id', { count: 'exact', head: true })
-          .eq('scheduled_date', today)
-          .eq('status', 'COMPLETED'),
+    const trendData = await Promise.all(Array.from({ length: 7 }, async (_, offset) => {
+      const date = new Date(startDate);
+      date.setUTCDate(date.getUTCDate() + offset);
+      const day = date.toISOString().slice(0, 10);
+      const nextDate = new Date(date);
+      nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+      const next = nextDate.toISOString().slice(0, 10);
+      const [requestCount, scheduleCount] = await Promise.all([
+        supabase.from('service_requests').select('id', { count: 'exact', head: true }).gte('created_at', `${day}T00:00:00.000Z`).lt('created_at', `${next}T00:00:00.000Z`),
+        supabase.from('service_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', day),
       ]);
-
-      // 2. Compute AMC metrics
-      const contracts = amcResult.data || [];
-      const activeAmcCount = contracts.filter((c: any) =>
-        c.status === 'ACTIVE' || c.status === 'EXPIRING_SOON'
-      ).length;
-
-      // 3. Compute Schedule metrics
-      const schedules = schedResult.data || [];
-      let overduePmCount = 0;
-      let upcomingPmCount = 0;
-
-      for (const s of schedules as any[]) {
-        const isClosed = ['COMPLETED', 'RESOLVED', 'CANCELLED'].includes(s.status);
-        if (!isClosed) {
-          if (s.scheduled_date < today) {
-            overduePmCount++;
-          } else {
-            upcomingPmCount++;
-          }
-        }
-      }
-
-      const servicesDueCount = upcomingPmCount + overduePmCount;
-      const completedTodayCount = todaySchedResult.count || 0;
-
-      // 4. Compute Service Request metrics & Distribution
-      const requests = srResult.data || [];
-      let pmCount = 0;
-      let breakdownCount = 0;
-      let repairCount = 0;
-      let installationCount = 0;
-      let unassignedRequestsCount = 0;
-      let urgentRequestsCount = 0;
-
-      const recentServiceRequests: DashboardSummaryResponse['recentServiceRequests'] = [];
-
-      for (let i = 0; i < requests.length; i++) {
-        const r: any = requests[i];
-
-        if (['PREVENTIVE_MAINTENANCE', 'GENERAL_SERVICE', 'INSPECTION'].includes(r.request_type)) {
-          pmCount++;
-        } else if (['BREAKDOWN', 'EMERGENCY'].includes(r.request_type)) {
-          breakdownCount++;
-        } else if (r.request_type === 'REPAIR') {
-          repairCount++;
-        } else if (r.request_type === 'INSTALLATION') {
-          installationCount++;
-        }
-
-        if (['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'].includes(r.status)) {
-          unassignedRequestsCount++;
-        }
-
-        if (['URGENT', 'EMERGENCY'].includes(r.priority) && !['COMPLETED', 'RESOLVED', 'CLOSED', 'CANCELLED'].includes(r.status)) {
-          urgentRequestsCount++;
-        }
-
-        if (i < 10) {
-          recentServiceRequests.push({
-            id: r.id,
-            requestNumber: r.request_number,
-            customerName: r.customers?.name || undefined,
-            siteName: r.customer_sites?.site_name || undefined,
-            assetBrand: r.ac_assets?.brand || undefined,
-            assetModel: r.ac_assets?.model_number || undefined,
-            requestType: r.request_type,
-            priority: r.priority,
-            status: r.status,
-            createdAt: r.created_at,
-          });
-        }
-      }
-
-      // 5. Recent Schedules (first 10 upcoming/active)
-      const recentSchedules: DashboardSummaryResponse['recentSchedules'] = schedules
-        .slice(0, 10)
-        .map((s: any) => ({
-          id: s.id,
-          scheduleNumber: s.schedule_number,
-          customerName: s.customers?.name || undefined,
-          siteName: s.customer_sites?.site_name || undefined,
-          brand: s.ac_assets?.brand || undefined,
-          scheduledDate: s.scheduled_date,
-          status: s.status,
-        }));
-
-      // 6. Active Technicians Count
-      const activeTechniciansCount = (techResult.data || []).length;
-
-      // 7. Work distribution
-      const workDistribution: DashboardSummaryResponse['workDistribution'] = [
-        { label: 'General / PM', count: pmCount, category: 'PM' },
-        { label: 'Breakdown', count: breakdownCount, category: 'BREAKDOWN' },
-        { label: 'Repairs', count: repairCount, category: 'BREAKDOWN' },
-        { label: 'Installations', count: installationCount, category: 'PM' },
-      ];
-
-      // 8. Capacity & Compliance calculation
-      const totalWork = schedules.length + requests.length;
-      const completedWork =
-        schedules.filter((s: any) => s.status === 'COMPLETED').length +
-        requests.filter((r: any) => ['COMPLETED', 'RESOLVED', 'CLOSED'].includes(r.status)).length;
-
-      const capacityPercent = totalWork > 0 ? Math.min(100, Math.round((completedWork / totalWork) * 100)) : 0;
-      const compliancePercent = totalWork > 0 ? Math.max(0, 100 - Math.round((overduePmCount / totalWork) * 100)) : 100;
-
-      // 9. 7-day Operational Volume Trend (Past 7 days)
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const trendData: DashboardSummaryResponse['trendData'] = [];
-      const now = new Date();
-
-      for (let offset = 6; offset >= 0; offset--) {
-        const targetDay = new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
-        const dayStr = targetDay.toISOString().split('T')[0];
-        const dayLabel = dayNames[targetDay.getUTCDay()];
-
-        const reqCount = requests.filter((r: any) => r.created_at && r.created_at.startsWith(dayStr)).length;
-        const schedCount = schedules.filter((s: any) => s.scheduled_date === dayStr).length;
-
-        trendData.push({
-          label: dayLabel,
-          value: reqCount,
-          secondaryValue: schedCount,
-        });
-      }
-
+      if (requestCount.error) failQuery(`service request volume for ${day}`, requestCount.error);
+      if (scheduleCount.error) failQuery(`scheduled visit volume for ${day}`, scheduleCount.error);
       return {
-        kpi: {
-          activeAmcCount,
-          servicesDueCount,
-          overduePmCount,
-          unassignedRequestsCount,
-          urgentRequestsCount,
-          activeTechniciansCount,
-          completedTodayCount,
-        },
-        workDistribution,
-        capacityPercent,
-        compliancePercent,
-        recentServiceRequests,
-        recentSchedules,
-        trendData,
+        label: new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'UTC' }).format(date),
+        date: day,
+        value: requestCount.count || 0,
+        secondaryValue: scheduleCount.count || 0,
       };
-    } catch (err: any) {
-      logger.error('Failed to generate dashboard summary', { error: err.message });
-      throw err;
-    }
+    }));
+
+    const requests = (requestsResult.data || []) as unknown as RequestRow[];
+    const schedules = (schedulesResult.data || []) as unknown as ScheduleRow[];
+    const openSchedules = openScheduleCount.count || 0;
+    const overdueSchedules = overdueScheduleCount.count || 0;
+
+    return {
+      kpi: {
+        activeAmcCount: coverageMetrics.activeContracts,
+        coveredAssetCount: coverageMetrics.coveredAssetsCount,
+        servicesDueCount: openSchedules,
+        overdueScheduleCount: overdueSchedules,
+        unassignedRequestsCount: dueRequestCount.count || 0,
+        urgentRequestsCount: urgentRequestCount.count || 0,
+        activeTechniciansCount: technicianResult.count || 0,
+        completedTodayCount: completedTodayResult.count || 0,
+      },
+      capacityPercent: openSchedules > 0 ? Math.round(((assignedScheduleCount.count || 0) / openSchedules) * 100) : 0,
+      compliancePercent: openSchedules > 0 ? Math.max(0, Math.round(((openSchedules - overdueSchedules) / openSchedules) * 100)) : 0,
+      recentServiceRequests: requests.map((request) => ({
+        id: request.id,
+        requestNumber: request.request_number,
+        customerName: request.customers?.name,
+        siteName: request.customer_sites?.site_name,
+        assetBrand: request.ac_assets?.brand,
+        assetModel: request.ac_assets?.model_number || undefined,
+        requestType: request.request_type,
+        priority: request.priority,
+        status: request.status,
+        createdAt: request.created_at,
+      })),
+      recentSchedules: schedules.map((schedule) => ({
+        id: schedule.id,
+        scheduleNumber: schedule.schedule_number,
+        customerName: schedule.customers?.name,
+        siteName: schedule.customer_sites?.site_name,
+        brand: schedule.ac_assets?.brand,
+        scheduledDate: schedule.scheduled_date,
+        status: schedule.status,
+      })),
+      trendData,
+    };
   }
 }
 

@@ -2,8 +2,12 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { Server } from 'node:http';
+import { startReportEmailDeliveryWorker } from './services/reportEmail.service.js';
+import { operationsService } from './services/operations.service.js';
 
 let server: Server | null = null;
+let reportEmailWorker: NodeJS.Timeout | null = null;
+let notificationWorker: NodeJS.Timeout | null = null;
 
 function startServer(): void {
   const port = env.PORT;
@@ -14,11 +18,23 @@ function startServer(): void {
       environment: env.NODE_ENV,
       pid: process.pid,
     });
+    reportEmailWorker = startReportEmailDeliveryWorker();
+    notificationWorker = setInterval(() => {
+      void operationsService.generateNotifications().catch((error) => logger.error('Scheduled notification generation failed', {
+        error: error instanceof Error ? error.message : 'Unknown worker error',
+      }));
+    }, 10 * 60 * 1000);
+    notificationWorker.unref();
+    void operationsService.generateNotifications().catch((error) => logger.error('Initial notification generation failed', {
+      error: error instanceof Error ? error.message : 'Unknown worker error',
+    }));
   });
 
   // Graceful shutdown handling
   const shutdown = (signal: string) => {
     logger.info(`Received ${signal}. Initiating graceful shutdown...`);
+    if (reportEmailWorker) clearInterval(reportEmailWorker);
+    if (notificationWorker) clearInterval(notificationWorker);
 
     if (server) {
       server.close((err) => {

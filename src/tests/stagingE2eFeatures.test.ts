@@ -4,12 +4,13 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { env } from 'node:process';
 import { ApiClient, ApiError } from '@/services/api/client';
 import { UserRole } from '@/domain/types';
 
-const stagingApiUrl = process.env.PYS_E2E_API_BASE_URL || '';
-const stagingAdminEmail = process.env.PYS_E2E_ADMIN_EMAIL || '';
-const stagingAdminPassword = process.env.PYS_E2E_ADMIN_PASSWORD || '';
+const stagingApiUrl = env.PYS_E2E_API_BASE_URL || '';
+const stagingAdminEmail = env.PYS_E2E_ADMIN_EMAIL || '';
+const stagingAdminPassword = env.PYS_E2E_ADMIN_PASSWORD || '';
 const hasStagingCredentials = Boolean(stagingApiUrl && stagingAdminEmail && stagingAdminPassword);
 
 function isAllowedStagingTarget(apiUrl: string, mode: string | undefined): boolean {
@@ -50,7 +51,7 @@ describe.skipIf(!hasStagingCredentials)('Place Your Service — Staging E2E Feat
 
 
   beforeAll(async () => {
-    if (!isAllowedStagingTarget(stagingApiUrl, process.env.PYS_E2E_MODE)) {
+    if (!isAllowedStagingTarget(stagingApiUrl, env.PYS_E2E_MODE)) {
       throw new Error('E2E tests require an explicitly configured local or staging API target.');
     }
 
@@ -73,12 +74,9 @@ describe.skipIf(!hasStagingCredentials)('Place Your Service — Staging E2E Feat
         adminProfile = loginRes.user;
         client.setAuthToken(authToken);
       }
-    } catch (err) {
-      if (err instanceof ApiError && err.code === 'NETWORK_ERROR') {
-        console.warn('[E2E Suite] Staging API unreachable in isolated offline environment.');
-      } else {
-        console.warn('[E2E Suite] Auth bootstrap error:', err);
-      }
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.code : 'REQUEST_FAILED';
+      throw new Error(`Staging Admin authentication failed (${reason}); check the isolated staging URL and credentials.`);
     }
   }, 30000);
 

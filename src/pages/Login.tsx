@@ -3,6 +3,7 @@ import { Mail, Lock, LogIn, AlertCircle, Shield, CheckCircle } from 'lucide-reac
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicator';
 
 export const Login: React.FC = () => {
   const { login, error: authError, clearError } = useAuth();
@@ -121,6 +122,9 @@ export const Login: React.FC = () => {
             <span>Authorized Admin & Staff Access Only</span>
           </div>
         </div>
+
+        {/* Free-Tier Server Warmup Status */}
+        <ServerWarmupIndicator inline />
 
         {/* Error Alert Banner */}
         {activeError && (

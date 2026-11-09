@@ -4,20 +4,20 @@
  */
 
 import { apiClient } from './client';
-import { HealthResponse } from './types';
+import { HealthResponse, RequestOptions } from './types';
 
 export const healthApi = {
   /**
    * Fetches the backend liveness health status.
    */
-  async getHealth(): Promise<HealthResponse> {
-    return apiClient.get<HealthResponse>('/health');
+  async getHealth(options?: RequestOptions): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/health', options);
   },
 
   /**
    * Fetches the backend readiness status (verifies database connectivity).
    */
-  async getReadiness(): Promise<HealthResponse> {
-    return apiClient.get<HealthResponse>('/health/ready');
+  async getReadiness(options?: RequestOptions): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/health/ready', options);
   },
 };

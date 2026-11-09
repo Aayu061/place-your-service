@@ -195,6 +195,13 @@ export const reportIdParamSchema = {
   }),
 };
 
+export const reportEmailDeliveryParamSchema = {
+  params: z.object({
+    id: z.string().guid({ message: 'Invalid report ID format' }),
+    deliveryId: z.string().guid({ message: 'Invalid email delivery ID format' }),
+  }),
+};
+
 export const scheduleReportParamSchema = {
   params: z.object({
     scheduleId: z.string().guid({ message: 'Invalid schedule ID format' }),

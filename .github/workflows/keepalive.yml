@@ -1,0 +1,43 @@
+name: Production Keepalive Ping
+
+# Keeps Render free-tier web service and Supabase free-tier database active 24/7.
+# Render spins down after 15 minutes of inactivity; Supabase pauses after 7 days.
+# By pinging /api/v1/health/ready every 13 minutes, Render never sleeps and Supabase
+# receives an active PostgreSQL heartbeat query on every run.
+
+on:
+  schedule:
+    # Run every 13 minutes (cron format: minute hour day-of-month month day-of-week)
+    - cron: '*/13 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  keepalive:
+    name: Heartbeat Ping (Render + Supabase + Vercel)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend and Supabase Database
+        run: |
+          # Use GitHub secret/var if configured, otherwise default to project production domain
+          API_URL="${{ secrets.RENDER_API_URL || vars.RENDER_API_URL || 'https://place-your-service-api.onrender.com' }}"
+          echo "Pinging backend readiness endpoint: ${API_URL}/api/v1/health/ready"
+          
+          # Ping readiness endpoint (which executes checkSupabaseConnection() to keep Supabase awake)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "${API_URL}/api/v1/health/ready" || echo "FAILED")
+          echo "Render + Supabase Heartbeat HTTP Status: $HTTP_STATUS"
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "SUCCESS: Backend and database are warm and healthy."
+          elif [ "$HTTP_STATUS" = "503" ]; then
+            echo "WARNING: Backend answered but database check reported unhealthy (503)."
+          else
+            echo "NOTICE: Backend responded with $HTTP_STATUS (may have been cold-starting)."
+          fi
+
+      - name: Ping Vercel Frontend Edge Cache
+        run: |
+          FRONTEND_URL="${{ secrets.VERCEL_APP_URL || vars.VERCEL_APP_URL || 'https://place-your-service.vercel.app' }}"
+          echo "Pinging frontend: ${FRONTEND_URL}"
+          FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "${FRONTEND_URL}" || echo "FAILED")
+          echo "Vercel Frontend HTTP Status: $FRONTEND_STATUS"
+
