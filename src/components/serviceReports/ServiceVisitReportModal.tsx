@@ -887,8 +887,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
             <div className="svr-context-item">
               <span className="svr-context-label">Assigned Technician</span>
-              <span className="svr-context-value" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-brand)' }}>
-                <User size={13} style={{ color: 'var(--color-brand)' }} />
+              <span className="svr-context-value" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-primary)' }}>
+                <User size={13} style={{ color: 'var(--color-emerald, #3F765D)' }} />
                 {schedule?.technicianName || initialReport?.technicianName || 'Unassigned'}
               </span>
               <span className="svr-context-sub" style={{ fontFamily: 'var(--font-mono)' }}>
@@ -922,7 +922,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         </div>
 
         {/* Section 2: Report Information (Manual Number & Timing) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
+        <div className="svr-report-info-grid">
           <div>
             <label
               htmlFor="manual-report-number-input"
@@ -1106,9 +1106,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         {/* Section 2B: Service Execution Type & Planned Alignment */}
         <div
           style={{
-            backgroundColor: 'var(--bg-canvas, #f8fafc)',
-            border: '1px solid var(--border-neutral, #e2e8f0)',
-            borderRadius: 'var(--radius-md, 8px)',
+            backgroundColor: 'var(--bg-surface-subtle, #082420)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg, 10px)',
             padding: 'var(--space-4, 16px)',
             display: 'flex',
             flexDirection: 'column',
@@ -1149,9 +1149,23 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     borderRadius: '9999px',
                     fontSize: '11px',
                     fontWeight: 700,
-                    backgroundColor: plannedServiceType === 'JET_SERVICE' ? 'var(--color-info-bg, #eff6ff)' : plannedServiceType === 'PUMPDOWN_SERVICE' ? 'var(--color-warning-bg, #fffbeb)' : 'var(--color-neutral-bg, #f1f5f9)',
-                    color: plannedServiceType === 'JET_SERVICE' ? 'var(--color-info-text, #1d4ed8)' : plannedServiceType === 'PUMPDOWN_SERVICE' ? 'var(--color-warning-text, #b45309)' : 'var(--text-main, #334155)',
-                    border: '1px solid var(--border-neutral, #cbd5e1)',
+                    backgroundColor: plannedServiceType === 'JET_SERVICE'
+                      ? 'var(--color-info-bg)'
+                      : plannedServiceType === 'PUMPDOWN_SERVICE'
+                      ? 'var(--color-warning-bg)'
+                      : 'var(--color-success-bg)',
+                    color: plannedServiceType === 'JET_SERVICE'
+                      ? 'var(--color-info-text)'
+                      : plannedServiceType === 'PUMPDOWN_SERVICE'
+                      ? 'var(--color-warning-text)'
+                      : 'var(--color-success-text)',
+                    border: `1px solid ${
+                      plannedServiceType === 'JET_SERVICE'
+                        ? 'var(--color-info-border, rgba(71, 125, 141, 0.3))'
+                        : plannedServiceType === 'PUMPDOWN_SERVICE'
+                        ? 'var(--color-warning-border, rgba(166, 107, 34, 0.3))'
+                        : 'var(--color-success-border, rgba(47, 118, 84, 0.3))'
+                    }`,
                   }}
                 >
                   {plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown Service'}
@@ -1194,9 +1208,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   width: '100%',
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-md, 6px)',
-                  border: '1px solid var(--border-neutral, #cbd5e1)',
-                  backgroundColor: 'var(--bg-surface, #ffffff)',
-                  color: 'var(--text-main)',
+                  border: '1px solid var(--border-default)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
                   fontSize: '13px',
                 }}
               >
@@ -1271,14 +1285,15 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
 
         {/* Section 3: Primary Visit Outcome (3 Equal Cards with Rich Visual Tokens) */}
         {mode === 'edit' && (
-          <div role="note" style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-warning-50, #fffbeb)', border: '1px solid var(--color-warning-200, #fde68a)', color: 'var(--color-warning-900, #78350f)', fontSize: '12px' }}>
+          <div role="note" style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-warning-bg)', border: '1px solid var(--color-warning-border, rgba(166, 107, 34, 0.3))', color: 'var(--color-warning-text)', fontSize: '12px' }}>
             This report has been issued. Equipment snapshots, visit outcomes, and parts or repair records are preserved as issued. Correct only the report header and remarks below; each correction is recorded with your reason.
           </div>
         )}
         <fieldset
           disabled={mode === 'edit'}
           aria-label="Issued inspection and outcome details"
-          style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
+          className="svr-space-y-6"
+          style={{ border: 0, margin: 0, padding: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}
         >
         <div>
           <label
@@ -1485,9 +1500,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   <span
                     style={{
                       padding: '2px 8px',
-                      backgroundColor: 'var(--color-primary-50)',
-                      color: 'var(--color-primary-800)',
-                      border: '1px solid var(--color-primary-200)',
+                      backgroundColor: 'rgba(63, 118, 93, 0.15)',
+                      color: 'var(--color-emerald, #3F765D)',
+                      border: '1px solid var(--border-moderate, #235347)',
                       borderRadius: 'var(--radius-sm)',
                       fontFamily: 'var(--font-mono)',
                       fontWeight: 700,
@@ -2087,8 +2102,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid',
                     borderColor: paymentCollected ? 'var(--color-success-solid)' : 'var(--border-default)',
-                    backgroundColor: paymentCollected ? 'var(--color-success-100)' : 'var(--bg-surface)',
-                    color: paymentCollected ? 'var(--color-success-800)' : 'var(--text-secondary)',
+                    backgroundColor: paymentCollected ? 'var(--color-success-bg)' : 'var(--bg-surface)',
+                    color: paymentCollected ? 'var(--color-success-text)' : 'var(--text-secondary)',
                     fontWeight: 600,
                     fontSize: '12px',
                     cursor: 'pointer',
@@ -2106,8 +2121,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid',
                     borderColor: !paymentCollected ? 'var(--color-warning-solid)' : 'var(--border-default)',
-                    backgroundColor: !paymentCollected ? 'var(--color-warning-100)' : 'var(--bg-surface)',
-                    color: !paymentCollected ? 'var(--color-warning-800)' : 'var(--text-secondary)',
+                    backgroundColor: !paymentCollected ? 'var(--color-warning-bg)' : 'var(--bg-surface)',
+                    color: !paymentCollected ? 'var(--color-warning-text)' : 'var(--text-secondary)',
                     fontWeight: 600,
                     fontSize: '12px',
                     cursor: 'pointer',
@@ -2291,8 +2306,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   style={{
                     fontSize: '10px',
                     fontWeight: 700,
-                    backgroundColor: 'var(--color-brand-100)',
-                    color: 'var(--color-brand-800)',
+                    backgroundColor: 'var(--color-brand-soft, #F6E9E1)',
+                    color: 'var(--color-brand, #A8481C)',
+                    border: '1px solid var(--border-moderate)',
                     padding: '1px 6px',
                     borderRadius: '9999px',
                   }}

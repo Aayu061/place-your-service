@@ -603,6 +603,7 @@
   padding: var(--space-6);
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 .modal-footer,
@@ -964,13 +965,13 @@
 
 .svr-context-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
 @media (max-width: 900px) {
   .svr-context-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -986,12 +987,14 @@
   border-radius: var(--radius-lg);
   padding: var(--space-2-5) var(--space-3);
   box-shadow: var(--shadow-xs);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .svr-context-label {
   font-size: 11px;
   font-weight: var(--font-weight-semibold);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 2px;
@@ -1010,12 +1013,35 @@
 
 .svr-context-sub {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   margin-top: 1px;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Report Information Form Inputs Grid */
+.svr-report-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.svr-report-info-grid > div {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .svr-report-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .svr-report-info-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Outcome Selector Cards (Section 3.5) */
@@ -1598,18 +1624,67 @@
   border-color: #235347;
 }
 
+/* Service Visit Reports Dark Theme Overrides */
+[data-theme="dark"] .svr-context-panel {
+  background-color: var(--bg-surface-subtle, #082420);
+  border-color: var(--border-default, #235347);
+}
+
+[data-theme="dark"] .svr-context-item {
+  background-color: var(--bg-surface, #0B2B26);
+  border-color: var(--border-moderate, #235347);
+}
+
+[data-theme="dark"] .svr-context-label {
+  color: #8EB69B;
+}
+
+[data-theme="dark"] .svr-context-value {
+  color: #DAF1DE;
+}
+
+[data-theme="dark"] .svr-context-sub {
+  color: #8EB69B;
+}
+
+[data-theme="dark"] .svr-asset-card {
+  background-color: var(--bg-surface, #0B2B26);
+  border: 1px solid var(--border-moderate, #235347);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .svr-group-card {
+  background-color: var(--bg-surface-subtle, #082420);
+  border: 1px solid var(--border-subtle, #163832);
+}
+
+[data-theme="dark"] .svr-outcome-card {
+  background-color: var(--bg-surface, #0B2B26);
+  border-color: var(--border-moderate, #235347);
+}
+
+[data-theme="dark"] .svr-outcome-card:hover {
+  background-color: var(--bg-surface-subtle, #082420);
+  border-color: var(--color-emerald, #3F765D);
+}
+
 /* Custom Scrollbars */
 [data-theme="dark"] ::-webkit-scrollbar-track {
-  background: #051F20;
+  background: rgba(5, 31, 32, 0.7);
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #163832;
+  background: #235347;
   border-radius: 4px;
+  border: 1px solid rgba(142, 182, 155, 0.2);
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: #235347;
+  background: #3F765D;
+}
+
+[data-theme="dark"] {
+  scrollbar-color: #235347 rgba(5, 31, 32, 0.7);
 }
 
 /* Dashboard Operational Queue Filter Chips */
