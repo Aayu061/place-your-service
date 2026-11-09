@@ -3,6 +3,8 @@ import { ServiceVisitReport } from '@/domain/types';
 import { formatDate } from '@/utils/formatters';
 import { Printer, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { UpiQrCode } from '@/components/common/UpiQrCode';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 interface ServiceReportPrintViewProps {
   report: ServiceVisitReport;
@@ -848,93 +850,144 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             border: '1px solid #e2e8f0',
             borderRadius: '6px',
             backgroundColor: '#f8fafc',
-            padding: '8px 12px',
+            padding: '6px 10px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateColumns: '1.4fr 1.6fr auto',
             gap: '12px',
             alignItems: 'center',
           }}
         >
-          <div>
-            <div className="pys-field-label">Payment Status</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: '2px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: report.paymentCollected
-                    ? '#dcfce7'
-                    : report.paymentAmount && report.paymentAmount > 0
-                    ? '#fef3c7'
-                    : '#f1f5f9',
-                  color: report.paymentCollected
-                    ? '#15803d'
-                    : report.paymentAmount && report.paymentAmount > 0
-                    ? '#b45309'
-                    : '#475569',
-                  border: `1px solid ${
-                    report.paymentCollected
-                      ? '#bbf7d0'
+          {/* Col 1: Settlement Status & Amounts */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+            <div>
+              <div className="pys-field-label">Status</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: '1px' }}>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: report.paymentCollected
+                      ? '#dcfce7'
                       : report.paymentAmount && report.paymentAmount > 0
-                      ? '#fde68a'
-                      : '#e2e8f0'
-                  }`,
+                      ? '#fef3c7'
+                      : '#f1f5f9',
+                    color: report.paymentCollected
+                      ? '#15803d'
+                      : report.paymentAmount && report.paymentAmount > 0
+                      ? '#b45309'
+                      : '#475569',
+                    border: `1px solid ${
+                      report.paymentCollected
+                        ? '#bbf7d0'
+                        : report.paymentAmount && report.paymentAmount > 0
+                        ? '#fde68a'
+                        : '#e2e8f0'
+                    }`,
+                  }}
+                >
+                  {report.paymentCollected
+                    ? 'PAID ON SITE'
+                    : report.paymentAmount && report.paymentAmount > 0
+                    ? 'PENDING / BALANCED'
+                    : 'INCLUDED IN AMC'}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <div className="pys-field-label">Total Amount</div>
+              <div className="pys-field-value" style={{ fontWeight: 700, color: '#0f172a', fontSize: '12px' }}>
+                ₹{(report.paymentAmount != null ? Number(report.paymentAmount) : 0).toLocaleString('en-IN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="pys-field-label">Payment Method</div>
+              <div className="pys-field-value" style={{ fontSize: '11px' }}>
+                {report.paymentCollected
+                  ? report.paymentMethod === 'ONLINE'
+                    ? `Online / UPI ${report.paymentReference ? `(${report.paymentReference})` : ''}`
+                    : 'Cash Payment'
+                  : report.paymentAmount && report.paymentAmount > 0
+                  ? 'Awaiting Collection'
+                  : 'Covered under Contract'}
+              </div>
+            </div>
+
+            <div>
+              <div className="pys-field-label">Balance Remaining</div>
+              <div
+                className="pys-field-value"
+                style={{
+                  fontWeight: 700,
+                  fontSize: '12px',
+                  color:
+                    report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
+                      ? '#16a34a'
+                      : '#dc2626',
                 }}
               >
-                {report.paymentCollected
-                  ? 'PAID ON SITE'
-                  : report.paymentAmount && report.paymentAmount > 0
-                  ? 'PENDING / BALANCED'
-                  : 'INCLUDED IN AMC'}
-              </span>
+                ₹
+                {report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
+                  ? '0.00'
+                  : Number(report.paymentAmount).toLocaleString('en-IN', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+              </div>
             </div>
           </div>
 
-          <div>
-            <div className="pys-field-label">Total Amount</div>
-            <div className="pys-field-value" style={{ fontWeight: 700, color: '#0f172a' }}>
-              ₹{(report.paymentAmount != null ? Number(report.paymentAmount) : 0).toLocaleString('en-IN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+          {/* Col 2: Company Demo Bank Details */}
+          <div
+            style={{
+              borderLeft: '1px solid #e2e8f0',
+              paddingLeft: '10px',
+              fontSize: '10.5px',
+              color: '#334155',
+              lineHeight: 1.45,
+            }}
+          >
+            <div style={{ fontWeight: 700, color: '#0284c7', marginBottom: '2px', fontSize: '11px' }}>
+              Company Bank & UPI Details
+            </div>
+            <div>
+              <strong>A/C:</strong> {COMPANY_BANK_DETAILS.accountNumber} ({COMPANY_BANK_DETAILS.bankName})
+            </div>
+            <div>
+              <strong>IFSC:</strong> {COMPANY_BANK_DETAILS.ifscCode} | <strong>Branch:</strong> {COMPANY_BANK_DETAILS.branchName}
+            </div>
+            <div>
+              <strong>UPI ID:</strong> <span style={{ fontWeight: 600, color: '#0284c7' }}>{COMPANY_BANK_DETAILS.upiId}</span>
             </div>
           </div>
 
-          <div>
-            <div className="pys-field-label">Payment Method</div>
-            <div className="pys-field-value">
-              {report.paymentCollected
-                ? report.paymentMethod === 'ONLINE'
-                  ? `Online / UPI ${report.paymentReference ? `(${report.paymentReference})` : ''}`
-                  : 'Cash Payment'
-                : report.paymentAmount && report.paymentAmount > 0
-                ? 'Awaiting Collection'
-                : 'Covered under Contract'}
-            </div>
-          </div>
-
-          <div>
-            <div className="pys-field-label">Balance Remaining</div>
-            <div
-              className="pys-field-value"
-              style={{
-                fontWeight: 700,
-                color:
-                  report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
-                    ? '#16a34a'
-                    : '#dc2626',
-              }}
-            >
-              ₹
-              {report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
-                ? '0.00'
-                : Number(report.paymentAmount).toLocaleString('en-IN', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-            </div>
+          {/* Col 3: Dynamic Amount-Encoded UPI QR Code */}
+          <div
+            style={{
+              borderLeft: '1px solid #e2e8f0',
+              paddingLeft: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <UpiQrCode
+              amount={
+                report.paymentCollected || !report.paymentAmount || report.paymentAmount === 0
+                  ? 0
+                  : Number(report.paymentAmount)
+              }
+              note={`Report #${report.reportNumber || 'PYS'}`}
+              size={64}
+              showScanText={true}
+              showDetails={false}
+            />
           </div>
         </div>
 

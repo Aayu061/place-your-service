@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { amcService } from '../services/amc.service.js';
+import { amcEmailService } from '../services/amcEmail.service.js';
 
 export class AmcController {
   async listPlans(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -181,6 +182,35 @@ export class AmcController {
       const actorId = req.user?.profileId || req.user?.userId || '00000000-0000-0000-0000-000000000000';
       const contract = await amcService.renewContract(id, req.body, actorId);
       res.status(201).json({
+        success: true,
+        data: { contract },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async sendQuotation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const recipientEmail = req.body.recipientEmail as string;
+      const actorId = req.user?.profileId || req.user?.userId || '00000000-0000-0000-0000-000000000000';
+      const result = await amcEmailService.sendQuotation(id, recipientEmail, actorId);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async clearPayment(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const actorId = req.user?.profileId || req.user?.userId || '00000000-0000-0000-0000-000000000000';
+      const contract = await amcService.clearPayment(id, req.body, actorId);
+      res.json({
         success: true,
         data: { contract },
       });
