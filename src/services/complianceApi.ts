@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient } from '@/services/api/client';
 
 export interface GstinLookupResult {
   gstin: string;
@@ -13,8 +13,7 @@ export interface GstinLookupResult {
 
 export const complianceApi = {
   lookupGstin: async (gstin: string): Promise<GstinLookupResult> => {
-    const { data } = await apiClient.post('/compliance/gstin/lookup', { gstin });
-    return data;
+    return apiClient.post<GstinLookupResult>('/compliance/gstin/lookup', { gstin });
   },
 };
 
