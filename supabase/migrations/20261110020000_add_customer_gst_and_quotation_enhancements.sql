@@ -9,3 +9,4 @@ CREATE INDEX IF NOT EXISTS idx_customers_gst_number ON customers(gst_number) WHE
 
 -- 3. Document column
 COMMENT ON COLUMN customers.gst_number IS '15-character Indian Goods and Services Tax Identification Number (GSTIN)';
+

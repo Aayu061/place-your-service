@@ -62,3 +62,4 @@ export function decodeGstin(gstin: string): GstinInfo {
     entityType: ENTITY_TYPES[constitutionCharFromPan] || 'Unknown',
   };
 }
+

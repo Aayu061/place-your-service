@@ -6,3 +6,4 @@ const router = Router();
 router.post('/gstin/lookup', lookupGstin);
 
 export default router;
+
