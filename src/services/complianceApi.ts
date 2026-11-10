@@ -17,3 +17,4 @@ export const complianceApi = {
     return data;
   },
 };
+
