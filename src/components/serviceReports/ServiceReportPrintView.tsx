@@ -615,11 +615,27 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
         <div className="pys-section-title">Customer & Service Attribution</div>
         <div className="pys-grid-2">
           <div>
-            <div className="pys-field-label">Customer Name & Code</div>
+            <div className="pys-field-label">Customer / Business Name</div>
             <div className="pys-field-value">
-              {report.customerName || 'N/A'}{' '}
-              {report.customerCode && <span style={{ color: '#64748b' }}>({report.customerCode})</span>}
+              {(report as any).companyName ? (
+                <>
+                  <div style={{ fontWeight: 800, color: '#0369a1' }}>{(report as any).companyName}</div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>
+                    Attn: {report.customerName} {report.customerCode && `(${report.customerCode})`}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {report.customerName || 'N/A'}{' '}
+                  {report.customerCode && <span style={{ color: '#64748b' }}>({report.customerCode})</span>}
+                </>
+              )}
             </div>
+            {((report as any).gstNumber || (report as any).customerGstNumber) && (
+              <div style={{ fontSize: '11.5px', color: '#0f172a', fontWeight: 700, marginTop: '2px' }}>
+                GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{(report as any).gstNumber || (report as any).customerGstNumber}</span>
+              </div>
+            )}
             {(report.customerPhone || report.customerEmail) && (
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                 {[report.customerPhone, report.customerEmail].filter(Boolean).join(' • ')}

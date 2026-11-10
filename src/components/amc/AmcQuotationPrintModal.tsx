@@ -198,8 +198,20 @@ export function AmcQuotationPrintModal({
                 Prepared For / Client
               </div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-                {contract.customerName || 'Valued Customer'}
+                {(contract as any).customerCompanyName || (contract as any).companyName ? (
+                  <>
+                    <div style={{ fontWeight: 800, color: '#0369a1' }}>{(contract as any).customerCompanyName || (contract as any).companyName}</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Attn: {contract.customerName}</div>
+                  </>
+                ) : (
+                  contract.customerName || 'Valued Customer'
+                )}
               </div>
+              {((contract as any).customerGstNumber || (contract as any).gstNumber) && (
+                <div style={{ fontSize: '11.5px', color: '#0f172a', marginTop: 3, fontWeight: 700 }}>
+                  Client GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{(contract as any).customerGstNumber || (contract as any).gstNumber}</span>
+                </div>
+              )}
               {contract.customerCode && (
                 <div style={{ fontSize: '12px', color: '#475569', marginTop: 2 }}>
                   Customer Code: <strong>{contract.customerCode}</strong>

@@ -177,8 +177,20 @@ export function PaymentInvoiceModal({
                 Billed To / Customer Details
               </div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-                {payment.customers?.name || 'Customer'}
+                {payment.customers?.company_name ? (
+                  <>
+                    <div style={{ fontWeight: 800, color: '#0369a1' }}>{payment.customers.company_name}</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Attn: {payment.customers.name}</div>
+                  </>
+                ) : (
+                  payment.customers?.name || 'Customer'
+                )}
               </div>
+              {payment.customers?.gst_number && (
+                <div style={{ fontSize: '11.5px', color: '#0f172a', marginTop: 3, fontWeight: 700 }}>
+                  Recipient GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{payment.customers.gst_number}</span>
+                </div>
+              )}
               <div style={{ fontSize: '12px', color: '#475569', marginTop: 2 }}>
                 Customer Code: <strong>{payment.customers?.customer_code || 'N/A'}</strong>
               </div>
