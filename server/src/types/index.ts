@@ -100,6 +100,7 @@ export interface CustomerResponse {
   customerCode: string;
   name: string;
   companyName: string | null;
+  gstNumber: string | null;
   email: string | null;
   phone: string;
   alternatePhone: string | null;
@@ -125,6 +126,7 @@ export interface CreateCustomerPayload {
   name: string;
   customerType?: CustomerType;
   companyName?: string;
+  gstNumber?: string;
   email?: string;
   phone: string;
   alternatePhone?: string;
@@ -141,6 +143,7 @@ export interface CreateCustomerPayload {
 export interface UpdateCustomerPayload {
   name?: string;
   companyName?: string;
+  gstNumber?: string;
   email?: string;
   phone?: string;
   alternatePhone?: string;
@@ -549,6 +552,7 @@ export interface ServiceRequestResponse {
   requestType: ServiceRequestType;
   priority: ServiceRequestPriority;
   description: string;
+  issueCategory?: string | null;
   reportedDate: string;
   preferredDate: string | null;
   status: ServiceRequestStatus;
@@ -578,6 +582,7 @@ export interface CreateServiceRequestPayload {
   requestType: ServiceRequestType;
   priority?: ServiceRequestPriority;
   description: string;
+  issueCategory?: string | null;
   preferredDate?: string | null;
   notes?: string | null;
 }
@@ -586,6 +591,7 @@ export interface UpdateServiceRequestPayload {
   requestType?: ServiceRequestType;
   priority?: ServiceRequestPriority;
   description?: string;
+  issueCategory?: string | null;
   preferredDate?: string | null;
   notes?: string | null;
   siteId?: string;
@@ -656,6 +662,8 @@ export interface TechnicianResponse {
   serviceArea?: string; // Compatibility alias
   status: TechnicianOperationalStatus;
   isActive: boolean;
+  hasPortalPin?: boolean;
+  lastDutyStatusAt?: string | null;
   maxDailyWorkload: number;
   currentWorkload: number;
   joiningDate: string | null;
@@ -722,7 +730,15 @@ export interface TechnicianListQuery {
  * AMC Contracts & Preventive Maintenance Types (Phase 8)
  * -------------------------------------------------- */
 
-export type AmcFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY';
+export type AmcFrequency =
+  | 'MONTHLY'
+  | 'BI_MONTHLY'
+  | 'QUARTERLY'
+  | 'FOUR_MONTHLY'
+  | 'HALF_YEARLY'
+  | 'YEARLY'
+  | 'CUSTOM'
+  | 'ON_DEMAND';
 
 export type AmcStatus =
   | 'DRAFT'
@@ -749,9 +765,23 @@ export interface AmcPlanResponse {
   id: string;
   planCode: string;
   name: string;
+  category?: string;
   description: string | null;
+  coverageSummary?: string | null;
   defaultFrequency: AmcFrequency;
   defaultVisitsPerYear: number;
+  pricingModel?: string;
+  rateSplitSmall?: number | null;
+  rateSplitLarge?: number | null;
+  rateWindowSmall?: number | null;
+  rateWindowLarge?: number | null;
+  rateFlat?: number | null;
+  gstRatePercent?: number;
+  maxEquipmentAgeYears?: number | null;
+  hasGasCharging?: boolean;
+  hasSpareParts?: boolean;
+  hasUnlimitedComplaints?: boolean;
+  rateMetadata?: Record<string, any> | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -792,8 +822,23 @@ export interface ServiceAssignmentSummary {
   createdAt: string;
 }
 
-export type PlannedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
-export type PerformedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
+export type PlannedServiceType =
+  | 'DRY_SERVICE'
+  | 'JET_SERVICE'
+  | 'JACKET_SERVICE'
+  | 'PUMPDOWN_SERVICE'
+  | 'DIAGNOSTIC_INSPECTION'
+  | 'GAS_RECHARGE'
+  | 'CAPACITOR_REPLACE'
+  | 'PCB_REPAIR'
+  | 'MOTOR_REPAIR'
+  | 'COMPRESSOR_REPAIR'
+  | 'WATER_LEAK_FIX'
+  | 'ELECTRICAL_FIX'
+  | 'COIL_BRAZING'
+  | 'GENERAL_REPAIR';
+
+export type PerformedServiceType = PlannedServiceType;
 export type ServiceResolutionStatus = 'OPEN' | 'AWAITING_PARTS' | 'AWAITING_REPAIR' | 'RESOLVED' | 'CANCELLED';
 
 export interface ServiceScheduleResponse {

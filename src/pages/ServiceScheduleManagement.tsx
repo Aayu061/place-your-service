@@ -27,6 +27,7 @@ import {
   CreateServiceSchedulePayload,
   ServiceVisitReport,
 } from '@/domain/types';
+import { PM_SERVICE_TYPES, BREAKDOWN_REPAIR_TYPES, getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
 import { scheduleApi } from '@/services/scheduleApi';
 import { serviceReportApi } from '@/services/serviceReportApi';
 import { ServiceVisitReportModal } from '@/components/serviceReports/ServiceVisitReportModal';
@@ -508,7 +509,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       startTime: '09:00',
       endTime: '11:00',
       durationMinutes: item.suggestedDurationMinutes || 120,
-      plannedServiceType: item.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : '',
+      plannedServiceType: item.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : 'DIAGNOSTIC_INSPECTION',
       notes: item.description ? `Source: ${item.identifier} — ${item.description}` : '',
     });
     setIsCreateModalOpen(true);
@@ -660,7 +661,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   startTime: '09:00',
                   endTime: '11:00',
                   durationMinutes: first.suggestedDurationMinutes || 120,
-                  plannedServiceType: (first.plannedServiceType || (first.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : '')) as '' | PlannedServiceType,
+                  plannedServiceType: (first.plannedServiceType || (first.type === 'PM_OBLIGATION' ? 'DRY_SERVICE' : 'DIAGNOSTIC_INSPECTION')) as '' | PlannedServiceType,
                   notes: first.description ? `Source: ${first.identifier} — ${first.description}` : '',
                 });
               } else {
@@ -981,8 +982,8 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                       <div style={{ marginBottom: 'var(--space-1)', display: 'flex', gap: 'var(--space-1)', alignItems: 'center', flexWrap: 'wrap' }}>
                         <StatusBadge status={schedule.status} />
                         {schedule.plannedServiceType && (
-                          <Badge variant={schedule.plannedServiceType === 'JET_SERVICE' ? 'info' : schedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
-                            {schedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry' : schedule.plannedServiceType === 'JET_SERVICE' ? 'Jet' : 'Pumpdown'}
+                          <Badge variant={['JET_SERVICE', 'JACKET_SERVICE'].includes(schedule.plannedServiceType) ? 'info' : ['GAS_RECHARGE', 'PUMPDOWN_SERVICE', 'COMPRESSOR_REPAIR'].includes(schedule.plannedServiceType) ? 'warning' : 'neutral'}>
+                            {getPlannedServiceTypeLabel(schedule.plannedServiceType)}
                           </Badge>
                         )}
                       </div>
@@ -1165,8 +1166,8 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                       </td>
                       <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                         {schedule.plannedServiceType ? (
-                          <Badge variant={schedule.plannedServiceType === 'JET_SERVICE' ? 'info' : schedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
-                            {schedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : schedule.plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown'}
+                          <Badge variant={['JET_SERVICE', 'JACKET_SERVICE'].includes(schedule.plannedServiceType) ? 'info' : ['GAS_RECHARGE', 'PUMPDOWN_SERVICE', 'COMPRESSOR_REPAIR'].includes(schedule.plannedServiceType) ? 'warning' : 'neutral'}>
+                            {getPlannedServiceTypeLabel(schedule.plannedServiceType)}
                           </Badge>
                         ) : (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Not specified</span>
@@ -1911,9 +1912,19 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               onChange={(e) => setCreateForm({ ...createForm, plannedServiceType: e.target.value as PlannedServiceType })}
             >
               <option value="">Select planned service...</option>
-              <option value="DRY_SERVICE">Dry Service (Routine filter & coil dust cleaning)</option>
-              <option value="JET_SERVICE">Jet Service (High-pressure wet wash & coil deep clean)</option>
-              <option value="PUMPDOWN_SERVICE">Pumpdown Service (Refrigerant recovery & major overhaul)</option>
+              {activeUnscheduledItem?.type === 'PM_OBLIGATION' ? (
+                <optgroup label="Preventive Maintenance Cleaning">
+                  {PM_SERVICE_TYPES.map((t) => (
+                    <option key={t.key} value={t.key}>{t.label}</option>
+                  ))}
+                </optgroup>
+              ) : (
+                <optgroup label="Breakdown Diagnosis &amp; Repairs">
+                  {BREAKDOWN_REPAIR_TYPES.map((t) => (
+                    <option key={t.key} value={t.key}>{t.label}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -1992,15 +2003,21 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                 {detailSchedule.plannedServiceType ? (
                   <>
-                    <Badge variant={detailSchedule.plannedServiceType === 'JET_SERVICE' ? 'info' : detailSchedule.plannedServiceType === 'PUMPDOWN_SERVICE' ? 'warning' : 'neutral'}>
-                      {detailSchedule.plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : detailSchedule.plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown Service'}
+                    <Badge variant={['JET_SERVICE', 'JACKET_SERVICE'].includes(detailSchedule.plannedServiceType) ? 'info' : ['GAS_RECHARGE', 'PUMPDOWN_SERVICE', 'COMPRESSOR_REPAIR'].includes(detailSchedule.plannedServiceType) ? 'warning' : 'neutral'}>
+                      {getPlannedServiceTypeLabel(detailSchedule.plannedServiceType)}
                     </Badge>
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                       {detailSchedule.plannedServiceType === 'DRY_SERVICE'
                         ? 'Filter cleaning, electrical test & dry coil dust removal'
                         : detailSchedule.plannedServiceType === 'JET_SERVICE'
                         ? 'High-pressure water jet washing & indoor/outdoor coil clean'
-                        : 'Refrigerant recovery, pumpdown & deep system overhaul'}
+                        : detailSchedule.plannedServiceType === 'JACKET_SERVICE'
+                        ? 'Indoor deep foam cleaning with jacket washing'
+                        : detailSchedule.plannedServiceType === 'GAS_RECHARGE'
+                        ? 'System refrigerant leak arrest & gas recharge'
+                        : detailSchedule.plannedServiceType === 'PUMPDOWN_SERVICE'
+                        ? 'Refrigerant recovery, pumpdown & deep system overhaul'
+                        : 'On-site technical diagnostics and corrective repairs'}
                     </span>
                   </>
                 ) : (

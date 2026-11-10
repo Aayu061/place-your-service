@@ -5,10 +5,59 @@ import { amcEmailService } from '../services/amcEmail.service.js';
 export class AmcController {
   async listPlans(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const plans = await amcService.listPlans();
+      const includeInactive = req.query.includeInactive === 'true';
+      const plans = await amcService.listPlans(includeInactive);
       res.json({
         success: true,
         data: { plans },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getPlanById(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const plan = await amcService.getPlanById(String(req.params.id));
+      res.json({
+        success: true,
+        data: { plan },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async createPlan(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const plan = await amcService.createPlan(req.body);
+      res.status(201).json({
+        success: true,
+        data: { plan },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePlan(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const plan = await amcService.updatePlan(String(req.params.id), req.body);
+      res.json({
+        success: true,
+        data: { plan },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deletePlan(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await amcService.deleteOrArchivePlan(String(req.params.id));
+      res.json({
+        success: true,
+        data: result,
       });
     } catch (err) {
       next(err);

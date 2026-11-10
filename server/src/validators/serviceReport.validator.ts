@@ -55,7 +55,22 @@ export const reportItemInputSchema = z.object({
   followUpNotes: optionalTrimmedString,
 });
 
-export const plannedServiceTypeEnum = z.enum(['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE']);
+export const plannedServiceTypeEnum = z.enum([
+  'DRY_SERVICE',
+  'JET_SERVICE',
+  'JACKET_SERVICE',
+  'PUMPDOWN_SERVICE',
+  'DIAGNOSTIC_INSPECTION',
+  'GAS_RECHARGE',
+  'CAPACITOR_REPLACE',
+  'PCB_REPAIR',
+  'MOTOR_REPAIR',
+  'COMPRESSOR_REPAIR',
+  'WATER_LEAK_FIX',
+  'ELECTRICAL_FIX',
+  'COIL_BRAZING',
+  'GENERAL_REPAIR',
+]);
 export const resolutionStatusEnum = z.enum(['ALL', 'OPEN', 'AWAITING_PARTS', 'AWAITING_REPAIR', 'RESOLVED', 'CANCELLED']);
 
 export const createServiceReportSchema = {

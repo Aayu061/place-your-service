@@ -28,6 +28,7 @@ interface RawCustomerRecord {
   customer_code: string;
   name: string;
   company_name: string | null;
+  gst_number: string | null;
   email: string | null;
   phone: string;
   alternate_phone: string | null;
@@ -67,6 +68,7 @@ function mapCustomerRecord(record: RawCustomerRecord): CustomerResponse {
     customerCode: record.customer_code,
     name: record.name,
     companyName: record.company_name,
+    gstNumber: record.gst_number || null,
     email: record.email,
     phone: record.phone,
     alternatePhone: record.alternate_phone,
@@ -306,6 +308,7 @@ export class CustomerService {
         customer_code: customerCode,
         name: payload.name.trim(),
         company_name: payload.companyName?.trim() || null,
+        gst_number: payload.gstNumber?.trim().toUpperCase() || null,
         email: payload.email?.trim().toLowerCase() || null,
         phone: payload.phone.trim(),
         alternate_phone: payload.alternatePhone?.trim() || null,
@@ -408,6 +411,7 @@ export class CustomerService {
 
     if (payload.name !== undefined) updateFields.name = payload.name.trim();
     if (payload.companyName !== undefined) updateFields.company_name = payload.companyName?.trim() || null;
+    if (payload.gstNumber !== undefined) updateFields.gst_number = payload.gstNumber?.trim().toUpperCase() || null;
     if (payload.email !== undefined) updateFields.email = payload.email?.trim().toLowerCase() || null;
     if (payload.phone !== undefined) updateFields.phone = payload.phone.trim();
     if (payload.alternatePhone !== undefined) updateFields.alternate_phone = payload.alternatePhone?.trim() || null;

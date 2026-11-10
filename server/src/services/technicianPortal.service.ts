@@ -150,7 +150,8 @@ export class TechnicianPortalService {
         planned_service_type, notes, amc_id, service_request_id,
         customers ( id, name, phone, customer_code ),
         sites ( id, site_name, address, city, landmark, pincode ),
-        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage )
+        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage ),
+        service_requests ( id, request_number, request_type, priority, description, issue_category )
       `)
       .eq('technician_id', techId)
       .eq('scheduled_date', targetDate)
@@ -177,7 +178,8 @@ export class TechnicianPortalService {
         planned_service_type, notes, amc_id, service_request_id,
         customers ( id, name, phone, email, customer_code ),
         sites ( id, site_name, address, city, landmark, pincode ),
-        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage, refrigerant_type )
+        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage, refrigerant_type ),
+        service_requests ( id, request_number, request_type, priority, description, issue_category )
       `)
       .eq('id', scheduleId)
       .eq('technician_id', techId)
@@ -234,7 +236,9 @@ export class TechnicianPortalService {
       startTime: payload.startTime,
       endTime: payload.endTime,
       plannedServiceType: null,
-      performedServiceType: payload.serviceExecutionType || 'MAINTENANCE',
+      performedServiceType: payload.serviceExecutionType && payload.serviceExecutionType !== 'MAINTENANCE'
+        ? payload.serviceExecutionType
+        : (schedule.service_request_id ? 'DIAGNOSTIC_INSPECTION' : 'DRY_SERVICE'),
       primaryOutcome: payload.primaryOutcome,
       technicianRemarks: payload.technicianRemarks,
       customerRepresentative: payload.customerRepresentative,

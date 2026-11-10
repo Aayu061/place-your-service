@@ -20,7 +20,7 @@ export const listAmcQuerySchema = z.object({
     .optional()
     .default('ALL'),
   frequency: z
-    .enum(['ALL', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY'])
+    .enum(['ALL', 'MONTHLY', 'BI_MONTHLY', 'QUARTERLY', 'FOUR_MONTHLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM', 'ON_DEMAND'])
     .optional()
     .default('ALL'),
   planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format').optional(),
@@ -38,7 +38,7 @@ export const createAmcContractSchema = z
     planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format').optional().nullable(),
     startDate: z.string().regex(DATE_REGEX, 'Start date must be in YYYY-MM-DD format'),
     endDate: z.string().regex(DATE_REGEX, 'End date must be in YYYY-MM-DD format'),
-    frequency: z.enum(['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']),
+    frequency: z.enum(['MONTHLY', 'BI_MONTHLY', 'QUARTERLY', 'FOUR_MONTHLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM', 'ON_DEMAND']),
     totalAmount: z.coerce.number().min(0, 'Total amount cannot be negative'),
     totalVisits: z.coerce.number().int().min(1, 'Total visits must be at least 1'),
     dryServiceVisits: z
@@ -108,7 +108,7 @@ export const updateAmcContractSchema = z
     planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format').optional().nullable(),
     startDate: z.string().regex(DATE_REGEX, 'Start date must be in YYYY-MM-DD format').optional(),
     endDate: z.string().regex(DATE_REGEX, 'End date must be in YYYY-MM-DD format').optional(),
-    frequency: z.enum(['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']).optional(),
+    frequency: z.enum(['MONTHLY', 'BI_MONTHLY', 'QUARTERLY', 'FOUR_MONTHLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM', 'ON_DEMAND']).optional(),
     totalAmount: z.coerce.number().min(0, 'Total amount cannot be negative').optional(),
     totalVisits: z.coerce.number().int().min(1, 'Total visits must be at least 1').optional(),
     dryServiceVisits: z
@@ -189,7 +189,7 @@ export const renewAmcContractSchema = z
   .object({
     startDate: z.string().regex(DATE_REGEX, 'Start date must be in YYYY-MM-DD format'),
     endDate: z.string().regex(DATE_REGEX, 'End date must be in YYYY-MM-DD format'),
-    frequency: z.enum(['MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']).optional(),
+    frequency: z.enum(['MONTHLY', 'BI_MONTHLY', 'QUARTERLY', 'FOUR_MONTHLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM', 'ON_DEMAND']).optional(),
     totalAmount: z.coerce.number().min(0, 'Total amount cannot be negative').optional(),
     totalVisits: z.coerce.number().int().min(1, 'Total visits must be at least 1').optional(),
     dryServiceVisits: z
@@ -254,3 +254,33 @@ export const clearPaymentSchema = z.object({
   externalPaymentReference: z.string().max(100).optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
 });
+
+export const planIdParamSchema = z.object({
+  id: z.string().guid('Invalid plan UUID'),
+});
+
+export const createPlanSchema = z.object({
+  planCode: z.string().trim().min(2, 'Plan code is required').max(50),
+  name: z.string().trim().min(2, 'Plan name is required').max(150),
+  category: z.enum(['SPECIAL_COMPREHENSIVE', 'SEMI_COMPREHENSIVE', 'ORDINARY', 'PREMIUM_JACKET', 'STANDALONE']).default('ORDINARY'),
+  description: z.string().trim().nullable().optional(),
+  coverageSummary: z.string().trim().nullable().optional(),
+  defaultFrequency: z.enum(['MONTHLY', 'BI_MONTHLY', 'QUARTERLY', 'FOUR_MONTHLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM', 'ON_DEMAND']),
+  defaultVisitsPerYear: z.coerce.number().int().min(1).max(52),
+  pricingModel: z.enum(['TIERED_TONNAGE', 'FLAT_PER_UNIT', 'PER_SERVICE']).default('TIERED_TONNAGE'),
+  rateSplitSmall: z.coerce.number().min(0).nullable().optional(),
+  rateSplitLarge: z.coerce.number().min(0).nullable().optional(),
+  rateWindowSmall: z.coerce.number().min(0).nullable().optional(),
+  rateWindowLarge: z.coerce.number().min(0).nullable().optional(),
+  rateFlat: z.coerce.number().min(0).nullable().optional(),
+  gstRatePercent: z.coerce.number().min(0).max(100).default(0),
+  maxEquipmentAgeYears: z.coerce.number().int().min(1).max(30).nullable().optional(),
+  hasGasCharging: z.boolean().default(false),
+  hasSpareParts: z.boolean().default(false),
+  hasUnlimitedComplaints: z.boolean().default(true),
+  isActive: z.boolean().default(true),
+  rateMetadata: z.record(z.string(), z.any()).nullable().optional(),
+});
+
+export const updatePlanSchema = createPlanSchema.partial();
+

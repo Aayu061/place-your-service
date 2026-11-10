@@ -102,6 +102,7 @@ export class ServiceRequestService {
       requestType: record.request_type,
       priority: record.priority,
       description: record.description,
+      issueCategory: (record as any).issue_category || null,
       reportedDate: record.reported_date,
       preferredDate: record.preferred_date,
       status: record.status,
@@ -222,6 +223,7 @@ export class ServiceRequestService {
       request_type: payload.requestType,
       priority: payload.priority || 'MEDIUM',
       description: payload.description.trim(),
+      issue_category: payload.issueCategory?.trim() || null,
       preferred_date: payload.preferredDate || null,
       status: 'REQUESTED' as ServiceRequestStatus,
       notes: payload.notes?.trim() || null,
@@ -385,6 +387,7 @@ export class ServiceRequestService {
     if (payload.requestType !== undefined) updateData.request_type = payload.requestType;
     if (payload.priority !== undefined) updateData.priority = payload.priority;
     if (payload.description !== undefined) updateData.description = payload.description.trim();
+    if (payload.issueCategory !== undefined) updateData.issue_category = payload.issueCategory ? payload.issueCategory.trim() : null;
     if (payload.preferredDate !== undefined) updateData.preferred_date = payload.preferredDate;
     if (payload.notes !== undefined) updateData.notes = payload.notes ? payload.notes.trim() : null;
     if (payload.siteId !== undefined) updateData.site_id = payload.siteId;

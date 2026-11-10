@@ -21,6 +21,14 @@ export interface TechJob {
   notes?: string | null;
   amc_id?: string | null;
   service_request_id?: string | null;
+  service_requests?: {
+    id: string;
+    request_number?: string;
+    request_type?: string;
+    issue_category?: string | null;
+    description?: string;
+    priority?: string;
+  } | null;
   customers?: {
     id: string;
     name: string;

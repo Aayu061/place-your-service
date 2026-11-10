@@ -44,6 +44,7 @@ export interface Customer {
   customerCode: string; // Human-readable business identifier (e.g., CUST-001)
   name: string;
   companyName?: string | null;
+  gstNumber?: string | null;
   customerType: CustomerType;
   type?: CustomerType; // Compatibility alias
   phone: string;
@@ -321,6 +322,8 @@ export interface Technician {
   serviceArea?: string; // Compatibility alias
   status: TechnicianStatus;
   isActive: boolean;
+  hasPortalPin?: boolean;
+  lastDutyStatusAt?: string | null;
   maxDailyWorkload: number;
   currentWorkload: number; // Derived active assignment count
   joiningDate?: string | null;
@@ -338,7 +341,15 @@ export interface Technician {
 /* --------------------------------------------------
  * 5. AMC Plans & Contracts
  * -------------------------------------------------- */
-export type AmcFrequency = 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY';
+export type AmcFrequency =
+  | 'MONTHLY'
+  | 'BI_MONTHLY'
+  | 'QUARTERLY'
+  | 'FOUR_MONTHLY'
+  | 'HALF_YEARLY'
+  | 'YEARLY'
+  | 'CUSTOM'
+  | 'ON_DEMAND';
 export type AmcStatus =
   | 'DRAFT'
   | 'ACTIVE'
@@ -352,12 +363,26 @@ export interface AmcPlan {
   planCode: string;
   name: string;
   planName?: string; // Compatibility alias
+  category?: 'SPECIAL_COMPREHENSIVE' | 'SEMI_COMPREHENSIVE' | 'ORDINARY' | 'PREMIUM_JACKET' | 'STANDALONE';
   description?: string | null;
+  coverageSummary?: string | null;
   defaultFrequency: AmcFrequency;
   frequency?: AmcFrequency; // Compatibility alias
   defaultVisitsPerYear: number;
   totalVisits?: number; // Compatibility alias
   includedVisits?: number; // Compatibility alias
+  pricingModel?: 'TIERED_TONNAGE' | 'FLAT_PER_UNIT' | 'PER_SERVICE';
+  rateSplitSmall?: number | null;
+  rateSplitLarge?: number | null;
+  rateWindowSmall?: number | null;
+  rateWindowLarge?: number | null;
+  rateFlat?: number | null;
+  gstRatePercent?: number;
+  maxEquipmentAgeYears?: number | null;
+  hasGasCharging?: boolean;
+  hasSpareParts?: boolean;
+  hasUnlimitedComplaints?: boolean;
+  rateMetadata?: Record<string, any> | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -520,6 +545,7 @@ export interface ServiceRequest {
   priority: ServicePriority;
   status: ServiceStatus;
   description: string;
+  issueCategory?: string | null;
   issueDescription?: string; // Compatibility alias
   reportedDate?: string;
   preferredDate?: string | null;
@@ -872,8 +898,22 @@ export interface ScheduleFilterParams {
 
 export type ServiceVisitType = 'PREVENTIVE' | 'SERVICE_REQUEST';
 export type ServiceVisitOutcome = 'COMPLETED' | 'PENDING_PARTS' | 'PENDING_REPAIRS';
-export type PlannedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
-export type PerformedServiceType = 'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE';
+export type PlannedServiceType =
+  | 'DRY_SERVICE'
+  | 'JET_SERVICE'
+  | 'JACKET_SERVICE'
+  | 'PUMPDOWN_SERVICE'
+  | 'DIAGNOSTIC_INSPECTION'
+  | 'GAS_RECHARGE'
+  | 'CAPACITOR_REPLACE'
+  | 'PCB_REPAIR'
+  | 'MOTOR_REPAIR'
+  | 'COMPRESSOR_REPAIR'
+  | 'WATER_LEAK_FIX'
+  | 'ELECTRICAL_FIX'
+  | 'COIL_BRAZING'
+  | 'GENERAL_REPAIR';
+export type PerformedServiceType = PlannedServiceType;
 export type ServiceResolutionStatus =
   | 'OPEN'
   | 'AWAITING_PARTS'

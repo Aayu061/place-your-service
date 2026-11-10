@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
+import { getBreakdownCategoryLabel, getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
 
 export interface TechnicianDashboardProps {
   onStartReport: (scheduleId: string) => void;
@@ -323,12 +324,28 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                           borderRadius: 'var(--radius-sm)',
                           fontSize: '10px',
                           fontWeight: 700,
-                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          color: '#2563eb',
-                          border: '1px solid rgba(59, 130, 246, 0.2)',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          color: '#dc2626',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
                         }}
                       >
-                        Service Call
+                        Breakdown Call
+                      </span>
+                    )}
+
+                    {job.service_requests?.issue_category && (
+                      <span
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          backgroundColor: 'rgba(217, 119, 6, 0.1)',
+                          color: '#b45309',
+                          border: '1px solid rgba(217, 119, 6, 0.2)',
+                        }}
+                      >
+                        {getBreakdownCategoryLabel(job.service_requests.issue_category)}
                       </span>
                     )}
                   </div>
@@ -383,10 +400,27 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                     </div>
                   )}
 
-                  {/* Planned Service Type / Notes */}
+                  {/* Breakdown Complaint Summary */}
+                  {job.service_requests?.description && (
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: '#92400e',
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        padding: '6px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        marginTop: '4px',
+                      }}
+                    >
+                      <strong>Customer Complaint:</strong> {job.service_requests.description}
+                    </div>
+                  )}
+
+                  {/* Planned Service Type */}
                   {job.planned_service_type && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
-                      Planned: {job.planned_service_type}
+                    <div style={{ fontSize: '11px', color: 'var(--color-primary-700)', fontWeight: 600, marginTop: '2px' }}>
+                      📋 Planned Scope: {getPlannedServiceTypeLabel(job.planned_service_type)}
                     </div>
                   )}
                 </div>

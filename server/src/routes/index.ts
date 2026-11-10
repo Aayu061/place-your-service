@@ -14,6 +14,7 @@ import serviceReportRouter from './serviceReport.routes.js';
 import analyticsRouter from './analytics.routes.js';
 import operationsRouter from './operations.routes.js';
 import exportRouter from './export.routes.js';
+import complianceRouter from './compliance.routes.js';
 import techRouter from './technicianPortal.routes.js';
 
 const apiV1Router = Router();
@@ -27,6 +28,7 @@ apiV1Router.use('/staff', staffRouter);
 
 // Phase 4 Customer Management Routes
 apiV1Router.use('/customers', customerRouter);
+apiV1Router.use('/compliance', complianceRouter);
 
 // Phase 5 Customer Sites & AC Asset Register Routes
 apiV1Router.use('/sites', siteRouter);

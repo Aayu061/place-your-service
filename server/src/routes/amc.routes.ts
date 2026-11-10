@@ -16,6 +16,9 @@ import {
   renewAmcContractSchema,
   sendQuotationSchema,
   clearPaymentSchema,
+  planIdParamSchema,
+  createPlanSchema,
+  updatePlanSchema,
 } from '../validators/amc.validator.js';
 
 const amcRouter = Router();
@@ -23,8 +26,12 @@ const amcRouter = Router();
 // All AMC routes require authentication and ADMIN or STAFF role
 amcRouter.use(requireAuth, requireRole('ADMIN', 'STAFF'));
 
-// 1. Reusable plans
+// 1. Reusable plans (CRUD)
 amcRouter.get('/plans', amcController.listPlans.bind(amcController));
+amcRouter.get('/plans/:id', validate({ params: planIdParamSchema }), amcController.getPlanById.bind(amcController));
+amcRouter.post('/plans', requireRole('ADMIN'), validate({ body: createPlanSchema }), amcController.createPlan.bind(amcController));
+amcRouter.put('/plans/:id', requireRole('ADMIN'), validate({ params: planIdParamSchema, body: updatePlanSchema }), amcController.updatePlan.bind(amcController));
+amcRouter.delete('/plans/:id', requireRole('ADMIN'), validate({ params: planIdParamSchema }), amcController.deletePlan.bind(amcController));
 
 // 2. Dashboard metrics
 amcRouter.get('/metrics', amcController.getMetrics.bind(amcController));

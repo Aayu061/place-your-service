@@ -84,13 +84,13 @@ export function computePlannedServiceTypes(
     );
   }
 
-  const remainingCounts: Record<PlannedServiceType, number> = {
+  const remainingCounts: Record<'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE', number> = {
     DRY_SERVICE: dry,
     JET_SERVICE: jet,
     PUMPDOWN_SERVICE: pumpdown,
   };
 
-  const typesInOrder: PlannedServiceType[] = ['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE'];
+  const typesInOrder: Array<'DRY_SERVICE' | 'JET_SERVICE' | 'PUMPDOWN_SERVICE'> = ['DRY_SERVICE', 'JET_SERVICE', 'PUMPDOWN_SERVICE'];
   const result: PlannedServiceType[] = [];
 
   while (result.length < totalVisits) {
@@ -212,13 +212,15 @@ export class AmcService {
   /**
    * List reusable AMC plans
    */
-  async listPlans(): Promise<AmcPlanResponse[]> {
+  async listPlans(includeInactive: boolean = false): Promise<AmcPlanResponse[]> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
-      .from('amc_plans')
-      .select('*')
-      .eq('is_active', true)
-      .order('default_visits_per_year', { ascending: true });
+    let query = supabase.from('amc_plans').select('*');
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query.order('default_visits_per_year', { ascending: true });
 
     if (error) {
       logger.error('Failed to list AMC plans', { error });
@@ -229,13 +231,223 @@ export class AmcService {
       id: row.id,
       planCode: row.plan_code,
       name: row.name,
+      category: row.category || 'ORDINARY',
       description: row.description,
+      coverageSummary: row.coverage_summary,
       defaultFrequency: row.default_frequency as AmcFrequency,
       defaultVisitsPerYear: row.default_visits_per_year,
+      pricingModel: row.pricing_model || 'TIERED_TONNAGE',
+      rateSplitSmall: row.rate_split_small != null ? Number(row.rate_split_small) : null,
+      rateSplitLarge: row.rate_split_large != null ? Number(row.rate_split_large) : null,
+      rateWindowSmall: row.rate_window_small != null ? Number(row.rate_window_small) : null,
+      rateWindowLarge: row.rate_window_large != null ? Number(row.rate_window_large) : null,
+      rateFlat: row.rate_flat != null ? Number(row.rate_flat) : null,
+      gstRatePercent: row.gst_rate_percent != null ? Number(row.gst_rate_percent) : 0,
+      maxEquipmentAgeYears: row.max_equipment_age_years != null ? Number(row.max_equipment_age_years) : null,
+      hasGasCharging: Boolean(row.has_gas_charging),
+      hasSpareParts: Boolean(row.has_spare_parts),
+      hasUnlimitedComplaints: Boolean(row.has_unlimited_complaints),
+      rateMetadata: row.rate_metadata || null,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+  }
+
+  /**
+   * Get single AMC plan by ID
+   */
+  async getPlanById(id: string): Promise<AmcPlanResponse> {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('amc_plans')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new NotFoundError(`AMC plan with ID '${id}' not found`);
+    }
+
+    return {
+      id: data.id,
+      planCode: data.plan_code,
+      name: data.name,
+      category: data.category || 'ORDINARY',
+      description: data.description,
+      coverageSummary: data.coverage_summary,
+      defaultFrequency: data.default_frequency as AmcFrequency,
+      defaultVisitsPerYear: data.default_visits_per_year,
+      pricingModel: data.pricing_model || 'TIERED_TONNAGE',
+      rateSplitSmall: data.rate_split_small != null ? Number(data.rate_split_small) : null,
+      rateSplitLarge: data.rate_split_large != null ? Number(data.rate_split_large) : null,
+      rateWindowSmall: data.rate_window_small != null ? Number(data.rate_window_small) : null,
+      rateWindowLarge: data.rate_window_large != null ? Number(data.rate_window_large) : null,
+      rateFlat: data.rate_flat != null ? Number(data.rate_flat) : null,
+      gstRatePercent: data.gst_rate_percent != null ? Number(data.gst_rate_percent) : 0,
+      maxEquipmentAgeYears: data.max_equipment_age_years != null ? Number(data.max_equipment_age_years) : null,
+      hasGasCharging: Boolean(data.has_gas_charging),
+      hasSpareParts: Boolean(data.has_spare_parts),
+      hasUnlimitedComplaints: Boolean(data.has_unlimited_complaints),
+      rateMetadata: data.rate_metadata || null,
+      isActive: data.is_active,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  }
+
+  /**
+   * Admin Create AMC Plan
+   */
+  async createPlan(payload: any): Promise<AmcPlanResponse> {
+    const supabase = getSupabaseClient();
+    const cleanCode = (payload.planCode || '').trim().toUpperCase();
+
+    // Check duplicate code
+    const { data: duplicate } = await supabase
+      .from('amc_plans')
+      .select('id, plan_code')
+      .eq('plan_code', cleanCode)
+      .maybeSingle();
+
+    if (duplicate) {
+      throw new ConflictError(`AMC Plan with code '${cleanCode}' already exists.`);
+    }
+
+    const insertData = {
+      plan_code: cleanCode,
+      name: payload.name.trim(),
+      category: payload.category || 'ORDINARY',
+      description: payload.description ? payload.description.trim() : null,
+      coverage_summary: payload.coverageSummary ? payload.coverageSummary.trim() : null,
+      default_frequency: payload.defaultFrequency,
+      default_visits_per_year: payload.defaultVisitsPerYear,
+      pricing_model: payload.pricingModel || 'TIERED_TONNAGE',
+      rate_split_small: payload.rateSplitSmall != null ? Number(payload.rateSplitSmall) : null,
+      rate_split_large: payload.rateSplitLarge != null ? Number(payload.rateSplitLarge) : null,
+      rate_window_small: payload.rateWindowSmall != null ? Number(payload.rateWindowSmall) : null,
+      rate_window_large: payload.rateWindowLarge != null ? Number(payload.rateWindowLarge) : null,
+      rate_flat: payload.rateFlat != null ? Number(payload.rateFlat) : null,
+      gst_rate_percent: payload.gstRatePercent != null ? Number(payload.gstRatePercent) : 0,
+      max_equipment_age_years: payload.maxEquipmentAgeYears != null ? Number(payload.maxEquipmentAgeYears) : null,
+      has_gas_charging: Boolean(payload.hasGasCharging),
+      has_spare_parts: Boolean(payload.hasSpareParts),
+      has_unlimited_complaints: payload.hasUnlimitedComplaints !== false,
+      rate_metadata: payload.rateMetadata || null,
+      is_active: payload.isActive !== false,
+    };
+
+    const { data: inserted, error } = await supabase
+      .from('amc_plans')
+      .insert(insertData)
+      .select('*')
+      .single();
+
+    if (error || !inserted) {
+      logger.error('Failed to create AMC plan', { error });
+      throw new BadRequestError(`Failed to create AMC plan: ${error?.message || 'Database error'}`);
+    }
+
+    return this.getPlanById(inserted.id);
+  }
+
+  /**
+   * Admin Update AMC Plan
+   */
+  async updatePlan(id: string, payload: any): Promise<AmcPlanResponse> {
+    const supabase = getSupabaseClient();
+    const existing = await this.getPlanById(id);
+
+    const updateData: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (payload.name !== undefined) updateData.name = payload.name.trim();
+    if (payload.category !== undefined) updateData.category = payload.category;
+    if (payload.description !== undefined) updateData.description = payload.description ? payload.description.trim() : null;
+    if (payload.coverageSummary !== undefined) updateData.coverage_summary = payload.coverageSummary ? payload.coverageSummary.trim() : null;
+    if (payload.defaultFrequency !== undefined) updateData.default_frequency = payload.defaultFrequency;
+    if (payload.defaultVisitsPerYear !== undefined) updateData.default_visits_per_year = payload.defaultVisitsPerYear;
+    if (payload.pricingModel !== undefined) updateData.pricing_model = payload.pricingModel;
+    if (payload.rateSplitSmall !== undefined) updateData.rate_split_small = payload.rateSplitSmall != null ? Number(payload.rateSplitSmall) : null;
+    if (payload.rateSplitLarge !== undefined) updateData.rate_split_large = payload.rateSplitLarge != null ? Number(payload.rateSplitLarge) : null;
+    if (payload.rateWindowSmall !== undefined) updateData.rate_window_small = payload.rateWindowSmall != null ? Number(payload.rateWindowSmall) : null;
+    if (payload.rateWindowLarge !== undefined) updateData.rate_window_large = payload.rateWindowLarge != null ? Number(payload.rateWindowLarge) : null;
+    if (payload.rateFlat !== undefined) updateData.rate_flat = payload.rateFlat != null ? Number(payload.rateFlat) : null;
+    if (payload.gstRatePercent !== undefined) updateData.gst_rate_percent = payload.gstRatePercent != null ? Number(payload.gstRatePercent) : 0;
+    if (payload.maxEquipmentAgeYears !== undefined) updateData.max_equipment_age_years = payload.maxEquipmentAgeYears != null ? Number(payload.maxEquipmentAgeYears) : null;
+    if (payload.hasGasCharging !== undefined) updateData.has_gas_charging = Boolean(payload.hasGasCharging);
+    if (payload.hasSpareParts !== undefined) updateData.has_spare_parts = Boolean(payload.hasSpareParts);
+    if (payload.hasUnlimitedComplaints !== undefined) updateData.has_unlimited_complaints = Boolean(payload.hasUnlimitedComplaints);
+    if (payload.rateMetadata !== undefined) updateData.rate_metadata = payload.rateMetadata;
+    if (payload.isActive !== undefined) updateData.is_active = Boolean(payload.isActive);
+
+    const { error } = await supabase
+      .from('amc_plans')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to update AMC plan', { id, error });
+      throw new BadRequestError(`Failed to update AMC plan: ${error.message}`);
+    }
+
+    return this.getPlanById(id);
+  }
+
+  /**
+   * Admin Delete or Safe Archive AMC Plan
+   */
+  async deleteOrArchivePlan(id: string): Promise<{ message: string; archived: boolean; deleted: boolean }> {
+    const supabase = getSupabaseClient();
+    const existing = await this.getPlanById(id);
+
+    // Check if referenced by active or historical contracts
+    const { count, error: countErr } = await supabase
+      .from('amc_contracts')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', id);
+
+    if (countErr) {
+      logger.error('Failed to check contract references for AMC plan', { id, error: countErr });
+      throw new BadRequestError('Failed to inspect contract references');
+    }
+
+    if (count && count > 0) {
+      // Safely archive (deactivate)
+      const { error: archErr } = await supabase
+        .from('amc_plans')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (archErr) {
+        throw new BadRequestError(`Failed to archive plan: ${archErr.message}`);
+      }
+
+      logger.info('Plan is referenced by contracts and was safely archived', { planId: id, contractsCount: count });
+      return {
+        message: `Plan '${existing.name}' is referenced by ${count} contract(s). It has been safely archived (deactivated) to protect contract integrity.`,
+        archived: true,
+        deleted: false,
+      };
+    }
+
+    // No references: hard delete
+    const { error: delErr } = await supabase
+      .from('amc_plans')
+      .delete()
+      .eq('id', id);
+
+    if (delErr) {
+      throw new BadRequestError(`Failed to delete plan: ${delErr.message}`);
+    }
+
+    logger.info('Plan deleted successfully', { planId: id, planCode: existing.planCode });
+    return {
+      message: `Plan '${existing.name}' (${existing.planCode}) was permanently deleted.`,
+      archived: false,
+      deleted: true,
+    };
   }
 
   /**

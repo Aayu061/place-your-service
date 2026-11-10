@@ -9,6 +9,7 @@ import {
   createTechnicianSchema,
   updateTechnicianSchema,
   updateTechnicianStatusSchema,
+  resetPinSchema,
 } from '../validators/technician.validator.js';
 
 const technicianRouter = Router();
@@ -63,6 +64,13 @@ technicianRouter.post(
   '/:id/deactivate',
   validate(technicianIdParamSchema),
   technicianController.deactivateTechnician.bind(technicianController)
+);
+
+// 8. Reset technician portal security PIN
+technicianRouter.patch(
+  '/:id/pin',
+  validate(resetPinSchema),
+  technicianController.resetPin.bind(technicianController)
 );
 
 export default technicianRouter;
