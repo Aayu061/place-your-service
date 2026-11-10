@@ -55,6 +55,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
+import { complianceApi } from '@/services/complianceApi';
+import { decodeGstin } from '@/utils/gstinDecoder';
 import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
 import {
   calculateDefaultWarrantyEndDate,
@@ -263,6 +265,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState<CustomerType>('TEMPORARY');
   const [formCompanyName, setFormCompanyName] = useState('');
+  const [formGstin, setFormGstin] = useState('');
+  const [isFetchingGst, setIsFetchingGst] = useState(false);
+  const [gstVerificationMessage, setGstVerificationMessage] = useState<string | null>(null);
   const [formPhone, setFormPhone] = useState('');
   const [formAltPhone, setFormAltPhone] = useState('');
   const [formEmail, setFormEmail] = useState('');
@@ -444,6 +449,8 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setFormName('');
     setFormType('TEMPORARY');
     setFormCompanyName('');
+    setFormGstin('');
+    setGstVerificationMessage(null);
     setFormPhone('');
     setFormAltPhone('');
     setFormEmail('');
@@ -464,6 +471,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     formAltPhone ||
     formEmail ||
     formCompanyName ||
+    formGstin ||
     formAddress ||
     formCity ||
     formSiteName ||
@@ -480,6 +488,8 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setFormName(customer.name);
     setFormType(customer.customerType);
     setFormCompanyName(customer.companyName || '');
+    setFormGstin(customer.gstNumber || '');
+    setGstVerificationMessage(null);
     setFormPhone(customer.phone);
     setFormAltPhone(customer.alternatePhone || '');
     setFormEmail(customer.email || '');
@@ -492,6 +502,47 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
     setFormSiteContactPhone(customer.siteContactPhone || '');
     setFormNotes(customer.notes || '');
     setFormError(null);
+  };
+
+  const handleAutoFetchGstin = async () => {
+    const cleanGstin = formGstin.trim().toUpperCase();
+    if (!cleanGstin || cleanGstin.length < 15) {
+      showToast({ type: 'warning', title: 'Invalid GSTIN', message: 'Please enter a 15-character GSTIN' });
+      return;
+    }
+    const decoded = decodeGstin(cleanGstin);
+    if (!decoded.isValid) {
+      showToast({ type: 'warning', title: 'Invalid Format', message: 'GSTIN format is invalid (e.g. 27AAPCA1234F1Z5)' });
+      return;
+    }
+
+    try {
+      setIsFetchingGst(true);
+      setGstVerificationMessage(null);
+      const res = await complianceApi.lookupGstin(cleanGstin);
+      if (res.tradeName && !formCompanyName) {
+        setFormCompanyName(res.tradeName);
+      } else if (res.legalName && !formCompanyName) {
+        setFormCompanyName(res.legalName);
+      }
+      if (res.principalAddress && !formAddress) {
+        setFormAddress(res.principalAddress);
+      }
+      if (res.state && !formState) {
+        setFormState(res.state);
+      }
+      setGstVerificationMessage(`Verified: ${res.state} • ${res.entityType || 'Registered Entity'}`);
+      showToast({ type: 'success', title: 'GSTIN Verified', message: `Identified ${res.state} (${res.entityType || 'Registered'})` });
+    } catch {
+      // Offline fallback
+      if (decoded.state && !formState) {
+        setFormState(decoded.state);
+      }
+      setGstVerificationMessage(`Offline Match: ${decoded.state} • ${decoded.entityType}`);
+      showToast({ type: 'info', title: 'GST Recognized', message: `${decoded.state} • ${decoded.entityType}` });
+    } finally {
+      setIsFetchingGst(false);
+    }
   };
 
   // Create Customer
@@ -518,6 +569,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
         name: formName.trim(),
         customerType: formType,
         companyName: formCompanyName.trim() || undefined,
+        gstNumber: formGstin.trim().toUpperCase() || undefined,
         phone: formPhone.trim(),
         alternatePhone: formAltPhone.trim() || undefined,
         email: formEmail.trim() || undefined,
@@ -572,6 +624,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       const res = await apiClient.patch<CustomerApiResponse>(`/customers/${editingCustomer.id}`, {
         name: formName.trim(),
         companyName: formCompanyName.trim() || null,
+        gstNumber: formGstin.trim().toUpperCase() || null,
         phone: formPhone.trim(),
         alternatePhone: formAltPhone.trim() || null,
         email: formEmail.trim() || null,
@@ -2103,6 +2156,50 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
               />
             </div>
 
+            <div>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+                Customer Company GSTIN (15 Digits)
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    id="add-customer-gstin"
+                    placeholder="e.g. 27AAPCA1234F1Z5"
+                    value={formGstin}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15);
+                      setFormGstin(val);
+                      if (val.length === 15) {
+                        const d = decodeGstin(val);
+                        if (d.isValid) {
+                          setGstVerificationMessage(`${d.state} • ${d.entityType}`);
+                        }
+                      } else {
+                        setGstVerificationMessage(null);
+                      }
+                    }}
+                    autoCapitalize="characters"
+                    style={{ fontFamily: 'monospace', textTransform: 'uppercase' }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAutoFetchGstin}
+                  disabled={isFetchingGst || formGstin.length < 15}
+                  style={{ whiteSpace: 'nowrap', height: '38px', padding: '0 12px' }}
+                >
+                  {isFetchingGst ? 'Fetching...' : '🔍 Auto-Fetch Info'}
+                </Button>
+              </div>
+              {gstVerificationMessage && (
+                <p style={{ fontSize: '11px', color: 'var(--color-success-text, #10b981)', margin: '4px 0 0 0', fontWeight: 600 }}>
+                  ✓ {gstVerificationMessage}
+                </p>
+              )}
+            </div>
+
             {/* Section C: Address */}
             <Input
               id="add-customer-address"
@@ -2253,6 +2350,50 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                 value={formCompanyName}
                 onChange={(e) => setFormCompanyName(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+                Customer Company GSTIN (15 Digits)
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <Input
+                    id="edit-customer-gstin"
+                    placeholder="e.g. 27AAPCA1234F1Z5"
+                    value={formGstin}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15);
+                      setFormGstin(val);
+                      if (val.length === 15) {
+                        const d = decodeGstin(val);
+                        if (d.isValid) {
+                          setGstVerificationMessage(`${d.state} • ${d.entityType}`);
+                        }
+                      } else {
+                        setGstVerificationMessage(null);
+                      }
+                    }}
+                    autoCapitalize="characters"
+                    style={{ fontFamily: 'monospace', textTransform: 'uppercase' }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAutoFetchGstin}
+                  disabled={isFetchingGst || formGstin.length < 15}
+                  style={{ whiteSpace: 'nowrap', height: '38px', padding: '0 12px' }}
+                >
+                  {isFetchingGst ? 'Fetching...' : '🔍 Auto-Fetch Info'}
+                </Button>
+              </div>
+              {gstVerificationMessage && (
+                <p style={{ fontSize: '11px', color: 'var(--color-success-text, #10b981)', margin: '4px 0 0 0', fontWeight: 600 }}>
+                  ✓ {gstVerificationMessage}
+                </p>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
@@ -2655,7 +2796,15 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                     {selectedCustomer.companyName && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Company:</span>
-                        <span>{selectedCustomer.companyName}</span>
+                        <span style={{ fontWeight: 600 }}>{selectedCustomer.companyName}</span>
+                      </div>
+                    )}
+                    {selectedCustomer.gstNumber && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'var(--text-xs)' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Company GSTIN:</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-brand, #0284c7)', backgroundColor: 'var(--bg-surface-subtle)', padding: '2px 6px', borderRadius: '4px' }}>
+                          {selectedCustomer.gstNumber}
+                        </span>
                       </div>
                     )}
                   </div>

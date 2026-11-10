@@ -1617,6 +1617,27 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       <Button
                         variant="secondary"
                         size="sm"
+                        onClick={() => {
+                          setFormCustomerId(detailContract.customerId);
+                          setFormPlanId(detailContract.planId || '');
+                          setFormStartDate(detailContract.startDate);
+                          setFormEndDate(detailContract.endDate);
+                          setFormFrequency(detailContract.frequency);
+                          setFormTotalAmount(detailContract.totalAmount);
+                          setFormTotalVisits(detailContract.totalVisits);
+                          setFormDryVisits(detailContract.dryServiceVisits ?? 0);
+                          setFormJetVisits(detailContract.jetServiceVisits ?? 0);
+                          setFormPumpdownVisits(detailContract.pumpdownServiceVisits ?? 0);
+                          setFormNotes(detailContract.notes || '');
+                          setIsEditModalOpen(true);
+                        }}
+                      >
+                        <Edit2 style={{ width: '14px', height: '14px' }} />
+                        Edit Quotation
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => setIsPrintQuotationModalOpen(true)}
                       >
                         <Printer style={{ width: '14px', height: '14px' }} />
@@ -2586,11 +2607,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         )}
       </Modal>
 
-      {/* 7. EDIT MODAL */}
+      {/* 7. EDIT CONTRACT / QUOTATION MODAL */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="Edit AMC Agreement Details"
+        title={detailContract?.status === 'DRAFT' ? 'Edit AMC Quotation' : 'Edit AMC Agreement Details'}
       >
         <form
           onSubmit={async (e) => {
@@ -2607,14 +2628,18 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             setIsSubmitting(true);
             try {
               await apiClient.patch(`/amc-contracts/${detailContract.id}`, {
+                planId: formPlanId || null,
                 startDate: formStartDate,
                 endDate: formEndDate,
                 frequency: formFrequency,
                 totalAmount: Number(formTotalAmount),
                 totalVisits: Number(formTotalVisits),
+                dryServiceVisits: Number(formDryVisits),
+                jetServiceVisits: Number(formJetVisits),
+                pumpdownServiceVisits: Number(formPumpdownVisits),
                 notes: formNotes || null,
               });
-              showToast({ title: 'Contract Updated', message: 'Details updated successfully', type: 'success' });
+              showToast({ title: 'Quotation Updated', message: 'Details updated successfully', type: 'success' });
               setIsEditModalOpen(false);
               fetchDetailContract(detailContract.id);
               fetchContracts();
@@ -2631,6 +2656,31 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           className="space-y-4"
         >
           <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>AMC Plan / Scheme</label>
+              <select
+                className="input-base"
+                style={{ width: '100%', marginTop: '4px' }}
+                value={formPlanId}
+                onChange={(e) => {
+                  const pId = e.target.value;
+                  setFormPlanId(pId);
+                  const selectedPlan = plans.find((p) => p.id === pId);
+                  if (selectedPlan) {
+                    if (selectedPlan.defaultFrequency) setFormFrequency(selectedPlan.defaultFrequency);
+                    if (selectedPlan.defaultVisitsPerYear) setFormTotalVisits(selectedPlan.defaultVisitsPerYear);
+                  }
+                }}
+              >
+                <option value="">Custom / Unspecified Plan</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.planCode}) — {p.defaultVisitsPerYear} visits/yr
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Start Date</label>
               <Input type="date" value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} required />
@@ -2647,14 +2697,16 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 value={formFrequency}
                 onChange={(e) => setFormFrequency(e.target.value as AmcFrequency)}
               >
-                <option value="MONTHLY">Monthly</option>
-                <option value="QUARTERLY">Quarterly</option>
-                <option value="HALF_YEARLY">Half-Yearly</option>
-                <option value="YEARLY">Yearly</option>
+                <option value="MONTHLY">Monthly (12 visits)</option>
+                <option value="BI_MONTHLY">Bi-Monthly (6 visits)</option>
+                <option value="QUARTERLY">Quarterly (4 visits)</option>
+                <option value="FOUR_MONTHLY">Four-Monthly (3 visits)</option>
+                <option value="HALF_YEARLY">Half-Yearly (2 visits)</option>
+                <option value="YEARLY">Yearly (1 visit)</option>
               </select>
             </div>
             <div>
-              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Visits</label>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Included Visits</label>
               <Input
                 type="number"
                 min="1"
@@ -2668,18 +2720,94 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 </span>
               )}
             </div>
+
+            {/* PM Breakdown Allocation */}
+            <div className="col-span-2" style={{ padding: '8px 12px', background: 'var(--bg-surface-subtle)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  PM Service Visit Breakdown
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: isAllocationValid ? 'var(--color-success-text)' : 'var(--color-error-text)' }}>
+                  Allocated: {allocatedVisits} / {formTotalVisits} {isAllocationValid ? '✓' : `(${remainingVisits} remaining)`}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '10.5px', fontWeight: 600 }}>Dry Services</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formDryVisits}
+                    onChange={(e) => setFormDryVisits(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10.5px', fontWeight: 600 }}>Jet Services</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formJetVisits}
+                    onChange={(e) => setFormJetVisits(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10.5px', fontWeight: 600 }}>Pumpdown</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formPumpdownVisits}
+                    onChange={(e) => setFormPumpdownVisits(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Live Rate Chart Recalculation Suggestion */}
+            {liveQuote && (
+              <div
+                style={{
+                  gridColumn: 'span 2',
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(2, 132, 199, 0.08)',
+                  border: '1px solid rgba(2, 132, 199, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 700 }}>
+                    Official Rate Chart Quote: ₹{liveQuote.totalAmount.toLocaleString('en-IN')}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                    Base: ₹{liveQuote.baseAmount.toLocaleString('en-IN')} + {liveQuote.gstRatePercent}% GST (₹{liveQuote.gstAmount.toLocaleString('en-IN')})
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleApplyCalculatedQuote}
+                  style={{ fontSize: '11px', height: '28px', padding: '0 10px' }}
+                >
+                  ⚡ Apply Quote
+                </Button>
+              </div>
+            )}
+
             <div className="col-span-2">
-              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Amount (INR)</label>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Total Quotation Amount (INR)</label>
               <Input type="number" min="0" value={formTotalAmount} onChange={(e) => setFormTotalAmount(Number(e.target.value))} required />
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Notes</label>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>Internal Notes / Terms</label>
             <Textarea rows={2} value={formNotes} onChange={(e) => setFormNotes(e.target.value)} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
             <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit" disabled={isSubmitting}>Save Changes</Button>
+            <Button variant="primary" type="submit" disabled={isSubmitting}>Save Quotation</Button>
           </div>
         </form>
       </Modal>

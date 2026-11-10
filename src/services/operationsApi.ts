@@ -35,6 +35,8 @@ export interface PaymentRecord {
     id?: string;
     name: string;
     customer_code: string;
+    company_name?: string | null;
+    gst_number?: string | null;
     phone?: string | null;
     email?: string | null;
     address?: string | null;
