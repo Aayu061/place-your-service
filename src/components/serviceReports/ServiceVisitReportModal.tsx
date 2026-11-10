@@ -9,6 +9,11 @@ import {
   ServiceVisitReport,
   AcAsset,
 } from '@/domain/types';
+import {
+  PM_SERVICE_TYPES,
+  BREAKDOWN_REPAIR_TYPES,
+  getPlannedServiceTypeLabel,
+} from '@/domain/breakdownTypes';
 import { serviceReportApi } from '@/services/serviceReportApi';
 import { apiClient, ApiError } from '@/services/api/client';
 import { Modal } from '@/components/ui/Modal';
@@ -1168,7 +1173,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     }`,
                   }}
                 >
-                  {plannedServiceType === 'DRY_SERVICE' ? 'Dry Service' : plannedServiceType === 'JET_SERVICE' ? 'Jet Service' : 'Pumpdown Service'}
+                  {getPlannedServiceTypeLabel(plannedServiceType)}
                 </span>
               ) : (
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -1215,9 +1220,16 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 }}
               >
                 <option value="">Select Performed Service Type...</option>
-                <option value="DRY_SERVICE">Dry Service (Routine filter clean & dry coil dust sweep)</option>
-                <option value="JET_SERVICE">Jet Service (High-pressure wet wash & coil deep cleanse)</option>
-                <option value="PUMPDOWN_SERVICE">Pumpdown Service (Refrigerant recovery & major overhaul)</option>
+                <optgroup label="Preventive Maintenance Routine">
+                  {PM_SERVICE_TYPES.map((t) => (
+                    <option key={t.key} value={t.key}>{t.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Breakdown Diagnosis &amp; Repairs">
+                  {BREAKDOWN_REPAIR_TYPES.map((t) => (
+                    <option key={t.key} value={t.key}>{t.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
           </div>
@@ -1240,7 +1252,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 <span>Service Type Deviation Justification Required</span>
               </div>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                The service performed (<strong>{performedServiceType.replace('_', ' ')}</strong>) differs from the planned visit (<strong>{plannedServiceType.replace('_', ' ')}</strong>). Please enter an operational justification for management and client records.
+                The service performed (<strong>{getPlannedServiceTypeLabel(performedServiceType)}</strong>) differs from the planned visit (<strong>{getPlannedServiceTypeLabel(plannedServiceType)}</strong>). Please enter an operational justification for management and client records.
               </p>
               <div>
                 <label

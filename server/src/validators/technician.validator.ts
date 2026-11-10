@@ -142,3 +142,12 @@ export const updateTechnicianStatusSchema = {
       message: 'At least one of status or isActive must be provided',
     }),
 };
+
+export const resetPinSchema = {
+  params: z.object({
+    id: z.string().guid('Invalid technician ID format'),
+  }),
+  body: z.object({
+    pin: z.string().trim().regex(/^\d{4,6}$/, 'PIN must be a 4-to-6 digit numeric code'),
+  }),
+};

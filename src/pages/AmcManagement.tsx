@@ -17,11 +17,15 @@ import {
   CheckCircle,
   Send,
   Printer,
+  Shield,
+  Calculator,
 } from 'lucide-react';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
+import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
+import { calculateAmcQuote, AmcQuoteResult } from '@/domain/amcRateCard';
 import {
   AmcContract,
   AmcPlan,
@@ -141,6 +145,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('status') || 'ACTIVE');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [primarySection, setPrimarySection] = useState<'CONTRACTS' | 'RATE_CARDS'>('CONTRACTS');
 
   // Metrics & Plans
   const [metrics, setMetrics] = useState<AmcMetricsApiResponse['metrics'] | null>(null);
@@ -209,7 +214,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     try {
       const [metricsRes, plansRes] = await Promise.all([
         apiClient.get<AmcMetricsApiResponse>('/amc-contracts/metrics'),
-        apiClient.get<AmcPlansApiResponse>('/amc-contracts/plans'),
+        apiClient.get<AmcPlansApiResponse>('/amc-contracts/plans?includeInactive=true'),
       ]);
       setMetrics(metricsRes.metrics);
       setPlans(plansRes.plans);
@@ -387,6 +392,48 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     if (chosen) {
       setFormFrequency(chosen.defaultFrequency);
       setFormTotalVisits(chosen.defaultVisitsPerYear);
+      if (chosen.planCode?.includes('JACKET-2')) {
+        setFormDryVisits(0);
+        setFormJetVisits(2);
+        setFormPumpdownVisits(0);
+      } else if (chosen.planCode?.includes('JACKET-3')) {
+        setFormDryVisits(0);
+        setFormJetVisits(3);
+        setFormPumpdownVisits(0);
+      } else if (chosen.planCode?.includes('STANDALONE-PUMP')) {
+        setFormDryVisits(0);
+        setFormJetVisits(0);
+        setFormPumpdownVisits(1);
+      } else if (chosen.planCode?.includes('STANDALONE-JET')) {
+        setFormDryVisits(0);
+        setFormJetVisits(1);
+        setFormPumpdownVisits(0);
+      } else {
+        const total = chosen.defaultVisitsPerYear || 4;
+        const jet = Math.min(2, Math.max(1, Math.floor(total / 2)));
+        setFormJetVisits(jet);
+        setFormDryVisits(Math.max(0, total - jet));
+        setFormPumpdownVisits(0);
+      }
+    }
+  };
+
+  // Live Authoritative Quote Calculation
+  const selectedPlanObj = plans.find((p) => p.id === formPlanId);
+  const selectedAssetsList = availableAssets.filter((a) => formCoveredAssetIds.includes(a.id));
+  const liveQuote: AmcQuoteResult | null =
+    selectedPlanObj && selectedAssetsList.length > 0
+      ? calculateAmcQuote(selectedPlanObj as any, selectedAssetsList)
+      : null;
+
+  const handleApplyCalculatedQuote = () => {
+    if (liveQuote) {
+      setFormTotalAmount(liveQuote.totalAmount);
+      showToast({
+        title: 'Quote Applied',
+        message: `Applied authoritative rate calculation of ₹${liveQuote.totalAmount.toLocaleString('en-IN')} (incl. ${liveQuote.gstRatePercent}% GST).`,
+        type: 'info',
+      });
     }
   };
 
@@ -760,7 +807,65 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         </div>
       </div>
 
-      {/* 2. KPI Metrics Bar */}
+      {/* Primary Section Switcher */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          borderBottom: '1px solid var(--border-default)',
+          paddingBottom: '8px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setPrimarySection('CONTRACTS')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            fontSize: 'var(--text-sm)',
+            cursor: 'pointer',
+            border: 'none',
+            backgroundColor: primarySection === 'CONTRACTS' ? 'var(--color-primary-500)' : 'transparent',
+            color: primarySection === 'CONTRACTS' ? '#ffffff' : 'var(--text-secondary)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <FileCheck2 size={16} />
+          Contracts &amp; Maintenance ({total})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setPrimarySection('RATE_CARDS')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            fontSize: 'var(--text-sm)',
+            cursor: 'pointer',
+            border: 'none',
+            backgroundColor: primarySection === 'RATE_CARDS' ? 'var(--color-primary-500)' : 'transparent',
+            color: primarySection === 'RATE_CARDS' ? '#ffffff' : 'var(--text-secondary)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Shield size={16} />
+          Rate Cards &amp; Plans ({plans.length})
+        </button>
+      </div>
+
+      {primarySection === 'RATE_CARDS' ? (
+        <AmcPlanRateCards plans={plans} onPlansUpdated={fetchAuxData} />
+      ) : (
+        <>
+          {/* 2. KPI Metrics Bar */}
       {metrics && (
         <div
           style={{
@@ -1216,6 +1321,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* 5. Detail Drawer */}
       <Drawer
@@ -1970,6 +2077,48 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   )}
                 </div>
 
+                {/* Live Authoritative Rate Chart Calculation Box */}
+                {liveQuote && (
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      backgroundColor: 'rgba(2, 132, 199, 0.05)',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        <Calculator size={15} color="#0284c7" />
+                        Authoritative Rate Chart Calculation ({selectedAssetsList.length} units selected):
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px' }}>
+                        Base: ₹{liveQuote.baseAmount.toLocaleString('en-IN')} + GST ({liveQuote.gstRatePercent}%): ₹{liveQuote.gstAmount.toLocaleString('en-IN')} = <strong>₹{liveQuote.totalAmount.toLocaleString('en-IN')}</strong>
+                      </div>
+                      {liveQuote.warnings.length > 0 && (
+                        <div style={{ fontSize: '10px', color: 'var(--color-warning-600, #d97706)', marginTop: '4px', fontWeight: 600 }}>
+                          ⚠️ {liveQuote.warnings.join(' • ')}
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleApplyCalculatedQuote}
+                    >
+                      Apply Quote (₹{liveQuote.totalAmount.toLocaleString('en-IN')})
+                    </Button>
+                  </div>
+                )}
+
                 {/* Commercial Amount */}
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label htmlFor="amc-amount" style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -2344,6 +2493,44 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       </div>
                     </label>
                   ))}
+                </div>
+              )}
+
+              {/* Step 3 Live Rate Calculation Breakdown */}
+              {liveQuote && (
+                <div
+                  style={{
+                    backgroundColor: 'rgba(2, 132, 199, 0.05)',
+                    border: '1px solid rgba(2, 132, 199, 0.25)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 14px',
+                    fontSize: 'var(--text-xs)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Calculator size={14} color="#0284c7" />
+                      Calculated Commercial Total:
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 'var(--text-sm)', color: '#0284c7' }}>
+                      ₹{liveQuote.totalAmount.toLocaleString('en-IN')}{' '}
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        (incl. {liveQuote.gstRatePercent}% GST)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                    <span>Covered Units: <strong>{liveQuote.lines.length}</strong></span>
+                    <span>Base Subtotal: <strong>₹{liveQuote.baseAmount.toLocaleString('en-IN')}</strong></span>
+                    <span>GST Amount: <strong>₹{liveQuote.gstAmount.toLocaleString('en-IN')}</strong></span>
+                  </div>
+
+                  {liveQuote.warnings.length > 0 && (
+                    <div style={{ marginTop: '6px', color: 'var(--color-warning-600, #d97706)', fontWeight: 600, fontSize: '10px' }}>
+                      ⚠️ {liveQuote.warnings.join(' • ')}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

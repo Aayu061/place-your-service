@@ -19,6 +19,11 @@ import {
   UserX,
   Briefcase,
   FileText,
+  KeyRound,
+  Copy,
+  ExternalLink,
+  Share2,
+  ShieldCheck,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import {
@@ -125,6 +130,12 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   // Selected Technician & Drawer
   const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+
+  // Field Portal PIN Reset State
+  const [isResetPinModalOpen, setIsResetPinModalOpen] = useState<boolean>(false);
+  const [newPin, setNewPin] = useState<string>('');
+  const [confirmPin, setConfirmPin] = useState<string>('');
+  const [isSubmittingPin, setIsSubmittingPin] = useState<boolean>(false);
 
   // Add / Edit Modal
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
@@ -290,6 +301,62 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
       }
     } catch {
       // Use existing tech state if background detail fetch fails
+    }
+  };
+
+  const getPortalUrl = (techCode: string) => {
+    return `${window.location.origin}/?portal=tech&code=${encodeURIComponent(techCode)}`;
+  };
+
+  const handleCopyPortalLink = (tech: Technician) => {
+    const url = getPortalUrl(tech.technicianCode);
+    navigator.clipboard.writeText(url);
+    showToast({
+      title: 'Link Copied',
+      message: `Copied field portal dispatch link for ${tech.name} (${tech.technicianCode}).`,
+      type: 'success',
+    });
+  };
+
+  const handleShareWhatsApp = (tech: Technician) => {
+    const url = getPortalUrl(tech.technicianCode);
+    const cleanPhone = (tech.phone || '').replace(/\D/g, '');
+    const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const msg = `Extreme Sales & Services — Field Dispatch Portal\nTechnician: ${tech.name} (${tech.technicianCode})\nYour Access Link: ${url}\nEnter your 4-digit security PIN to access your daily job queue.`;
+    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleResetPinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTech) return;
+    if (!/^\d{4}$/.test(newPin)) {
+      showToast({ title: 'Validation Error', message: 'Security PIN must be exactly 4 digits.', type: 'warning' });
+      return;
+    }
+    if (newPin !== confirmPin) {
+      showToast({ title: 'Validation Error', message: 'PIN confirmation does not match.', type: 'warning' });
+      return;
+    }
+
+    try {
+      setIsSubmittingPin(true);
+      await apiClient.patch(`/technicians/${selectedTech.id}/pin`, { pin: newPin });
+      showToast({
+        title: 'Security PIN Updated',
+        message: `Field portal PIN successfully reset for ${selectedTech.name}.`,
+        type: 'success',
+      });
+      setIsResetPinModalOpen(false);
+      setNewPin('');
+      setConfirmPin('');
+    } catch (err: any) {
+      showToast({
+        title: 'PIN Reset Failed',
+        message: err instanceof ApiError ? err.message : 'Error updating PIN',
+        type: 'error',
+      });
+    } finally {
+      setIsSubmittingPin(false);
     }
   };
 
@@ -1166,6 +1233,105 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               )}
             </div>
 
+            {/* Field Portal Access & Dispatch Credentials */}
+            <div
+              className="card"
+              style={{
+                padding: 'var(--space-4)',
+                backgroundColor: 'rgba(2, 132, 199, 0.04)',
+                border: '1px solid rgba(2, 132, 199, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShieldCheck size={16} color="#0284c7" />
+                  <h4 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Field Portal Access &amp; Dispatch Credentials
+                  </h4>
+                </div>
+                <Badge variant={selectedTech.isActive ? 'success' : 'neutral'}>
+                  {selectedTech.isActive ? 'PORTAL ACTIVE' : 'DISABLED'}
+                </Badge>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: 'var(--text-xs)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Login Identifier:</span>
+                  <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                    {selectedTech.technicianCode} / {selectedTech.phone}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Field Security PIN:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontFamily: 'monospace', letterSpacing: '2px', fontWeight: 700 }}>••••</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setNewPin('');
+                        setConfirmPin('');
+                        setIsResetPinModalOpen(true);
+                      }}
+                      leftIcon={<KeyRound size={12} />}
+                      style={{ padding: '2px 8px', height: '26px', fontSize: '11px' }}
+                    >
+                      Reset PIN
+                    </Button>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Field Portal Dispatch Link:</span>
+                  <div
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'var(--bg-surface)',
+                      border: '1px solid var(--border-default)',
+                      fontFamily: 'monospace',
+                      fontSize: '11px',
+                      color: 'var(--color-primary-700)',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {getPortalUrl(selectedTech.technicianCode)}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopyPortalLink(selectedTech)}
+                      leftIcon={<Copy size={12} />}
+                      style={{ fontSize: '11px', flex: 1 }}
+                    >
+                      Copy Link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleShareWhatsApp(selectedTech)}
+                      leftIcon={<Share2 size={12} />}
+                      style={{ fontSize: '11px', flex: 1 }}
+                    >
+                      Share WhatsApp
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => window.open(getPortalUrl(selectedTech.technicianCode), '_blank')}
+                      leftIcon={<ExternalLink size={12} />}
+                      style={{ fontSize: '11px' }}
+                    >
+                      Launch
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Contact Details */}
             <div className="card" style={{ padding: 'var(--space-4)' }}>
               <h4 style={{ margin: '0 0 var(--space-3) 0', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
@@ -1335,6 +1501,55 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
           </div>
         </Drawer>
       )}
+
+      {/* RESET SECURITY PIN MODAL */}
+      <Modal
+        isOpen={isResetPinModalOpen}
+        onClose={() => setIsResetPinModalOpen(false)}
+        title={selectedTech ? `Reset Security PIN: ${selectedTech.name} (${selectedTech.technicianCode})` : 'Reset PIN'}
+        description="Set a new 4-digit security PIN for field portal mobile dispatch sign-in."
+        maxWidth="440px"
+      >
+        <form onSubmit={handleResetPinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+              New 4-Digit Security PIN *
+            </label>
+            <Input
+              type="password"
+              maxLength={4}
+              placeholder="e.g. 5678"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
+            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Must be exactly 4 numerical digits.</span>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+              Confirm 4-Digit Security PIN *
+            </label>
+            <Input
+              type="password"
+              maxLength={4}
+              placeholder="Re-enter 4 digits"
+              value={confirmPin}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--space-2)' }}>
+            <Button variant="secondary" type="button" onClick={() => setIsResetPinModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" disabled={isSubmittingPin || newPin.length !== 4 || newPin !== confirmPin}>
+              {isSubmittingPin ? 'Saving...' : 'Update PIN'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* CREATE / EDIT MODAL */}
       <Modal

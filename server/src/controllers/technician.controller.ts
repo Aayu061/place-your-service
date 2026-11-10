@@ -107,6 +107,19 @@ export class TechnicianController {
       next(err);
     }
   }
+
+  public async resetPin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await technicianService.resetPin(
+        req.params.id as string,
+        req.body.pin as string,
+        req.user?.profileId
+      );
+      sendSuccess(res, result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const technicianController = new TechnicianController();

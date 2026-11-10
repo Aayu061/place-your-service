@@ -9,7 +9,10 @@ export interface TechnicianLoginProps {
 }
 
 export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianLoginProps) {
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('code') || '';
+  });
   const [pin, setPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

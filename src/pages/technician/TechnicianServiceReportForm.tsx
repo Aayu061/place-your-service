@@ -6,6 +6,11 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
+import {
+  PM_SERVICE_TYPES,
+  BREAKDOWN_REPAIR_TYPES,
+  getBreakdownCategoryLabel,
+} from '@/domain/breakdownTypes';
 
 export interface TechnicianServiceReportFormProps {
   scheduleId: string;
@@ -74,6 +79,16 @@ export function TechnicianServiceReportForm({
         setCustomerRep(schedule.customers?.name || '');
         if (schedule.planned_service_type) {
           setPerformedServiceType(schedule.planned_service_type);
+        } else if (!schedule.amc_id) {
+          setPerformedServiceType('DIAGNOSTIC_INSPECTION');
+        } else {
+          setPerformedServiceType('DRY_SERVICE');
+        }
+
+        if (!schedule.amc_id) {
+          const complaint = schedule.service_requests?.description || 'Breakdown symptom reported by customer';
+          setDiagnosisFindings(`Inspected unit: ${complaint}. Measured operating parameters.`);
+          setWorkPerformed(`Diagnosed fault and performed corrective on-site servicing.`);
         }
       })
       .catch((err) => {
@@ -494,6 +509,32 @@ export function TechnicianServiceReportForm({
               </p>
             </div>
 
+            {/* Reported Customer Issue */}
+            {job?.service_requests && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: '#b45309' }}>
+                    Reported Breakdown Symptom
+                  </span>
+                  {job.service_requests.issue_category && (
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#b45309', backgroundColor: 'rgba(245, 158, 11, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+                      {getBreakdownCategoryLabel(job.service_requests.issue_category)}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-primary)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                  <strong>Client Complaint:</strong> {job.service_requests.description}
+                </p>
+              </div>
+            )}
+
             {/* Checklist */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Service Checklist</label>
@@ -728,6 +769,43 @@ export function TechnicianServiceReportForm({
         {/* STEP 3: Outcome & Observations */}
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {/* Performed Service Action */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                Service Action Performed *
+              </label>
+              <select
+                value={performedServiceType}
+                onChange={(e) => setPerformedServiceType(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                  boxSizing: 'border-box',
+                }}
+                required
+              >
+                {job?.amc_id ? (
+                  <optgroup label="Preventive Maintenance Routine">
+                    {PM_SERVICE_TYPES.map((t) => (
+                      <option key={t.key} value={t.key}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  <optgroup label="Breakdown Diagnosis &amp; Repairs">
+                    {BREAKDOWN_REPAIR_TYPES.map((t) => (
+                      <option key={t.key} value={t.key}>{t.label}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Visit Outcome *</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', textAlign: 'center' }}>

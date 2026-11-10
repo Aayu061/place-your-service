@@ -7,9 +7,13 @@ import { AmcFrequency } from './types';
 
 export const FREQUENCY_MONTH_INTERVALS: Record<AmcFrequency, number> = {
   MONTHLY: 1,
+  BI_MONTHLY: 2,
   QUARTERLY: 3,
+  FOUR_MONTHLY: 4,
   HALF_YEARLY: 6,
   YEARLY: 12,
+  CUSTOM: 3,
+  ON_DEMAND: 12,
 };
 
 /**

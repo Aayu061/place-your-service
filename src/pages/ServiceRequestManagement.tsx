@@ -18,6 +18,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
+import { BREAKDOWN_CATEGORIES, getBreakdownCategoryLabel } from '@/domain/breakdownTypes';
 import {
   ServiceRequest,
   ServiceType,
@@ -119,6 +120,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     siteId: initialSiteId || '',
     assetId: initialAssetId || '',
     requestType: 'BREAKDOWN' as ServiceType,
+    issueCategory: 'COOLING_ISSUE',
     priority: 'MEDIUM' as ServicePriority,
     description: '',
     preferredDate: '',
@@ -142,6 +144,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editFormData, setEditFormData] = useState({
     requestType: 'BREAKDOWN' as ServiceType,
+    issueCategory: '',
     priority: 'MEDIUM' as ServicePriority,
     description: '',
     preferredDate: '',
@@ -353,6 +356,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
       siteId: initialSiteId || '',
       assetId: initialAssetId || '',
       requestType: 'BREAKDOWN',
+      issueCategory: 'NO_COOLING',
       priority: 'MEDIUM',
       description: '',
       preferredDate: '',
@@ -421,6 +425,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
         siteId: createFormData.siteId,
         assetId: createFormData.assetId || null,
         requestType: createFormData.requestType,
+        issueCategory: createFormData.requestType === 'BREAKDOWN' ? (createFormData.issueCategory || 'GENERAL_BREAKDOWN') : null,
         priority: createFormData.priority,
         description: createFormData.description.trim(),
         preferredDate: createFormData.preferredDate || null,
@@ -495,6 +500,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     if (!detailRequest) return;
     setEditFormData({
       requestType: detailRequest.requestType,
+      issueCategory: detailRequest.issueCategory || '',
       priority: detailRequest.priority,
       description: detailRequest.description,
       preferredDate: detailRequest.preferredDate || '',
@@ -518,6 +524,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
         `/service-requests/${detailRequest.id}`,
         {
           requestType: editFormData.requestType,
+          issueCategory: editFormData.requestType === 'BREAKDOWN' ? (editFormData.issueCategory || 'GENERAL_BREAKDOWN') : null,
           priority: editFormData.priority,
           description: editFormData.description.trim(),
           preferredDate: editFormData.preferredDate || null,
@@ -880,7 +887,12 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                       )}
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-default)' }}>
-                      {req.requestType.replace(/_/g, ' ')}
+                      <div style={{ fontWeight: 500 }}>{req.requestType.replace(/_/g, ' ')}</div>
+                      {req.issueCategory && (
+                        <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>
+                          {getBreakdownCategoryLabel(req.issueCategory)}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <span className={`badge ${getPriorityBadgeClass(req.priority)}`}>
@@ -1121,10 +1133,37 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                 <option value="INSTALLATION">Installation</option>
                 <option value="INSPECTION">Inspection</option>
                 <option value="REPAIR">Repair</option>
-                <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance</option>
                 <option value="OTHER">Other</option>
               </select>
             </div>
+
+            {createFormData.requestType === 'BREAKDOWN' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+                  Breakdown Symptom <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <select
+                  value={createFormData.issueCategory}
+                  onChange={(e) => setCreateFormData((prev) => ({ ...prev, issueCategory: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--bg-surface)',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                  id="select-create-breakdown-category"
+                  required
+                >
+                  {BREAKDOWN_CATEGORIES.map((cat) => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
@@ -1416,6 +1455,17 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                 backgroundColor: 'var(--bg-surface)',
               }}
             >
+              {detailRequest.issueCategory && (
+                <div style={{ marginBottom: 'var(--space-3)', paddingBottom: 'var(--space-3)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>
+                    REPORTED BREAKDOWN SYMPTOM
+                  </div>
+                  <Badge variant="warning">
+                    {getBreakdownCategoryLabel(detailRequest.issueCategory)}
+                  </Badge>
+                </div>
+              )}
+
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
                 PROBLEM DESCRIPTION
               </div>
@@ -1690,10 +1740,37 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                 <option value="INSTALLATION">Installation</option>
                 <option value="INSPECTION">Inspection</option>
                 <option value="REPAIR">Repair</option>
-                <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance</option>
                 <option value="OTHER">Other</option>
               </select>
             </div>
+
+            {editFormData.requestType === 'BREAKDOWN' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>
+                  Breakdown Symptom <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                <select
+                  value={editFormData.issueCategory}
+                  onChange={(e) => setEditFormData((prev) => ({ ...prev, issueCategory: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--bg-surface)',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                  id="select-edit-breakdown-category"
+                >
+                  <option value="">Select Symptom</option>
+                  {BREAKDOWN_CATEGORIES.map((cat) => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>

@@ -17,6 +17,13 @@ export const createCustomerSchema = {
     name: z.string().min(2, 'Customer name must be at least 2 characters').max(150).trim(),
     customerType: z.enum(['TEMPORARY', 'PERMANENT']).optional().default('TEMPORARY'),
     companyName: z.string().max(150).trim().optional(),
+    gstNumber: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i, 'Invalid GSTIN format (e.g. 27AAPCA1234F1Z5)')
+      .optional()
+      .or(z.literal(''))
+      .transform((val) => (val === '' ? undefined : val)),
     email: z
       .string()
       .email('Invalid email address format')
@@ -46,6 +53,14 @@ export const updateCustomerSchema = {
     .object({
       name: z.string().min(2, 'Customer name must be at least 2 characters').max(150).trim().optional(),
       companyName: z.string().max(150).trim().optional().nullable(),
+      gstNumber: z
+        .string()
+        .trim()
+        .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i, 'Invalid GSTIN format (e.g. 27AAPCA1234F1Z5)')
+        .optional()
+        .nullable()
+        .or(z.literal(''))
+        .transform((val) => (val === '' ? null : val)),
       email: z
         .string()
         .email('Invalid email address format')

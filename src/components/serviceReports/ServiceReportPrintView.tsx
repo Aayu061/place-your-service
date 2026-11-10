@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LEGAL_DISCLAIMERS } from '@/config/legalTerms';
+import { getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
 
 interface ServiceReportPrintViewProps {
   report: ServiceVisitReport;
@@ -44,16 +45,7 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
   };
 
   const getServiceTypeLabel = (type?: string | null) => {
-    switch (type) {
-      case 'DRY_SERVICE':
-        return 'Dry Service';
-      case 'JET_SERVICE':
-        return 'Jet Service';
-      case 'PUMPDOWN_SERVICE':
-        return 'Pumpdown Service';
-      default:
-        return 'Not specified';
-    }
+    return getPlannedServiceTypeLabel(type);
   };
 
   return (

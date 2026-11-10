@@ -92,6 +92,7 @@ export const createServiceRequestSchema = {
     requestType: requestTypeEnum,
     priority: priorityEnum.optional().default('MEDIUM'),
     description: z.string().min(5, 'Problem description must be at least 5 characters long').max(2000).trim(),
+    issueCategory: z.string().max(100).trim().optional().nullable(),
     preferredDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Preferred date must be in YYYY-MM-DD format')
@@ -109,6 +110,7 @@ export const updateServiceRequestSchema = {
     requestType: requestTypeEnum.optional(),
     priority: priorityEnum.optional(),
     description: z.string().min(5, 'Problem description must be at least 5 characters long').max(2000).trim().optional(),
+    issueCategory: z.string().max(100).trim().optional().nullable(),
     preferredDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Preferred date must be in YYYY-MM-DD format')

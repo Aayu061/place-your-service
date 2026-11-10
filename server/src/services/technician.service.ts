@@ -12,6 +12,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { hashPin } from '../utils/techAuth.js';
 
 interface RawTechnicianRecord {
   id: string;
@@ -114,6 +115,8 @@ function mapTechnicianRecord(record: RawTechnicianRecord, activeAssignmentsCount
     serviceArea: areas[0] || '',
     status: record.status,
     isActive: record.is_active,
+    hasPortalPin: Boolean((record as any).pin_hash),
+    lastDutyStatusAt: (record as any).last_duty_status_at || null,
     maxDailyWorkload: record.max_daily_workload,
     currentWorkload: activeAssignmentsCount > 0 ? activeAssignmentsCount : (record.current_workload || 0),
     joiningDate: record.joining_date || null,
@@ -664,6 +667,52 @@ export class TechnicianService {
         }
       );
     }
+  }
+
+  /**
+   * Reset or set technician field portal 4-digit to 6-digit security PIN
+   */
+  public async resetPin(
+    id: string,
+    pin: string,
+    actorProfileId?: string
+  ): Promise<{ message: string; technicianCode: string; hasPortalPin: boolean }> {
+    const supabase = getSupabaseClient();
+    const cleanPin = pin.trim();
+    if (!/^\d{4,6}$/.test(cleanPin)) {
+      throw new BadRequestError('PIN must be a 4-to-6 digit numeric code.');
+    }
+
+    const { data: tech, error: fetchErr } = await supabase
+      .from('technicians')
+      .select('id, technician_code, name')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr || !tech) {
+      throw new NotFoundError(`Technician with ID '${id}' not found`);
+    }
+
+    const hashed = hashPin(cleanPin);
+    const { error: updateErr } = await supabase
+      .from('technicians')
+      .update({
+        pin_hash: hashed,
+        updated_at: new Date().toISOString(),
+        updated_by: actorProfileId || null,
+      })
+      .eq('id', id);
+
+    if (updateErr) {
+      throw new BadRequestError(`Failed to update technician PIN: ${updateErr.message}`);
+    }
+
+    logger.info('Technician PIN updated successfully', { techId: id, technicianCode: tech.technician_code });
+    return {
+      message: `Security PIN successfully updated for technician ${tech.technician_code}.`,
+      technicianCode: tech.technician_code,
+      hasPortalPin: true,
+    };
   }
 }
 
