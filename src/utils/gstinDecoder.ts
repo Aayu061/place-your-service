@@ -46,14 +46,7 @@ export function decodeGstin(gstin: string): GstinInfo {
   }
 
   const stateCode = normalized.substring(0, 2);
-  const constitutionChar = normalized.charAt(13); // In PAN it is 4th char (index 3), but in GSTIN constitution is 14th char (index 13)!
-  
-  // Correction: The 14th digit is the constitution type (default Z is 14th).
-  // Actually, constitution is at index 13? Let me re-verify.
-  // Wait, standard GSTIN: 2-char State, 10-char PAN, 1-char Entity No., 1-char Default 'Z', 1-char Checksum.
-  // PAN 4th char is entity type.
-  
-  const constitutionCharFromPan = normalized.charAt(3); 
+  const constitutionCharFromPan = normalized.charAt(5); // In GSTIN, PAN is characters 2..12, so 4th char of PAN is index 5 (2 + 3)
   
   return {
     gstin: normalized,
