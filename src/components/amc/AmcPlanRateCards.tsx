@@ -325,15 +325,40 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
       </div>
 
       {/* Plans Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
-          gap: 'var(--space-4)',
-        }}
-      >
-        {filteredPlans.map((plan) => {
-          const isTiered = plan.pricingModel === 'TIERED_TONNAGE';
+      {filteredPlans.length === 0 ? (
+        <div
+          style={{
+            padding: 'var(--space-8)',
+            textAlign: 'center',
+            backgroundColor: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px dashed var(--border-default)',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <Shield size={36} style={{ margin: '0 auto var(--space-2)', opacity: 0.4 }} />
+          <p style={{ fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary)' }}>No Matching AMC Rate Plans</p>
+          <p style={{ fontSize: 'var(--text-xs)', margin: '0 0 var(--space-4)' }}>
+            {filterCategory !== 'ALL'
+              ? `No active plans found in the "${filterCategory.replace('_', ' ')}" category.`
+              : 'No plans currently in this view.'}
+          </p>
+          {filterCategory !== 'ALL' && (
+            <Button size="sm" variant="secondary" onClick={() => setFilterCategory('ALL')}>
+              Show All Plans ({plans.length})
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+            gap: 'var(--space-4)',
+          }}
+        >
+          {filteredPlans.map((plan) => {
+            const isTiered = plan.pricingModel === 'TIERED_TONNAGE';
           return (
             <div
               key={plan.id}
@@ -486,7 +511,8 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* CREATE PLAN MODAL */}
       <Modal
