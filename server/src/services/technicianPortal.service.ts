@@ -269,6 +269,13 @@ export class TechnicianPortalService {
       customerRepresentative: payload.customerRepresentative,
       customerAcknowledgement: payload.customerAcknowledgement || (payload.signatureDataUrl ? 'Digitally Signed by Customer on Field Device' : null),
       customerSignatureUrl: payload.signatureDataUrl || null,
+      beforePhotoUrl: payload.beforePhotoUrl || null,
+      afterPhotoUrl: payload.afterPhotoUrl || null,
+      paymentCollected: Boolean(payload.paymentCollected),
+      paymentAmount: payload.paymentAmount ? Number(payload.paymentAmount) : 0,
+      paymentMethod: payload.paymentMethod || null,
+      paymentReference: payload.paymentReference ? String(payload.paymentReference).trim() : null,
+      paymentNotes: payload.paymentNotes ? String(payload.paymentNotes).trim() : null,
       assets: payload.assets.map((a: any) => ({
         assetId: a.assetId,
         faultReported: a.faultReported || null,

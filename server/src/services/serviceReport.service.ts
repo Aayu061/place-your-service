@@ -412,6 +412,8 @@ export class ServiceReportService {
         customer_representative: payload.customerRepresentative || null,
         customer_acknowledgement: payload.customerAcknowledgement || null,
         customer_signature_url: payload.customerSignatureUrl || null,
+        before_photo_url: payload.beforePhotoUrl || null,
+        after_photo_url: payload.afterPhotoUrl || null,
         payment_collected: Boolean(payload.paymentCollected),
         payment_amount: payload.paymentAmount != null ? Number(payload.paymentAmount) : 0,
         payment_method: payload.paymentMethod || null,
@@ -685,6 +687,12 @@ export class ServiceReportService {
       void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
     }
 
+    // 9d. Automated Spares & Refrigerant Stock Deduction
+    try {
+      await this.deductInventoryForReport(supabase, newReport.id, trimmedReportNumber, payload, actorId);
+    } catch (invErr) {
+      logger.warn('Non-blocking inventory deduction warning on service report', { error: invErr, reportId: newReport.id });
+    }
     }
 
     // The transaction RPC creates its immutable activity record in the same
@@ -720,7 +728,7 @@ export class ServiceReportService {
         planned_service_type, performed_service_type, service_type_deviation_reason,
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
-        customer_acknowledgement, customer_signature_url, status,
+        customer_acknowledgement, customer_signature_url, before_photo_url, after_photo_url, status,
         payment_collected, payment_amount, payment_method, payment_reference, payment_notes, payment_id,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone, email),
@@ -905,6 +913,8 @@ export class ServiceReportService {
       customerRepresentative: row.customer_representative,
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
+      beforePhotoUrl: row.before_photo_url || null,
+      afterPhotoUrl: row.after_photo_url || null,
       paymentCollected: row.payment_collected ?? false,
       paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : 0,
       paymentMethod: row.payment_method || null,
@@ -969,7 +979,7 @@ export class ServiceReportService {
         planned_service_type, performed_service_type, service_type_deviation_reason,
         originating_report_id, resolving_report_id, resolved_at, resolution_status,
         work_description, technician_remarks, customer_representative,
-        customer_acknowledgement, customer_signature_url, status,
+        customer_acknowledgement, customer_signature_url, before_photo_url, after_photo_url, status,
         payment_collected, payment_amount, payment_method, payment_reference, payment_notes, payment_id,
         follow_up_schedule_id, created_by, updated_by, created_at, updated_at,
         customers (id, name, customer_code, phone, email),
@@ -1107,6 +1117,8 @@ export class ServiceReportService {
       customerRepresentative: row.customer_representative,
       customerAcknowledgement: row.customer_acknowledgement,
       customerSignatureUrl: row.customer_signature_url,
+      beforePhotoUrl: row.before_photo_url || null,
+      afterPhotoUrl: row.after_photo_url || null,
       paymentCollected: row.payment_collected ?? false,
       paymentAmount: row.payment_amount != null ? Number(row.payment_amount) : 0,
       paymentMethod: row.payment_method || null,
@@ -1505,6 +1517,103 @@ export class ServiceReportService {
     });
 
     return this.getReportById(report.id);
+  }
+
+  /**
+   * Automatically deducts spare parts and refrigerant used during a service visit
+   */
+  private async deductInventoryForReport(
+    supabase: any,
+    reportId: string,
+    reportNumber: string,
+    payload: CreateServiceReportPayload,
+    actorId?: string
+  ): Promise<void> {
+    if (!supabase || typeof supabase.from !== 'function') return;
+
+    // 1. Process spare parts listed in report items
+    if (payload.items && payload.items.length > 0) {
+      for (const item of payload.items) {
+        const partName = item.itemName || item.partNumber;
+        if (!partName) continue;
+        const qty = Math.max(1, Number(item.quantity || 1));
+
+        try {
+          const { data: matchedPart } = await supabase
+            .from('parts')
+            .select('id, part_code, name, current_stock, unit_price')
+            .or(`part_code.eq.${partName},name.ilike.%${partName}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (matchedPart) {
+            const newStock = Math.max(0, (matchedPart.current_stock || 0) - qty);
+            await supabase
+              .from('parts')
+              .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+              .eq('id', matchedPart.id);
+
+            await supabase.from('inventory_transactions').insert({
+              part_id: matchedPart.id,
+              transaction_type: 'USAGE',
+              quantity: qty,
+              reference_type: 'SERVICE_REPORT',
+              reference_id: reportId,
+              reason: `Used during visit ${reportNumber}`,
+              recorded_by: actorId || null,
+            });
+
+            await supabase.from('service_parts').insert({
+              service_report_id: reportId,
+              part_id: matchedPart.id,
+              quantity: qty,
+              unit_price: matchedPart.unit_price || 0,
+              total_price: (matchedPart.unit_price || 0) * qty,
+            });
+          }
+        } catch (itemErr) {
+          logger.warn('Failed to deduct part stock for item', { partName, error: itemErr });
+        }
+      }
+    }
+
+    // 2. Process refrigerant charged during visit
+    for (const asset of payload.assets || []) {
+      if (asset.refrigerantAdded && asset.refrigerantType && asset.refrigerantQtyKg && Number(asset.refrigerantQtyKg) > 0) {
+        const gasType = asset.refrigerantType.toUpperCase();
+        const gasQty = Number(asset.refrigerantQtyKg);
+
+        try {
+          const { data: matchedGas } = await supabase
+            .from('parts')
+            .select('id, part_code, name, current_stock, unit_price')
+            .eq('category', 'REFRIGERANT')
+            .ilike('name', `%${gasType}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (matchedGas) {
+            const newStock = Math.max(0, (matchedGas.current_stock || 0) - gasQty);
+            await supabase
+              .from('parts')
+              .update({ current_stock: newStock, updated_at: new Date().toISOString() })
+              .eq('id', matchedGas.id);
+
+            await supabase.from('inventory_transactions').insert({
+              part_id: matchedGas.id,
+              transaction_type: 'USAGE',
+              quantity: Math.ceil(gasQty),
+              reference_type: 'SERVICE_REPORT',
+              reference_id: reportId,
+              reason: `${gasQty}kg ${gasType} gas charged during visit ${reportNumber}`,
+              recorded_by: actorId || null,
+            });
+          }
+        } catch (gasErr) {
+          logger.warn('Failed to deduct refrigerant stock', { gasType, error: gasErr });
+        }
+      }
+    }
   }
 }
 

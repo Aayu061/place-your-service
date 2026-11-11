@@ -88,6 +88,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceScheduleStatus>(() => (new URLSearchParams(window.location.search).get('status') as ServiceScheduleStatus) || 'ALL');
   const [scheduleTypeFilter, setScheduleTypeFilter] = useState<'ALL' | 'PREVENTIVE' | 'SERVICE_REQUEST'>('ALL');
+  const [territoryFilter, setTerritoryFilter] = useState<string>('ALL');
   const [hideCancelledInDaily, setHideCancelledInDaily] = useState<boolean>(true);
 
   // Debounce search input by 300ms
@@ -594,13 +595,19 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   }, [schedules, unscheduledItems]);
 
   const visibleSchedules = useMemo(() => {
-    if (activeTab === 'today' || activeTab === 'calendar') {
-      if (hideCancelledInDaily) {
-        return schedules.filter((s) => s.status !== 'CANCELLED');
-      }
+    let list = schedules;
+    if ((activeTab === 'today' || activeTab === 'calendar') && hideCancelledInDaily) {
+      list = list.filter((s) => s.status !== 'CANCELLED');
     }
-    return schedules;
-  }, [schedules, activeTab, hideCancelledInDaily]);
+    if (territoryFilter !== 'ALL') {
+      const target = territoryFilter.toLowerCase();
+      list = list.filter((s) => {
+        const hay = `${s.siteAddress || ''} ${s.siteName || ''} ${(s as any).customerCity || ''}`.toLowerCase();
+        return hay.includes(target);
+      });
+    }
+    return list;
+  }, [schedules, activeTab, hideCancelledInDaily, territoryFilter]);
 
   // Date stepper
   const handleDateShift = (days: number) => {
@@ -877,7 +884,35 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>
               {activeTab === 'today' ? `Operations on ${formatDate(selectedDate)}` : `Day Slots for ${formatDate(selectedDate)}`}
             </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+              <select
+                value={territoryFilter}
+                onChange={(e) => setTerritoryFilter(e.target.value)}
+                aria-label="Filter by Territory Cluster"
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 600,
+                }}
+              >
+                <option value="ALL">All Territory Clusters</option>
+                <option value="Chembur">Chembur</option>
+                <option value="Worli">Worli</option>
+                <option value="Dahisar">Dahisar</option>
+                <option value="Vashi">Vashi</option>
+                <option value="Panvel">Panvel</option>
+                <option value="Belapur">Belapur</option>
+                <option value="Nerul">Nerul</option>
+                <option value="Airoli">Airoli</option>
+                <option value="Thane">Thane</option>
+                <option value="Navi Mumbai">Navi Mumbai</option>
+                <option value="Mumbai">All Mumbai</option>
+              </select>
+
               <label style={{ fontSize: 'var(--text-xs)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -1548,6 +1583,36 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                          {typeof rec.dailyWorkload === 'number' && typeof rec.maxDailyWorkload === 'number' && (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                backgroundColor:
+                                  rec.dailyWorkload >= rec.maxDailyWorkload
+                                    ? 'rgba(239, 68, 68, 0.12)'
+                                    : rec.dailyWorkload >= rec.maxDailyWorkload - 1
+                                    ? 'rgba(245, 158, 11, 0.12)'
+                                    : 'rgba(34, 197, 94, 0.12)',
+                                color:
+                                  rec.dailyWorkload >= rec.maxDailyWorkload
+                                    ? '#dc2626'
+                                    : rec.dailyWorkload >= rec.maxDailyWorkload - 1
+                                    ? '#d97706'
+                                    : '#16a34a',
+                                border:
+                                  rec.dailyWorkload >= rec.maxDailyWorkload
+                                    ? '1px solid rgba(239, 68, 68, 0.25)'
+                                    : rec.dailyWorkload >= rec.maxDailyWorkload - 1
+                                    ? '1px solid rgba(245, 158, 11, 0.25)'
+                                    : '1px solid rgba(34, 197, 94, 0.25)',
+                              }}
+                            >
+                              Capacity: {rec.dailyWorkload}/{rec.maxDailyWorkload}
+                            </span>
+                          )}
                           {rec.hasConflict ? (
                             <Badge variant="error">SCHEDULE CONFLICT</Badge>
                           ) : !rec.isEligible || rec.warnings.length > 0 ? (

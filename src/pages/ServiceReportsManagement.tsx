@@ -1008,6 +1008,11 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                         Appt: {report.scheduleNumber || 'N/A'}
                       </div>
                       {renderResolutionBadge(report)}
+                      {report.paymentCollected && report.paymentAmount ? (
+                        <div style={{ marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700, color: '#15803d', backgroundColor: '#dcfce7', padding: '1px 6px', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+                          💰 ₹{report.paymentAmount} ({report.paymentMethod || 'PAID'})
+                        </div>
+                      ) : null}
                     </td>
 
                     {/* Actions */}
@@ -1465,6 +1470,51 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Spot Payment Verification Card */}
+            {detailedReport.paymentCollected && (
+              <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, fontSize: '12px', color: '#166534' }}>
+                  <span>💰 Spot Payment Collected on Field</span>
+                  <span>₹{detailedReport.paymentAmount?.toLocaleString('en-IN') || '0'}</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#15803d', marginTop: '4px' }}>
+                  Mode: <strong>{detailedReport.paymentMethod || 'N/A'}</strong>
+                  {detailedReport.paymentReference && ` · UTR / Ref: ${detailedReport.paymentReference}`}
+                </div>
+              </div>
+            )}
+
+            {/* Before & After Photographic Evidence */}
+            {(detailedReport.beforePhotoUrl || detailedReport.afterPhotoUrl) && (
+              <div style={{ padding: '12px', borderRadius: '8px', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface-subtle)', marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                  📸 Field Photographic Evidence
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {detailedReport.beforePhotoUrl && (
+                    <div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Before Service</div>
+                      <img
+                        src={detailedReport.beforePhotoUrl}
+                        alt="Before Service"
+                        style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-default)' }}
+                      />
+                    </div>
+                  )}
+                  {detailedReport.afterPhotoUrl && (
+                    <div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>After Service</div>
+                      <img
+                        src={detailedReport.afterPhotoUrl}
+                        alt="After Service"
+                        style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-default)' }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
