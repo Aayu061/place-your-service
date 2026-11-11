@@ -120,6 +120,15 @@ export class TechnicianController {
       next(err);
     }
   }
+
+  public async getWorkSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const summary = await technicianService.getTechnicianWorkSummary(req.params.id as string);
+      sendSuccess(res, summary);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const technicianController = new TechnicianController();

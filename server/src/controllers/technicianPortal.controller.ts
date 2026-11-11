@@ -69,6 +69,35 @@ export class TechnicianPortalController {
     }
   }
 
+  async updateJobStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const techId = req.technician?.id;
+      if (!techId) {
+        throw new BadRequestError('Technician context missing.');
+      }
+      const scheduleId = String(req.params.id);
+      const { status } = req.body;
+      const result = await technicianPortalService.updateJobStatus(techId, scheduleId, status);
+      sendSuccess(res, result, 200);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getAnalytics(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const techId = req.technician?.id;
+      if (!techId) {
+        throw new BadRequestError('Technician context missing.');
+      }
+      const date = req.query.date as string | undefined;
+      const analytics = await technicianPortalService.getDailyAnalytics(techId, date);
+      sendSuccess(res, analytics, 200);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async submitFieldReport(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const techId = req.technician?.id;

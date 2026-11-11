@@ -73,4 +73,11 @@ technicianRouter.patch(
   technicianController.resetPin.bind(technicianController)
 );
 
+// 9. Live assignments & completed work summary
+technicianRouter.get(
+  '/:id/work-summary',
+  validate(technicianIdParamSchema),
+  technicianController.getWorkSummary.bind(technicianController)
+);
+
 export default technicianRouter;

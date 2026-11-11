@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Calendar,
+  BarChart2,
   CheckCircle2,
   User,
   LogOut,
@@ -10,8 +11,8 @@ import { technicianApi, TechUser } from '@/services/technicianApi';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 export interface TechnicianLayoutProps {
-  activeTab: 'jobs' | 'completed' | 'profile';
-  onTabChange: (tab: 'jobs' | 'completed' | 'profile') => void;
+  activeTab: 'jobs' | 'analytics' | 'completed' | 'profile';
+  onTabChange: (tab: 'jobs' | 'analytics' | 'completed' | 'profile') => void;
   onLogout: () => void;
   tech: TechUser | null;
   onTechChange?: (tech: TechUser) => void;
@@ -333,7 +334,7 @@ export function TechnicianLayout({
       >
         <div
           style={{
-            maxWidth: '440px',
+            maxWidth: '520px',
             margin: '0 auto',
             display: 'flex',
             alignItems: 'center',
@@ -348,7 +349,7 @@ export function TechnicianLayout({
               flexDirection: 'column',
               alignItems: 'center',
               gap: '2px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               fontSize: '10px',
               fontWeight: activeTab === 'jobs' ? 700 : 500,
@@ -356,10 +357,34 @@ export function TechnicianLayout({
               background: activeTab === 'jobs' ? 'rgba(168, 72, 28, 0.08)' : 'none',
               border: 'none',
               cursor: 'pointer',
+              minWidth: '60px',
             }}
           >
             <Calendar size={18} />
-            <span>Today's Jobs</span>
+            <span>Jobs</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('analytics')}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '2px',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '10px',
+              fontWeight: activeTab === 'analytics' ? 700 : 500,
+              color: activeTab === 'analytics' ? 'var(--color-brand)' : 'var(--text-muted)',
+              background: activeTab === 'analytics' ? 'rgba(168, 72, 28, 0.08)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+              minWidth: '60px',
+            }}
+          >
+            <BarChart2 size={18} />
+            <span>Analytics</span>
           </button>
 
           <button
@@ -370,7 +395,7 @@ export function TechnicianLayout({
               flexDirection: 'column',
               alignItems: 'center',
               gap: '2px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               fontSize: '10px',
               fontWeight: activeTab === 'completed' ? 700 : 500,
@@ -378,10 +403,11 @@ export function TechnicianLayout({
               background: activeTab === 'completed' ? 'rgba(168, 72, 28, 0.08)' : 'none',
               border: 'none',
               cursor: 'pointer',
+              minWidth: '60px',
             }}
           >
             <CheckCircle2 size={18} />
-            <span>Completed</span>
+            <span>History</span>
           </button>
 
           <button
@@ -392,7 +418,7 @@ export function TechnicianLayout({
               flexDirection: 'column',
               alignItems: 'center',
               gap: '2px',
-              padding: '6px 14px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               fontSize: '10px',
               fontWeight: activeTab === 'profile' ? 700 : 500,
@@ -400,6 +426,7 @@ export function TechnicianLayout({
               background: activeTab === 'profile' ? 'rgba(168, 72, 28, 0.08)' : 'none',
               border: 'none',
               cursor: 'pointer',
+              minWidth: '60px',
             }}
           >
             <User size={18} />

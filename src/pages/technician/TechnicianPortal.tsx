@@ -5,6 +5,7 @@ import { TechnicianLayout } from '@/layouts/TechnicianLayout';
 import { TechnicianDashboard } from './TechnicianDashboard';
 import { TechnicianServiceReportForm } from './TechnicianServiceReportForm';
 import { TechnicianProfile } from './TechnicianProfile';
+import { TechnicianAnalytics } from './TechnicianAnalytics';
 
 export interface TechnicianPortalProps {
   onSwitchToAdmin: () => void;
@@ -13,7 +14,7 @@ export interface TechnicianPortalProps {
 export function TechnicianPortal({ onSwitchToAdmin }: TechnicianPortalProps) {
   const [token, setToken] = useState<string | null>(technicianApi.getToken());
   const [tech, setTech] = useState<TechUser | null>(technicianApi.getStoredTech());
-  const [currentTab, setCurrentTab] = useState<'jobs' | 'completed' | 'profile' | 'report'>('jobs');
+  const [currentTab, setCurrentTab] = useState<'jobs' | 'analytics' | 'completed' | 'profile' | 'report'>('jobs');
   const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,6 +83,8 @@ export function TechnicianPortal({ onSwitchToAdmin }: TechnicianPortalProps) {
           onLogout={handleLogout}
           onBackToJobs={() => setCurrentTab('jobs')}
         />
+      ) : currentTab === 'analytics' ? (
+        <TechnicianAnalytics />
       ) : (
         <TechnicianDashboard
           filterTab={currentTab === 'completed' ? 'completed' : 'jobs'}

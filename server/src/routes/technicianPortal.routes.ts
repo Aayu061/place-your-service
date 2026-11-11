@@ -23,6 +23,12 @@ techRouter.patch('/status', requireTechAuth, validate(techStatusSchema), technic
 // 4. Today's Assigned Dispatch Queue
 techRouter.get('/jobs', requireTechAuth, technicianPortalController.getAssignedJobs.bind(technicianPortalController));
 
+// 4.1 Update Assigned Job Status (e.g. EN_ROUTE, IN_PROGRESS)
+techRouter.patch('/jobs/:id/status', requireTechAuth, technicianPortalController.updateJobStatus.bind(technicianPortalController));
+
+// 4.2 Real-time Daily Work Analytics & 7-Day Performance Trends
+techRouter.get('/analytics', requireTechAuth, technicianPortalController.getAnalytics.bind(technicianPortalController));
+
 // 5. Job Appointment Context & AC Details
 techRouter.get('/jobs/:id', requireTechAuth, technicianPortalController.getJobDetail.bind(technicianPortalController));
 

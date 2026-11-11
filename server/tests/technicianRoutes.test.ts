@@ -192,7 +192,7 @@ describe('Technician Management API (/api/v1/technicians)', () => {
           };
         }
 
-        if (table === 'service_assignments') {
+        if (table === 'service_assignments' || table === 'service_schedules') {
           return {
             select: vi.fn((cols?: string, opts?: any) => {
               if (opts?.head && opts?.count) {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { KeyRound, Smartphone, LogIn, AlertCircle, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { KeyRound, Smartphone, LogIn, AlertCircle, ShieldCheck, MessageCircle, CheckSquare, Square } from 'lucide-react';
 import { technicianApi } from '@/services/technicianApi';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
@@ -9,13 +9,22 @@ export interface TechnicianLoginProps {
 }
 
 export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianLoginProps) {
+  const pinInputRef = useRef<HTMLInputElement>(null);
   const [identifier, setIdentifier] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('code') || '';
   });
   const [pin, setPin] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If identifier was populated from URL query param (e.g. dispatch link), auto-focus PIN
+    if (identifier.trim().length > 0) {
+      pinInputRef.current?.focus();
+    }
+  }, [identifier]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +43,11 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
 
     try {
       setIsSubmitting(true);
-      await technicianApi.login(cleanId, pin);
+      if (rememberMe) {
+        await technicianApi.login(cleanId, pin);
+      } else {
+        await technicianApi.login(cleanId, pin, false);
+      }
       onLoginSuccess();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || err.message || 'Login failed. Please check your credentials.';
@@ -43,6 +56,10 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
       setIsSubmitting(false);
     }
   };
+
+  const helplineUrl = `https://wa.me/917977805245?text=${encodeURIComponent(
+    `Hello Dispatch Desk, I need assistance logging into my Field Portal (Technician: ${identifier || 'Not entered'}).`
+  )}`;
 
   return (
     <div
@@ -59,7 +76,7 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
       <div
         style={{
           width: '100%',
-          maxWidth: '400px',
+          maxWidth: '420px',
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--space-4)',
@@ -236,11 +253,14 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
                   <KeyRound size={16} />
                 </span>
                 <input
+                  ref={pinInputRef}
                   type="password"
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="••••"
                   inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="current-password"
                   maxLength={6}
                   required
                   style={{
@@ -260,13 +280,34 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
               </div>
             </div>
 
+            {/* Remember device checkbox */}
+            <div
+              onClick={() => setRememberMe(!rememberMe)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                userSelect: 'none',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {rememberMe ? (
+                <CheckSquare size={16} color="var(--color-brand)" />
+              ) : (
+                <Square size={16} color="var(--text-muted)" />
+              )}
+              <span>Remember this device on this phone</span>
+            </div>
+
             {/* Sign In Button */}
             <button
               type="submit"
               disabled={isSubmitting}
               style={{
                 width: '100%',
-                padding: '11px 16px',
+                padding: '12px 16px',
                 borderRadius: 'var(--radius-md)',
                 backgroundColor: 'var(--color-brand)',
                 color: '#ffffff',
@@ -294,34 +335,67 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
             </button>
           </form>
 
-          {/* Security Notice */}
+          {/* Quick Help / Dispatch Desk Helpline */}
           <div
             style={{
               paddingTop: 'var(--space-3)',
               borderTop: '1px solid var(--border-subtle)',
-              textAlign: 'center',
               display: 'flex',
               flexDirection: 'column',
-              gap: '4px',
+              gap: '8px',
             }}
           >
-            <div
+            <a
+              href={helplineUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
                 fontSize: '11px',
-                color: 'var(--color-success-solid, #2F7654)',
+                color: '#25D366',
                 fontWeight: 600,
+                textDecoration: 'none',
+                padding: '6px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(37, 211, 102, 0.08)',
+                border: '1px solid rgba(37, 211, 102, 0.2)',
               }}
             >
-              <ShieldCheck size={14} />
-              <span>Isolated Field Technician Session</span>
+              <MessageCircle size={14} />
+              <span>Forgot PIN or Need Help? Contact Dispatch Desk</span>
+            </a>
+
+            {/* Security Notice */}
+            <div
+              style={{
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
+                marginTop: '4px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: '11px',
+                  color: 'var(--color-success-solid, #2F7654)',
+                  fontWeight: 600,
+                }}
+              >
+                <ShieldCheck size={14} />
+                <span>Isolated Field Technician Session</span>
+              </div>
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
+                Authorized for Extreme Sales &amp; Services field staff only.
+              </p>
             </div>
-            <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
-              Authorized for Extreme Sales &amp; Services field staff only.
-            </p>
           </div>
         </div>
 

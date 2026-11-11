@@ -195,18 +195,20 @@ export class TechnicianService {
     const records = (data as RawTechnicianRecord[]) || [];
     const technicianIds = records.map((t) => t.id);
 
-    // Fetch real active assignments counts if any technicians returned
+    // Fetch real active assignments counts directly from service_schedules
     const assignmentCounts: Record<string, number> = {};
     if (technicianIds.length > 0) {
-      const { data: assignments } = await supabase
-        .from('service_assignments')
+      const { data: activeSchedules } = await supabase
+        .from('service_schedules')
         .select('technician_id, status')
         .in('technician_id', technicianIds)
-        .in('status', ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS']);
+        .in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS', 'EN_ROUTE']);
 
-      if (assignments) {
-        for (const a of assignments) {
-          assignmentCounts[a.technician_id] = (assignmentCounts[a.technician_id] || 0) + 1;
+      if (activeSchedules) {
+        for (const a of activeSchedules) {
+          if (a.technician_id) {
+            assignmentCounts[a.technician_id] = (assignmentCounts[a.technician_id] || 0) + 1;
+          }
         }
       }
     }
@@ -248,12 +250,12 @@ export class TechnicianService {
       throw new NotFoundError(`Technician with ID '${id}' not found`);
     }
 
-    // Query active assignments for true derived workload
+    // Query active assignments from service_schedules for true derived workload
     const { count: activeCount } = await supabase
-      .from('service_assignments')
+      .from('service_schedules')
       .select('id', { count: 'exact', head: true })
       .eq('technician_id', id)
-      .in('status', ['ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS']);
+      .in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS', 'EN_ROUTE']);
 
     return mapTechnicianRecord(data as RawTechnicianRecord, activeCount || 0);
   }
@@ -712,6 +714,54 @@ export class TechnicianService {
       message: `Security PIN successfully updated for technician ${tech.technician_code}.`,
       technicianCode: tech.technician_code,
       hasPortalPin: true,
+    };
+  }
+
+  /**
+   * Retrieves active work assignments and recent performance summary for a technician
+   */
+  public async getTechnicianWorkSummary(id: string) {
+    const supabase = getSupabaseClient();
+    await this.getTechnicianById(id);
+
+    // 1. Fetch active schedules
+    const { data: activeSchedules } = await supabase
+      .from('service_schedules')
+      .select(`
+        id, schedule_number, status, scheduled_date, start_time, end_time, planned_service_type,
+        amc_id, service_request_id,
+        customers ( id, name, phone, customer_code ),
+        customer_sites ( id, site_name, address ),
+        ac_assets ( id, brand, model_number, asset_tag, ac_type, capacity_tons )
+      `)
+      .eq('technician_id', id)
+      .in('status', ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS', 'EN_ROUTE'])
+      .order('scheduled_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(10);
+
+    // 2. Fetch recent completed reports
+    const { data: recentReports } = await supabase
+      .from('service_reports')
+      .select(`
+        id, report_number, service_date, primary_outcome, status, created_at,
+        customers ( id, name, customer_code ),
+        customer_sites ( id, site_name )
+      `)
+      .eq('technician_id', id)
+      .order('service_date', { ascending: false })
+      .limit(5);
+
+    // 3. Count total completed reports
+    const { count: totalCompletedReports } = await supabase
+      .from('service_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('technician_id', id);
+
+    return {
+      activeSchedules: activeSchedules || [],
+      recentReports: recentReports || [],
+      totalCompletedReports: totalCompletedReports || 0,
     };
   }
 }
