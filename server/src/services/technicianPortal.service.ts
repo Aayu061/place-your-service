@@ -226,11 +226,19 @@ export class TechnicianPortalService {
     // Determine visitType automatically
     const visitType: ServiceVisitType = schedule.amc_id ? 'PREVENTIVE' : 'SERVICE_REQUEST';
 
+    // Auto-generate report number if technician left it empty on mobile
+    let reportNumber = (payload.manualReportNumber || '').trim();
+    if (!reportNumber) {
+      const year = new Date().getUTCFullYear();
+      const randSuffix = Math.floor(1000 + Math.random() * 9000);
+      reportNumber = `REP-${year}-${randSuffix}`;
+    }
+
     // Format payload for serviceReportService
     const reportPayload = {
       scheduleId: payload.scheduleId,
       visitType,
-      reportNumber: payload.manualReportNumber,
+      reportNumber,
       serviceDate: payload.reportedVisitDate,
       assistantName: payload.assistantName || null,
       startTime: payload.startTime,
@@ -277,6 +285,190 @@ export class TechnicianPortalService {
     });
 
     return createdReport;
+  }
+
+  /**
+   * Updates the on-site execution status of an assigned job (e.g. EN_ROUTE, IN_PROGRESS)
+   */
+  async updateJobStatus(techId: string, scheduleId: string, status: string) {
+    const supabase = getSupabaseClient();
+
+    const validStatuses = ['SCHEDULED', 'EN_ROUTE', 'IN_PROGRESS', 'COMPLETED'];
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestError(`Invalid schedule status: ${status}. Must be one of ${validStatuses.join(', ')}`);
+    }
+
+    const { data: schedule, error: schedErr } = await supabase
+      .from('service_schedules')
+      .select('id, technician_id, status')
+      .eq('id', scheduleId)
+      .maybeSingle();
+
+    if (schedErr || !schedule) {
+      throw new NotFoundError('Scheduled visit not found.');
+    }
+
+    if (schedule.technician_id !== techId) {
+      throw new ForbiddenError('You can only update status for visits assigned to you.');
+    }
+
+    const { error: updateErr } = await supabase
+      .from('service_schedules')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', scheduleId);
+
+    if (updateErr) {
+      logger.error('Failed to update schedule status', { error: updateErr, scheduleId, status });
+      throw new BadRequestError('Failed to update job status.');
+    }
+
+    // Auto-update technician operational status
+    if (status === 'IN_PROGRESS' || status === 'EN_ROUTE') {
+      await supabase
+        .from('technicians')
+        .update({ status: 'BUSY', updated_at: new Date().toISOString() })
+        .eq('id', techId);
+    } else if (status === 'COMPLETED') {
+      await supabase
+        .from('technicians')
+        .update({ status: 'AVAILABLE', updated_at: new Date().toISOString() })
+        .eq('id', techId);
+    }
+
+    return {
+      success: true,
+      scheduleId,
+      status,
+    };
+  }
+
+  /**
+   * Retrieves real-time daily work analytics and 7-day rolling performance trends for a technician
+   */
+  async getDailyAnalytics(techId: string, filterDate?: string) {
+    const supabase = getSupabaseClient();
+    const todayStr = filterDate || new Date().toISOString().split('T')[0];
+
+    // 1. Fetch today's schedules assigned to this technician
+    const { data: todaySchedules } = await supabase
+      .from('service_schedules')
+      .select('id, status, amc_id, service_request_id, start_time, end_time')
+      .eq('technician_id', techId)
+      .eq('scheduled_date', todayStr);
+
+    const todayList = todaySchedules || [];
+    const totalAssigned = todayList.length;
+    const completed = todayList.filter((s: any) => s.status === 'COMPLETED').length;
+    const inProgress = todayList.filter((s: any) => s.status === 'IN_PROGRESS' || s.status === 'EN_ROUTE').length;
+    const pending = totalAssigned - completed;
+    const completionRatePercent = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 100;
+
+    // 2. Fetch last 7 days of completed schedules & reports for weekly analytics
+    const sevenDaysAgo = new Date(todayStr);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+
+    const { data: weekSchedules } = await supabase
+      .from('service_schedules')
+      .select('id, scheduled_date, status, amc_id, service_request_id')
+      .eq('technician_id', techId)
+      .gte('scheduled_date', sevenDaysAgoStr)
+      .lte('scheduled_date', todayStr);
+
+    const { data: weekReports } = await supabase
+      .from('service_reports')
+      .select('id, service_date, start_time, end_time, primary_outcome, customer_signature_url')
+      .eq('technician_id', techId)
+      .gte('service_date', sevenDaysAgoStr)
+      .lte('service_date', todayStr);
+
+    const reportsList = weekReports || [];
+    const schedulesList = weekSchedules || [];
+
+    // Calculate duration in minutes from reports with valid start and end times
+    let totalDurationMinutes = 0;
+    let durationCount = 0;
+    let signedReportsCount = 0;
+
+    for (const r of reportsList) {
+      if (r.customer_signature_url) {
+        signedReportsCount++;
+      }
+      if (r.start_time && r.end_time) {
+        const [sh, sm] = String(r.start_time).split(':').map(Number);
+        const [eh, em] = String(r.end_time).split(':').map(Number);
+        if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
+          const diffMin = (eh * 60 + em) - (sh * 60 + sm);
+          if (diffMin > 0 && diffMin < 720) {
+            totalDurationMinutes += diffMin;
+            durationCount++;
+          }
+        }
+      }
+    }
+
+    const avgDurationMinutes = durationCount > 0
+      ? Math.round(totalDurationMinutes / durationCount)
+      : 55;
+
+    const customerSignOffRatePercent = reportsList.length > 0
+      ? Math.round((signedReportsCount / reportsList.length) * 100)
+      : 100;
+
+    const totalCompleted = reportsList.length;
+    const completedWeekSchedules = schedulesList.filter((s: any) => s.status === 'COMPLETED');
+    const breakdownCompleted = completedWeekSchedules.filter((s: any) => Boolean(s.service_request_id)).length;
+    const amcCompleted = completedWeekSchedules.filter((s: any) => Boolean(s.amc_id)).length;
+
+    // Build 7-day rolling daily trend
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dailyTrend: Array<{
+      date: string;
+      dayName: string;
+      totalCompleted: number;
+      breakdownCount: number;
+      amcCount: number;
+    }> = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(todayStr);
+      d.setDate(d.getDate() - i);
+      const dateIso = d.toISOString().split('T')[0];
+      const dayName = dayNames[d.getDay()];
+
+      const dayScheds = schedulesList.filter((s: any) => s.scheduled_date === dateIso && s.status === 'COMPLETED');
+      const dayBreakdowns = dayScheds.filter((s: any) => Boolean(s.service_request_id)).length;
+      const dayAmc = dayScheds.filter((s: any) => Boolean(s.amc_id)).length;
+
+      dailyTrend.push({
+        date: dateIso,
+        dayName,
+        totalCompleted: dayScheds.length,
+        breakdownCount: dayBreakdowns,
+        amcCount: dayAmc,
+      });
+    }
+
+    return {
+      today: {
+        totalAssigned,
+        completed,
+        inProgress,
+        pending,
+        completionRatePercent,
+      },
+      weekly: {
+        totalCompleted,
+        breakdownCompleted,
+        amcCompleted,
+        avgDurationMinutes,
+        customerSignOffRatePercent,
+      },
+      dailyTrend,
+    };
   }
 }
 

@@ -10,6 +10,7 @@ import {
   FileText,
   Navigation,
   RefreshCw,
+  Car,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
 import { getBreakdownCategoryLabel, getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
@@ -23,6 +24,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
   const [jobs, setJobs] = useState<TechJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -44,11 +46,38 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
     loadJobs(selectedDate);
   }, [selectedDate]);
 
+  const handleUpdateStatus = async (scheduleId: string, newStatus: string) => {
+    try {
+      setUpdatingJobId(scheduleId);
+      await technicianApi.updateJobStatus(scheduleId, newStatus);
+      setJobs((prev) =>
+        prev.map((j) => (j.id === scheduleId ? { ...j, status: newStatus } : j))
+      );
+    } catch (err: any) {
+      alert(err?.response?.data?.error?.message || 'Failed to update job status.');
+    } finally {
+      setUpdatingJobId(null);
+    }
+  };
+
   const completedCount = jobs.filter((j) => j.status === 'COMPLETED').length;
-  const pendingCount = jobs.length - completedCount;
+  const inProgressCount = jobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'EN_ROUTE').length;
   const displayedJobs = filterTab === 'completed'
     ? jobs.filter((j) => j.status === 'COMPLETED')
     : jobs;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return { label: 'Completed', bg: 'rgba(34, 197, 94, 0.12)', text: '#16a34a', border: 'rgba(34, 197, 94, 0.25)' };
+      case 'IN_PROGRESS':
+        return { label: 'Working On-Site', bg: 'rgba(245, 158, 11, 0.15)', text: '#b45309', border: 'rgba(245, 158, 11, 0.3)' };
+      case 'EN_ROUTE':
+        return { label: 'On The Way', bg: 'rgba(37, 99, 235, 0.12)', text: '#2563eb', border: 'rgba(37, 99, 235, 0.25)' };
+      default:
+        return { label: 'Scheduled', bg: 'rgba(100, 116, 139, 0.12)', text: '#64748b', border: 'rgba(100, 116, 139, 0.25)' };
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -123,6 +152,22 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
             style={{
               padding: '10px',
               borderRadius: 'var(--radius-md)',
+              backgroundColor: inProgressCount > 0 ? 'rgba(37, 99, 235, 0.1)' : 'var(--bg-surface-subtle)',
+              border: inProgressCount > 0 ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid var(--border-default)',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: inProgressCount > 0 ? '#2563eb' : 'var(--text-muted)' }}>
+              In Progress
+            </span>
+            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: inProgressCount > 0 ? '#2563eb' : 'var(--text-primary)', margin: '2px 0 0 0' }}>
+              {inProgressCount}
+            </p>
+          </div>
+          <div
+            style={{
+              padding: '10px',
+              borderRadius: 'var(--radius-md)',
               backgroundColor: 'var(--color-success-bg, rgba(34, 197, 94, 0.1))',
               border: '1px solid var(--color-success-border, rgba(34, 197, 94, 0.2))',
               textAlign: 'center',
@@ -135,66 +180,50 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
               {completedCount}
             </p>
           </div>
-          <div
-            style={{
-              padding: '10px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-warning-bg, rgba(245, 158, 11, 0.1))',
-              border: '1px solid var(--color-warning-border, rgba(245, 158, 11, 0.2))',
-              textAlign: 'center',
-            }}
-          >
-            <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-warning-text, #d97706)' }}>
-              Pending
-            </span>
-            <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-warning-text, #d97706)', margin: '2px 0 0 0' }}>
-              {pendingCount}
-            </p>
-          </div>
         </div>
       </div>
 
       {/* Date Picker Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
         <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
-          Appointments ({jobs.length})
+          Appointments ({displayedJobs.length})
         </span>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          style={{
-            padding: '6px 10px',
-            fontSize: 'var(--text-xs)',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            color: 'var(--text-primary)',
-            fontWeight: 600,
-            outline: 'none',
-          }}
-        />
-      </div>
 
-      {/* Error Banner */}
-      {error && (
-        <div
-          style={{
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: 'var(--color-error-bg)',
-            border: '1px solid var(--color-error-border)',
-            color: 'var(--color-error-text)',
-            fontSize: 'var(--text-xs)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '8px',
-          }}
-        >
-          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <span>{error}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <label
+            htmlFor="dispatch-date-input"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              fontSize: 'var(--text-xs)',
+              cursor: 'pointer',
+            }}
+          >
+            <Calendar size={13} style={{ color: 'var(--color-brand)' }} />
+            <input
+              id="dispatch-date-input"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                fontSize: '11px',
+                fontWeight: 600,
+                outline: 'none',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            />
+          </label>
         </div>
-      )}
+      </div>
 
       {/* Loading Skeleton */}
       {isLoading && (
@@ -205,24 +234,44 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
               style={{
                 height: '140px',
                 borderRadius: 'var(--radius-lg)',
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-default)',
-                opacity: 0.6,
+                backgroundColor: 'var(--bg-surface-subtle)',
+                border: '1px solid var(--border-subtle)',
+                animation: 'pulse 1.5s infinite',
               }}
             />
           ))}
         </div>
       )}
 
-      {/* Empty Queue State */}
-      {!isLoading && displayedJobs.length === 0 && (
+      {/* Error state */}
+      {error && !isLoading && (
+        <div
+          style={{
+            padding: 'var(--space-4)',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+            fontSize: 'var(--text-xs)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && !error && displayedJobs.length === 0 && (
         <div
           style={{
             padding: 'var(--space-8)',
             textAlign: 'center',
-            borderRadius: 'var(--radius-lg)',
             backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-default)',
+            border: '1px dashed var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -262,6 +311,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {displayedJobs.map((job) => {
             const isCompleted = job.status === 'COMPLETED';
+            const isUpdating = updatingJobId === job.id;
             const customerPhone = job.customers?.phone;
             const fullAddress = [
               job.sites?.site_name,
@@ -274,6 +324,8 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
               `${job.sites?.address || ''} ${job.sites?.city || ''} ${job.sites?.pincode || ''}`
             )}`;
 
+            const badge = getStatusBadge(job.status);
+
             return (
               <div
                 key={job.id}
@@ -281,6 +333,8 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                   borderRadius: 'var(--radius-lg)',
                   border: isCompleted
                     ? '1px solid rgba(34, 197, 94, 0.3)'
+                    : job.status === 'IN_PROGRESS'
+                    ? '1px solid rgba(245, 158, 11, 0.4)'
                     : '1px solid var(--border-default)',
                   backgroundColor: 'var(--bg-surface)',
                   padding: 'var(--space-4)',
@@ -290,9 +344,9 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                   boxShadow: 'var(--shadow-xs)',
                 }}
               >
-                {/* Card Top: Schedule Number & Status */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Card Top: Schedule Number, Category & Status Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)',
@@ -350,18 +404,34 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                     )}
                   </div>
 
-                  <div
+                  {/* Status Badge */}
+                  <span
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: 'var(--text-xs)',
-                      color: 'var(--text-muted)',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      backgroundColor: badge.bg,
+                      color: badge.text,
+                      border: `1px solid ${badge.border}`,
                     }}
                   >
-                    <Clock size={13} />
-                    <span>{job.start_time || '10:00'} - {job.end_time || '12:00'}</span>
-                  </div>
+                    {badge.label}
+                  </span>
+                </div>
+
+                {/* Appointment Timing */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  <Clock size={13} />
+                  <span>{job.start_time || '10:00'} - {job.end_time || '12:00'}</span>
                 </div>
 
                 {/* Customer & Site Details */}
@@ -425,7 +495,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                   )}
                 </div>
 
-                {/* Quick Action Bar: Call, Maps & Report Button */}
+                {/* Quick Action Bar: Call, Maps & Progressive Action Button */}
                 <div
                   style={{
                     paddingTop: 'var(--space-3)',
@@ -450,6 +520,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                         alignItems: 'center',
                         justifyContent: 'center',
                         textDecoration: 'none',
+                        minWidth: '40px',
                       }}
                     >
                       <Phone size={16} />
@@ -472,12 +543,13 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                       alignItems: 'center',
                       justifyContent: 'center',
                       textDecoration: 'none',
+                      minWidth: '40px',
                     }}
                   >
                     <Navigation size={16} />
                   </a>
 
-                  {/* Main Action: Fill Report or Completed Badge */}
+                  {/* Main Action: Progressive Status Action or Completed Badge */}
                   {isCompleted ? (
                     <div
                       style={{
@@ -499,29 +571,84 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                       <span>Service Completed</span>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => onStartReport(job.id)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'var(--color-brand)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        fontSize: 'var(--text-xs)',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        boxShadow: 'var(--shadow-xs)',
-                      }}
-                    >
-                      <FileText size={16} />
-                      <span>Start &amp; Fill Report</span>
-                    </button>
+                    <div style={{ display: 'flex', flex: 1, gap: '6px' }}>
+                      {/* Progressive quick button for status advancement */}
+                      {job.status === 'EN_ROUTE' ? (
+                        <button
+                          type="button"
+                          disabled={isUpdating}
+                          onClick={() => handleUpdateStatus(job.id, 'IN_PROGRESS')}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 'var(--radius-md)',
+                            backgroundColor: '#2563eb',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: 'var(--text-xs)',
+                            border: 'none',
+                            cursor: isUpdating ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <MapPin size={15} />
+                          <span>{isUpdating ? '...' : 'Arrived On-Site'}</span>
+                        </button>
+                      ) : (job.status === 'SCHEDULED' || job.status === 'ASSIGNED') ? (
+                        <button
+                          type="button"
+                          disabled={isUpdating}
+                          onClick={() => handleUpdateStatus(job.id, 'EN_ROUTE')}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: 'var(--radius-md)',
+                            backgroundColor: 'var(--bg-surface-subtle)',
+                            border: '1px solid var(--border-default)',
+                            color: 'var(--text-primary)',
+                            fontWeight: 700,
+                            fontSize: 'var(--text-xs)',
+                            cursor: isUpdating ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '5px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <Car size={15} />
+                          <span>{isUpdating ? '...' : 'On My Way'}</span>
+                        </button>
+                      ) : null}
+
+                      {/* Main action: Start & Fill Report button */}
+                      <button
+                        type="button"
+                        onClick={() => onStartReport(job.id)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          backgroundColor: 'var(--color-brand)',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: 'var(--text-xs)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          boxShadow: 'var(--shadow-xs)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <FileText size={16} />
+                        <span>Start &amp; Fill Report</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

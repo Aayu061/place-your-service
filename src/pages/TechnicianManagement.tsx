@@ -130,6 +130,12 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   // Selected Technician & Drawer
   const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+  const [workSummary, setWorkSummary] = useState<{
+    activeSchedules: any[];
+    completedReports: any[];
+    totalCompletedReports: number;
+  } | null>(null);
+  const [isLoadingWorkSummary, setIsLoadingWorkSummary] = useState<boolean>(false);
 
   // Field Portal PIN Reset State
   const [isResetPinModalOpen, setIsResetPinModalOpen] = useState<boolean>(false);
@@ -294,13 +300,23 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   const handleOpenDetail = async (tech: Technician) => {
     setSelectedTech(tech);
     setIsDrawerOpen(true);
+    setWorkSummary(null);
+    setIsLoadingWorkSummary(true);
     try {
-      const res = await apiClient.get<TechnicianApiResponse>(`/technicians/${tech.id}`);
-      if (res.technician) {
-        setSelectedTech(res.technician);
+      const [res, summaryRes] = await Promise.allSettled([
+        apiClient.get<TechnicianApiResponse>(`/technicians/${tech.id}`),
+        apiClient.get<any>(`/technicians/${tech.id}/work-summary`),
+      ]);
+      if (res.status === 'fulfilled' && res.value.technician) {
+        setSelectedTech(res.value.technician);
+      }
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) {
+        setWorkSummary(summaryRes.value);
       }
     } catch {
       // Use existing tech state if background detail fetch fails
+    } finally {
+      setIsLoadingWorkSummary(false);
     }
   };
 
@@ -1482,6 +1498,115 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Live Work Orders & Completed Reports */}
+            <div className="card" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Briefcase size={15} style={{ color: 'var(--color-primary-600)' }} />
+                  <h4 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                    Active Field Assignments ({workSummary?.activeSchedules?.length || 0})
+                  </h4>
+                </div>
+                {isLoadingWorkSummary && <RefreshCw size={12} className="animate-spin" style={{ color: 'var(--text-muted)' }} />}
+              </div>
+
+              {workSummary?.activeSchedules && workSummary.activeSchedules.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {workSummary.activeSchedules.map((s: any) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--bg-surface-subtle)',
+                        border: '1px solid var(--border-default)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {s.schedule_number}
+                        </span>
+                        <Badge
+                          variant={
+                            s.status === 'IN_PROGRESS'
+                              ? 'warning'
+                              : s.status === 'EN_ROUTE'
+                              ? 'info'
+                              : 'neutral'
+                          }
+                        >
+                          {s.status}
+                        </Badge>
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {s.customers?.name || 'Customer'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        {s.scheduled_date} · {s.start_time} - {s.end_time}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {isLoadingWorkSummary ? 'Loading active assignments...' : 'No active assignments pending. Technician is ready for dispatch.'}
+                </p>
+              )}
+            </div>
+
+            {/* Completed Reports History */}
+            <div className="card" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FileText size={15} style={{ color: 'var(--color-primary-600)' }} />
+                  <h4 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                    Completed Service Reports ({workSummary?.totalCompletedReports || 0})
+                  </h4>
+                </div>
+              </div>
+
+              {workSummary?.completedReports && workSummary.completedReports.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {workSummary.completedReports.map((r: any) => (
+                    <div
+                      key={r.id}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--bg-surface-subtle)',
+                        border: '1px solid var(--border-default)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {r.report_number}
+                        </span>
+                        <Badge variant="success">
+                          {r.primary_outcome || 'RESOLVED'}
+                        </Badge>
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {r.customers?.name || 'Customer'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        Visit Date: {r.service_date} {r.customer_signature_url ? '· Signed ✓' : ''}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                  {isLoadingWorkSummary ? 'Loading reports...' : 'No completed service reports on record.'}
+                </p>
+              )}
             </div>
 
             {/* Notes */}
