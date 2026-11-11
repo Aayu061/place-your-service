@@ -78,6 +78,13 @@ export const createTechnicianSchema = {
       .nullable()
       .optional()
       .or(z.literal('')),
+    pin: z
+      .string()
+      .trim()
+      .regex(/^\d{4,6}$/, 'PIN must be a 4-to-6 digit numeric code')
+      .nullable()
+      .optional()
+      .or(z.literal('')),
     specializations: z.array(z.string().trim().min(1)).optional().default([]),
     skills: z.array(z.string().trim().min(1)).optional(),
     serviceAreas: z.array(z.string().trim().min(1)).optional().default([]),
@@ -107,6 +114,13 @@ export const updateTechnicianSchema = {
       .string()
       .trim()
       .email('Invalid email address format')
+      .nullable()
+      .optional()
+      .or(z.literal('')),
+    pin: z
+      .string()
+      .trim()
+      .regex(/^\d{4,6}$/, 'PIN must be a 4-to-6 digit numeric code')
       .nullable()
       .optional()
       .or(z.literal('')),
