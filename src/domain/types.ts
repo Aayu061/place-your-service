@@ -138,8 +138,8 @@ export interface AcModel {
   rating: string | null;
   refrigerant: string | null;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AcModelVariant {
@@ -155,8 +155,8 @@ export interface AcModelVariant {
   series?: string | null;
   sourceProvenance?: string | null;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AcAsset {
@@ -384,8 +384,8 @@ export interface AmcPlan {
   hasUnlimitedComplaints?: boolean;
   rateMetadata?: Record<string, any> | null;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AmcCoveredAsset {

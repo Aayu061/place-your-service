@@ -25,7 +25,9 @@ import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
-import { calculateAmcQuote, AmcQuoteResult } from '@/domain/amcRateCard';
+import { calculateAmcQuote, AmcQuoteResult, OFFICIAL_ESS_RATE_CHART_PLANS } from '@/domain/amcRateCard';
+import { getSupabaseClient } from '@/services/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import {
   AmcContract,
   AmcPlan,
@@ -147,9 +149,9 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [primarySection, setPrimarySection] = useState<'CONTRACTS' | 'RATE_CARDS'>('CONTRACTS');
 
-  // Metrics & Plans
+  // Metrics & Plans (seeded with official ESS rate chart plans for zero-latency instant rendering)
   const [metrics, setMetrics] = useState<AmcMetricsApiResponse['metrics'] | null>(null);
-  const [plans, setPlans] = useState<AmcPlan[]>([]);
+  const [plans, setPlans] = useState<AmcPlan[]>(OFFICIAL_ESS_RATE_CHART_PLANS);
 
   // Selected Detail Contract
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
@@ -209,15 +211,77 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [availableAssets, setAvailableAssets] = useState<AcAsset[]>([]);
   const [isAssetsLoading, setIsAssetsLoading] = useState(false);
 
-  // Fetch metrics & plans
+  const { session } = useAuth();
+
+  // Fetch metrics & plans with resilient multi-tier fallback
   const fetchAuxData = useCallback(async () => {
+    // 1. Fetch plans
     try {
-      const [metricsRes, plansRes] = await Promise.all([
-        apiClient.get<AmcMetricsApiResponse>('/amc-contracts/metrics'),
-        apiClient.get<AmcPlansApiResponse>('/amc-contracts/plans?includeInactive=true'),
-      ]);
-      setMetrics(metricsRes.metrics);
-      setPlans(plansRes.plans);
+      let fetchedPlans: AmcPlan[] = [];
+
+      // Tier 1: Try Render Express backend
+      try {
+        const plansRes = await apiClient.get<AmcPlansApiResponse>('/amc-contracts/plans?includeInactive=true');
+        fetchedPlans = Array.isArray(plansRes) ? plansRes : (plansRes?.plans ?? []);
+      } catch (apiErr) {
+        console.warn('[AmcManagement] Render API plans fetch failed or timed out, trying Supabase fallback:', apiErr);
+      }
+
+      // Tier 2: Try direct Supabase query if backend returned empty or errored
+      if (!fetchedPlans.length) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { data: sbData, error: sbErr } = await supabase
+            .from('amc_plans')
+            .select('*')
+            .order('default_visits_per_year', { ascending: true });
+
+          if (!sbErr && sbData && sbData.length > 0) {
+            fetchedPlans = sbData.map((row: any) => ({
+              id: row.id,
+              planCode: row.plan_code,
+              name: row.name,
+              category: row.category || 'ORDINARY',
+              description: row.description,
+              coverageSummary: row.coverage_summary,
+              defaultFrequency: row.default_frequency,
+              defaultVisitsPerYear: row.default_visits_per_year,
+              pricingModel: row.pricing_model || 'TIERED_TONNAGE',
+              rateSplitSmall: row.rate_split_small != null ? Number(row.rate_split_small) : null,
+              rateSplitLarge: row.rate_split_large != null ? Number(row.rate_split_large) : null,
+              rateWindowSmall: row.rate_window_small != null ? Number(row.rate_window_small) : null,
+              rateWindowLarge: row.rate_window_large != null ? Number(row.rate_window_large) : null,
+              rateFlat: row.rate_flat != null ? Number(row.rate_flat) : null,
+              gstRatePercent: row.gst_rate_percent != null ? Number(row.gst_rate_percent) : 0,
+              maxEquipmentAgeYears: row.max_equipment_age_years != null ? Number(row.max_equipment_age_years) : null,
+              hasGasCharging: Boolean(row.has_gas_charging),
+              hasSpareParts: Boolean(row.has_spare_parts),
+              hasUnlimitedComplaints: Boolean(row.has_unlimited_complaints),
+              isActive: Boolean(row.is_active),
+              createdAt: row.created_at,
+              updatedAt: row.updated_at,
+            }));
+          }
+        }
+      }
+
+      // Tier 3: If both remote calls returned nothing, fallback to OFFICIAL_ESS_RATE_CHART_PLANS
+      if (fetchedPlans.length > 0) {
+        setPlans(fetchedPlans);
+      } else {
+        setPlans(OFFICIAL_ESS_RATE_CHART_PLANS);
+      }
+    } catch (err) {
+      console.warn('[AmcManagement] Error loading plans, preserving official defaults:', err);
+      setPlans((prev) => (prev.length > 0 ? prev : OFFICIAL_ESS_RATE_CHART_PLANS));
+    }
+
+    // 2. Fetch metrics independently so an error here never blocks plans
+    try {
+      const metricsRes = await apiClient.get<AmcMetricsApiResponse>('/amc-contracts/metrics');
+      if (metricsRes?.metrics) {
+        setMetrics(metricsRes.metrics);
+      }
     } catch {
       // Non-blocking aux data fetch
     }
@@ -251,11 +315,11 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
   useEffect(() => {
     fetchAuxData();
-  }, [fetchAuxData]);
+  }, [fetchAuxData, session?.access_token]);
 
   useEffect(() => {
     fetchContracts();
-  }, [fetchContracts]);
+  }, [fetchContracts, session?.access_token]);
 
   // Fetch detail contract
   const fetchDetailContract = useCallback(async (id: string) => {
