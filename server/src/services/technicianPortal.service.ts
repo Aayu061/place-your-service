@@ -148,9 +148,9 @@ export class TechnicianPortalService {
       .select(`
         id, schedule_number, status, scheduled_date, start_time, end_time,
         planned_service_type, notes, amc_id, service_request_id,
-        customers ( id, name, phone, customer_code ),
-        sites ( id, site_name, address, city, landmark, pincode ),
-        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage ),
+        customers ( id, name, phone, customer_code, city ),
+        sites:customer_sites ( id, site_name, address ),
+        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
         service_requests ( id, request_number, request_type, priority, description, issue_category )
       `)
       .eq('technician_id', techId)
@@ -162,7 +162,15 @@ export class TechnicianPortalService {
       throw new BadRequestError('Failed to load dispatch queue.');
     }
 
-    return schedules || [];
+    return (schedules || []).map((s: any) => ({
+      ...s,
+      sites: s.sites
+        ? {
+            ...s.sites,
+            city: s.customers?.city || '',
+          }
+        : null,
+    }));
   }
 
   /**
@@ -176,9 +184,9 @@ export class TechnicianPortalService {
       .select(`
         id, schedule_number, status, scheduled_date, start_time, end_time,
         planned_service_type, notes, amc_id, service_request_id,
-        customers ( id, name, phone, email, customer_code ),
-        sites ( id, site_name, address, city, landmark, pincode ),
-        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage, refrigerant_type ),
+        customers ( id, name, phone, email, customer_code, city ),
+        sites:customer_sites ( id, site_name, address ),
+        ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
         service_requests ( id, request_number, request_type, priority, description, issue_category )
       `)
       .eq('id', scheduleId)
@@ -197,7 +205,15 @@ export class TechnicianPortalService {
       .maybeSingle();
 
     return {
-      schedule,
+      schedule: {
+        ...schedule,
+        sites: (schedule as any).sites
+          ? {
+              ...(schedule as any).sites,
+              city: (schedule as any).customers?.city || '',
+            }
+          : null,
+      },
       existingReport: existingReport || null,
     };
   }
