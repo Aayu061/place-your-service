@@ -4,6 +4,7 @@ import { verifyPin, signTechToken } from '../utils/techAuth.js';
 import { serviceReportService } from './serviceReport.service.js';
 import { logger } from '../utils/logger.js';
 import { ServiceVisitType } from '../types/index.js';
+import { essIntegrationService } from './essIntegration.service.js';
 
 export interface TechLoginResponse {
   token: string;
@@ -316,7 +317,7 @@ export class TechnicianPortalService {
 
     const { data: schedule, error: schedErr } = await supabase
       .from('service_schedules')
-      .select('id, technician_id, status')
+      .select('id, technician_id, status, service_request_id')
       .eq('id', scheduleId)
       .maybeSingle();
 
@@ -339,6 +340,20 @@ export class TechnicianPortalService {
     if (updateErr) {
       logger.error('Failed to update schedule status', { error: updateErr, scheduleId, status });
       throw new BadRequestError('Failed to update job status.');
+    }
+
+    // Advance Service Request lifecycle state if linked
+    if (schedule.service_request_id && (status === 'IN_PROGRESS' || status === 'COMPLETED')) {
+      const targetSrStatus = status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'COMPLETED';
+      await supabase
+        .from('service_requests')
+        .update({
+          status: targetSrStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', schedule.service_request_id);
+
+      void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
     }
 
     // Auto-update technician operational status

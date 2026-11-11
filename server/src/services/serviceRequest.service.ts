@@ -11,6 +11,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { essIntegrationService } from './essIntegration.service.js';
 
 interface RawServiceRequestJoinRecord {
   id: string;
@@ -32,6 +33,8 @@ interface RawServiceRequestJoinRecord {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  source_channel?: string | null;
+  external_reference_id?: string | null;
   customers?: {
     name: string;
     customer_code: string;
@@ -114,6 +117,8 @@ export class ServiceRequestService {
       updatedBy: record.updated_by,
       createdAt: record.created_at,
       updatedAt: record.updated_at,
+      sourceChannel: (record.source_channel as any) || 'PYS_DIRECT',
+      externalReferenceId: record.external_reference_id || null,
       customerName: record.customers?.name || null,
       customerCode: record.customers?.customer_code || null,
       customerPhone: record.customers?.phone || null,
@@ -227,6 +232,8 @@ export class ServiceRequestService {
       preferred_date: payload.preferredDate || null,
       status: 'REQUESTED' as ServiceRequestStatus,
       notes: payload.notes?.trim() || null,
+      source_channel: payload.sourceChannel || 'PYS_DIRECT',
+      external_reference_id: payload.externalReferenceId?.trim() || null,
       created_by: actorProfileId || null,
     };
 
@@ -306,6 +313,14 @@ export class ServiceRequestService {
 
     if (query.assetId) {
       reqQuery = reqQuery.eq('asset_id', query.assetId);
+    }
+
+    if (query.sourceChannel && query.sourceChannel !== 'ALL') {
+      reqQuery = reqQuery.eq('source_channel', query.sourceChannel);
+    }
+
+    if (query.externalReferenceId) {
+      reqQuery = reqQuery.eq('external_reference_id', query.externalReferenceId.trim());
     }
 
     if (query.search && query.search.trim()) {
@@ -392,6 +407,8 @@ export class ServiceRequestService {
     if (payload.notes !== undefined) updateData.notes = payload.notes ? payload.notes.trim() : null;
     if (payload.siteId !== undefined) updateData.site_id = payload.siteId;
     if (payload.assetId !== undefined) updateData.asset_id = payload.assetId;
+    if (payload.sourceChannel !== undefined) updateData.source_channel = payload.sourceChannel;
+    if (payload.externalReferenceId !== undefined) updateData.external_reference_id = payload.externalReferenceId ? payload.externalReferenceId.trim() : null;
 
     const { data: updated, error } = await supabase
       .from('service_requests')
@@ -495,6 +512,9 @@ export class ServiceRequestService {
       },
       ipAddress,
     });
+
+    // Dispatch asynchronous outbound status webhook to ESS if ticket originated from storefront
+    void essIntegrationService.notifyServiceRequestStatusUpdate(id, newStatus);
 
     return response;
   }

@@ -3,15 +3,34 @@ import { UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { AuthenticatedUser, UserRole } from '../types/index.js';
 import { logger } from '../utils/logger.js';
+import { env } from '../config/env.js';
 
 /**
  * Authentication Middleware:
- * Verifies Supabase JWT token, loads profile and staff identity,
- * and attaches verified user context to req.user.
+ * Verifies Supabase JWT token or Machine-to-Machine (M2M) API Key,
+ * loads profile and staff identity, and attaches verified user context to req.user.
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
+    const apiKeyHeader = req.headers['x-api-key'] as string | undefined;
     const authHeader = req.headers.authorization;
+    const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+
+    // 1. Fast path: Machine-to-Machine (M2M) API Key or Bearer Token (e.g. Extreme Sales & Services storefront backend)
+    const candidateApiKey = apiKeyHeader || bearerToken;
+    if (candidateApiKey && env.M2M_API_KEY && candidateApiKey === env.M2M_API_KEY) {
+      req.user = {
+        userId: '9141b9fc-895f-4e87-b992-2dddf61c739c', // System Administrator profile ID
+        email: 'integration@extreme-sales-services.com',
+        role: 'ADMIN' as UserRole,
+        profileId: '9141b9fc-895f-4e87-b992-2dddf61c739c',
+        staffId: 'fcabf3cd-a62b-4ed9-822d-7eba09a175e6',
+        isActive: true,
+      };
+      return next();
+    }
+
+    // 2. Standard path: User Supabase JWT
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedError('Missing or malformed Authorization header. Bearer token required.');
     }

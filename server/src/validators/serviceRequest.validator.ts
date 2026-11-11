@@ -37,6 +37,12 @@ export const statusEnum = z.enum([
   'CANCELLED',
 ]);
 
+export const sourceChannelEnum = z.enum([
+  'EXTREME_SALES_SERVICES',
+  'PYS_DIRECT',
+  'PHONE',
+]);
+
 export const listServiceRequestsSchema = {
   query: z.object({
     search: z.string().trim().optional(),
@@ -70,6 +76,8 @@ export const listServiceRequestsSchema = {
       'UNPLANNED_OTHER',
       'OTHER',
     ]).optional().default('ALL'),
+    sourceChannel: z.enum(['ALL', 'EXTREME_SALES_SERVICES', 'PYS_DIRECT', 'PHONE']).optional().default('ALL'),
+    externalReferenceId: z.string().trim().optional(),
     customerId: z.string().guid('Invalid customer UUID').optional(),
     siteId: z.string().guid('Invalid site UUID').optional(),
     assetId: z.string().guid('Invalid asset UUID').optional(),
@@ -99,6 +107,8 @@ export const createServiceRequestSchema = {
       .optional()
       .nullable(),
     notes: z.string().max(2000).trim().optional().nullable(),
+    sourceChannel: sourceChannelEnum.optional().default('PYS_DIRECT'),
+    externalReferenceId: z.string().max(100).trim().optional().nullable(),
   }),
 };
 
@@ -119,6 +129,8 @@ export const updateServiceRequestSchema = {
     notes: z.string().max(2000).trim().optional().nullable(),
     siteId: z.string().guid('Invalid site UUID identifier').optional(),
     assetId: z.string().guid('Invalid asset UUID identifier').optional().nullable(),
+    sourceChannel: sourceChannelEnum.optional(),
+    externalReferenceId: z.string().max(100).trim().optional().nullable(),
   }),
 };
 
