@@ -25,7 +25,13 @@ import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
-import { calculateAmcQuote, getPlanBaselineAmount, AmcQuoteResult, OFFICIAL_ESS_RATE_CHART_PLANS } from '@/domain/amcRateCard';
+import {
+  calculateAmcQuote,
+  getPlanBaselineAmount,
+  getAssetAgeYears,
+  AmcQuoteResult,
+  OFFICIAL_ESS_RATE_CHART_PLANS,
+} from '@/domain/amcRateCard';
 import { getSupabaseClient } from '@/services/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -133,6 +139,27 @@ export interface AmcManagementProps {
   preselectedCustomerId?: string;
 }
 
+function isAssetCompatible(asset: AcAsset, plan?: AmcPlan | null): { compatible: boolean; reason?: string } {
+  if (!plan) return { compatible: true };
+  const isSplitOnly = plan.planCode === 'SEMI-COMP-SPLIT' || plan.planCode === 'SAMC-1-SPLIT';
+  const isWindowOnly = plan.planCode === 'SAMC-2-WINDOW';
+  const isWindow = (asset.acType || '').toUpperCase().includes('WINDOW');
+
+  if (isSplitOnly && isWindow) {
+    return { compatible: false, reason: 'Split AC only' };
+  }
+  if (isWindowOnly && !isWindow) {
+    return { compatible: false, reason: 'Window AC only' };
+  }
+  if (plan.maxEquipmentAgeYears) {
+    const age = getAssetAgeYears(asset.installationDate);
+    if (age !== null && age > plan.maxEquipmentAgeYears) {
+      return { compatible: false, reason: `Age ${age}y > ${plan.maxEquipmentAgeYears}y max` };
+    }
+  }
+  return { compatible: true };
+}
+
 export const AmcManagement: React.FC<AmcManagementProps> = ({
   preselectedCustomerId,
 }) => {
@@ -184,6 +211,9 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const [formCoveredAssetIds, setFormCoveredAssetIds] = useState<string[]>([]);
   const [cancelReason, setCancelReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isQuoteBreakdownExpanded, setIsQuoteBreakdownExpanded] = useState<boolean>(false);
+  const [filterCompatibleOnly, setFilterCompatibleOnly] = useState<boolean>(false);
 
   // Payment & Quotation states
   const [formPaymentMethod, setFormPaymentMethod] = useState<'ONLINE' | 'CASH' | 'CHEQUE'>('ONLINE');
@@ -612,6 +642,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormPumpdownVisits(0);
     setFormNotes('');
     setFormCoveredAssetIds([]);
+    setIsQuoteBreakdownExpanded(false);
+    setFilterCompatibleOnly(false);
     setCreateModalStep(0);
   };
 
@@ -2312,6 +2344,65 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                         ✓ Rate Chart Synchronized
                       </span>
                     )}
+
+                    {/* Unit-by-Unit Rate Breakdown Accordion */}
+                    {liveQuote.lines.length > 0 && (
+                      <div style={{ width: '100%', marginTop: '4px', paddingTop: '8px', borderTop: '1px dashed rgba(2, 132, 199, 0.25)' }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsQuoteBreakdownExpanded(!isQuoteBreakdownExpanded)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#0284c7',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: 0,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          {isQuoteBreakdownExpanded
+                            ? 'Hide Unit-by-Unit Rate Breakdown ▲'
+                            : `View Unit-by-Unit Rate Breakdown (${liveQuote.lines.length} units covered) ▼`}
+                        </button>
+
+                        {isQuoteBreakdownExpanded && (
+                          <div style={{ marginTop: '8px', overflowX: 'auto', maxHeight: '160px', overflowY: 'auto' }}>
+                            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                              <thead>
+                                <tr style={{ borderBottom: '1px solid rgba(2, 132, 199, 0.2)', color: 'var(--text-secondary)' }}>
+                                  <th style={{ padding: '4px 6px' }}>AC Asset Tag</th>
+                                  <th style={{ padding: '4px 6px' }}>Type & Tonnage</th>
+                                  <th style={{ padding: '4px 6px' }}>Applied Tier</th>
+                                  <th style={{ padding: '4px 6px', textAlign: 'right' }}>Unit Base Rate</th>
+                                  <th style={{ padding: '4px 6px' }}>Coverage Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {liveQuote.lines.map((line) => (
+                                  <tr key={line.assetId} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                                    <td style={{ padding: '4px 6px', fontWeight: 600, fontFamily: 'monospace' }}>{line.assetTag}</td>
+                                    <td style={{ padding: '4px 6px' }}>{line.acType} &bull; {line.capacityTons ?? 1.5} TR</td>
+                                    <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{line.tier}</td>
+                                    <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>₹{line.unitRate.toLocaleString('en-IN')}</td>
+                                    <td style={{ padding: '4px 6px' }}>
+                                      {line.isEligible ? (
+                                        <span style={{ color: '#059669', fontSize: '10px' }}>✓ Eligible</span>
+                                      ) : (
+                                        <span style={{ color: '#dc2626', fontSize: '10px' }}>⚠️ Ineligible</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2590,12 +2681,20 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
             {/* STEP 3: COVERED AC ASSETS */}
             <div style={{ display: createModalStep === 2 ? 'flex' : 'none', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-normal)' }}>
                   Covered AC Assets ({formCoveredAssetIds.length} of {availableAssets.length} selected)
                 </label>
                 {availableAssets.length > 0 && (
-                  <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer', marginRight: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={filterCompatibleOnly}
+                        onChange={(e) => setFilterCompatibleOnly(e.target.checked)}
+                      />
+                      <span>Filter Compatible Only</span>
+                    </label>
                     <button
                       type="button"
                       onClick={handleSelectAllAssets}
@@ -2647,42 +2746,63 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     backgroundColor: 'rgba(255, 255, 255, 0.6)',
                   }}
                 >
-                  {availableAssets.map((asset) => (
-                    <label
-                      key={asset.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        fontSize: 'var(--text-xs)',
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: formCoveredAssetIds.includes(asset.id) ? 'var(--color-primary-50)' : 'var(--bg-surface)',
-                        border: formCoveredAssetIds.includes(asset.id) ? '1px solid var(--color-primary-200)' : '1px solid var(--border-subtle)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formCoveredAssetIds.includes(asset.id)}
-                        onChange={(e) => handleToggleAsset(asset.id, e.target.checked)}
-                      />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
-                            {asset.assetTag}
-                          </span>
-                          <span style={{ color: 'var(--text-secondary)' }}>
-                            {asset.brand} &bull; {asset.modelNumber || 'Standard Model'}
+                  {(filterCompatibleOnly
+                    ? availableAssets.filter((a) => isAssetCompatible(a, selectedPlanObj).compatible)
+                    : availableAssets
+                  ).map((asset) => {
+                    const compat = isAssetCompatible(asset, selectedPlanObj);
+                    const ageYears = getAssetAgeYears(asset.installationDate);
+                    return (
+                      <label
+                        key={asset.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          fontSize: 'var(--text-xs)',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-md)',
+                          backgroundColor: formCoveredAssetIds.includes(asset.id) ? 'var(--color-primary-50)' : 'var(--bg-surface)',
+                          border: formCoveredAssetIds.includes(asset.id) ? '1px solid var(--color-primary-200)' : '1px solid var(--border-subtle)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formCoveredAssetIds.includes(asset.id)}
+                          onChange={(e) => handleToggleAsset(asset.id, e.target.checked)}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                              {asset.assetTag}
+                            </span>
+                            <span style={{ color: 'var(--text-secondary)' }}>
+                              {asset.brand} &bull; {asset.modelNumber || 'Standard Model'}
+                            </span>
+                            <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', fontWeight: 600 }}>
+                              {(asset.acType || 'SPLIT').toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(100, 116, 139, 0.1)', color: '#475569' }}>
+                              {asset.capacityTons || 1.5} TR
+                            </span>
+                            <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(100, 116, 139, 0.1)', color: '#475569' }}>
+                              {ageYears != null ? `${ageYears}y` : 'New'}
+                            </span>
+                            {!compat.compatible && (
+                              <span style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#dc2626', fontWeight: 600 }}>
+                                ⚠️ {compat.reason}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            📍 {asset.siteName || 'Primary Site'} {asset.roomLocation ? `• Room: ${asset.roomLocation}` : ''}
                           </span>
                         </div>
-                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          📍 {asset.siteName || 'Primary Site'} {asset.roomLocation ? `• Room: ${asset.roomLocation}` : ''}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
               )}
 

@@ -284,3 +284,20 @@ export const createPlanSchema = z.object({
 
 export const updatePlanSchema = createPlanSchema.partial();
 
+export const calculateQuoteSchema = z.object({
+  planId: z.string().regex(UUID_REGEX, 'Invalid Plan ID format'),
+  assetIds: z.array(z.string().regex(UUID_REGEX, 'Invalid Asset ID format')).optional().default([]),
+  coveredAssets: z
+    .array(
+      z.object({
+        id: z.string(),
+        assetTag: z.string().optional(),
+        acType: z.string().optional(),
+        capacityTons: z.coerce.number().nullable().optional(),
+        installationDate: z.string().nullable().optional(),
+      })
+    )
+    .optional(),
+  customGstPercent: z.coerce.number().min(0).max(100).optional(),
+});
+

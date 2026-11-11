@@ -19,6 +19,7 @@ import {
   planIdParamSchema,
   createPlanSchema,
   updatePlanSchema,
+  calculateQuoteSchema,
 } from '../validators/amc.validator.js';
 
 const amcRouter = Router();
@@ -32,6 +33,9 @@ amcRouter.get('/plans/:id', validate({ params: planIdParamSchema }), amcControll
 amcRouter.post('/plans', requireRole('ADMIN'), validate({ body: createPlanSchema }), amcController.createPlan.bind(amcController));
 amcRouter.put('/plans/:id', requireRole('ADMIN'), validate({ params: planIdParamSchema, body: updatePlanSchema }), amcController.updatePlan.bind(amcController));
 amcRouter.delete('/plans/:id', requireRole('ADMIN'), validate({ params: planIdParamSchema }), amcController.deletePlan.bind(amcController));
+
+// 1.1 Calculate authoritative quote
+amcRouter.post('/quote', validate({ body: calculateQuoteSchema }), amcController.calculateQuote.bind(amcController));
 
 // 2. Dashboard metrics
 amcRouter.get('/metrics', amcController.getMetrics.bind(amcController));

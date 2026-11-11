@@ -16,6 +16,18 @@ export class AmcController {
     }
   }
 
+  async calculateQuote(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const quote = await amcService.calculateQuote(req.body);
+      res.json({
+        success: true,
+        data: quote,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getPlanById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const plan = await amcService.getPlanById(String(req.params.id));
