@@ -312,6 +312,284 @@ describe('Technician Mobile Field Portal API (/api/v1/tech)', () => {
       expect(res.body.data[0].schedule_number).toBe('SCH-2026-0001');
       expect(res.body.data[0].customers.name).toBe('Alok Nath');
     });
+
+    it('falls back to base columns when optional issue_category column is missing on schema', async () => {
+      const selectSpy = vi.fn().mockImplementation((cols: string) => ({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockImplementation(async () => {
+              if (cols.includes('issue_category')) {
+                return { data: null, error: { code: '42703', message: 'column service_requests_1.issue_category does not exist' } };
+              }
+              return {
+                data: [
+                  {
+                    id: 'sched-202',
+                    schedule_number: 'SCH-2026-0002',
+                    status: 'SCHEDULED',
+                    scheduled_date: '2026-11-12',
+                    start_time: '09:00:00',
+                    end_time: '11:00:00',
+                    planned_service_type: 'DRY_SERVICE',
+                    customers: { id: 'cust-1', name: 'Rohan Mehta', phone: '9820011223' },
+                    sites: { id: 'site-1', site_name: 'Office', address: 'Vashi' },
+                    ac_assets: null,
+                    service_requests: null,
+                  },
+                ],
+                error: null,
+              };
+            }),
+          }),
+        }),
+      }));
+
+      const mockSupabase = {
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'technicians') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: sampleTech, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return { select: selectSpy };
+          }
+          return {};
+        }),
+      } as any;
+
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+
+      const res = await request(app)
+        .get('/api/v1/tech/jobs?date=2026-11-12')
+        .set('Authorization', `Bearer ${validTechToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].schedule_number).toBe('SCH-2026-0002');
+      expect(selectSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('4. Job Detail & Field Report Submission (/api/v1/tech/jobs/:id & /service-reports)', () => {
+    it('returns sequential suggestedReportNumber and siteAssets in GET /api/v1/tech/jobs/:id', async () => {
+      const year = new Date().getUTCFullYear();
+      const scheduleDetailRow = {
+        id: '88888888-8888-8888-8888-888888888881',
+        schedule_number: 'SCH-2026-0010',
+        status: 'ASSIGNED',
+        scheduled_date: '2026-11-12',
+        start_time: '14:00:00',
+        end_time: '16:00:00',
+        planned_service_type: 'DRY_SERVICE',
+        amc_id: null,
+        service_request_id: null,
+        customers: { id: 'cust-1', name: 'Apex Towers', phone: '9820011223', city: 'Navi Mumbai' },
+        sites: { id: 'site-1', site_name: 'Block A', address: 'Turbhe' },
+        ac_assets: null,
+        service_requests: null,
+      };
+
+      const mockSupabase = {
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'technicians') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: sampleTech, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: scheduleDetailRow, error: null }),
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'service_reports') {
+            return {
+              select: vi.fn().mockImplementation((cols: string, opts?: any) => {
+                if (opts?.head) {
+                  return Promise.resolve({ count: 4, error: null });
+                }
+                if (cols === 'report_number') {
+                  return {
+                    ilike: vi.fn().mockReturnValue({
+                      order: vi.fn().mockReturnValue({
+                        limit: vi.fn().mockResolvedValue({
+                          data: [{ report_number: `REP-${year}-0004` }],
+                          error: null,
+                        }),
+                      }),
+                    }),
+                  };
+                }
+                if (cols === 'id') {
+                  return {
+                    eq: vi.fn().mockReturnValue({
+                      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                    }),
+                  };
+                }
+                return {
+                  eq: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                  }),
+                };
+              }),
+            };
+          }
+          if (table === 'ac_assets') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockReturnValue({
+                    order: vi.fn().mockResolvedValue({
+                      data: [{ id: 'asset-site-1', asset_tag: 'AC-01', brand: 'Daikin' }],
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+          return {};
+        }),
+      } as any;
+
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+
+      const res = await request(app)
+        .get(`/api/v1/tech/jobs/${scheduleDetailRow.id}`)
+        .set('Authorization', `Bearer ${validTechToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.suggestedReportNumber).toBe(`REP-${year}-0005`);
+      expect(res.body.data.siteAssets).toHaveLength(1);
+    });
+
+    it('submits field report cleanly with omitted manualReportNumber, UPI mode, and inserts dispatcher notification', async () => {
+      const year = new Date().getUTCFullYear();
+      const scheduleId = '88888888-8888-8888-8888-888888888882';
+      const notifInsertSpy = vi.fn().mockResolvedValue({ error: null });
+      const { serviceReportService } = await import('../src/services/serviceReport.service.js');
+
+      vi.spyOn(serviceReportService, 'generateNextReportNumber').mockResolvedValue({
+        nextReportNumber: `REP-${year}-0009`,
+        totalReports: 8,
+      });
+      const createReportSpy = vi.spyOn(serviceReportService, 'createReport').mockResolvedValue({
+        id: 'rep-field-1',
+        reportNumber: `REP-${year}-0009`,
+        customerName: 'Apex Towers',
+        technicianName: sampleTech.name,
+      } as any);
+
+      const mockSupabase = {
+        from: vi.fn().mockImplementation((table: string) => {
+          if (table === 'technicians') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: sampleTech, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'service_schedules') {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: {
+                      id: scheduleId,
+                      technician_id: sampleTechId,
+                      service_request_id: null,
+                      amc_id: null,
+                      status: 'ASSIGNED',
+                      start_time: '10:00:00',
+                      end_time: '11:30:00',
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'staff') {
+            return {
+              select: vi.fn().mockReturnValue({
+                in: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockResolvedValue({
+                    data: [{ profile_id: 'admin-profile-1' }],
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'notifications') {
+            return { insert: notifInsertSpy };
+          }
+          return {};
+        }),
+      } as any;
+
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+
+      const res = await request(app)
+        .post('/api/v1/tech/service-reports')
+        .set('Authorization', `Bearer ${validTechToken}`)
+        .send({
+          scheduleId,
+          reportedVisitDate: '2026-11-12',
+          startTime: '10:00:00',
+          endTime: '11:30:00',
+          serviceExecutionType: 'DRY_SERVICE',
+          primaryOutcome: 'COMPLETED',
+          workDescription: 'Cleaned indoor coil and drain tray.',
+          technicianRemarks: 'Cooling verified OK.',
+          customerRepresentative: 'Site Manager',
+          paymentCollected: true,
+          paymentAmount: 1500,
+          paymentMethod: 'UPI',
+          paymentReference: '412345678901',
+          assets: [],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(createReportSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reportNumber: `REP-${year}-0009`,
+          startTime: '10:00',
+          endTime: '11:30',
+          paymentMethod: 'UPI',
+        }),
+        null
+      );
+      expect(notifInsertSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            recipient_profile_id: 'admin-profile-1',
+            entity_type: 'service_report',
+            entity_id: 'rep-field-1',
+          }),
+        ])
+      );
+    });
   });
 });
 

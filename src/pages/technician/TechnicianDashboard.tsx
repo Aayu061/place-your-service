@@ -432,7 +432,11 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                   }}
                 >
                   <Clock size={13} />
-                  <span>{job.start_time || '10:00'} - {job.end_time || '12:00'}</span>
+                  <span>
+                    {job.start_time && job.end_time
+                      ? `${job.start_time.slice(0, 5)} - ${job.end_time.slice(0, 5)}`
+                      : 'Schedule time TBD'}
+                  </span>
                 </div>
 
                 {/* Customer & Site Details */}

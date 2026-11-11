@@ -51,6 +51,12 @@ serviceReportRouter.get(
   serviceReportController.getReports.bind(serviceReportController)
 );
 
+// 1b. Get next auto-serial service report number
+serviceReportRouter.get(
+  '/next-number',
+  serviceReportController.getNextReportNumber.bind(serviceReportController)
+);
+
 // 2. Create new service visit report
 serviceReportRouter.post(
   '/',
@@ -77,6 +83,13 @@ serviceReportRouter.patch(
   '/:id',
   validate(updateServiceReportSchema),
   serviceReportController.updateReport.bind(serviceReportController)
+);
+
+// 5b. Verify submitted service report (Admin / Staff verification)
+serviceReportRouter.patch(
+  '/:id/verify',
+  validate(reportIdParamSchema),
+  serviceReportController.verifyReport.bind(serviceReportController)
 );
 
 // 6. Schedule a follow-up revisit for pending report

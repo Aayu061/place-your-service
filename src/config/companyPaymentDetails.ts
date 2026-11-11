@@ -2,9 +2,9 @@
  * Company Payment Configuration
  * Centralized repository for company banking particulars and UPI payment links.
  *
- * NOTE: Replace these demo values with official company bank details and VPA
- * when available. Updating this configuration file automatically updates
- * all forms, print views, invoices, and quotation emails across the platform.
+ * NOTE: Configure official company bank details and VPA below. Updating this
+ * configuration file automatically updates all forms, print views, invoices,
+ * and quotation emails across the platform.
  */
 
 export interface CompanyBankDetails {

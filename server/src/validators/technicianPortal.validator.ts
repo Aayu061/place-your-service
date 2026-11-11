@@ -53,19 +53,36 @@ export const techSparesItemSchema = z.object({
   actionRemarks: z.string().optional(),
 });
 
+const normalizeTimeInput = (val: unknown) => {
+  if (typeof val !== 'string') return val;
+  const trimmed = val.trim();
+  return trimmed.length >= 5 ? trimmed.slice(0, 5) : trimmed;
+};
+
 export const techFieldReportSchema = {
   body: z.object({
     scheduleId: z.string().uuid(),
-    manualReportNumber: z
-      .string()
-      .min(2, 'Manual report number / carbon serial is required')
-      .transform((v) => v.trim()),
+    manualReportNumber: z.preprocess(
+      (val) => {
+        if (val === null || val === undefined) return undefined;
+        const trimmed = String(val).trim();
+        return trimmed.length === 0 ? undefined : trimmed;
+      },
+      z.string().min(2, 'Report number must be at least 2 characters').optional()
+    ),
     assistantName: z.string().optional().nullable(),
     reportedVisitDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid visit date (YYYY-MM-DD) is required'),
-    startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time (HH:mm) is required'),
-    endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time (HH:mm) is required'),
-    serviceExecutionType: z.string().default('MAINTENANCE'),
+    startTime: z.preprocess(
+      normalizeTimeInput,
+      z.string().regex(/^\d{2}:\d{2}$/, 'Start time (HH:mm) is required')
+    ),
+    endTime: z.preprocess(
+      normalizeTimeInput,
+      z.string().regex(/^\d{2}:\d{2}$/, 'End time (HH:mm) is required')
+    ),
+    serviceExecutionType: z.string().default('DRY_SERVICE'),
     primaryOutcome: z.enum(['COMPLETED', 'PENDING_PARTS', 'PENDING_REPAIRS']),
+    workDescription: z.string().optional().nullable(),
     technicianRemarks: z.string().min(3, 'Technician observations must be at least 3 characters'),
     customerRepresentative: z.string().min(2, 'Customer representative name is required'),
     customerAcknowledgement: z.string().optional().nullable(),
@@ -77,7 +94,7 @@ export const techFieldReportSchema = {
     paymentMethod: z.string().optional().nullable(),
     paymentReference: z.string().optional().nullable(),
     paymentNotes: z.string().optional().nullable(),
-    assets: z.array(techAssetFindingSchema).min(1, 'At least one AC unit must be inspected'),
+    assets: z.array(techAssetFindingSchema).default([]),
     items: z.array(techSparesItemSchema).optional().default([]),
   }),
 };

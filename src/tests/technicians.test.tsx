@@ -197,6 +197,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
     const inputs = document.body.querySelectorAll('input');
     const nameInput = Array.from(inputs).find((i) => i.placeholder?.includes('Rahul Sharma'));
     const phoneInput = Array.from(inputs).find((i) => i.placeholder?.includes('9876543210'));
+    const pinInput = Array.from(inputs).find((i) => i.placeholder?.includes('Enter 4-6 digit PIN'));
 
     const setVal = (el: HTMLInputElement, val: string) => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -208,6 +209,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
     await act(async () => {
       if (nameInput) setVal(nameInput, 'Suresh Patil');
       if (phoneInput) setVal(phoneInput, '9822334455');
+      if (pinInput) setVal(pinInput, '4567');
     });
 
     const submitBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
@@ -223,6 +225,7 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
       expect.objectContaining({
         name: 'Suresh Patil',
         phone: '9822334455',
+        pin: '4567',
       })
     );
 

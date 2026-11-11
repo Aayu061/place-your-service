@@ -117,6 +117,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const [scheduleForReport, setScheduleForReport] = useState<ServiceSchedule | null>(null);
   const [scheduleReportDetail, setScheduleReportDetail] = useState<ServiceVisitReport | null>(null);
   const [isLoadingReportDetail, setIsLoadingReportDetail] = useState<boolean>(false);
+  const [isVerifyingReport, setIsVerifyingReport] = useState<boolean>(false);
   const [reportToPrint, setReportToPrint] = useState<ServiceVisitReport | null>(null);
 
   // Schedule & Assign Modal state
@@ -255,6 +256,28 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
       setIsLoadingReportDetail(false);
     }
   }, [showToast]);
+
+  const handleVerifyScheduleReport = useCallback(async (reportId: string) => {
+    try {
+      setIsVerifyingReport(true);
+      const res = await serviceReportApi.verifyReport(reportId);
+      setScheduleReportDetail(res.report);
+      showToast({
+        type: 'success',
+        title: 'Report Verified',
+        message: `Service report #${res.report.reportNumber} has been verified.`,
+      });
+      void fetchSchedules();
+    } catch (err: unknown) {
+      showToast({
+        type: 'error',
+        title: 'Verification Failed',
+        message: getErrorMessage(err, 'Failed to verify service visit report.'),
+      });
+    } finally {
+      setIsVerifyingReport(false);
+    }
+  }, [fetchSchedules, showToast]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -2229,9 +2252,14 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                   SERVICE VISIT REPORT & COMPLETION
                 </div>
                 {scheduleReportDetail && (
-                  <Badge variant={scheduleReportDetail.primaryOutcome === 'COMPLETED' ? 'success' : scheduleReportDetail.primaryOutcome === 'PENDING_PARTS' ? 'warning' : 'danger'}>
-                    {scheduleReportDetail.primaryOutcome.replace('_', ' ')}
-                  </Badge>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Badge variant={scheduleReportDetail.status === 'VERIFIED' ? 'success' : 'neutral'}>
+                      {scheduleReportDetail.status === 'VERIFIED' ? 'Verified' : scheduleReportDetail.status === 'SUBMITTED' ? 'Pending Verification' : scheduleReportDetail.status}
+                    </Badge>
+                    <Badge variant={scheduleReportDetail.primaryOutcome === 'COMPLETED' ? 'success' : scheduleReportDetail.primaryOutcome === 'PENDING_PARTS' ? 'warning' : 'danger'}>
+                      {scheduleReportDetail.primaryOutcome.replace('_', ' ')}
+                    </Badge>
+                  </div>
                 )}
               </div>
 
@@ -2239,21 +2267,34 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Checking report status...</div>
               ) : scheduleReportDetail ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <div>
                       <strong>Report Number:</strong>{' '}
                       <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-brand)' }}>
                         #{scheduleReportDetail.reportNumber}
                       </span>
                     </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setReportToPrint(scheduleReportDetail)}
-                    >
-                      <Printer style={{ width: '14px', height: '14px' }} className="mr-1" />
-                      Print / PDF
-                    </Button>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {scheduleReportDetail.status === 'SUBMITTED' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          isLoading={isVerifyingReport}
+                          onClick={() => void handleVerifyScheduleReport(scheduleReportDetail.id)}
+                        >
+                          <CheckCircle2 style={{ width: '14px', height: '14px' }} className="mr-1" />
+                          Verify Report
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setReportToPrint(scheduleReportDetail)}
+                      >
+                        <Printer style={{ width: '14px', height: '14px' }} className="mr-1" />
+                        Print / PDF
+                      </Button>
+                    </div>
                   </div>
 
                   <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>

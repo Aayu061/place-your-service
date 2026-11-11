@@ -1919,4 +1919,120 @@ describe('Service Visit Report & Completion Management API (/api/v1/service-repo
     expect(resB.body.success).toBe(true);
     expect(insertedReportData.assistant_name).toBeNull();
   });
+
+  // =========================================================================
+  // 16. Next Sequential Report Number & Report Verification Workflow
+  // =========================================================================
+  it('16. GET /api/v1/service-reports/next-number returns sequential REP-YYYY-NNNN candidate', async () => {
+    const year = new Date().getUTCFullYear();
+    const baseAuth = setupAuth('STAFF');
+
+    const mockSupabase = {
+      ...baseAuth,
+      from: (table: string) => {
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockImplementation((cols: string, opts?: any) => {
+              if (opts?.head) {
+                return Promise.resolve({ count: 7, error: null });
+              }
+              if (cols === 'report_number') {
+                return {
+                  ilike: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockResolvedValue({
+                        data: [{ report_number: `REP-${year}-0009` }],
+                        error: null,
+                      }),
+                    }),
+                  }),
+                };
+              }
+              return {
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              };
+            }),
+          };
+        }
+        return baseAuth.from(table);
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .get('/api/v1/service-reports/next-number')
+      .set('Authorization', staffAuthToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.nextReportNumber).toBe(`REP-${year}-0010`);
+  });
+
+  it('17. PATCH /api/v1/service-reports/:id/verify marks SUBMITTED report as VERIFIED and logs audit event', async () => {
+    const baseAuth = setupAuth('ADMIN');
+    let reportStatus = 'SUBMITTED';
+    const auditInsertSpy = vi.fn().mockResolvedValue({ error: null });
+
+    const mockSupabase = {
+      ...baseAuth,
+      from: (table: string) => {
+        if (table === 'service_reports') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockImplementation(async () => ({
+                  data: { ...sampleFullReportRow, status: reportStatus },
+                  error: null,
+                })),
+              }),
+            }),
+            update: vi.fn().mockImplementation((vals: any) => {
+              if (vals.status) reportStatus = vals.status;
+              return {
+                eq: vi.fn().mockResolvedValue({ error: null }),
+              };
+            }),
+          };
+        }
+        if (table === 'service_report_assets') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ data: [sampleAssetRow], error: null }),
+            }),
+          };
+        }
+        if (table === 'service_report_items' || table === 'service_report_audit_logs') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === 'activity_logs') {
+          return { insert: auditInsertSpy };
+        }
+        return baseAuth.from(table);
+      },
+    };
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase as any);
+
+    const res = await request(app)
+      .patch(`/api/v1/service-reports/${sampleReportId}/verify`)
+      .set('Authorization', adminAuthToken)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.report.status).toBe('VERIFIED');
+    expect(auditInsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'SERVICE_REPORT_VERIFIED',
+        entity_id: sampleReportId,
+      })
+    );
+  });
 });

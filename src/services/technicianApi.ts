@@ -195,9 +195,19 @@ export const technicianApi = {
     return response;
   },
 
-  async getJobDetail(scheduleId: string): Promise<{ schedule: TechJob; existingReport: any | null }> {
+  async getJobDetail(scheduleId: string): Promise<{
+    schedule: TechJob;
+    existingReport: any | null;
+    suggestedReportNumber?: string;
+    siteAssets?: NonNullable<TechJob['ac_assets']>[];
+  }> {
     const token = this.getToken();
-    const response = await apiClient.get<{ schedule: TechJob; existingReport: any | null }>(
+    const response = await apiClient.get<{
+      schedule: TechJob;
+      existingReport: any | null;
+      suggestedReportNumber?: string;
+      siteAssets?: NonNullable<TechJob['ac_assets']>[];
+    }>(
       `/api/v1/tech/jobs/${scheduleId}`,
       {
         headers: { Authorization: `Bearer ${token}` },

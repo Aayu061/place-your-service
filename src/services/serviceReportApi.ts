@@ -41,11 +41,17 @@ export const serviceReportApi = {
   getReportByScheduleId: (scheduleId: string) =>
     apiClient.get<{ report: ServiceVisitReport | null }>(`/service-reports/by-schedule/${scheduleId}`),
 
+  getNextReportNumber: () =>
+    apiClient.get<{ nextReportNumber: string }>('/service-reports/next-number'),
+
   createReport: (payload: CreateServiceReportPayload) =>
     apiClient.post<{ report: ServiceVisitReport }>('/service-reports', payload),
 
   updateReport: (id: string, payload: UpdateServiceReportPayload) =>
     apiClient.patch<{ report: ServiceVisitReport }>(`/service-reports/${id}`, payload),
+
+  verifyReport: (id: string) =>
+    apiClient.patch<{ report: ServiceVisitReport }>(`/service-reports/${id}/verify`, {}),
 
   sendReportEmail: (id: string) =>
     apiClient.post<{ delivery: ServiceReportEmailDelivery; processed: number }>(`/service-reports/${id}/email`),

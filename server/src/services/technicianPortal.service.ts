@@ -144,23 +144,50 @@ export class TechnicianPortalService {
     const supabase = getSupabaseClient();
     const targetDate = filterDate || new Date().toISOString().split('T')[0];
 
-    const { data: schedules, error } = await supabase
+    const fullSelect = `
+      id, schedule_number, status, scheduled_date, start_time, end_time,
+      planned_service_type, notes, amc_id, service_request_id,
+      customers ( id, name, phone, customer_code, city ),
+      sites:customer_sites ( id, site_name, address ),
+      ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
+      service_requests ( id, request_number, request_type, priority, description, issue_category )
+    `;
+
+    let { data: schedules, error }: { data: any[] | null; error: any } = await supabase
       .from('service_schedules')
-      .select(`
+      .select(fullSelect)
+      .eq('technician_id', techId)
+      .eq('scheduled_date', targetDate)
+      .order('start_time', { ascending: true });
+
+    // Graceful fallback if an optional schema column (e.g. issue_category) is not yet migrated on target DB
+    if (error) {
+      logger.warn('Retrying technician assigned jobs query with base columns after schema error', {
+        techId,
+        targetDate,
+        error,
+      });
+      const baseSelect = `
         id, schedule_number, status, scheduled_date, start_time, end_time,
         planned_service_type, notes, amc_id, service_request_id,
         customers ( id, name, phone, customer_code, city ),
         sites:customer_sites ( id, site_name, address ),
         ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
-        service_requests ( id, request_number, request_type, priority, description, issue_category )
-      `)
-      .eq('technician_id', techId)
-      .eq('scheduled_date', targetDate)
-      .order('start_time', { ascending: true });
+        service_requests ( id, request_number, request_type, priority, description )
+      `;
+      const fallback = await supabase
+        .from('service_schedules')
+        .select(baseSelect)
+        .eq('technician_id', techId)
+        .eq('scheduled_date', targetDate)
+        .order('start_time', { ascending: true });
+      schedules = fallback.data as any[] | null;
+      error = fallback.error;
+    }
 
     if (error) {
       logger.error('Error fetching technician assigned jobs', { techId, targetDate, error });
-      throw new BadRequestError('Failed to load dispatch queue.');
+      throw new BadRequestError(`Failed to load dispatch queue${error.message ? `: ${error.message}` : '.'}`);
     }
 
     return (schedules || []).map((s: any) => ({
@@ -180,19 +207,45 @@ export class TechnicianPortalService {
   async getJobDetail(techId: string, scheduleId: string) {
     const supabase = getSupabaseClient();
 
-    const { data: schedule, error } = await supabase
+    const fullDetailSelect = `
+      id, schedule_number, status, scheduled_date, start_time, end_time,
+      planned_service_type, notes, amc_id, service_request_id,
+      customers ( id, name, phone, email, customer_code, city ),
+      sites:customer_sites ( id, site_name, address ),
+      ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
+      service_requests ( id, request_number, request_type, priority, description, issue_category )
+    `;
+
+    let { data: schedule, error }: { data: any; error: any } = await supabase
       .from('service_schedules')
-      .select(`
+      .select(fullDetailSelect)
+      .eq('id', scheduleId)
+      .eq('technician_id', techId)
+      .maybeSingle();
+
+    if (error) {
+      logger.warn('Retrying technician job detail query with base columns after schema error', {
+        techId,
+        scheduleId,
+        error,
+      });
+      const baseDetailSelect = `
         id, schedule_number, status, scheduled_date, start_time, end_time,
         planned_service_type, notes, amc_id, service_request_id,
         customers ( id, name, phone, email, customer_code, city ),
         sites:customer_sites ( id, site_name, address ),
         ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
-        service_requests ( id, request_number, request_type, priority, description, issue_category )
-      `)
-      .eq('id', scheduleId)
-      .eq('technician_id', techId)
-      .maybeSingle();
+        service_requests ( id, request_number, request_type, priority, description )
+      `;
+      const fallback = await supabase
+        .from('service_schedules')
+        .select(baseDetailSelect)
+        .eq('id', scheduleId)
+        .eq('technician_id', techId)
+        .maybeSingle();
+      schedule = fallback.data;
+      error = fallback.error;
+    }
 
     if (error || !schedule) {
       throw new NotFoundError('Job assignment not found or not allocated to your technician profile.');
@@ -205,6 +258,19 @@ export class TechnicianPortalService {
       .eq('service_schedule_id', scheduleId)
       .maybeSingle();
 
+    // Pre-fetch next sequential serial number & available site AC units (when visit isn't tied to one unit)
+    const [{ nextReportNumber }, siteAssetsRes] = await Promise.all([
+      serviceReportService.generateNextReportNumber(),
+      !(schedule as any).ac_assets && (schedule as any).sites?.id
+        ? supabase
+            .from('ac_assets')
+            .select('id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type')
+            .eq('site_id', (schedule as any).sites.id)
+            .eq('is_active', true)
+            .order('asset_tag', { ascending: true })
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
     return {
       schedule: {
         ...schedule,
@@ -216,6 +282,8 @@ export class TechnicianPortalService {
           : null,
       },
       existingReport: existingReport || null,
+      suggestedReportNumber: nextReportNumber,
+      siteAssets: siteAssetsRes?.data || [],
     };
   }
 
@@ -228,7 +296,7 @@ export class TechnicianPortalService {
     // Verify schedule belongs to this technician
     const { data: schedule, error: schedErr } = await supabase
       .from('service_schedules')
-      .select('id, technician_id, amc_id, service_request_id')
+      .select('id, technician_id, amc_id, service_request_id, start_time, end_time, schedule_number')
       .eq('id', payload.scheduleId)
       .maybeSingle();
 
@@ -243,28 +311,34 @@ export class TechnicianPortalService {
     // Determine visitType automatically
     const visitType: ServiceVisitType = schedule.amc_id ? 'PREVENTIVE' : 'SERVICE_REQUEST';
 
-    // Auto-generate report number if technician left it empty on mobile
+    // Auto-generate deterministic serial report number if technician left it empty
     let reportNumber = (payload.manualReportNumber || '').trim();
     if (!reportNumber) {
-      const year = new Date().getUTCFullYear();
-      const randSuffix = Math.floor(1000 + Math.random() * 9000);
-      reportNumber = `REP-${year}-${randSuffix}`;
+      const next = await serviceReportService.generateNextReportNumber();
+      reportNumber = next.nextReportNumber;
     }
 
+    const normalizedStartTime = (payload.startTime || schedule.start_time || '').trim().slice(0, 5) || null;
+    const normalizedEndTime = (payload.endTime || schedule.end_time || '').trim().slice(0, 5) || null;
+
     // Format payload for serviceReportService
+    const firstAssetWork = Array.isArray(payload.assets)
+      ? payload.assets.map((a: any) => a?.workPerformed).filter(Boolean).join('; ')
+      : '';
     const reportPayload = {
       scheduleId: payload.scheduleId,
       visitType,
       reportNumber,
       serviceDate: payload.reportedVisitDate,
       assistantName: payload.assistantName || null,
-      startTime: payload.startTime,
-      endTime: payload.endTime,
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
       plannedServiceType: null,
       performedServiceType: payload.serviceExecutionType && payload.serviceExecutionType !== 'MAINTENANCE'
         ? payload.serviceExecutionType
         : (schedule.service_request_id ? 'DIAGNOSTIC_INSPECTION' : 'DRY_SERVICE'),
       primaryOutcome: payload.primaryOutcome,
+      workDescription: (payload.workDescription && String(payload.workDescription).trim()) || firstAssetWork || payload.technicianRemarks || null,
       technicianRemarks: payload.technicianRemarks,
       customerRepresentative: payload.customerRepresentative,
       customerAcknowledgement: payload.customerAcknowledgement || (payload.signatureDataUrl ? 'Digitally Signed by Customer on Field Device' : null),
@@ -276,7 +350,7 @@ export class TechnicianPortalService {
       paymentMethod: payload.paymentMethod || null,
       paymentReference: payload.paymentReference ? String(payload.paymentReference).trim() : null,
       paymentNotes: payload.paymentNotes ? String(payload.paymentNotes).trim() : null,
-      assets: payload.assets.map((a: any) => ({
+      assets: (payload.assets || []).map((a: any) => ({
         assetId: a.assetId,
         faultReported: a.faultReported || null,
         diagnosisFindings: a.diagnosisFindings,
@@ -287,19 +361,61 @@ export class TechnicianPortalService {
         refrigerantType: a.refrigerantType || null,
         refrigerantQtyKg: a.refrigerantQtyKg || null,
       })),
-      items: (payload.items || []).map((item: any) => ({
-        assetId: item.assetId || null,
-        partDescription: item.partDescription,
-        quantity: Number(item.quantity || 1),
-        unitCost: item.unitCost ? Number(item.unitCost) : null,
-        isProcurementRequired: item.isProcurementRequired || false,
-        isRevisitRequired: item.isRevisitRequired || false,
-        actionRemarks: item.actionRemarks || null,
-      })),
+      items: (payload.items || []).map((item: any) => {
+        const effectiveAssetId = item.assetId || payload.assets?.[0]?.assetId || null;
+        return {
+          assetId: effectiveAssetId,
+          itemType: (payload.primaryOutcome === 'PENDING_PARTS' ? 'PART_REQUIRED' : 'REPAIR_REQUIRED') as 'PART_REQUIRED' | 'REPAIR_REQUIRED',
+          itemName: item.partDescription,
+          quantity: Number(item.quantity || 1),
+          reason: item.actionRemarks || payload.technicianRemarks || 'Reported during on-site visit',
+          isApprovalRequired: false,
+          isSpecialistRequired: false,
+          isRevisitRequired: Boolean(effectiveAssetId) && (item.isRevisitRequired ?? true),
+          followUpNotes: item.actionRemarks || null,
+        };
+      }),
     };
 
-    // Execute through authoritative serviceReportService
-    const createdReport = await serviceReportService.createReport(reportPayload, techId);
+    // Execute through authoritative serviceReportService (null actorId: technician uses PIN auth without profiles row)
+    const createdReport = await serviceReportService.createReport(reportPayload, null);
+
+    // Notify Admin & Staff dispatchers in real-time inside Operations -> Notifications
+    try {
+      const { data: recipients } = await supabase
+        .from('staff')
+        .select('profile_id')
+        .in('role', ['ADMIN', 'STAFF'])
+        .eq('is_active', true);
+
+      const recipientIds = Array.from(
+        new Set((recipients || []).map((r: any) => r.profile_id).filter(Boolean))
+      );
+
+      if (recipientIds.length > 0) {
+        const outcomeLabel = payload.primaryOutcome === 'COMPLETED'
+          ? 'Completed'
+          : payload.primaryOutcome === 'PENDING_PARTS'
+          ? 'Pending Parts'
+          : 'Needs Revisit';
+        const notificationRows = recipientIds.map((profileId: string) => ({
+          recipient_profile_id: profileId,
+          title: `Field Report #${createdReport.reportNumber} Submitted`,
+          message: `${createdReport.technicianName || 'Field technician'} filed visit report #${createdReport.reportNumber} (${outcomeLabel}) for ${createdReport.customerName || 'customer'}.`,
+          type: payload.primaryOutcome === 'COMPLETED' ? 'SUCCESS' : 'WARNING',
+          category: payload.primaryOutcome === 'PENDING_PARTS' ? 'AWAITING_PARTS' : 'SYSTEM',
+          entity_type: 'service_report',
+          entity_id: createdReport.id,
+          dedupe_key: `field-report-${createdReport.id}-${profileId}`,
+        }));
+        await supabase.from('notifications').insert(notificationRows);
+      }
+    } catch (notifyErr) {
+      logger.warn('Non-blocking dispatcher notification error after field report', {
+        error: notifyErr,
+        reportId: createdReport.id,
+      });
+    }
 
     logger.info('Field service report submitted by technician', {
       techId,
@@ -402,7 +518,7 @@ export class TechnicianPortalService {
     const completed = todayList.filter((s: any) => s.status === 'COMPLETED').length;
     const inProgress = todayList.filter((s: any) => s.status === 'IN_PROGRESS' || s.status === 'EN_ROUTE').length;
     const pending = totalAssigned - completed;
-    const completionRatePercent = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 100;
+    const completionRatePercent = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0;
 
     // 2. Fetch last 7 days of completed schedules & reports for weekly analytics
     const sevenDaysAgo = new Date(todayStr);
@@ -450,11 +566,11 @@ export class TechnicianPortalService {
 
     const avgDurationMinutes = durationCount > 0
       ? Math.round(totalDurationMinutes / durationCount)
-      : 55;
+      : 0;
 
     const customerSignOffRatePercent = reportsList.length > 0
       ? Math.round((signedReportsCount / reportsList.length) * 100)
-      : 100;
+      : 0;
 
     const totalCompleted = reportsList.length;
     const completedWeekSchedules = schedulesList.filter((s: any) => s.status === 'COMPLETED');

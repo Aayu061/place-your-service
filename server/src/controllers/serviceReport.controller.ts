@@ -68,6 +68,25 @@ export class ServiceReportController {
     }
   }
 
+  public async getNextReportNumber(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const next = await serviceReportService.generateNextReportNumber();
+      sendSuccess(res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async verifyReport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const actorId = req.user?.profileId || '';
+      const report = await serviceReportService.verifyReport(req.params.id as string, actorId);
+      sendSuccess(res, { report });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async updateReport(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const actorId = req.user?.profileId || '';

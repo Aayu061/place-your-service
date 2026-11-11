@@ -48,7 +48,106 @@ function resolveAssetCustomerId(
   return null;
 }
 
+function normalizeDbPaymentMethod(method?: string | null): 'CASH' | 'ONLINE' | null {
+  if (!method) return null;
+  const upper = String(method).trim().toUpperCase();
+  if (upper === 'CASH') return 'CASH';
+  if (['ONLINE', 'UPI', 'CHEQUE', 'NEFT', 'IMPS', 'RTGS', 'BANK_TRANSFER'].includes(upper)) {
+    return 'ONLINE';
+  }
+  return null;
+}
+
 export class ServiceReportService {
+  /**
+   * Resolves a valid profiles(id) actor for ledger operations requiring NOT NULL recorded_by / staff actor.
+   */
+  private async resolveOperationalProfileActorId(
+    supabase: any,
+    actorId?: string | null
+  ): Promise<string | null> {
+    if (actorId && actorId.trim()) {
+      return actorId.trim();
+    }
+    try {
+      const staffTable = supabase.from('staff');
+      if (staffTable && typeof staffTable.select === 'function') {
+        const { data: adminStaff } = await staffTable
+          .select('profile_id')
+          .eq('role', 'ADMIN')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (adminStaff?.profile_id) {
+          return adminStaff.profile_id;
+        }
+      }
+    } catch {
+      // Ignore fallback lookup errors
+    }
+    return null;
+  }
+
+  /**
+   * Generates the next serial Service Report number (REP-YYYY-NNNN) based on total
+   * reports in the database and the highest existing sequential number for the year.
+   */
+  async generateNextReportNumber(): Promise<{ nextReportNumber: string; totalReports: number }> {
+    const supabase = getSupabaseClient();
+    const year = new Date().getUTCFullYear();
+    const prefix = `REP-${year}-`;
+
+    let totalReports = 0;
+    let maxYearSeq = 0;
+
+    try {
+      const { count } = await supabase
+        .from('service_reports')
+        .select('id', { count: 'exact', head: true });
+      totalReports = count ?? 0;
+
+      const { data: existingRows } = await supabase
+        .from('service_reports')
+        .select('report_number')
+        .ilike('report_number', `${prefix}%`)
+        .order('report_number', { ascending: false })
+        .limit(50);
+
+      for (const row of existingRows || []) {
+        const num = String(row.report_number || '').trim();
+        const match = num.match(new RegExp(`^REP-${year}-(\\d+)$`, 'i'));
+        if (match) {
+          const parsed = Number.parseInt(match[1], 10);
+          if (Number.isFinite(parsed) && parsed > maxYearSeq) {
+            maxYearSeq = parsed;
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to inspect existing service_reports sequence cleanly', { error: err });
+    }
+
+    let seq = Math.max(totalReports, maxYearSeq) + 1;
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const candidate = `${prefix}${String(seq).padStart(4, '0')}`;
+      const { data: conflict } = await supabase
+        .from('service_reports')
+        .select('id')
+        .eq('report_number', candidate)
+        .maybeSingle();
+      if (!conflict) {
+        return { nextReportNumber: candidate, totalReports };
+      }
+      seq += 1;
+    }
+
+    return {
+      nextReportNumber: `${prefix}${String(seq).padStart(4, '0')}`,
+      totalReports,
+    };
+  }
+
   /**
    * Helper to write audit logs to activity_logs
    */
@@ -104,9 +203,10 @@ export class ServiceReportService {
    */
   async createReport(
     payload: CreateServiceReportPayload,
-    actorId: string
+    actorId?: string | null
   ): Promise<ServiceVisitReportResponse> {
     const supabase = getSupabaseClient();
+    const normalizedActorId = actorId && actorId.trim() ? actorId.trim() : null;
     const trimmedReportNumber = payload.reportNumber.trim();
 
     if (!trimmedReportNumber) {
@@ -381,6 +481,15 @@ export class ServiceReportService {
     }
 
     // 6. Insert Report Header
+    const dbPaymentMethod = normalizeDbPaymentMethod(payload.paymentMethod);
+    const rawPaymentMode = payload.paymentMethod ? String(payload.paymentMethod).trim().toUpperCase() : null;
+    const modeNotePrefix =
+      rawPaymentMode && dbPaymentMethod && rawPaymentMode !== dbPaymentMethod
+        ? `[Mode: ${rawPaymentMode}] `
+        : '';
+    const trimmedPaymentNotes = payload.paymentNotes ? payload.paymentNotes.trim() : '';
+    const combinedPaymentNotes = `${modeNotePrefix}${trimmedPaymentNotes}`.trim() || null;
+
     const { data: newReport, error: insertErr } = await supabase
       .from('service_reports')
       .insert({
@@ -416,12 +525,12 @@ export class ServiceReportService {
         after_photo_url: payload.afterPhotoUrl || null,
         payment_collected: Boolean(payload.paymentCollected),
         payment_amount: payload.paymentAmount != null ? Number(payload.paymentAmount) : 0,
-        payment_method: payload.paymentMethod || null,
+        payment_method: dbPaymentMethod,
         payment_reference: payload.paymentReference ? payload.paymentReference.trim() || null : null,
-        payment_notes: payload.paymentNotes ? payload.paymentNotes.trim() || null : null,
+        payment_notes: combinedPaymentNotes,
         status: 'DRAFT',
-        created_by: actorId || null,
-        updated_by: actorId || null,
+        created_by: normalizedActorId,
+        updated_by: normalizedActorId,
       })
       .select()
       .single();
@@ -445,6 +554,7 @@ export class ServiceReportService {
     if (payload.paymentAmount && Number(payload.paymentAmount) > 0) {
       try {
         const paymentNumber = `PAY-${new Date().getUTCFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+        const paymentActorId = await this.resolveOperationalProfileActorId(supabase, normalizedActorId);
         if (typeof supabase.rpc === 'function') {
           const { data: payId, error: payErr } = await supabase.rpc('create_payment_record', {
             p_payment_number: paymentNumber,
@@ -452,19 +562,22 @@ export class ServiceReportService {
             p_service_request_id: schedule.service_request_id || null,
             p_amc_id: schedule.amc_id || null,
             p_total_amount_due: Number(payload.paymentAmount),
-            p_actor_profile_id: actorId || null,
+            p_actor_profile_id: paymentActorId,
           });
 
           if (!payErr && payId) {
             linkedPaymentId = payId;
-            if (payload.paymentCollected) {
+            const txnMethod = dbPaymentMethod || 'CASH';
+            const trimmedRef = payload.paymentReference?.trim() || null;
+            const canRecordOnline = txnMethod !== 'ONLINE' || Boolean(trimmedRef);
+            if (payload.paymentCollected && paymentActorId && canRecordOnline) {
               await supabase.rpc('record_payment_transaction', {
                 p_payment_id: linkedPaymentId,
-                p_payment_method: payload.paymentMethod || 'CASH',
+                p_payment_method: txnMethod,
                 p_amount: Number(payload.paymentAmount),
-                p_external_payment_reference: payload.paymentReference?.trim() || null,
-                p_notes: payload.paymentNotes?.trim() || `Collected on-site for Service Report #${trimmedReportNumber}`,
-                p_actor_profile_id: actorId || null,
+                p_external_payment_reference: trimmedRef,
+                p_notes: combinedPaymentNotes || `Collected on-site for Service Report #${trimmedReportNumber}`,
+                p_actor_profile_id: paymentActorId,
               });
             }
             await supabase
@@ -512,12 +625,14 @@ export class ServiceReportService {
       };
     });
 
-    const { error: assetErr } = await supabase.from('service_report_assets').insert(assetInserts);
-    if (assetErr) {
-      logger.error('Failed to insert service report assets', { error: assetErr, reportId: newReport.id });
-      // Rollback header
-      await supabase.from('service_reports').delete().eq('id', newReport.id);
-      throw new BadRequestError('Failed to save per-asset visit findings.');
+    if (assetInserts.length > 0) {
+      const { error: assetErr } = await supabase.from('service_report_assets').insert(assetInserts);
+      if (assetErr) {
+        logger.error('Failed to insert service report assets', { error: assetErr, reportId: newReport.id });
+        // Rollback header
+        await supabase.from('service_reports').delete().eq('id', newReport.id);
+        throw new BadRequestError('Failed to save per-asset visit findings.');
+      }
     }
 
     // 8. Insert Parts / Repairs Requirements (if any)
@@ -554,7 +669,7 @@ export class ServiceReportService {
     if (typeof supabase.rpc === 'function') {
       const { error: submitErr } = await supabase.rpc('submit_service_report_completion', {
         p_service_report_id: newReport.id,
-        p_actor_profile_id: actorId || null,
+        p_actor_profile_id: normalizedActorId,
       });
       if (submitErr) {
         logger.error('Failed to submit service report transaction', { error: submitErr, reportId: newReport.id });
@@ -579,7 +694,7 @@ export class ServiceReportService {
         const { error: resolveErr } = await supabase.rpc('resolve_service_report_follow_up_scope', {
           p_follow_up_schedule_id: schedule.id,
           p_resolving_report_id: newReport.id,
-          p_actor_profile_id: actorId || null,
+          p_actor_profile_id: normalizedActorId,
         });
         if (resolveErr) {
           logger.error('Failed to resolve scoped source items after completed follow-up', {
@@ -601,7 +716,7 @@ export class ServiceReportService {
           throw new BadRequestError('The follow-up report was saved, but its linked issue could not be resolved.');
         }
       }
-      await this.recordAudit(actorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
+      await this.recordAudit(normalizedActorId, 'SERVICE_REPORT_ISSUE_RESOLVED', originatingReportId, {
         resolvingReportId: newReport.id,
         resolvingReportNumber: trimmedReportNumber,
         sourceItemIds: followUpScopes.map((scope) => scope.source_item_id),
@@ -614,7 +729,7 @@ export class ServiceReportService {
       .update({
         status: 'COMPLETED',
         notes: `Visit Report #${trimmedReportNumber} filed (${payload.primaryOutcome})`,
-        updated_by: actorId || null,
+        updated_by: normalizedActorId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', schedule.id);
@@ -647,7 +762,7 @@ export class ServiceReportService {
         .update({
           status: 'COMPLETED',
           notes: `Completed by Visit Report #${trimmedReportNumber}`,
-          updated_by: actorId || null,
+          updated_by: normalizedActorId,
           updated_at: new Date().toISOString(),
         })
         .eq('id', schedule.pm_obligation_id);
@@ -679,27 +794,38 @@ export class ServiceReportService {
         .update({
           status: targetSrStatus,
           notes: `Updated by Report #${trimmedReportNumber} (${payload.primaryOutcome})`,
-          updated_by: actorId || null,
+          updated_by: normalizedActorId,
           updated_at: new Date().toISOString(),
         })
         .eq('id', schedule.service_request_id);
 
       void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
     }
+    }
 
-    // 9d. Automated Spares & Refrigerant Stock Deduction
+    // Ensure ESS notification runs even when the database RPC handled state transitions atomically
+    if (submittedAtomically && schedule.service_request_id) {
+      let targetSrStatus = 'RESOLVED';
+      if (payload.primaryOutcome === 'PENDING_PARTS') {
+        targetSrStatus = 'AWAITING_PARTS';
+      } else if (payload.primaryOutcome === 'PENDING_REPAIRS') {
+        targetSrStatus = 'REVISIT_REQUIRED';
+      }
+      void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
+    }
+
+    // 9d. Automated Spares & Refrigerant Stock Deduction (runs reliably on both RPC and fallback paths)
     try {
-      await this.deductInventoryForReport(supabase, newReport.id, trimmedReportNumber, payload, actorId);
+      await this.deductInventoryForReport(supabase, newReport.id, trimmedReportNumber, payload, normalizedActorId);
     } catch (invErr) {
       logger.warn('Non-blocking inventory deduction warning on service report', { error: invErr, reportId: newReport.id });
-    }
     }
 
     // The transaction RPC creates its immutable activity record in the same
     // database transaction as completion. The fallback is retained for
     // lightweight unit-test clients that do not implement RPC.
     if (!submittedAtomically) {
-      await this.recordAudit(actorId, 'SERVICE_REPORT_CREATED', newReport.id, {
+      await this.recordAudit(normalizedActorId, 'SERVICE_REPORT_CREATED', newReport.id, {
         reportNumber: trimmedReportNumber,
         scheduleId: schedule.id,
         scheduleNumber: schedule.schedule_number,
@@ -1275,7 +1401,7 @@ export class ServiceReportService {
     if (payload.customerSignatureUrl !== undefined) updates.customer_signature_url = payload.customerSignatureUrl;
     if (payload.paymentCollected !== undefined) updates.payment_collected = payload.paymentCollected;
     if (payload.paymentAmount !== undefined) updates.payment_amount = payload.paymentAmount;
-    if (payload.paymentMethod !== undefined) updates.payment_method = payload.paymentMethod || null;
+    if (payload.paymentMethod !== undefined) updates.payment_method = normalizeDbPaymentMethod(payload.paymentMethod);
     if (payload.paymentReference !== undefined) updates.payment_reference = payload.paymentReference ? payload.paymentReference.trim() || null : null;
     if (payload.paymentNotes !== undefined) updates.payment_notes = payload.paymentNotes ? payload.paymentNotes.trim() || null : null;
 
@@ -1292,6 +1418,40 @@ export class ServiceReportService {
       updatedFields: Object.keys(updates),
       assetCount: existing.assets.length,
       itemCount: existing.items.length,
+    });
+
+    return this.getReportById(id);
+  }
+
+  /**
+   * Verifies a submitted service report (typically field technician submission -> VERIFIED)
+   */
+  async verifyReport(id: string, actorId: string): Promise<ServiceVisitReportResponse> {
+    const supabase = getSupabaseClient();
+    const existing = await this.getReportById(id);
+
+    if (existing.status === 'VERIFIED') {
+      return existing;
+    }
+
+    const { error } = await supabase
+      .from('service_reports')
+      .update({
+        status: 'VERIFIED',
+        updated_by: actorId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      logger.error('Failed to verify service report', { error, id });
+      throw new BadRequestError('Failed to verify service report.');
+    }
+
+    await this.recordAudit(actorId || null, 'SERVICE_REPORT_VERIFIED', id, {
+      reportNumber: existing.reportNumber,
+      previousStatus: existing.status,
+      newStatus: 'VERIFIED',
     });
 
     return this.getReportById(id);
@@ -1527,9 +1687,10 @@ export class ServiceReportService {
     reportId: string,
     reportNumber: string,
     payload: CreateServiceReportPayload,
-    actorId?: string
+    actorId?: string | null
   ): Promise<void> {
     if (!supabase || typeof supabase.from !== 'function') return;
+    const recorderId = await this.resolveOperationalProfileActorId(supabase, actorId);
 
     // 1. Process spare parts listed in report items
     if (payload.items && payload.items.length > 0) {
@@ -1553,15 +1714,17 @@ export class ServiceReportService {
               .update({ current_stock: newStock, updated_at: new Date().toISOString() })
               .eq('id', matchedPart.id);
 
-            await supabase.from('inventory_transactions').insert({
-              part_id: matchedPart.id,
-              transaction_type: 'USAGE',
-              quantity: qty,
-              reference_type: 'SERVICE_REPORT',
-              reference_id: reportId,
-              reason: `Used during visit ${reportNumber}`,
-              recorded_by: actorId || null,
-            });
+            if (recorderId) {
+              await supabase.from('inventory_transactions').insert({
+                part_id: matchedPart.id,
+                transaction_type: 'SERVICE_USAGE',
+                quantity: -qty,
+                reference_type: 'SERVICE_REPORT',
+                reference_id: reportId,
+                reason: `Used during visit ${reportNumber}`,
+                recorded_by: recorderId,
+              });
+            }
 
             await supabase.from('service_parts').insert({
               service_report_id: reportId,
@@ -1599,15 +1762,17 @@ export class ServiceReportService {
               .update({ current_stock: newStock, updated_at: new Date().toISOString() })
               .eq('id', matchedGas.id);
 
-            await supabase.from('inventory_transactions').insert({
-              part_id: matchedGas.id,
-              transaction_type: 'USAGE',
-              quantity: Math.ceil(gasQty),
-              reference_type: 'SERVICE_REPORT',
-              reference_id: reportId,
-              reason: `${gasQty}kg ${gasType} gas charged during visit ${reportNumber}`,
-              recorded_by: actorId || null,
-            });
+            if (recorderId) {
+              await supabase.from('inventory_transactions').insert({
+                part_id: matchedGas.id,
+                transaction_type: 'SERVICE_USAGE',
+                quantity: -Math.ceil(gasQty),
+                reference_type: 'SERVICE_REPORT',
+                reference_id: reportId,
+                reason: `${gasQty}kg ${gasType} gas charged during visit ${reportNumber}`,
+                recorded_by: recorderId,
+              });
+            }
           }
         } catch (gasErr) {
           logger.warn('Failed to deduct refrigerant stock', { gasType, error: gasErr });

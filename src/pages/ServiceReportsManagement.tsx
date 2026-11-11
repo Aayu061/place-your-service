@@ -88,6 +88,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [detailedReport, setDetailedReport] = useState<ServiceVisitReport | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
+  const [isVerifyingReport, setIsVerifyingReport] = useState<boolean>(false);
   const [emailDeliveries, setEmailDeliveries] = useState<ServiceReportEmailDelivery[]>([]);
   const [emailDeliveriesLoaded, setEmailDeliveriesLoaded] = useState(false);
   const [isEmailActionLoading, setIsEmailActionLoading] = useState<boolean>(false);
@@ -213,6 +214,28 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
       setIsLoadingDetail(false);
     }
   }, [showToast]);
+
+  const handleVerifyReport = async (reportId: string) => {
+    try {
+      setIsVerifyingReport(true);
+      const res = await serviceReportApi.verifyReport(reportId);
+      setDetailedReport(res.report);
+      showToast({
+        type: 'success',
+        title: 'Report Verified',
+        message: `Service visit report #${res.report.reportNumber} marked as VERIFIED.`,
+      });
+      void fetchReports();
+    } catch (err: unknown) {
+      showToast({
+        type: 'error',
+        title: 'Verification Failed',
+        message: err instanceof Error ? err.message : 'Could not verify service report.',
+      });
+    } finally {
+      setIsVerifyingReport(false);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1113,18 +1136,43 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             {/* Header info */}
             <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
               <div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  Report Record
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
+                    Report Record
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      detailedReport.status === 'VERIFIED'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {detailedReport.status === 'VERIFIED'
+                      ? 'Verified'
+                      : detailedReport.status === 'SUBMITTED'
+                        ? 'Pending Verification'
+                        : detailedReport.status}
+                  </span>
                 </div>
                 <div className="text-xl font-bold font-mono text-slate-900 mt-0.5">
                   #{detailedReport.reportNumber}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
-                  Visit Date: {formatDate(detailedReport.serviceDate)} ({detailedReport.startTime} -{' '}
-                  {detailedReport.endTime})
+                  Visit Date: {formatDate(detailedReport.serviceDate)} (
+                  {(detailedReport.startTime || '').slice(0, 5)} - {(detailedReport.endTime || '').slice(0, 5)})
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                {detailedReport.status === 'SUBMITTED' && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    isLoading={isVerifyingReport}
+                    onClick={() => void handleVerifyReport(detailedReport.id)}
+                  >
+                    <CheckCircle2 size={14} className="mr-1" /> Verify Report
+                  </Button>
+                )}
                 <Button size="sm" variant="secondary" onClick={() => handleOpenEditModal(detailedReport)} title="Edit Report">
                   <Pencil size={14} className="mr-1" /> Edit Report
                 </Button>

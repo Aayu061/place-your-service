@@ -370,7 +370,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     );
 
     // Enter manual report number
-    const reportNumInput = container.querySelector('input[placeholder="e.g. REP-2026-0042"]') as HTMLInputElement;
+    const reportNumInput = container.querySelector('input[placeholder="Auto-generated or enter paper slip no."]') as HTMLInputElement;
     expect(reportNumInput).toBeDefined();
 
     await act(async () => {
@@ -456,7 +456,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     // 2. Type valid report number -> error notice MUST be immediately cleared!
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
 
     await act(async () => {
@@ -483,7 +483,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     );
 
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     await act(async () => {
       setInputValue(reportNumInput, 'SVR-2026-TIME');
@@ -537,7 +537,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     );
 
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     const workInput = container.querySelector(
       'input[placeholder="e.g. Jet cleaned filters, tested compressor amp"]'
@@ -591,7 +591,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     });
 
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     await act(async () => {
       setInputValue(reportNumInput, 'SVR-2026-PARTS');
@@ -635,7 +635,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     });
 
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     await act(async () => {
       setInputValue(reportNumInput, 'SVR-2026-REPAIRS');
@@ -860,7 +860,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     // Verify Edit header & prefilled values
     expect(container.textContent).toContain('Edit Service Visit Report #SVR-2026-9001');
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     expect(reportNumInput.value).toBe('SVR-2026-9001');
 
@@ -921,7 +921,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     // Field value still preserved
     const reportNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     expect(reportNumInput.value).toBe('SVR-2026-9001');
 
@@ -1681,7 +1681,7 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
 
     // Enter report number
     const repNumInput = container.querySelector(
-      'input[placeholder="e.g. REP-2026-0042"]'
+      'input[placeholder="Auto-generated or enter paper slip no."]'
     ) as HTMLInputElement;
     await act(async () => {
       setInputValue(repNumInput, 'SVR-2026-PAY-01');
@@ -1830,6 +1830,92 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     expect(container.textContent).toContain(COMPANY_BANK_DETAILS.ifscCode);
     expect(container.textContent).toContain(COMPANY_BANK_DETAILS.upiId);
     expect(container.querySelector('.pys-upi-qr-container')).toBeDefined();
+
+    unmount();
+  });
+
+  it('34. ServiceVisitReportModal auto-fills sequential next report number and exact schedule times without dummy fallbacks', async () => {
+    vi.spyOn(serviceReportApi, 'getNextReportNumber').mockResolvedValue({
+      nextReportNumber: 'REP-2026-0008',
+    });
+
+    const { container, unmount } = await renderComponent(
+      <ServiceVisitReportModal
+        isOpen={true}
+        onClose={vi.fn()}
+        schedule={{
+          ...sampleSchedule,
+          scheduledDate: '2026-11-18',
+          startTime: '14:15:00',
+          endTime: '16:45:00',
+        }}
+        mode="create"
+        onSuccess={vi.fn()}
+      />
+    );
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    const reportNumInput = container.querySelector('#manual-report-number-input') as HTMLInputElement;
+    const dateInput = container.querySelector('#reported-visit-date-input') as HTMLInputElement;
+    const timeInputs = container.querySelectorAll('input[type="time"]');
+
+    expect(reportNumInput.value).toBe('REP-2026-0008');
+    expect(dateInput.value).toBe('2026-11-18');
+    expect((timeInputs[0] as HTMLInputElement).value).toBe('14:15');
+    expect((timeInputs[1] as HTMLInputElement).value).toBe('16:45');
+
+    unmount();
+  });
+
+  it('35. ServiceReportsManagement drawer shows Verify Report for SUBMITTED reports and updates to Verified', async () => {
+    const submittedReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      status: 'SUBMITTED',
+    };
+    const verifiedReport: ServiceVisitReport = {
+      ...mockCompletedReport,
+      status: 'VERIFIED',
+    };
+
+    vi.spyOn(serviceReportApi, 'getReports').mockResolvedValue({
+      reports: [submittedReport],
+      total: 1,
+      page: 1,
+      pageSize: 15,
+      totalPages: 1,
+    });
+    vi.spyOn(serviceReportApi, 'getReportById').mockResolvedValue({ report: submittedReport });
+    vi.spyOn(serviceReportApi, 'listEmailDeliveries').mockResolvedValue({ deliveries: [] });
+    const verifySpy = vi.spyOn(serviceReportApi, 'verifyReport').mockResolvedValue({ report: verifiedReport });
+
+    const { container, unmount } = await renderComponent(<ServiceReportsManagement />);
+
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.getAttribute('aria-label')?.includes('View report') || b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    expect(document.body.textContent).toContain('Pending Verification');
+    const verifyBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Verify Report')
+    );
+    expect(verifyBtn).toBeTruthy();
+
+    await act(async () => {
+      verifyBtn?.click();
+    });
+
+    expect(verifySpy).toHaveBeenCalledWith('rep-001');
+    expect(document.body.textContent).toContain('Verified');
 
     unmount();
   });
