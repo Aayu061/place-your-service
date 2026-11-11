@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { lookupGstin } from '../controllers/compliance.controller';
+import { lookupGstin } from '../controllers/compliance.controller.js';
 
 const router = Router();
 

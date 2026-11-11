@@ -1,4 +1,4 @@
-import { decodeGstin, GstinInfo } from '../utils/gstinDecoder';
+import { decodeGstin, GstinInfo } from '../utils/gstinDecoder.js';
 
 export interface GstinLookupResult extends GstinInfo {
   legalName?: string;
