@@ -170,6 +170,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   const [maxDailyWorkload, setMaxDailyWorkload] = useState<number>(5);
   const [joiningDate, setJoiningDate] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [pinInput, setPinInput] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
 
   // Status Change Modal
@@ -255,6 +256,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     setMaxDailyWorkload(5);
     setJoiningDate(new Date().toISOString().split('T')[0]);
     setNotes('');
+    setPinInput('');
     setCustomSkillInput('');
     setCustomAreaInput('');
     setFormError(null);
@@ -267,6 +269,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     setName(tech.name);
     setPhone(tech.phone);
     setEmail(tech.email || '');
+    setPinInput('');
     setSelectedSkills(tech.specializations || tech.skills || []);
     setSelectedAreas(tech.serviceAreas || (tech.serviceArea ? [tech.serviceArea] : []));
     setSelectedDays(
@@ -446,10 +449,14 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
       setFormError('Please select at least one service area');
       return;
     }
+    if (pinInput.trim() && !/^\d{4,6}$/.test(pinInput.trim())) {
+      setFormError('Field Security PIN must be 4 to 6 numeric digits (or left blank for default 1234)');
+      return;
+    }
 
     setFormSubmitting(true);
     try {
-      const payload = {
+      const payload: any = {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || null,
@@ -466,6 +473,10 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
           workingHours: { start: workStart, end: workEnd },
         },
       };
+
+      if (pinInput.trim()) {
+        payload.pin = pinInput.trim();
+      }
 
       if (formMode === 'create') {
         const res = await apiClient.post<TechnicianApiResponse>('/technicians', payload);
@@ -1683,7 +1694,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
         title={formMode === 'create' ? '+ Add New Technician' : `Edit Technician: ${selectedTech?.technicianCode}`}
         description="Configure HVAC field service credentials, technical skills, and operational territory coverage."
         maxWidth="860px"
-        isDirty={Boolean(name || phone || email || notes || customAreaInput)}
+        isDirty={Boolean(name || phone || email || notes || pinInput || customAreaInput)}
       >
         {({ requestClose }) => (
           <form onSubmit={handleSubmitForm} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -1836,6 +1847,38 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                       <option value="OFF_DUTY">OFF_DUTY</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Field Portal Security PIN */}
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(2, 132, 199, 0.05)',
+                    border: '1px solid rgba(2, 132, 199, 0.25)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <KeyRound size={14} color="#0284c7" />
+                    <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                      Field Security PIN {formMode === 'create' ? '(Default: 1234)' : '(Leave blank to keep unchanged)'}
+                    </label>
+                  </div>
+                  <Input
+                    type="password"
+                    maxLength={6}
+                    placeholder={formMode === 'create' ? 'Default: 1234' : '•••• (Unchanged)'}
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    helperText={
+                      formMode === 'create'
+                        ? '4-6 digits for field mobile login. Defaults to 1234 if left blank.'
+                        : 'Enter new 4-6 digits to reset PIN, or leave blank to keep current PIN.'
+                    }
+                  />
                 </div>
               </div>
 

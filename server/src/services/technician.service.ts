@@ -333,12 +333,15 @@ export class TechnicianService {
 
     const initialStatus = payload.status || 'AVAILABLE';
     const isActive = initialStatus !== 'INACTIVE';
+    const initialPin = payload.pin && payload.pin.trim().length > 0 ? payload.pin.trim() : '1234';
+    const pinHash = hashPin(initialPin);
 
     const insertData = {
       technician_code: technicianCode,
       name: payload.name.trim(),
       phone: cleanPhone,
       email: cleanEmail,
+      pin_hash: pinHash,
       specializations,
       service_areas: serviceAreas,
       status: initialStatus,
@@ -461,6 +464,7 @@ export class TechnicianService {
     }
 
     if (payload.name !== undefined) updateData.name = payload.name.trim();
+    if (payload.pin && payload.pin.trim().length > 0) updateData.pin_hash = hashPin(payload.pin.trim());
     if (payload.maxDailyWorkload !== undefined) updateData.max_daily_workload = payload.maxDailyWorkload;
     if (payload.joiningDate !== undefined) updateData.joining_date = payload.joiningDate || null;
     if (payload.notes !== undefined) updateData.notes = payload.notes?.trim() || null;

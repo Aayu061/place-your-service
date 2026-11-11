@@ -682,6 +682,7 @@ export interface CreateTechnicianPayload {
   name: string;
   phone: string;
   email?: string | null;
+  pin?: string;
   specializations?: string[];
   skills?: string[];
   serviceAreas?: string[];
@@ -698,6 +699,7 @@ export interface UpdateTechnicianPayload {
   name?: string;
   phone?: string;
   email?: string | null;
+  pin?: string;
   specializations?: string[];
   skills?: string[];
   serviceAreas?: string[];
