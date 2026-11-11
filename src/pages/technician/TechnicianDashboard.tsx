@@ -11,6 +11,7 @@ import {
   Navigation,
   RefreshCw,
   Car,
+  MessageSquare,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
 import { getBreakdownCategoryLabel, getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
@@ -493,9 +494,53 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                       📋 Planned Scope: {getPlannedServiceTypeLabel(job.planned_service_type)}
                     </div>
                   )}
+
+                  {/* Lifecycle Progression Bar */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '6px 10px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      marginTop: '6px',
+                    }}
+                  >
+                    {[
+                      { key: 'ASSIGNED', label: '1. Assigned' },
+                      { key: 'EN_ROUTE', label: '2. En Route' },
+                      { key: 'IN_PROGRESS', label: '3. In Servicing' },
+                      { key: 'COMPLETED', label: '4. Done' },
+                    ].map((step, idx) => {
+                      const isCurrent = job.status === step.key;
+                      const isPast =
+                        (job.status === 'EN_ROUTE' && idx === 0) ||
+                        (job.status === 'IN_PROGRESS' && idx <= 1) ||
+                        (job.status === 'COMPLETED' && idx <= 3);
+
+                      return (
+                        <div
+                          key={step.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            color: isCurrent ? 'var(--color-brand)' : isPast ? '#16a34a' : 'var(--text-muted)',
+                            fontWeight: isCurrent ? 700 : isPast ? 600 : 500,
+                          }}
+                        >
+                          <span>{step.label}</span>
+                          {idx < 3 && <span style={{ color: 'var(--border-default)', margin: '0 2px' }}>›</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Quick Action Bar: Call, Maps & Progressive Action Button */}
+                {/* Quick Action Bar: Call, WhatsApp, Maps & Progressive Action Button */}
                 <div
                   style={{
                     paddingTop: 'var(--space-3)',
@@ -524,6 +569,34 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                       }}
                     >
                       <Phone size={16} />
+                    </a>
+                  )}
+
+                  {/* 1-Tap Customer WhatsApp Alert */}
+                  {customerPhone && (
+                    <a
+                      href={`https://wa.me/${(customerPhone.replace(/\D/g, '').length === 10 ? '91' : '') + customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        job.status === 'EN_ROUTE'
+                          ? `Hello ${job.customers?.name || 'Customer'},\nI have arrived at your site for scheduled appointment (${job.schedule_number}). Please let me know how to proceed to the AC unit.\n— ${technicianApi.getStoredTech()?.name || 'Technician'}, Place Your Service`
+                          : `Hello ${job.customers?.name || 'Customer'},\nThis is ${technicianApi.getStoredTech()?.name || 'Your technician'} from Place Your Service. I am on the way to your premises for service visit ${job.schedule_number}. Estimated arrival in ~30 mins.\nContact: ${technicianApi.getStoredTech()?.phone || '7977805245'}.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={job.status === 'EN_ROUTE' ? "Send 'Arrived on Site' WhatsApp" : "Send 'On the Way' WhatsApp"}
+                      style={{
+                        padding: '10px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                        color: '#16a34a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textDecoration: 'none',
+                        minWidth: '40px',
+                      }}
+                    >
+                      <MessageSquare size={16} />
                     </a>
                   )}
 

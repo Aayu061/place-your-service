@@ -934,9 +934,9 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
               <div className="pys-field-label">Payment Method</div>
               <div className="pys-field-value" style={{ fontSize: '11px' }}>
                 {report.paymentCollected
-                  ? report.paymentMethod === 'ONLINE'
-                    ? `Online / UPI ${report.paymentReference ? `(${report.paymentReference})` : ''}`
-                    : 'Cash Payment'
+                  ? report.paymentMethod === 'ONLINE' || report.paymentMethod === 'UPI' || report.paymentMethod === 'NEFT'
+                    ? `${report.paymentMethod === 'NEFT' ? 'Online / NEFT' : 'Online / UPI'}${report.paymentReference ? ` (${report.paymentReference})` : ''}`
+                    : `${report.paymentMethod ? report.paymentMethod.charAt(0).toUpperCase() + report.paymentMethod.slice(1).toLowerCase() : 'Cash'} Payment${report.paymentReference ? ` (${report.paymentReference})` : ''}`
                   : report.paymentAmount && report.paymentAmount > 0
                   ? 'Awaiting Collection'
                   : 'Covered under Contract'}
@@ -1015,6 +1015,27 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           </div>
         </div>
 
+        {/* On-Site Photographic Proof (if uploaded) */}
+        {(report.beforePhotoUrl || report.afterPhotoUrl) && (
+          <div style={{ marginTop: '14px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+            <div className="pys-section-title" style={{ marginBottom: '8px' }}>Field Photographic Evidence</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {report.beforePhotoUrl && (
+                <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>Before Service Condition</div>
+                  <img src={report.beforePhotoUrl} alt="Before Service" style={{ maxHeight: '115px', width: 'auto', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                </div>
+              )}
+              {report.afterPhotoUrl && (
+                <div style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#475569', marginBottom: '4px', textTransform: 'uppercase' }}>After Service Completion</div>
+                  <img src={report.afterPhotoUrl} alt="After Service" style={{ maxHeight: '115px', width: 'auto', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Signatures & Customer Acknowledgement */}
         <div className="pys-signature-box">
           <div>
@@ -1023,6 +1044,11 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             {report.customerAcknowledgement && (
               <div style={{ fontSize: '12px', color: '#475569', fontStyle: 'italic', marginTop: '4px' }}>
                 "{report.customerAcknowledgement}"
+              </div>
+            )}
+            {report.customerSignatureUrl && (
+              <div style={{ marginTop: '6px' }}>
+                <img src={report.customerSignatureUrl} alt="Customer Signature" style={{ maxHeight: '46px', width: 'auto', objectFit: 'contain' }} />
               </div>
             )}
             <div className="pys-sig-line">Customer / Client Sign-off</div>

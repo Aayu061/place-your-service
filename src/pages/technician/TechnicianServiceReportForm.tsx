@@ -4,8 +4,11 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCcw,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
+import { UpiQrCode } from '@/components/common/UpiQrCode';
 import {
   PM_SERVICE_TYPES,
   BREAKDOWN_REPAIR_TYPES,
@@ -63,6 +66,147 @@ export function TechnicianServiceReportForm({
   const [isDigitallySigned, setIsDigitallySigned] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+
+  // Photo Evidence
+  const [beforePhoto, setBeforePhoto] = useState<string | null>(null);
+  const [afterPhoto, setAfterPhoto] = useState<string | null>(null);
+  const beforeInputRef = useRef<HTMLInputElement | null>(null);
+  const afterInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Spot Billing & Payment Collection
+  const [paymentCollected, setPaymentCollected] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CASH' | 'CHEQUE' | 'NEFT'>('UPI');
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [paymentReference, setPaymentReference] = useState<string>('');
+  const [hasRecoveredDraft, setHasRecoveredDraft] = useState(false);
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1024;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxDim) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            }
+          } else {
+            if (h > maxDim) {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.onerror = (e) => reject(e);
+      };
+      reader.onerror = (e) => reject(e);
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      if (type === 'before') setBeforePhoto(compressed);
+      else setAfterPhoto(compressed);
+    } catch {
+      setError('Failed to process photo from device.');
+    }
+  };
+
+  const applyPreset = (preset: 'PM_STANDARD' | 'GAS_LEAK' | 'BREAKDOWN_CHECK') => {
+    if (preset === 'PM_STANDARD') {
+      setFilterCleaned(true);
+      setCoilJetWashed(true);
+      setDrainCleared(true);
+      setElectricalTightened(true);
+      setGasAdded(false);
+      setPrimaryOutcome('COMPLETED');
+      setDiagnosisFindings('Filters washed, coils jet cleaned, drain line cleared. Operating pressures and amperages nominal.');
+      setWorkPerformed('Full preventive maintenance servicing performed. Condenser & evaporator jet cleaned.');
+    } else if (preset === 'GAS_LEAK') {
+      setElectricalTightened(true);
+      setGasAdded(true);
+      setPrimaryOutcome('COMPLETED');
+      setSuctionPsi('65');
+      setDischargePsi('240');
+      setDiagnosisFindings('Low suction pressure detected due to flare nut micro-leak.');
+      setWorkPerformed('Torqued and flared joints, nitrogen leak test, vacuumed to 500 microns, recharged gas.');
+    } else if (preset === 'BREAKDOWN_CHECK') {
+      setFilterCleaned(true);
+      setElectricalTightened(true);
+      setDiagnosisFindings('Diagnostic evaluation conducted on compressor, electrical circuitry, and PCB relays.');
+      setWorkPerformed('Inspected control circuits and tested operational amperage under load.');
+    }
+  };
+
+  // Draft Auto-Recovery from LocalStorage
+  useEffect(() => {
+    if (!scheduleId) return;
+    try {
+      const saved = localStorage.getItem(`pys_draft_report_${scheduleId}`);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.reportNumber) setReportNumber(draft.reportNumber);
+        if (draft.assistantName) setAssistantName(draft.assistantName);
+        if (draft.performedServiceType) setPerformedServiceType(draft.performedServiceType);
+        if (draft.diagnosisFindings) setDiagnosisFindings(draft.diagnosisFindings);
+        if (draft.workPerformed) setWorkPerformed(draft.workPerformed);
+        if (draft.technicianRemarks) setTechnicianRemarks(draft.technicianRemarks);
+        if (draft.customerRep) setCustomerRep(draft.customerRep);
+        if (draft.paymentCollected !== undefined) setPaymentCollected(draft.paymentCollected);
+        if (draft.paymentAmount) setPaymentAmount(draft.paymentAmount);
+        if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
+        if (draft.paymentReference) setPaymentReference(draft.paymentReference);
+        if (draft.beforePhoto) setBeforePhoto(draft.beforePhoto);
+        if (draft.afterPhoto) setAfterPhoto(draft.afterPhoto);
+        setHasRecoveredDraft(true);
+      }
+    } catch (_) {}
+  }, [scheduleId]);
+
+  // Save draft on state changes
+  useEffect(() => {
+    if (!scheduleId || isLoading) return;
+    try {
+      const draft = {
+        reportNumber,
+        assistantName,
+        performedServiceType,
+        diagnosisFindings,
+        workPerformed,
+        technicianRemarks,
+        customerRep,
+        paymentCollected,
+        paymentAmount,
+        paymentMethod,
+        paymentReference,
+        beforePhoto,
+        afterPhoto,
+      };
+      localStorage.setItem(`pys_draft_report_${scheduleId}`, JSON.stringify(draft));
+    } catch (_) {}
+  }, [scheduleId, isLoading, reportNumber, assistantName, performedServiceType, diagnosisFindings, workPerformed, technicianRemarks, customerRep, paymentCollected, paymentAmount, paymentMethod, paymentReference, beforePhoto, afterPhoto]);
+
+  const handleClearDraft = () => {
+    try {
+      localStorage.removeItem(`pys_draft_report_${scheduleId}`);
+      setHasRecoveredDraft(false);
+    } catch (_) {}
+  };
 
   useEffect(() => {
     if (!scheduleId) return;
@@ -185,6 +329,12 @@ export function TechnicianServiceReportForm({
         customerRepresentative: customerRep.trim(),
         customerAcknowledgement: isDigitallySigned ? 'Digitally Signed by Customer on Field Device' : 'Confirmed on-site by Customer Representative',
         signatureDataUrl,
+        beforePhotoUrl: beforePhoto,
+        afterPhotoUrl: afterPhoto,
+        paymentCollected,
+        paymentAmount: paymentCollected && paymentAmount ? Number(paymentAmount) : 0,
+        paymentMethod: paymentCollected ? paymentMethod : null,
+        paymentReference: paymentCollected && paymentReference ? paymentReference.trim() : null,
         assets: [
           {
             assetId: job.ac_assets?.id || '00000000-0000-0000-0000-000000000000',
@@ -213,6 +363,9 @@ export function TechnicianServiceReportForm({
       };
 
       await technicianApi.submitFieldReport(payload);
+      try {
+        localStorage.removeItem(`pys_draft_report_${scheduleId}`);
+      } catch (_) {}
       alert('Service Report submitted successfully! Schedule is now completed.');
       onSuccess();
     } catch (err: any) {
@@ -275,6 +428,40 @@ export function TechnicianServiceReportForm({
         >
           <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Draft Recovery Notification */}
+      {hasRecoveredDraft && (
+        <div
+          style={{
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            color: '#2563eb',
+            fontSize: '11px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>📝 Resumed from auto-saved draft.</span>
+          <button
+            type="button"
+            onClick={handleClearDraft}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#dc2626',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '11px',
+              padding: 0,
+            }}
+          >
+            Discard Draft
+          </button>
         </div>
       )}
 
@@ -535,6 +722,63 @@ export function TechnicianServiceReportForm({
               </div>
             )}
 
+            {/* Quick Presets */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                ⚡ Quick Presets
+              </span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('PM_STANDARD')}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    color: '#16a34a',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ⚡ Standard PM Clean
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('GAS_LEAK')}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    color: '#2563eb',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ❄️ Gas Leak Check
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset('BREAKDOWN_CHECK')}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    color: '#d97706',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔧 Breakdown Diagnostic
+                </button>
+              </div>
+            </div>
+
             {/* Checklist */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Service Checklist</label>
@@ -571,6 +815,118 @@ export function TechnicianServiceReportForm({
                   />
                   <span>Wiring Checked</span>
                 </label>
+              </div>
+            </div>
+
+            {/* Photo Proof Evidence */}
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                📸 On-Site Photo Proof (Before & After)
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {/* Before Photo */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-secondary)' }}>Before Service</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    ref={beforeInputRef}
+                    style={{ display: 'none' }}
+                    onChange={(e) => handlePhotoUpload(e, 'before')}
+                  />
+                  {beforePhoto ? (
+                    <div style={{ position: 'relative', height: '90px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+                      <img src={beforePhoto} alt="Before Service" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setBeforePhoto(null)}
+                        style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', padding: '4px', color: '#fff', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => beforeInputRef.current?.click()}
+                      style={{
+                        height: '90px',
+                        border: '1px dashed var(--border-default)',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'var(--bg-surface)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <Camera size={18} />
+                      <span>Snap Before</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* After Photo */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-secondary)' }}>After Service</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    ref={afterInputRef}
+                    style={{ display: 'none' }}
+                    onChange={(e) => handlePhotoUpload(e, 'after')}
+                  />
+                  {afterPhoto ? (
+                    <div style={{ position: 'relative', height: '90px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+                      <img src={afterPhoto} alt="After Service" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setAfterPhoto(null)}
+                        style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', padding: '4px', color: '#fff', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => afterInputRef.current?.click()}
+                      style={{
+                        height: '90px',
+                        border: '1px dashed var(--border-default)',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'var(--bg-surface)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <Camera size={18} />
+                      <span>Snap After</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -962,6 +1318,91 @@ export function TechnicianServiceReportForm({
         {/* STEP 4: Customer Sign-off */}
         {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            {/* Spot Billing & Payment Collection */}
+            <div
+              style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-surface-subtle)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-default)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  💰 Spot Payment Collection
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={paymentCollected}
+                    onChange={(e) => setPaymentCollected(e.target.checked)}
+                    style={{ accentColor: 'var(--color-brand)' }}
+                  />
+                  <span style={{ fontWeight: 600 }}>Payment Received</span>
+                </label>
+              </div>
+
+              {paymentCollected && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-default)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>Amount (₹) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        placeholder="e.g. 1500"
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>Mode</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value as any)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                      >
+                        <option value="UPI">UPI / QR Code</option>
+                        <option value="CASH">Cash</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="NEFT">Bank Transfer (NEFT/IMPS)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {paymentMethod === 'UPI' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)' }}>Customer Scans to Pay Instantly</span>
+                      <UpiQrCode
+                        amount={Number(paymentAmount) || 0}
+                        note={`Rep_${reportNumber || 'PYS'}`}
+                        size={120}
+                        showDetails={false}
+                      />
+                      <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>UPI ID: 7977805245@upi</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>
+                      {paymentMethod === 'UPI' ? 'UPI UTR / Transaction ID' : 'Receipt / Cheque / Ref Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      placeholder={paymentMethod === 'UPI' ? 'e.g. 328192837192 (12 digits)' : 'Reference / Cash Note'}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Customer Representative Name *</label>
               <input

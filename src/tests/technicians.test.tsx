@@ -374,5 +374,72 @@ describe('Phase 7 Frontend Technician Management Suite', () => {
 
     unmount();
   });
+
+  it('10. Displays Live Field Duty Status Board filtering and FTF Quality Scorecard in drawer', async () => {
+    const busyTech: Technician = {
+      ...sampleTechnician,
+      id: 'tech-200',
+      technicianCode: 'TECH-0002',
+      name: 'Vikram Singh',
+      status: 'BUSY',
+      activeAssignmentsCount: 2,
+      currentWorkload: 2,
+      maxDailyWorkload: 5,
+    };
+
+    const getSpy = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.includes('/work-summary')) {
+        return {
+          activeSchedules: [],
+          recentReports: [
+            { id: 'r1', report_number: 'SR-001', service_date: '2026-11-10', primary_outcome: 'COMPLETED' },
+            { id: 'r2', report_number: 'SR-002', service_date: '2026-11-09', primary_outcome: 'PENDING_PARTS' },
+          ],
+          totalCompletedReports: 12,
+        } as never;
+      }
+      if (url.includes(`/technicians/${sampleTechnician.id}`)) {
+        return { technician: sampleTechnician } as never;
+      }
+      return {
+        technicians: [sampleTechnician, busyTech],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+        totalPages: 1,
+      } as never;
+    });
+
+    const { container, unmount } = await renderComponent();
+
+    const board = container.querySelector('[data-testid="fleet-duty-board"]');
+    expect(board).not.toBeNull();
+    expect(board?.textContent).toContain('Available Now');
+    expect(board?.textContent).toContain('Busy / On-Site');
+    expect(board?.textContent).toContain('2 / 10 jobs');
+    expect(board?.textContent).toContain('20%');
+
+    const availableCard = Array.from(board?.querySelectorAll('button') || []).find((b) =>
+      b.textContent?.includes('Available Now')
+    );
+    await act(async () => {
+      availableCard?.click();
+    });
+    expect(getSpy).toHaveBeenCalledWith(expect.stringContaining('status=AVAILABLE'));
+
+    const viewBtn = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('View')
+    );
+    await act(async () => {
+      viewBtn?.click();
+    });
+
+    expect(document.body.textContent).toContain('First-Time-Fix (FTF) Quality Scorecard');
+    expect(document.body.textContent).toContain('50% FTF');
+    expect(document.body.textContent).toContain('1 of 2 recent visits resolved');
+    expect(document.body.textContent).toContain('SR-001');
+
+    unmount();
+  });
 });
 

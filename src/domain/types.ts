@@ -1024,9 +1024,11 @@ export interface ServiceVisitReport {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   paymentCollected?: boolean;
   paymentAmount?: number;
-  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentMethod?: 'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT' | null;
   paymentReference?: string | null;
   paymentNotes?: string | null;
   paymentId?: string | null;
@@ -1067,9 +1069,11 @@ export interface CreateServiceReportPayload {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   paymentCollected?: boolean;
   paymentAmount?: number;
-  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentMethod?: 'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT' | null;
   paymentReference?: string | null;
   paymentNotes?: string | null;
   assets: {
@@ -1129,9 +1133,11 @@ export interface UpdateServiceReportPayload {
   customerRepresentative?: string | null;
   customerAcknowledgement?: string | null;
   customerSignatureUrl?: string | null;
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   paymentCollected?: boolean;
   paymentAmount?: number;
-  paymentMethod?: 'CASH' | 'ONLINE' | null;
+  paymentMethod?: 'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT' | null;
   paymentReference?: string | null;
   paymentNotes?: string | null;
   assets?: {

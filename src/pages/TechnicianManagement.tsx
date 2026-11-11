@@ -132,7 +132,8 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [workSummary, setWorkSummary] = useState<{
     activeSchedules: any[];
-    completedReports: any[];
+    recentReports?: any[];
+    completedReports?: any[];
     totalCompletedReports: number;
   } | null>(null);
   const [isLoadingWorkSummary, setIsLoadingWorkSummary] = useState<boolean>(false);
@@ -629,6 +630,52 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     }
   };
 
+  // Live Fleet Duty & Quality Scorecard Metrics
+  const availableTechCount = technicians.filter(
+    (t) => t.isActive && t.status === 'AVAILABLE'
+  ).length;
+  const busyTechCount = technicians.filter(
+    (t) => t.isActive && t.status === 'BUSY'
+  ).length;
+  const offDutyTechCount = technicians.filter(
+    (t) =>
+      !t.isActive ||
+      t.status === 'ON_LEAVE' ||
+      t.status === 'OFF_DUTY' ||
+      t.status === 'INACTIVE'
+  ).length;
+  const totalAssignedJobs = technicians.reduce(
+    (sum, t) => sum + (t.activeAssignmentsCount ?? t.currentWorkload ?? 0),
+    0
+  );
+  const totalDailyCapacity = technicians
+    .filter(
+      (t) =>
+        t.isActive &&
+        t.status !== 'ON_LEAVE' &&
+        t.status !== 'OFF_DUTY' &&
+        t.status !== 'INACTIVE'
+    )
+    .reduce((sum, t) => sum + (t.maxDailyWorkload || 5), 0);
+  const fleetUtilizationPct =
+    totalDailyCapacity > 0
+      ? Math.min(100, Math.round((totalAssignedJobs / totalDailyCapacity) * 100))
+      : 0;
+
+  const recentCompletedReports =
+    workSummary?.recentReports ?? workSummary?.completedReports ?? [];
+  const ftfResolvedCount = recentCompletedReports.filter(
+    (r: any) =>
+      !r.primary_outcome ||
+      r.primary_outcome === 'COMPLETED' ||
+      r.primary_outcome === 'RESOLVED'
+  ).length;
+  const ftfRevisitCount = recentCompletedReports.length - ftfResolvedCount;
+  const ftfRatePct =
+    recentCompletedReports.length > 0
+      ? Math.round((ftfResolvedCount / recentCompletedReports.length) * 100)
+      : null;
+
   return (
     <div className="page-container" style={{ padding: 'var(--space-6)' }}>
       {/* Header */}
@@ -695,6 +742,232 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
             Add Technician
           </Button>
         </div>
+      </div>
+
+      {/* Live Field Duty Status Board */}
+      <div
+        data-testid="fleet-duty-board"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+          gap: 'var(--space-4)',
+          marginBottom: 'var(--space-5)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter((prev) => (prev === 'AVAILABLE' ? 'ALL' : 'AVAILABLE'));
+            setPage(1);
+          }}
+          className="card"
+          style={{
+            padding: 'var(--space-4)',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border:
+              statusFilter === 'AVAILABLE'
+                ? '2px solid #10b981'
+                : '1px solid var(--border-default)',
+            backgroundColor:
+              statusFilter === 'AVAILABLE'
+                ? 'rgba(16, 185, 129, 0.06)'
+                : 'var(--bg-surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Available Now
+            </div>
+            <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: '#059669', marginTop: '4px' }}>
+              {availableTechCount}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {statusFilter === 'AVAILABLE' ? 'Filtering · Click to clear' : 'Ready for immediate dispatch'}
+            </div>
+          </div>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <HardHat size={18} />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter((prev) => (prev === 'BUSY' ? 'ALL' : 'BUSY'));
+            setPage(1);
+          }}
+          className="card"
+          style={{
+            padding: 'var(--space-4)',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border:
+              statusFilter === 'BUSY'
+                ? '2px solid var(--color-primary-600)'
+                : '1px solid var(--border-default)',
+            backgroundColor:
+              statusFilter === 'BUSY'
+                ? 'var(--color-primary-50, rgba(37, 99, 235, 0.06))'
+                : 'var(--bg-surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Busy / On-Site
+            </div>
+            <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: 'var(--color-primary-600)', marginTop: '4px' }}>
+              {busyTechCount}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {statusFilter === 'BUSY' ? 'Filtering · Click to clear' : 'Currently executing field jobs'}
+            </div>
+          </div>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-primary-100)',
+              color: 'var(--color-primary-700)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Wrench size={18} />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter((prev) => (prev === 'ON_LEAVE' ? 'ALL' : 'ON_LEAVE'));
+            setPage(1);
+          }}
+          className="card"
+          style={{
+            padding: 'var(--space-4)',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border:
+              statusFilter === 'ON_LEAVE'
+                ? '2px solid #d97706'
+                : '1px solid var(--border-default)',
+            backgroundColor:
+              statusFilter === 'ON_LEAVE'
+                ? 'rgba(217, 119, 6, 0.06)'
+                : 'var(--bg-surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Off Duty / Leave
+            </div>
+            <div style={{ fontSize: 'var(--text-2xl)', fontWeight: 700, color: '#b45309', marginTop: '4px' }}>
+              {offDutyTechCount}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {statusFilter === 'ON_LEAVE' ? 'Filtering leave · Click to clear' : 'Unavailable or inactive roster'}
+            </div>
+          </div>
+          <div
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(217, 119, 6, 0.12)',
+              color: '#b45309',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Clock size={18} />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (statusFilter !== 'ALL') {
+              setStatusFilter('ALL');
+              setPage(1);
+            }
+          }}
+          className="card"
+          style={{
+            padding: 'var(--space-4)',
+            textAlign: 'left',
+            cursor: statusFilter !== 'ALL' ? 'pointer' : 'default',
+            border: '1px solid var(--border-default)',
+            backgroundColor: 'var(--bg-surface)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '6px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Fleet Daily Load
+            </div>
+            <Briefcase size={15} style={{ color: 'var(--color-primary-600)' }} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {totalAssignedJobs} / {totalDailyCapacity} jobs
+            </span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: fleetUtilizationPct >= 85 ? '#dc2626' : '#059669' }}>
+              {fleetUtilizationPct}%
+            </span>
+          </div>
+          <div
+            style={{
+              width: '100%',
+              height: '6px',
+              borderRadius: '9999px',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${fleetUtilizationPct}%`,
+                height: '100%',
+                borderRadius: '9999px',
+                backgroundColor: fleetUtilizationPct >= 85 ? '#ef4444' : 'var(--color-primary-600)',
+                transition: 'width 0.2s ease',
+              }}
+            />
+          </div>
+        </button>
       </div>
 
       {/* Search and Filters Card */}
@@ -1570,6 +1843,100 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
               )}
             </div>
 
+            {/* First-Time-Fix (FTF) Quality Scorecard */}
+            <div className="card" style={{ padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Wrench size={15} style={{ color: 'var(--color-primary-600)' }} />
+                  <h4 style={{ margin: 0, fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+                    First-Time-Fix (FTF) Quality Scorecard
+                  </h4>
+                </div>
+                {ftfRatePct !== null && (
+                  <Badge variant={ftfRatePct >= 80 ? 'success' : ftfRatePct >= 50 ? 'warning' : 'danger'}>
+                    {ftfRatePct}% FTF
+                  </Badge>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                  }}
+                >
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    First-Visit Resolution
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 'var(--text-xl)',
+                      fontWeight: 700,
+                      color:
+                        ftfRatePct === null
+                          ? 'var(--text-primary)'
+                          : ftfRatePct >= 80
+                          ? '#059669'
+                          : ftfRatePct >= 50
+                          ? '#d97706'
+                          : '#dc2626',
+                    }}
+                  >
+                    {ftfRatePct !== null ? `${ftfRatePct}%` : '—'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: '2px' }}>
+                    {recentCompletedReports.length > 0
+                      ? `${ftfResolvedCount} of ${recentCompletedReports.length} recent visits resolved`
+                      : 'Awaiting completed field visits'}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                  }}
+                >
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                    Total Reports Logged
+                  </div>
+                  <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {workSummary?.totalCompletedReports ?? 0}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: '2px' }}>
+                    {ftfRevisitCount > 0
+                      ? `${ftfRevisitCount} recent pending parts / revisit`
+                      : '0 recent pending revisits'}
+                  </div>
+                </div>
+              </div>
+              {ftfRatePct !== null && (
+                <div style={{ marginTop: 'var(--space-3)' }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '6px',
+                      borderRadius: '9999px',
+                      backgroundColor: 'var(--bg-surface-subtle)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${ftfRatePct}%`,
+                        height: '100%',
+                        borderRadius: '9999px',
+                        backgroundColor:
+                          ftfRatePct >= 80 ? '#10b981' : ftfRatePct >= 50 ? '#f59e0b' : '#ef4444',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Completed Reports History */}
             <div className="card" style={{ padding: 'var(--space-4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
@@ -1581,9 +1948,9 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                 </div>
               </div>
 
-              {workSummary?.completedReports && workSummary.completedReports.length > 0 ? (
+              {recentCompletedReports.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {workSummary.completedReports.map((r: any) => (
+                  {recentCompletedReports.map((r: any) => (
                     <div
                       key={r.id}
                       style={{
@@ -1600,7 +1967,13 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {r.report_number}
                         </span>
-                        <Badge variant="success">
+                        <Badge
+                          variant={
+                            !r.primary_outcome || r.primary_outcome === 'COMPLETED' || r.primary_outcome === 'RESOLVED'
+                              ? 'success'
+                              : 'warning'
+                          }
+                        >
                           {r.primary_outcome || 'RESOLVED'}
                         </Badge>
                       </div>

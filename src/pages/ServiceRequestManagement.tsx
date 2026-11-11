@@ -16,6 +16,7 @@ import {
   Info,
   CheckCircle2,
   Calendar,
+  MessageSquare,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
 import { BREAKDOWN_CATEGORIES, getBreakdownCategoryLabel } from '@/domain/breakdownTypes';
@@ -908,13 +909,59 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                       <StatusBadge status={req.status} />
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-                      {formatDate(req.createdAt)}
+                      <div>{formatDate(req.createdAt)}</div>
+                      {(() => {
+                        if (['RESOLVED', 'COMPLETED', 'CANCELLED'].includes(req.status)) return null;
+                        const diffHours = Math.floor((Date.now() - new Date(req.createdAt).getTime()) / (1000 * 60 * 60));
+                        if (diffHours < 4) {
+                          return (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '2px', fontSize: '10px', fontWeight: 600, color: '#16a34a', backgroundColor: 'rgba(34, 197, 94, 0.1)', padding: '1px 5px', borderRadius: '3px' }}>
+                              🟢 &lt;4h Fresh
+                            </span>
+                          );
+                        }
+                        if (diffHours < 12) {
+                          return (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '2px', fontSize: '10px', fontWeight: 600, color: '#d97706', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '1px 5px', borderRadius: '3px' }}>
+                              🟡 {diffHours}h Warning
+                            </span>
+                          );
+                        }
+                        return (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '2px', fontSize: '10px', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '1px 5px', borderRadius: '3px' }}>
+                            🔴 {diffHours}h Breached
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td
                       style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div style={{ display: 'inline-flex', gap: 'var(--space-2)' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        {req.customerPhone && (
+                          <a
+                            href={`https://wa.me/${(req.customerPhone.replace(/\D/g, '').length === 10 ? '91' : '') + req.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              `Dear ${req.customerName || 'Customer'},\nYour service request (${req.requestNumber}) for ${req.requestType.replace(/_/g, ' ')} has been received by Place Your Service.\nOur team is reviewing the dispatch schedule. For urgent assistance: 7977805245.\n— Place Your Service Dispatch`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Send WhatsApp Ticket Acknowledgment"
+                            style={{
+                              padding: '6px 8px',
+                              borderRadius: 'var(--radius-md)',
+                              backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                              border: '1px solid rgba(34, 197, 94, 0.25)',
+                              color: '#16a34a',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <MessageSquare size={14} />
+                          </a>
+                        )}
                         {['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'].includes(req.status) && (
                           <Button
                             variant="secondary"

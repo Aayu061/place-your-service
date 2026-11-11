@@ -138,9 +138,14 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   // Payment Collection States
   const [paymentCollected, setPaymentCollected] = useState<boolean>(false);
   const [paymentAmount, setPaymentAmount] = useState<string>('0');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT'>('CASH');
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const isNonCashPayment =
+    paymentMethod === 'ONLINE' ||
+    paymentMethod === 'UPI' ||
+    paymentMethod === 'CHEQUE' ||
+    paymentMethod === 'NEFT';
 
   // Asset Finding States
   const [assets, setAssets] = useState<AssetReportState[]>([]);
@@ -648,7 +653,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         paymentCollected,
         paymentAmount: paymentAmount ? Math.max(0, parseFloat(paymentAmount) || 0) : 0,
         paymentMethod: paymentCollected ? paymentMethod : null,
-        paymentReference: paymentCollected && paymentMethod === 'ONLINE' ? paymentReference.trim() || null : null,
+        paymentReference: paymentCollected && isNonCashPayment ? paymentReference.trim() || null : null,
         paymentNotes: paymentNotes.trim() || null,
         assets: assets.map((a) => ({
           assetId: a.assetId,
@@ -709,7 +714,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           paymentCollected,
           paymentAmount: paymentAmount ? Math.max(0, parseFloat(paymentAmount) || 0) : 0,
           paymentMethod: paymentCollected ? paymentMethod : null,
-          paymentReference: paymentCollected && paymentMethod === 'ONLINE' ? paymentReference.trim() || null : null,
+          paymentReference: paymentCollected && isNonCashPayment ? paymentReference.trim() || null : null,
           paymentNotes: paymentNotes.trim() || null,
         });
 
@@ -2198,18 +2203,21 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   id="svr-payment-method"
                   className="form-select"
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as 'CASH' | 'ONLINE')}
+                  onChange={(e) => setPaymentMethod(e.target.value as 'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT')}
                   disabled={isSubmitting}
                   style={{ width: '100%', height: '38px', borderRadius: 'var(--radius-md)' }}
                 >
                   <option value="CASH">Cash Payment</option>
                   <option value="ONLINE">Online (UPI / QR / Bank Transfer / Card)</option>
+                  <option value="UPI">UPI Direct</option>
+                  <option value="NEFT">NEFT / Bank Transfer</option>
+                  <option value="CHEQUE">Cheque</option>
                 </select>
               </div>
             )}
 
             {/* Reference ID (if online) */}
-            {paymentCollected && paymentMethod === 'ONLINE' && (
+            {paymentCollected && isNonCashPayment && (
               <div>
                 <label
                   htmlFor="svr-payment-ref"
@@ -2235,7 +2243,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             )}
 
             {/* Company Bank Details & Dynamic UPI QR Code */}
-            {((paymentCollected && paymentMethod === 'ONLINE') || (!paymentCollected && Number(paymentAmount) > 0)) && (
+            {((paymentCollected && isNonCashPayment) || (!paymentCollected && Number(paymentAmount) > 0)) && (
               <div
                 style={{
                   gridColumn: '1 / -1',
