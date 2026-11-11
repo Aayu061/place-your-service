@@ -48,6 +48,13 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
     description: 'Quarterly routine inspection and filter wash',
     default_frequency: 'QUARTERLY',
     default_visits_per_year: 4,
+    pricing_model: 'TIERED_TONNAGE',
+    rate_split_small: 1500,
+    rate_split_large: 1800,
+    rate_window_small: 1000,
+    rate_window_large: 1300,
+    rate_flat: null,
+    gst_rate_percent: 18,
     is_active: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -176,6 +183,7 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
                 if (val === samplePlanId) {
                   return {
                     single: vi.fn(async () => ({ data: samplePlan, error: null })),
+                    maybeSingle: vi.fn(async () => ({ data: samplePlan, error: null })),
                   };
                 }
                 return {
@@ -423,6 +431,30 @@ describe('AMC Contracts & Preventive Maintenance API (/api/v1/amc-contracts)', (
     expect(res.body.success).toBe(true);
     expect(res.body.data.plans).toHaveLength(1);
     expect(res.body.data.plans[0].planCode).toBe('PLAN-BASIC');
+  });
+
+  it('4.1 Calculates authoritative AMC quotation via POST /api/v1/amc-contracts/quote', async () => {
+    const res = await request(app)
+      .post('/api/v1/amc-contracts/quote')
+      .set('Authorization', staffAuthToken)
+      .send({
+        planId: samplePlanId,
+        coveredAssets: [
+          {
+            id: sampleAssetId,
+            assetTag: 'AC-0001',
+            acType: 'SPLIT',
+            capacityTons: 1.5,
+            installationDate: '2025-01-15',
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.totalAmount).toBeGreaterThan(0);
+    expect(res.body.data.lines).toHaveLength(1);
+    expect(res.body.data.lines[0].assetTag).toBe('AC-0001');
   });
 
   it('5. Retrieves non-mock dashboard metrics', async () => {

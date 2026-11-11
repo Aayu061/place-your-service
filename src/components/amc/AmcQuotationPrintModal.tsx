@@ -28,6 +28,7 @@ export interface AmcContractForPrint {
   paymentBalanceDue?: number | null;
   status: string;
   notes?: string | null;
+  gstRatePercent?: number | null;
   coveredAssets?: Array<{
     assetTag?: string | null;
     brand?: string | null;
@@ -56,11 +57,33 @@ export function AmcQuotationPrintModal({
   const [recipientEmail, setRecipientEmail] = useState(contract.customerEmail || '');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  const isSamc = Boolean(
+    contract.planName?.toLowerCase().includes('special comprehensive') ||
+    contract.planName?.toLowerCase().includes('samc')
+  );
+  const isBasicRate = Boolean(
+    contract.planName?.toLowerCase().includes('ordinary') ||
+    contract.planName?.toLowerCase().includes('jacket') ||
+    contract.planName?.toLowerCase().includes('pump down') ||
+    contract.planName?.toLowerCase().includes('jet wash')
+  );
+
+  const gstRatePercent = contract.gstRatePercent != null
+    ? Number(contract.gstRatePercent)
+    : isSamc
+      ? 28
+      : isBasicRate
+        ? 0
+        : 18;
+
   const totalAmount = Number(contract.totalAmount || 0);
-  const baseAmount = totalAmount / 1.18;
-  const gstAmount = totalAmount - baseAmount;
-  const cgst = gstAmount / 2;
-  const sgst = gstAmount / 2;
+  const baseAmount = gstRatePercent > 0
+    ? Math.round((totalAmount / (1 + gstRatePercent / 100)) * 100) / 100
+    : totalAmount;
+  const gstAmount = Math.round((totalAmount - baseAmount) * 100) / 100;
+  const cgst = Math.round((gstAmount / 2) * 100) / 100;
+  const sgst = Math.round((gstAmount - cgst) * 100) / 100;
+  const halfGstRate = gstRatePercent / 2;
 
   const handlePrint = () => {
     window.print();
@@ -290,8 +313,8 @@ export function AmcQuotationPrintModal({
                 <th style={{ padding: '8px 10px', color: '#475569' }}>Scope of Comprehensive AMC Coverage</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'center' }}>SAC</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>Taxable Base</th>
-                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>CGST (9%)</th>
-                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>SGST (9%)</th>
+                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>CGST ({halfGstRate}%)</th>
+                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>SGST ({halfGstRate}%)</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>Total (₹)</th>
               </tr>
             </thead>

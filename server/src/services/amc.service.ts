@@ -1,6 +1,13 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
+  calculateAmcQuote,
+  getPlanBaselineAmount,
+  OFFICIAL_ESS_RATE_CHART_PLANS,
+  AmcQuoteResult,
+  CoveredAssetContext,
+} from '../domain/amcRateCard.js';
+import {
   AmcContractResponse,
   AmcPlanResponse,
   AmcCoveredAssetResponse,
@@ -210,48 +217,55 @@ export class AmcService {
   }
 
   /**
-   * List reusable AMC plans
+   * List reusable AMC plans with resilient database query and official rate chart fallback
    */
   async listPlans(includeInactive: boolean = false): Promise<AmcPlanResponse[]> {
-    const supabase = getSupabaseClient();
-    let query = supabase.from('amc_plans').select('*');
+    try {
+      const supabase = getSupabaseClient();
+      let query = supabase.from('amc_plans').select('*');
 
-    if (!includeInactive) {
-      query = query.eq('is_active', true);
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query.order('default_visits_per_year', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((row: any) => ({
+          id: row.id,
+          planCode: row.plan_code,
+          name: row.name,
+          category: row.category || 'ORDINARY',
+          description: row.description,
+          coverageSummary: row.coverage_summary,
+          defaultFrequency: row.default_frequency as AmcFrequency,
+          defaultVisitsPerYear: row.default_visits_per_year,
+          pricingModel: row.pricing_model || 'TIERED_TONNAGE',
+          rateSplitSmall: row.rate_split_small != null ? Number(row.rate_split_small) : null,
+          rateSplitLarge: row.rate_split_large != null ? Number(row.rate_split_large) : null,
+          rateWindowSmall: row.rate_window_small != null ? Number(row.rate_window_small) : null,
+          rateWindowLarge: row.rate_window_large != null ? Number(row.rate_window_large) : null,
+          rateFlat: row.rate_flat != null ? Number(row.rate_flat) : null,
+          gstRatePercent: row.gst_rate_percent != null ? Number(row.gst_rate_percent) : 0,
+          maxEquipmentAgeYears: row.max_equipment_age_years != null ? Number(row.max_equipment_age_years) : null,
+          hasGasCharging: Boolean(row.has_gas_charging),
+          hasSpareParts: Boolean(row.has_spare_parts),
+          hasUnlimitedComplaints: Boolean(row.has_unlimited_complaints),
+          rateMetadata: row.rate_metadata || null,
+          isActive: row.is_active,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }));
+      }
+    } catch (err) {
+      logger.warn('Failed to query amc_plans from database, falling back to official rate chart', { err });
     }
 
-    const { data, error } = await query.order('default_visits_per_year', { ascending: true });
-
-    if (error) {
-      logger.error('Failed to list AMC plans', { error });
-      throw new BadRequestError('Failed to retrieve AMC plans');
-    }
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      planCode: row.plan_code,
-      name: row.name,
-      category: row.category || 'ORDINARY',
-      description: row.description,
-      coverageSummary: row.coverage_summary,
-      defaultFrequency: row.default_frequency as AmcFrequency,
-      defaultVisitsPerYear: row.default_visits_per_year,
-      pricingModel: row.pricing_model || 'TIERED_TONNAGE',
-      rateSplitSmall: row.rate_split_small != null ? Number(row.rate_split_small) : null,
-      rateSplitLarge: row.rate_split_large != null ? Number(row.rate_split_large) : null,
-      rateWindowSmall: row.rate_window_small != null ? Number(row.rate_window_small) : null,
-      rateWindowLarge: row.rate_window_large != null ? Number(row.rate_window_large) : null,
-      rateFlat: row.rate_flat != null ? Number(row.rate_flat) : null,
-      gstRatePercent: row.gst_rate_percent != null ? Number(row.gst_rate_percent) : 0,
-      maxEquipmentAgeYears: row.max_equipment_age_years != null ? Number(row.max_equipment_age_years) : null,
-      hasGasCharging: Boolean(row.has_gas_charging),
-      hasSpareParts: Boolean(row.has_spare_parts),
-      hasUnlimitedComplaints: Boolean(row.has_unlimited_complaints),
-      rateMetadata: row.rate_metadata || null,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    // Official ESS fallback
+    return OFFICIAL_ESS_RATE_CHART_PLANS.map((p) => ({
+      ...p,
+      rateMetadata: null,
+    })) as AmcPlanResponse[];
   }
 
   /**
@@ -265,35 +279,80 @@ export class AmcService {
       .eq('id', id)
       .maybeSingle();
 
-    if (error || !data) {
-      throw new NotFoundError(`AMC plan with ID '${id}' not found`);
+    if (!error && data) {
+      return {
+        id: data.id,
+        planCode: data.plan_code,
+        name: data.name,
+        category: data.category || 'ORDINARY',
+        description: data.description,
+        coverageSummary: data.coverage_summary,
+        defaultFrequency: data.default_frequency as AmcFrequency,
+        defaultVisitsPerYear: data.default_visits_per_year,
+        pricingModel: data.pricing_model || 'TIERED_TONNAGE',
+        rateSplitSmall: data.rate_split_small != null ? Number(data.rate_split_small) : null,
+        rateSplitLarge: data.rate_split_large != null ? Number(data.rate_split_large) : null,
+        rateWindowSmall: data.rate_window_small != null ? Number(data.rate_window_small) : null,
+        rateWindowLarge: data.rate_window_large != null ? Number(data.rate_window_large) : null,
+        rateFlat: data.rate_flat != null ? Number(data.rate_flat) : null,
+        gstRatePercent: data.gst_rate_percent != null ? Number(data.gst_rate_percent) : 0,
+        maxEquipmentAgeYears: data.max_equipment_age_years != null ? Number(data.max_equipment_age_years) : null,
+        hasGasCharging: Boolean(data.has_gas_charging),
+        hasSpareParts: Boolean(data.has_spare_parts),
+        hasUnlimitedComplaints: Boolean(data.has_unlimited_complaints),
+        rateMetadata: data.rate_metadata || null,
+        isActive: data.is_active,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
     }
 
-    return {
-      id: data.id,
-      planCode: data.plan_code,
-      name: data.name,
-      category: data.category || 'ORDINARY',
-      description: data.description,
-      coverageSummary: data.coverage_summary,
-      defaultFrequency: data.default_frequency as AmcFrequency,
-      defaultVisitsPerYear: data.default_visits_per_year,
-      pricingModel: data.pricing_model || 'TIERED_TONNAGE',
-      rateSplitSmall: data.rate_split_small != null ? Number(data.rate_split_small) : null,
-      rateSplitLarge: data.rate_split_large != null ? Number(data.rate_split_large) : null,
-      rateWindowSmall: data.rate_window_small != null ? Number(data.rate_window_small) : null,
-      rateWindowLarge: data.rate_window_large != null ? Number(data.rate_window_large) : null,
-      rateFlat: data.rate_flat != null ? Number(data.rate_flat) : null,
-      gstRatePercent: data.gst_rate_percent != null ? Number(data.gst_rate_percent) : 0,
-      maxEquipmentAgeYears: data.max_equipment_age_years != null ? Number(data.max_equipment_age_years) : null,
-      hasGasCharging: Boolean(data.has_gas_charging),
-      hasSpareParts: Boolean(data.has_spare_parts),
-      hasUnlimitedComplaints: Boolean(data.has_unlimited_complaints),
-      rateMetadata: data.rate_metadata || null,
-      isActive: data.is_active,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    };
+    const fallback = OFFICIAL_ESS_RATE_CHART_PLANS.find((p) => p.id === id);
+    if (fallback) {
+      return {
+        ...fallback,
+        rateMetadata: null,
+      } as AmcPlanResponse;
+    }
+
+    throw new NotFoundError(`AMC plan with ID '${id}' not found`);
+  }
+
+  /**
+   * Calculate authoritative quotation for AMC plan and covered AC equipment
+   */
+  async calculateQuote(payload: {
+    planId: string;
+    assetIds?: string[];
+    coveredAssets?: CoveredAssetContext[];
+    customGstPercent?: number;
+  }): Promise<AmcQuoteResult> {
+    const plan = await this.getPlanById(payload.planId);
+    let assets: CoveredAssetContext[] = [];
+
+    if (payload.coveredAssets && payload.coveredAssets.length > 0) {
+      assets = payload.coveredAssets;
+    } else if (payload.assetIds && payload.assetIds.length > 0) {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('ac_assets')
+        .select('id, asset_tag, ac_type, capacity_tons, installation_date')
+        .in('id', payload.assetIds);
+
+      if (!error && data) {
+        assets = data.map((a: any) => ({
+          id: a.id,
+          assetTag: a.asset_tag,
+          acType: a.ac_type,
+          capacityTons: a.capacity_tons != null ? Number(a.capacity_tons) : null,
+          installationDate: a.installation_date,
+        }));
+      }
+    }
+
+    return calculateAmcQuote(plan as any, assets, {
+      customGstPercent: payload.customGstPercent,
+    });
   }
 
   /**

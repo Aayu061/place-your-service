@@ -34,11 +34,17 @@ export function PaymentInvoiceModal({
   const totalPaid = Number(payment.total_amount_paid || 0);
   const balanceDue = payment.status === 'PAID' ? 0 : Math.max(0, totalDue - totalPaid);
 
-  // 18% GST estimate
-  const baseAmount = totalDue / 1.18;
-  const gstAmount = totalDue - baseAmount;
-  const cgst = gstAmount / 2;
-  const sgst = gstAmount / 2;
+  // Dynamic GST calculation based on linked AMC plan or standard services
+  const isSamc = Boolean(
+    (payment.amc_contracts as any)?.plan_name?.toLowerCase().includes('special comprehensive') ||
+    (payment.amc_contracts as any)?.plan_name?.toLowerCase().includes('samc')
+  );
+  const gstRatePercent = isSamc ? 28 : 18;
+  const baseAmount = Math.round((totalDue / (1 + gstRatePercent / 100)) * 100) / 100;
+  const gstAmount = Math.round((totalDue - baseAmount) * 100) / 100;
+  const cgst = Math.round((gstAmount / 2) * 100) / 100;
+  const sgst = Math.round((gstAmount - cgst) * 100) / 100;
+  const halfGstRate = gstRatePercent / 2;
 
   const handlePrint = () => {
     window.print();
@@ -251,8 +257,8 @@ export function PaymentInvoiceModal({
                 <th style={{ padding: '8px 10px', color: '#475569' }}>Description of Service / Goods</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'center' }}>HSN / SAC</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>Taxable Amt</th>
-                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>CGST (9%)</th>
-                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>SGST (9%)</th>
+                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>CGST ({halfGstRate}%)</th>
+                <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>SGST ({halfGstRate}%)</th>
                 <th style={{ padding: '8px 10px', color: '#475569', textAlign: 'right' }}>Total (₹)</th>
               </tr>
             </thead>
