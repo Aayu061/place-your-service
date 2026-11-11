@@ -543,6 +543,8 @@ export type ServiceRequestStatus =
   | 'CLOSED'
   | 'CANCELLED';
 
+export type SourceChannel = 'EXTREME_SALES_SERVICES' | 'PYS_DIRECT' | 'PHONE';
+
 export interface ServiceRequestResponse {
   id: string;
   requestNumber: string;
@@ -564,6 +566,8 @@ export interface ServiceRequestResponse {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  sourceChannel?: SourceChannel | null;
+  externalReferenceId?: string | null;
   // Relational details
   customerName?: string | null;
   customerCode?: string | null;
@@ -585,6 +589,8 @@ export interface CreateServiceRequestPayload {
   issueCategory?: string | null;
   preferredDate?: string | null;
   notes?: string | null;
+  sourceChannel?: SourceChannel;
+  externalReferenceId?: string | null;
 }
 
 export interface UpdateServiceRequestPayload {
@@ -596,6 +602,8 @@ export interface UpdateServiceRequestPayload {
   notes?: string | null;
   siteId?: string;
   assetId?: string | null;
+  sourceChannel?: SourceChannel;
+  externalReferenceId?: string | null;
 }
 
 export interface UpdateServiceRequestStatusPayload {
@@ -615,6 +623,8 @@ export interface ServiceRequestListQuery {
   customerId?: string;
   siteId?: string;
   assetId?: string;
+  sourceChannel?: 'ALL' | SourceChannel;
+  externalReferenceId?: string;
   page?: number;
   pageSize?: number;
 }

@@ -857,7 +857,12 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                     className="table-row-hover"
                   >
                     <td style={{ padding: 'var(--space-3) var(--space-4)', fontWeight: 600, color: 'var(--color-brand)' }}>
-                      {req.requestNumber}
+                      <div>{req.requestNumber}</div>
+                      {req.sourceChannel === 'EXTREME_SALES_SERVICES' && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginTop: '3px', fontSize: '10px', fontWeight: 600, color: '#0369a1', backgroundColor: '#e0f2fe', padding: '1px 6px', borderRadius: '4px' }}>
+                          ESS Storefront {req.externalReferenceId ? `· ${req.externalReferenceId}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <div style={{ fontWeight: 500, color: 'var(--text-strong)' }}>
@@ -1310,11 +1315,16 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
                   Current Status
                 </div>
-                <div style={{ marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <div style={{ marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                   <StatusBadge status={detailRequest.status} />
                   <span className={`badge ${getPriorityBadgeClass(detailRequest.priority)}`}>
                     {detailRequest.priority} PRIORITY
                   </span>
+                  {detailRequest.sourceChannel === 'EXTREME_SALES_SERVICES' && (
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#0369a1', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px' }}>
+                      Storefront: Extreme Sales & Services {detailRequest.externalReferenceId ? `(${detailRequest.externalReferenceId})` : ''}
+                    </span>
+                  )}
                 </div>
               </div>
 

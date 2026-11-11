@@ -18,6 +18,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { essIntegrationService } from './essIntegration.service.js';
 
 interface RawScheduleJoinRecord {
   id: string;
@@ -908,6 +909,8 @@ export class ScheduleService {
           updated_by: actorId,
         })
         .eq('id', payload.serviceRequestId);
+
+      void essIntegrationService.notifyServiceRequestStatusUpdate(payload.serviceRequestId, targetSrStatus);
     }
 
     await logActivity({
@@ -1415,6 +1418,8 @@ export class ScheduleService {
           updated_by: actorId,
         })
         .eq('id', schedule.serviceRequestId);
+
+      void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.serviceRequestId, 'ASSIGNED');
     }
 
     await logActivity({

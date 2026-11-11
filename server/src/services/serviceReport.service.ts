@@ -16,6 +16,7 @@ import { logger } from '../utils/logger.js';
 import { scheduleService } from './schedule.service.js';
 import { normalizeTechnology } from '../utils/technology.js';
 import { logActivity } from './audit.service.js';
+import { essIntegrationService } from './essIntegration.service.js';
 
 /**
  * Helper to resolve customer ownership for an AC asset.
@@ -680,6 +681,8 @@ export class ServiceReportService {
           updated_at: new Date().toISOString(),
         })
         .eq('id', schedule.service_request_id);
+
+      void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
     }
 
     }

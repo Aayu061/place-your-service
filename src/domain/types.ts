@@ -65,6 +65,8 @@ export interface Customer {
   sitesCount?: number;
   createdBy?: string | null;
   updatedBy?: string | null;
+  sourceChannel?: 'EXTREME_SALES_SERVICES' | 'PYS_DIRECT' | 'PHONE' | null;
+  externalReferenceId?: string | null;
   createdAt: string;
   updatedAt: string;
   primarySite?: CustomerSite | null;
@@ -451,6 +453,8 @@ export interface AmcContract {
   previousContractId?: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
+  sourceChannel?: 'EXTREME_SALES_SERVICES' | 'PYS_DIRECT' | 'PHONE' | null;
+  externalReferenceId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -556,6 +560,8 @@ export interface ServiceRequest {
   cancelledBy?: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
+  sourceChannel?: 'EXTREME_SALES_SERVICES' | 'PYS_DIRECT' | 'PHONE' | null;
+  externalReferenceId?: string | null;
   createdAt: string;
   updatedAt: string;
   customerName?: string | null;
@@ -748,6 +754,8 @@ export interface ServiceSchedule {
   notes?: string | null;
   createdBy?: string | null;
   updatedBy?: string | null;
+  sourceChannel?: 'EXTREME_SALES_SERVICES' | 'PYS_DIRECT' | 'PHONE' | null;
+  externalReferenceId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
