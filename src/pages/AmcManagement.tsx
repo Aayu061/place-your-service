@@ -25,7 +25,7 @@ import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
-import { calculateAmcQuote, AmcQuoteResult, OFFICIAL_ESS_RATE_CHART_PLANS } from '@/domain/amcRateCard';
+import { calculateAmcQuote, getPlanBaselineAmount, AmcQuoteResult, OFFICIAL_ESS_RATE_CHART_PLANS } from '@/domain/amcRateCard';
 import { getSupabaseClient } from '@/services/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -407,6 +407,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const fetchCustomerAssets = useCallback(async (custId: string) => {
     if (!custId) {
       setAvailableAssets([]);
+      setFormCoveredAssetIds([]);
       return;
     }
     setIsAssetsLoading(true);
@@ -426,6 +427,26 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         }
       }
       setAvailableAssets(allAssets);
+
+      // Pre-select all customer equipment for immediate quote calculation when creating a new contract
+      if (allAssets.length > 0 && isCreateModalOpen) {
+        setFormCoveredAssetIds(allAssets.map((a) => a.id));
+        if (formPlanId) {
+          const chosen = plans.find((p) => p.id === formPlanId);
+          if (chosen) {
+            const quote = calculateAmcQuote(chosen, allAssets);
+            setFormTotalAmount(quote.totalAmount);
+          }
+        }
+      } else if (!isAddAssetsModalOpen) {
+        setFormCoveredAssetIds([]);
+        if (formPlanId) {
+          const chosen = plans.find((p) => p.id === formPlanId);
+          if (chosen) {
+            setFormTotalAmount(getPlanBaselineAmount(chosen));
+          }
+        }
+      }
     } catch (err) {
       showToast({
         title: 'Failed to load customer equipment',
@@ -435,7 +456,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     } finally {
       setIsAssetsLoading(false);
     }
-  }, [showToast]);
+  }, [formPlanId, plans, isCreateModalOpen, isAddAssetsModalOpen, showToast]);
 
   useEffect(() => {
     if (isCreateModalOpen || isRenewModalOpen || isAddAssetsModalOpen) {
@@ -449,13 +470,15 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     }
   }, [formCustomerId, fetchCustomerAssets]);
 
-  // Handle plan selection in create modal
+  // Handle plan selection in create modal with automatic algorithmic pricing
   const handlePlanSelect = (pId: string) => {
     setFormPlanId(pId);
     const chosen = plans.find((p) => p.id === pId);
     if (chosen) {
       setFormFrequency(chosen.defaultFrequency);
       setFormTotalVisits(chosen.defaultVisitsPerYear);
+
+      // Precise visit allocation based on official ESS rate chart
       if (chosen.planCode?.includes('JACKET-2')) {
         setFormDryVisits(0);
         setFormJetVisits(2);
@@ -472,6 +495,24 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         setFormDryVisits(0);
         setFormJetVisits(1);
         setFormPumpdownVisits(0);
+      } else if (chosen.planCode === 'ORD-3-VISIT') {
+        setFormDryVisits(2);
+        setFormJetVisits(1);
+        setFormPumpdownVisits(0);
+      } else if (chosen.planCode === 'ORD-4-VISIT') {
+        // PDF: Ordinary 4 Services & Unlimited Complaints - 1 Wet
+        setFormDryVisits(3);
+        setFormJetVisits(1);
+        setFormPumpdownVisits(0);
+      } else if (chosen.planCode === 'ORD-6-VISIT') {
+        // PDF: Ordinary 6 Services & Unlimited Complaints - 1 Wet
+        setFormDryVisits(5);
+        setFormJetVisits(1);
+        setFormPumpdownVisits(0);
+      } else if (chosen.planCode === 'SEMI-COMP-SPLIT' || chosen.planCode?.includes('SAMC')) {
+        setFormDryVisits(2);
+        setFormJetVisits(2);
+        setFormPumpdownVisits(0);
       } else {
         const total = chosen.defaultVisitsPerYear || 4;
         const jet = Math.min(2, Math.max(1, Math.floor(total / 2)));
@@ -479,16 +520,35 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         setFormDryVisits(Math.max(0, total - jet));
         setFormPumpdownVisits(0);
       }
+
+      // Automatically compute and update commercial amount
+      let assetsToPrice = availableAssets.filter((a) => formCoveredAssetIds.includes(a.id));
+      if (assetsToPrice.length === 0 && availableAssets.length > 0) {
+        assetsToPrice = availableAssets;
+        setFormCoveredAssetIds(availableAssets.map((a) => a.id));
+      }
+
+      if (assetsToPrice.length > 0) {
+        const quote = calculateAmcQuote(chosen, assetsToPrice);
+        setFormTotalAmount(quote.totalAmount);
+      } else {
+        const baseline = getPlanBaselineAmount(chosen);
+        setFormTotalAmount(baseline);
+      }
+    } else {
+      // Custom Agreement (No Template)
+      if (!formTotalAmount) {
+        setFormTotalAmount(0);
+      }
     }
   };
 
   // Live Authoritative Quote Calculation
   const selectedPlanObj = plans.find((p) => p.id === formPlanId);
   const selectedAssetsList = availableAssets.filter((a) => formCoveredAssetIds.includes(a.id));
-  const liveQuote: AmcQuoteResult | null =
-    selectedPlanObj && selectedAssetsList.length > 0
-      ? calculateAmcQuote(selectedPlanObj as any, selectedAssetsList)
-      : null;
+  const liveQuote: AmcQuoteResult | null = selectedPlanObj
+    ? calculateAmcQuote(selectedPlanObj as any, selectedAssetsList)
+    : null;
 
   const handleApplyCalculatedQuote = () => {
     if (liveQuote) {
@@ -498,6 +558,39 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         message: `Applied authoritative rate calculation of ₹${liveQuote.totalAmount.toLocaleString('en-IN')} (incl. ${liveQuote.gstRatePercent}% GST).`,
         type: 'info',
       });
+    }
+  };
+
+  const handleToggleAsset = (assetId: string, isChecked: boolean) => {
+    const nextIds = isChecked
+      ? [...formCoveredAssetIds, assetId]
+      : formCoveredAssetIds.filter((id) => id !== assetId);
+    setFormCoveredAssetIds(nextIds);
+
+    if (selectedPlanObj) {
+      const nextAssets = availableAssets.filter((a) => nextIds.includes(a.id));
+      if (nextAssets.length > 0) {
+        const quote = calculateAmcQuote(selectedPlanObj, nextAssets);
+        setFormTotalAmount(quote.totalAmount);
+      } else {
+        setFormTotalAmount(0);
+      }
+    }
+  };
+
+  const handleSelectAllAssets = () => {
+    const allIds = availableAssets.map((a) => a.id);
+    setFormCoveredAssetIds(allIds);
+    if (selectedPlanObj && availableAssets.length > 0) {
+      const quote = calculateAmcQuote(selectedPlanObj, availableAssets);
+      setFormTotalAmount(quote.totalAmount);
+    }
+  };
+
+  const handleClearAllAssets = () => {
+    setFormCoveredAssetIds([]);
+    if (selectedPlanObj) {
+      setFormTotalAmount(0);
     }
   };
 
@@ -512,7 +605,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormStartDate(today);
     setFormEndDate(oneYearLater.toISOString().slice(0, 10));
     setFormFrequency('QUARTERLY');
-    setFormTotalAmount(25000);
+    setFormTotalAmount(0);
     setFormTotalVisits(4);
     setFormDryVisits(0);
     setFormJetVisits(0);
@@ -2163,7 +2256,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                 </div>
 
                 {/* Live Authoritative Rate Chart Calculation Box */}
-                {liveQuote && (
+                {selectedPlanObj && liveQuote && (
                   <div
                     style={{
                       gridColumn: '1 / -1',
@@ -2178,13 +2271,25 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       gap: '12px',
                     }}
                   >
-                    <div>
+                    <div style={{ flex: 1, minWidth: '220px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)' }}>
                         <Calculator size={15} color="#0284c7" />
-                        Authoritative Rate Chart Calculation ({selectedAssetsList.length} units selected):
+                        {selectedAssetsList.length > 0
+                          ? `Official Rate Chart Calculation (${selectedAssetsList.length} unit${selectedAssetsList.length > 1 ? 's' : ''} covered):`
+                          : `Plan Baseline Starting Rate (1 Unit Preview):`}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '3px' }}>
-                        Base: ₹{liveQuote.baseAmount.toLocaleString('en-IN')} + GST ({liveQuote.gstRatePercent}%): ₹{liveQuote.gstAmount.toLocaleString('en-IN')} = <strong>₹{liveQuote.totalAmount.toLocaleString('en-IN')}</strong>
+                        Base: ₹{liveQuote.baseAmount.toLocaleString('en-IN')}
+                        {liveQuote.gstRatePercent > 0
+                          ? ` + GST (${liveQuote.gstRatePercent}%): ₹${liveQuote.gstAmount.toLocaleString('en-IN')}`
+                          : ' (Basic Rate)'}
+                        {' = '}
+                        <strong style={{ color: '#0284c7', fontSize: '12px' }}>₹{liveQuote.totalAmount.toLocaleString('en-IN')}</strong>
+                        {selectedAssetsList.length === 0 && (
+                          <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                            (Recalculates automatically when customer AC equipment is registered / selected in Step 3)
+                          </span>
+                        )}
                       </div>
                       {liveQuote.warnings.length > 0 && (
                         <div style={{ fontSize: '10px', color: 'var(--color-warning-600, #d97706)', marginTop: '4px', fontWeight: 600 }}>
@@ -2193,14 +2298,20 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       )}
                     </div>
 
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleApplyCalculatedQuote}
-                    >
-                      Apply Quote (₹{liveQuote.totalAmount.toLocaleString('en-IN')})
-                    </Button>
+                    {formTotalAmount !== liveQuote.totalAmount ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleApplyCalculatedQuote}
+                      >
+                        ↺ Reapply Rate (₹{liveQuote.totalAmount.toLocaleString('en-IN')})
+                      </Button>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        ✓ Rate Chart Synchronized
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -2487,7 +2598,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                     <button
                       type="button"
-                      onClick={() => setFormCoveredAssetIds(availableAssets.map((a) => a.id))}
+                      onClick={handleSelectAllAssets}
                       style={{ fontSize: '11px', color: 'var(--color-brand)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                     >
                       Select All
@@ -2495,7 +2606,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                     <span style={{ color: 'var(--border-default)' }}>|</span>
                     <button
                       type="button"
-                      onClick={() => setFormCoveredAssetIds([])}
+                      onClick={handleClearAllAssets}
                       style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       Clear
@@ -2555,13 +2666,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       <input
                         type="checkbox"
                         checked={formCoveredAssetIds.includes(asset.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormCoveredAssetIds((prev) => [...prev, asset.id]);
-                          } else {
-                            setFormCoveredAssetIds((prev) => prev.filter((id) => id !== asset.id));
-                          }
-                        }}
+                        onChange={(e) => handleToggleAsset(asset.id, e.target.checked)}
                       />
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -2733,6 +2838,63 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                   if (selectedPlan) {
                     if (selectedPlan.defaultFrequency) setFormFrequency(selectedPlan.defaultFrequency);
                     if (selectedPlan.defaultVisitsPerYear) setFormTotalVisits(selectedPlan.defaultVisitsPerYear);
+
+                    // Auto-balance PM visits
+                    if (selectedPlan.planCode === 'ORD-3-VISIT') {
+                      setFormDryVisits(2);
+                      setFormJetVisits(1);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode === 'ORD-4-VISIT') {
+                      setFormDryVisits(3);
+                      setFormJetVisits(1);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode === 'ORD-6-VISIT') {
+                      setFormDryVisits(5);
+                      setFormJetVisits(1);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode?.includes('JACKET-2')) {
+                      setFormDryVisits(0);
+                      setFormJetVisits(2);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode?.includes('JACKET-3')) {
+                      setFormDryVisits(0);
+                      setFormJetVisits(3);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode?.includes('STANDALONE-PUMP')) {
+                      setFormDryVisits(0);
+                      setFormJetVisits(0);
+                      setFormPumpdownVisits(1);
+                    } else if (selectedPlan.planCode?.includes('STANDALONE-JET')) {
+                      setFormDryVisits(0);
+                      setFormJetVisits(1);
+                      setFormPumpdownVisits(0);
+                    } else if (selectedPlan.planCode === 'SEMI-COMP-SPLIT' || selectedPlan.planCode?.includes('SAMC')) {
+                      setFormDryVisits(2);
+                      setFormJetVisits(2);
+                      setFormPumpdownVisits(0);
+                    } else {
+                      const total = selectedPlan.defaultVisitsPerYear || 4;
+                      const jet = Math.min(2, Math.max(1, Math.floor(total / 2)));
+                      setFormJetVisits(jet);
+                      setFormDryVisits(Math.max(0, total - jet));
+                      setFormPumpdownVisits(0);
+                    }
+
+                    // Recalculate quotation commercial amount
+                    const rawCovered = detailContract?.coveredAssets || [];
+                    if (rawCovered.length > 0) {
+                      const coveredContext = rawCovered.map((a) => ({
+                        id: a.id,
+                        assetTag: a.assetTag,
+                        acType: a.acType || 'SPLIT',
+                        capacityTons: a.capacityTons,
+                        installationDate: (a as any).installationDate || null,
+                      }));
+                      const quote = calculateAmcQuote(selectedPlan, coveredContext);
+                      setFormTotalAmount(quote.totalAmount);
+                    } else {
+                      setFormTotalAmount(getPlanBaselineAmount(selectedPlan));
+                    }
                   }
                 }}
               >

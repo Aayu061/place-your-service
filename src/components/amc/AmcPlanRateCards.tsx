@@ -417,38 +417,112 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                   Rate Card &amp; Capacity Tiers:
                 </div>
 
-                {isTiered ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                    <div style={{ backgroundColor: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>0.8 – 1.0 TR (Ton)</div>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
-                        Split: ₹{(plan.rateSplitSmall || 0).toLocaleString('en-IN')}
+                {(() => {
+                  if (!isTiered) {
+                    return (
+                      <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          {plan.pricingModel === 'PER_SERVICE' ? 'Flat Per Service' : 'Flat Per Unit / Year'}:
+                        </span>
+                        <span style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          ₹{(plan.rateFlat || 0).toLocaleString('en-IN')}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Window: ₹{(plan.rateWindowSmall || 0).toLocaleString('en-IN')}
-                      </div>
-                    </div>
+                    );
+                  }
 
-                    <div style={{ backgroundColor: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>1.5 – 2.2 TR (Ton)</div>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
-                        Split: ₹{(plan.rateSplitLarge || 0).toLocaleString('en-IN')}
+                  const hasSplit = (plan.rateSplitSmall != null && plan.rateSplitSmall > 0) || (plan.rateSplitLarge != null && plan.rateSplitLarge > 0);
+                  const hasWindow = (plan.rateWindowSmall != null && plan.rateWindowSmall > 0) || (plan.rateWindowLarge != null && plan.rateWindowLarge > 0);
+                  const isUniform =
+                    hasSplit &&
+                    hasWindow &&
+                    plan.rateSplitSmall === plan.rateSplitLarge &&
+                    plan.rateWindowSmall === plan.rateWindowLarge;
+
+                  if (isUniform) {
+                    return (
+                      <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>All Capacities (0.8 – 2.2 TR)</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Split AC:</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-primary-600, #0284c7)' }}>
+                            ₹{(plan.rateSplitSmall || 0).toLocaleString('en-IN')} / Yr
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Window AC:</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-primary-600, #0284c7)' }}>
+                            ₹{(plan.rateWindowSmall || 0).toLocaleString('en-IN')} / Yr
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        Window: ₹{(plan.rateWindowLarge || 0).toLocaleString('en-IN')}
+                    );
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                        <div style={{ backgroundColor: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>0.8 – 1.0 TR (Ton)</div>
+                          {hasSplit && (
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                              Split: ₹{(plan.rateSplitSmall || 0).toLocaleString('en-IN')}
+                            </div>
+                          )}
+                          {hasWindow && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              Window: ₹{(plan.rateWindowSmall || 0).toLocaleString('en-IN')}
+                            </div>
+                          )}
+                          {!hasWindow && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                              Window: Not Offered
+                            </div>
+                          )}
+                          {!hasSplit && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                              Split: Not Offered
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ backgroundColor: 'var(--bg-surface)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>1.5 – 2.2 TR (Ton)</div>
+                          {hasSplit && (
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px' }}>
+                              Split: ₹{(plan.rateSplitLarge || 0).toLocaleString('en-IN')}
+                            </div>
+                          )}
+                          {hasWindow && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              Window: ₹{(plan.rateWindowLarge || 0).toLocaleString('en-IN')}
+                            </div>
+                          )}
+                          {!hasWindow && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                              Window: Not Offered
+                            </div>
+                          )}
+                          {!hasSplit && (
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                              Split: Not Offered
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      {hasSplit && !hasWindow && (
+                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
+                          Exclusively for Split Air Conditioners
+                        </div>
+                      )}
+                      {!hasSplit && hasWindow && (
+                        <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
+                          Exclusively for Window Air Conditioners
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ backgroundColor: 'var(--bg-surface)', padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                      {plan.pricingModel === 'PER_SERVICE' ? 'Flat Per Service' : 'Flat Per Unit / Year'}:
-                    </span>
-                    <span style={{ fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      ₹{(plan.rateFlat || 0).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Plan Feature Chips */}
@@ -460,7 +534,11 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
 
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(16, 185, 129, 0.08)', color: '#059669', fontWeight: 600 }}>
                   <Percent size={12} />
-                  GST {plan.gstRatePercent}%
+                  {plan.gstRatePercent === 28
+                    ? 'GST Extra 28% (SAMC)'
+                    : plan.gstRatePercent && plan.gstRatePercent > 0
+                    ? `GST ${plan.gstRatePercent}%`
+                    : 'Basic Rate (GST 18% as req.)'}
                 </span>
 
                 {plan.hasUnlimitedComplaints && (
