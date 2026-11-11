@@ -11,6 +11,9 @@ import apiV1Router from './routes/index.js';
 export function createApp(): Express {
   const app = express();
 
+  // Trust first proxy hop (Render / Cloudflare / reverse proxy) for accurate IP resolution in express-rate-limit
+  app.set('trust proxy', 1);
+
   // 1. Security Headers via Helmet
   app.use(
     helmet({
