@@ -1407,6 +1407,60 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
                       </Button>
                     )}
 
+                    {detailRequest.status === 'RESOLVED' && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={<CheckCircle2 size={14} />}
+                        onClick={() => {
+                          setTargetStatus('COMPLETED');
+                          setIsTransitionModalOpen(true);
+                        }}
+                      >
+                        Confirm Completion
+                      </Button>
+                    )}
+
+                    {detailRequest.status === 'COMPLETED' && (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setTargetStatus('PAYMENT');
+                            setIsTransitionModalOpen(true);
+                          }}
+                        >
+                          Move to Payment
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          leftIcon={<CheckCircle2 size={14} />}
+                          onClick={() => {
+                            setTargetStatus('CLOSED');
+                            setIsTransitionModalOpen(true);
+                          }}
+                        >
+                          Close Request
+                        </Button>
+                      </>
+                    )}
+
+                    {detailRequest.status === 'PAYMENT' && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        leftIcon={<CheckCircle2 size={14} />}
+                        onClick={() => {
+                          setTargetStatus('CLOSED');
+                          setIsTransitionModalOpen(true);
+                        }}
+                      >
+                        Close Request
+                      </Button>
+                    )}
+
                     <Button
                       variant="ghost"
                       size="sm"

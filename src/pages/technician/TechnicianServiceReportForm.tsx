@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
+import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import {
   PM_SERVICE_TYPES,
   BREAKDOWN_REPAIR_TYPES,
@@ -27,6 +28,8 @@ export function TechnicianServiceReportForm({
   onSuccess,
 }: TechnicianServiceReportFormProps) {
   const [job, setJob] = useState<TechJob | null>(null);
+  const [siteAssets, setSiteAssets] = useState<NonNullable<TechJob['ac_assets']>[]>([]);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,31 +38,28 @@ export function TechnicianServiceReportForm({
   // Form State
   const [reportNumber, setReportNumber] = useState('');
   const [assistantName, setAssistantName] = useState('');
-  const [reportedDate, setReportedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [startTime, setStartTime] = useState('10:00');
-  const [endTime, setEndTime] = useState('11:30');
+  const [reportedDate, setReportedDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
 
   // Diagnostics & Asset Findings
-  const [performedServiceType, setPerformedServiceType] = useState('Dry Service');
-  const [filterCleaned, setFilterCleaned] = useState(true);
+  const [performedServiceType, setPerformedServiceType] = useState('DRY_SERVICE');
+  const [filterCleaned, setFilterCleaned] = useState(false);
   const [coilJetWashed, setCoilJetWashed] = useState(false);
-  const [drainCleared, setDrainCleared] = useState(true);
-  const [electricalTightened, setElectricalTightened] = useState(true);
-  const [suctionPsi, setSuctionPsi] = useState<string>('125');
-  const [dischargePsi, setDischargePsi] = useState<string>('320');
-  const [runAmps, setRunAmps] = useState<string>('6.5');
-  const [voltage, setVoltage] = useState<string>('230');
+  const [drainCleared, setDrainCleared] = useState(false);
+  const [electricalTightened, setElectricalTightened] = useState(false);
 
   // Gas recharge
   const [gasAdded, setGasAdded] = useState(false);
   const [gasType, setGasType] = useState('R32');
-  const [gasQty, setGasQty] = useState('0.4');
+  const [gasQty, setGasQty] = useState('');
 
   // Outcome & Notes
   const [primaryOutcome, setPrimaryOutcome] = useState<'COMPLETED' | 'PENDING_PARTS' | 'PENDING_REPAIRS'>('COMPLETED');
-  const [diagnosisFindings, setDiagnosisFindings] = useState('Filters cleaned, coils inspected. Operating pressures within nominal range.');
-  const [workPerformed, setWorkPerformed] = useState('Standard preventive maintenance dry servicing performed. Blower checked.');
-  const [technicianRemarks, setTechnicianRemarks] = useState('Cooling verified functional. Customer satisfied.');
+  const [diagnosisFindings, setDiagnosisFindings] = useState('');
+  const [workPerformed, setWorkPerformed] = useState('');
+  const [technicianRemarks, setTechnicianRemarks] = useState('');
+  const [pendingItemDesc, setPendingItemDesc] = useState('');
 
   // Customer Sign-off
   const [customerRep, setCustomerRep] = useState('');
@@ -135,15 +135,13 @@ export function TechnicianServiceReportForm({
       setElectricalTightened(true);
       setGasAdded(false);
       setPrimaryOutcome('COMPLETED');
-      setDiagnosisFindings('Filters washed, coils jet cleaned, drain line cleared. Operating pressures and amperages nominal.');
+      setDiagnosisFindings('Filters washed, coils jet cleaned, drain line cleared.');
       setWorkPerformed('Full preventive maintenance servicing performed. Condenser & evaporator jet cleaned.');
     } else if (preset === 'GAS_LEAK') {
       setElectricalTightened(true);
       setGasAdded(true);
       setPrimaryOutcome('COMPLETED');
-      setSuctionPsi('65');
-      setDischargePsi('240');
-      setDiagnosisFindings('Low suction pressure detected due to flare nut micro-leak.');
+      setDiagnosisFindings('Refrigerant leak detected and pressure tested.');
       setWorkPerformed('Torqued and flared joints, nitrogen leak test, vacuumed to 500 microns, recharged gas.');
     } else if (preset === 'BREAKDOWN_CHECK') {
       setFilterCleaned(true);
@@ -161,11 +159,16 @@ export function TechnicianServiceReportForm({
       if (saved) {
         const draft = JSON.parse(saved);
         if (draft.reportNumber) setReportNumber(draft.reportNumber);
+        if (draft.reportedDate) setReportedDate(draft.reportedDate);
+        if (draft.startTime) setStartTime(draft.startTime);
+        if (draft.endTime) setEndTime(draft.endTime);
+        if (draft.selectedAssetId) setSelectedAssetId(draft.selectedAssetId);
         if (draft.assistantName) setAssistantName(draft.assistantName);
         if (draft.performedServiceType) setPerformedServiceType(draft.performedServiceType);
         if (draft.diagnosisFindings) setDiagnosisFindings(draft.diagnosisFindings);
         if (draft.workPerformed) setWorkPerformed(draft.workPerformed);
         if (draft.technicianRemarks) setTechnicianRemarks(draft.technicianRemarks);
+        if (draft.pendingItemDesc) setPendingItemDesc(draft.pendingItemDesc);
         if (draft.customerRep) setCustomerRep(draft.customerRep);
         if (draft.paymentCollected !== undefined) setPaymentCollected(draft.paymentCollected);
         if (draft.paymentAmount) setPaymentAmount(draft.paymentAmount);
@@ -184,11 +187,16 @@ export function TechnicianServiceReportForm({
     try {
       const draft = {
         reportNumber,
+        reportedDate,
+        startTime,
+        endTime,
+        selectedAssetId,
         assistantName,
         performedServiceType,
         diagnosisFindings,
         workPerformed,
         technicianRemarks,
+        pendingItemDesc,
         customerRep,
         paymentCollected,
         paymentAmount,
@@ -199,7 +207,7 @@ export function TechnicianServiceReportForm({
       };
       localStorage.setItem(`pys_draft_report_${scheduleId}`, JSON.stringify(draft));
     } catch (_) {}
-  }, [scheduleId, isLoading, reportNumber, assistantName, performedServiceType, diagnosisFindings, workPerformed, technicianRemarks, customerRep, paymentCollected, paymentAmount, paymentMethod, paymentReference, beforePhoto, afterPhoto]);
+  }, [scheduleId, isLoading, reportNumber, reportedDate, startTime, endTime, selectedAssetId, assistantName, performedServiceType, diagnosisFindings, workPerformed, technicianRemarks, pendingItemDesc, customerRep, paymentCollected, paymentAmount, paymentMethod, paymentReference, beforePhoto, afterPhoto]);
 
   const handleClearDraft = () => {
     try {
@@ -213,26 +221,44 @@ export function TechnicianServiceReportForm({
 
     technicianApi
       .getJobDetail(scheduleId)
-      .then(({ schedule, existingReport }) => {
+      .then(({ schedule, existingReport, suggestedReportNumber, siteAssets: loadedSiteAssets }) => {
         if (existingReport) {
           alert(`A service report (${existingReport.reportNumber}) has already been filed for this appointment.`);
           onBack();
           return;
         }
         setJob(schedule);
-        setCustomerRep(schedule.customers?.name || '');
+        setCustomerRep((prev) => prev || schedule.customers?.name || '');
+
+        if (suggestedReportNumber) {
+          setReportNumber((prev) => prev || suggestedReportNumber);
+        }
+
+        const resolvedDate = schedule.scheduled_date || new Date().toISOString().split('T')[0];
+        setReportedDate((prev) => prev || resolvedDate);
+
+        if (schedule.start_time) {
+          setStartTime((prev) => prev || schedule.start_time.slice(0, 5));
+        }
+        if (schedule.end_time) {
+          setEndTime((prev) => prev || schedule.end_time.slice(0, 5));
+        }
+
+        const resolvedAssets =
+          loadedSiteAssets && loadedSiteAssets.length > 0
+            ? loadedSiteAssets
+            : schedule.ac_assets
+              ? [schedule.ac_assets]
+              : [];
+        setSiteAssets(resolvedAssets);
+        setSelectedAssetId((prev) => prev || schedule.ac_assets?.id || resolvedAssets[0]?.id || '');
+
         if (schedule.planned_service_type) {
           setPerformedServiceType(schedule.planned_service_type);
         } else if (!schedule.amc_id) {
           setPerformedServiceType('DIAGNOSTIC_INSPECTION');
         } else {
           setPerformedServiceType('DRY_SERVICE');
-        }
-
-        if (!schedule.amc_id) {
-          const complaint = schedule.service_requests?.description || 'Breakdown symptom reported by customer';
-          setDiagnosisFindings(`Inspected unit: ${complaint}. Measured operating parameters.`);
-          setWorkPerformed(`Diagnosed fault and performed corrective on-site servicing.`);
         }
       })
       .catch((err) => {
@@ -296,8 +322,34 @@ export function TechnicianServiceReportForm({
     if (!job) return;
 
     if (!reportNumber.trim()) {
-      setError('Physical booklet report number is mandatory.');
+      setError('Report number is required.');
       setStep(1);
+      return;
+    }
+
+    if (!reportedDate || !startTime || !endTime) {
+      setError('Service date, start time, and end time are required.');
+      setStep(1);
+      return;
+    }
+
+    const activeAsset = siteAssets.find((a) => a.id === selectedAssetId) || job.ac_assets || null;
+
+    if (activeAsset && (!diagnosisFindings.trim() || diagnosisFindings.trim().length < 2)) {
+      setError('Inspection findings & diagnosis are required (min 2 characters).');
+      setStep(3);
+      return;
+    }
+
+    if (!workPerformed.trim() || workPerformed.trim().length < 2) {
+      setError('Work performed description is required (min 2 characters).');
+      setStep(3);
+      return;
+    }
+
+    if (technicianRemarks.trim().length < 3) {
+      setError('Technician observations are required (min 3 characters).');
+      setStep(3);
       return;
     }
 
@@ -321,13 +373,16 @@ export function TechnicianServiceReportForm({
         manualReportNumber: reportNumber.trim(),
         assistantName: assistantName.trim() || null,
         reportedVisitDate: reportedDate,
-        startTime,
-        endTime,
+        startTime: startTime.slice(0, 5),
+        endTime: endTime.slice(0, 5),
         serviceExecutionType: performedServiceType,
         primaryOutcome,
-        technicianRemarks,
+        workDescription: workPerformed.trim() || diagnosisFindings.trim() || null,
+        technicianRemarks: technicianRemarks.trim(),
         customerRepresentative: customerRep.trim(),
-        customerAcknowledgement: isDigitallySigned ? 'Digitally Signed by Customer on Field Device' : 'Confirmed on-site by Customer Representative',
+        customerAcknowledgement: isDigitallySigned
+          ? 'Digitally Signed by Customer on Field Device'
+          : 'Confirmed on-site by Customer Representative',
         signatureDataUrl,
         beforePhotoUrl: beforePhoto,
         afterPhotoUrl: afterPhoto,
@@ -335,31 +390,41 @@ export function TechnicianServiceReportForm({
         paymentAmount: paymentCollected && paymentAmount ? Number(paymentAmount) : 0,
         paymentMethod: paymentCollected ? paymentMethod : null,
         paymentReference: paymentCollected && paymentReference ? paymentReference.trim() : null,
-        assets: [
-          {
-            assetId: job.ac_assets?.id || '00000000-0000-0000-0000-000000000000',
-            assetTag: job.ac_assets?.asset_tag,
-            brand: job.ac_assets?.brand,
-            modelNumber: job.ac_assets?.model_number,
-            roomLocation: job.ac_assets?.room_location,
-            diagnosisFindings,
-            workPerformed,
-            assetOutcome: primaryOutcome,
-            finalCondition: 'GOOD',
-            filterCleaned,
-            coilJetWashed,
-            drainCleared,
-            electricalTightened,
-            suctionPressurePsi: suctionPsi ? Number(suctionPsi) : null,
-            dischargePressurePsi: dischargePsi ? Number(dischargePsi) : null,
-            runAmperage: runAmps ? Number(runAmps) : null,
-            operatingVoltage: voltage ? Number(voltage) : null,
-            refrigerantAdded: gasAdded,
-            refrigerantType: gasAdded ? gasType : null,
-            refrigerantQtyKg: gasAdded && gasQty ? Number(gasQty) : null,
-          },
-        ],
-        items: [],
+        assets: activeAsset
+          ? [
+              {
+                assetId: activeAsset.id,
+                assetTag: activeAsset.asset_tag,
+                brand: activeAsset.brand,
+                modelNumber: activeAsset.model_number,
+                roomLocation: activeAsset.room_location,
+                diagnosisFindings: diagnosisFindings.trim(),
+                workPerformed: workPerformed.trim(),
+                assetOutcome: primaryOutcome,
+                finalCondition: primaryOutcome === 'COMPLETED' ? 'GOOD' : 'FAIR',
+                filterCleaned,
+                coilJetWashed,
+                drainCleared,
+                electricalTightened,
+                refrigerantAdded: gasAdded,
+                refrigerantType: gasAdded ? gasType : null,
+                refrigerantQtyKg: gasAdded && gasQty ? Number(gasQty) : null,
+              },
+            ]
+          : [],
+        items:
+          primaryOutcome !== 'COMPLETED' && pendingItemDesc.trim().length >= 2
+            ? [
+                {
+                  assetId: activeAsset?.id || null,
+                  partDescription: pendingItemDesc.trim(),
+                  quantity: 1,
+                  isProcurementRequired: primaryOutcome === 'PENDING_PARTS',
+                  isRevisitRequired: true,
+                  actionRemarks: technicianRemarks.trim() || undefined,
+                },
+              ]
+            : [],
       };
 
       await technicianApi.submitFieldReport(payload);
@@ -543,13 +608,13 @@ export function TechnicianServiceReportForm({
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Carbon Booklet Report Number *
+                Report Number *
               </label>
               <input
                 type="text"
                 value={reportNumber}
                 onChange={(e) => setReportNumber(e.target.value)}
-                placeholder="e.g. REP-2026-0042"
+                placeholder="Auto-generated or enter paper slip no."
                 required
                 style={{
                   width: '100%',
@@ -566,7 +631,7 @@ export function TechnicianServiceReportForm({
                 }}
               />
               <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>
-                Serial number from physical paper slip
+                Auto-generated serial report number (editable if overriding with a paper slip)
               </p>
             </div>
 
@@ -578,7 +643,7 @@ export function TechnicianServiceReportForm({
                 type="text"
                 value={assistantName}
                 onChange={(e) => setAssistantName(e.target.value)}
-                placeholder="e.g. Ramesh Kumar"
+                placeholder="Helper / Assistant Full Name"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -653,6 +718,10 @@ export function TechnicianServiceReportForm({
                   setError('Report number is required.');
                   return;
                 }
+                if (!reportedDate || !startTime || !endTime) {
+                  setError('Service date, start time, and end time are required.');
+                  return;
+                }
                 setError(null);
                 setStep(2);
               }}
@@ -677,24 +746,65 @@ export function TechnicianServiceReportForm({
         {/* STEP 2: AC Inspection Diagnostics */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <div
-              style={{
-                padding: '12px',
-                backgroundColor: 'var(--bg-surface-subtle)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-default)',
-              }}
-            >
-              <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                Inspected AC Equipment
-              </span>
-              <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
-                {job?.ac_assets?.brand} {job?.ac_assets?.model_number} ({job?.ac_assets?.room_location || 'Main Unit'})
-              </p>
-              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '2px 0 0 0' }}>
-                Tag: {job?.ac_assets?.asset_tag || 'ESSC-UNIT'} · {job?.ac_assets?.tonnage || '1.5'} Ton
-              </p>
-            </div>
+            {(() => {
+              const activeAsset = siteAssets.find((a) => a.id === selectedAssetId) || job?.ac_assets || null;
+              return (
+                <div
+                  style={{
+                    padding: '12px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-default)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                  }}
+                >
+                  <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                    Inspected AC Equipment
+                  </span>
+                  {siteAssets.length > 1 && (
+                    <select
+                      value={selectedAssetId}
+                      onChange={(e) => setSelectedAssetId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        backgroundColor: 'var(--bg-surface)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {siteAssets.map((asset) => (
+                        <option key={asset.id} value={asset.id}>
+                          {asset.asset_tag || 'Unit'} — {asset.brand} {asset.model_number} ({asset.room_location || 'Site'})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {activeAsset ? (
+                    <>
+                      <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: '2px 0 0 0' }}>
+                        {[activeAsset.brand, activeAsset.model_number].filter(Boolean).join(' ') || 'AC Unit'}{' '}
+                        {activeAsset.room_location ? `(${activeAsset.room_location})` : ''}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', margin: '2px 0 0 0' }}>
+                        Tag: {activeAsset.asset_tag || 'Unassigned'}
+                        {activeAsset.tonnage ? ` · ${activeAsset.tonnage} Ton` : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                      Site-level service visit (no individual AC unit linked)
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Reported Customer Issue */}
             {job?.service_requests && (
@@ -930,94 +1040,6 @@ export function TechnicianServiceReportForm({
               </div>
             </div>
 
-            {/* Diagnostic Readings */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Operating Readings</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Suction (PSI)</span>
-                  <input
-                    type="number"
-                    value={suctionPsi}
-                    onChange={(e) => setSuctionPsi(e.target.value)}
-                    placeholder="e.g. 125"
-                    style={{
-                      padding: '8px 10px',
-                      backgroundColor: 'var(--bg-surface-subtle)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Discharge (PSI)</span>
-                  <input
-                    type="number"
-                    value={dischargePsi}
-                    onChange={(e) => setDischargePsi(e.target.value)}
-                    placeholder="e.g. 320"
-                    style={{
-                      padding: '8px 10px',
-                      backgroundColor: 'var(--bg-surface-subtle)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Run Amps (A)</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={runAmps}
-                    onChange={(e) => setRunAmps(e.target.value)}
-                    placeholder="e.g. 6.5"
-                    style={{
-                      padding: '8px 10px',
-                      backgroundColor: 'var(--bg-surface-subtle)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Voltage (V)</span>
-                  <input
-                    type="number"
-                    value={voltage}
-                    onChange={(e) => setVoltage(e.target.value)}
-                    placeholder="e.g. 230"
-                    style={{
-                      padding: '8px 10px',
-                      backgroundColor: 'var(--bg-surface-subtle)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--text-xs)',
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      color: 'var(--text-primary)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
             {/* Gas Top-up Toggle */}
             <div
               style={{
@@ -1069,6 +1091,7 @@ export function TechnicianServiceReportForm({
                       step="0.05"
                       value={gasQty}
                       onChange={(e) => setGasQty(e.target.value)}
+                      placeholder="Qty in kg"
                       style={{
                         padding: '6px 8px',
                         backgroundColor: 'var(--bg-surface)',
@@ -1216,12 +1239,41 @@ export function TechnicianServiceReportForm({
               </div>
             </div>
 
+            {primaryOutcome !== 'COMPLETED' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {primaryOutcome === 'PENDING_PARTS' ? 'Required Spare Parts *' : 'Follow-up Repair Scope *'}
+                </label>
+                <input
+                  type="text"
+                  value={pendingItemDesc}
+                  onChange={(e) => setPendingItemDesc(e.target.value)}
+                  placeholder={
+                    primaryOutcome === 'PENDING_PARTS'
+                      ? 'Describe required spare parts and qty'
+                      : 'Describe follow-up repair scope needed'
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: 'var(--bg-surface-subtle)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-primary)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Inspection Findings &amp; Diagnosis</label>
               <textarea
                 value={diagnosisFindings}
                 onChange={(e) => setDiagnosisFindings(e.target.value)}
                 rows={2}
+                placeholder="Enter inspection findings and fault diagnosis"
                 style={{
                   width: '100%',
                   padding: '10px',
@@ -1237,11 +1289,12 @@ export function TechnicianServiceReportForm({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Work Performed Description</label>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Work Performed Description *</label>
               <textarea
                 value={workPerformed}
                 onChange={(e) => setWorkPerformed(e.target.value)}
                 rows={2}
+                placeholder="Describe the service or repair work performed"
                 style={{
                   width: '100%',
                   padding: '10px',
@@ -1257,11 +1310,12 @@ export function TechnicianServiceReportForm({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Technician Observations</label>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>Technician Observations *</label>
               <textarea
                 value={technicianRemarks}
                 onChange={(e) => setTechnicianRemarks(e.target.value)}
                 rows={2}
+                placeholder="Additional technician observations or notes (min 3 characters)"
                 style={{
                   width: '100%',
                   padding: '10px',
@@ -1296,7 +1350,27 @@ export function TechnicianServiceReportForm({
               </button>
               <button
                 type="button"
-                onClick={() => setStep(4)}
+                onClick={() => {
+                  const activeAsset = siteAssets.find((a) => a.id === selectedAssetId) || job?.ac_assets || null;
+                  if (activeAsset && diagnosisFindings.trim().length < 2) {
+                    setError('Inspection findings & diagnosis are required (min 2 characters).');
+                    return;
+                  }
+                  if (workPerformed.trim().length < 2) {
+                    setError('Work performed description is required (min 2 characters).');
+                    return;
+                  }
+                  if (technicianRemarks.trim().length < 3) {
+                    setError('Technician observations are required (min 3 characters).');
+                    return;
+                  }
+                  if (primaryOutcome !== 'COMPLETED' && pendingItemDesc.trim().length < 2) {
+                    setError('Please describe the pending spare parts or repair scope.');
+                    return;
+                  }
+                  setError(null);
+                  setStep(4);
+                }}
                 style={{
                   width: '67%',
                   padding: '10px',
@@ -1355,7 +1429,7 @@ export function TechnicianServiceReportForm({
                         min="0"
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
-                        placeholder="e.g. 1500"
+                        placeholder="Amount received"
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
                       />
                     </div>
@@ -1383,7 +1457,9 @@ export function TechnicianServiceReportForm({
                         size={120}
                         showDetails={false}
                       />
-                      <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>UPI ID: 7977805245@upi</span>
+                      <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                        UPI ID: {COMPANY_BANK_DETAILS.upiId}
+                      </span>
                     </div>
                   )}
 
@@ -1395,7 +1471,7 @@ export function TechnicianServiceReportForm({
                       type="text"
                       value={paymentReference}
                       onChange={(e) => setPaymentReference(e.target.value)}
-                      placeholder={paymentMethod === 'UPI' ? 'e.g. 328192837192 (12 digits)' : 'Reference / Cash Note'}
+                      placeholder={paymentMethod === 'UPI' ? 'Enter 12-digit UPI UTR / Transaction ID' : 'Receipt / Cheque / Reference Number'}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
                     />
                   </div>

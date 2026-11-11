@@ -20,11 +20,13 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // If identifier was populated from URL query param (e.g. dispatch link), auto-focus PIN
-    if (identifier.trim().length > 0) {
+    // Only auto-focus PIN on initial mount if identifier came from URL query param (?code=)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('code') && identifier.trim().length > 0) {
       pinInputRef.current?.focus();
     }
-  }, [identifier]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,7 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
 
     const cleanId = identifier.trim();
     if (!cleanId) {
-      setError('Please enter your Technician Code (e.g. TECH-0001) or Mobile Number.');
+      setError('Please enter your Technician Code or registered Mobile Number.');
       return;
     }
 
@@ -203,7 +205,7 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="e.g. TECH-0001 or 9876543210"
+                  placeholder="Technician Code or Mobile Number"
                   autoCapitalize="characters"
                   required
                   style={{
@@ -223,7 +225,7 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
               </div>
             </div>
 
-            {/* 4-digit PIN */}
+            {/* Security PIN */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label
@@ -233,11 +235,8 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
                     color: 'var(--text-primary)',
                   }}
                 >
-                  Security PIN (4-Digits)
+                  Security PIN
                 </label>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Default: 1234
-                </span>
               </div>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <span

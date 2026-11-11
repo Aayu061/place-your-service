@@ -132,6 +132,30 @@ describe('Technician Mobile Field Portal Frontend Suite', () => {
       expect(pinInput).not.toBeNull();
       expect(submitBtn).not.toBeNull();
       expect(submitBtn.textContent).toContain('Sign In to Field Desk');
+      expect(container.textContent).not.toContain('Default: 1234');
+
+      cleanup();
+    });
+
+    it('keeps focus in identifier input across keystrokes (does not jump to PIN)', () => {
+      const { container, cleanup } = renderComponent(
+        <TechnicianLogin onLoginSuccess={vi.fn()} onSwitchToAdmin={vi.fn()} />
+      );
+
+      const idInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+      const pinInput = container.querySelector('input[type="password"]') as HTMLInputElement;
+      const pinFocusSpy = vi.spyOn(pinInput, 'focus');
+
+      idInput.focus();
+      act(() => {
+        setInputValue(idInput, 'T');
+      });
+      act(() => {
+        setInputValue(idInput, 'TECH-0001');
+      });
+
+      expect(pinFocusSpy).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(idInput);
 
       cleanup();
     });
@@ -357,10 +381,10 @@ describe('Technician Mobile Field Portal Frontend Suite', () => {
 
       expect(container.textContent).toContain('SCH-2026-0001');
       expect(container.textContent).toContain('Apex Towers Corp');
-      expect(container.textContent).toContain('Carbon Booklet Report Number *');
+      expect(container.textContent).toContain('Report Number *');
 
-      // Fill Booklet Serial
-      const reportNumInput = container.querySelector('input[placeholder*="REP-"]') as HTMLInputElement;
+      // Fill Booklet / Auto-generated Serial
+      const reportNumInput = container.querySelector('input[placeholder*="Auto-generated"]') as HTMLInputElement;
       expect(reportNumInput).not.toBeNull();
 
       act(() => {
@@ -377,11 +401,106 @@ describe('Technician Mobile Field Portal Frontend Suite', () => {
         continueBtn?.click();
       });
 
-      // Step 2 should now be visible
-      expect(container.textContent).toContain('Operating Readings');
+      // Step 2 should now be visible without Operating Readings
+      expect(container.textContent).not.toContain('Operating Readings');
       expect(container.textContent).toContain('Service Checklist');
       expect(container.textContent).toContain('Filter Cleaned');
 
+      cleanup();
+    });
+
+    it('hydrates sequential suggestedReportNumber and exact schedule date/time with zero dummy values', async () => {
+      const submitSpy = vi.spyOn(technicianApi, 'submitFieldReport').mockResolvedValue({
+        id: 'rep-999',
+        reportNumber: 'REP-2026-0042',
+      });
+
+      vi.spyOn(technicianApi, 'getJobDetail').mockResolvedValue({
+        schedule: {
+          ...mockJobs[0],
+          scheduled_date: '2026-11-15',
+          start_time: '14:00:00',
+          end_time: '16:30:00',
+        },
+        existingReport: null,
+        suggestedReportNumber: 'REP-2026-0042',
+        siteAssets: [mockJobs[0].ac_assets!],
+      });
+
+      const { container, cleanup } = renderComponent(
+        <TechnicianServiceReportForm
+          scheduleId="sched-101"
+          onBack={vi.fn()}
+          onSuccess={vi.fn()}
+        />
+      );
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      const reportNumInput = container.querySelector('input[placeholder*="Auto-generated"]') as HTMLInputElement;
+      const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+      const timeInputs = container.querySelectorAll('input[type="time"]');
+      const startTimeInput = timeInputs[0] as HTMLInputElement;
+      const endTimeInput = timeInputs[1] as HTMLInputElement;
+
+      expect(reportNumInput.value).toBe('REP-2026-0042');
+      expect(dateInput.value).toBe('2026-11-15');
+      expect(startTimeInput.value).toBe('14:00');
+      expect(endTimeInput.value).toBe('16:30');
+      expect(container.textContent).not.toContain('7977805245@upi');
+      expect(container.textContent).not.toContain('ESSC-UNIT');
+
+      // Advance to Step 2 -> verify no pre-filled dummy values and no Operating Readings
+      const step1Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Continue to Inspection')
+      );
+      act(() => { step1Btn?.click(); });
+      expect(container.textContent).not.toContain('Operating Readings');
+      expect(container.textContent).not.toContain('125');
+
+      const step2Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Next: Outcome')
+      );
+      act(() => { step2Btn?.click(); });
+
+      // Step 3 textareas must start completely empty (zero dummy canned paragraphs)
+      const textareas = container.querySelectorAll('textarea');
+      expect((textareas[0] as HTMLTextAreaElement).value).toBe('');
+      expect((textareas[1] as HTMLTextAreaElement).value).toBe('');
+      expect((textareas[2] as HTMLTextAreaElement).value).toBe('');
+
+      act(() => {
+        setInputValue(textareas[0] as HTMLTextAreaElement, 'Dirty indoor evaporator coil');
+        setInputValue(textareas[1] as HTMLTextAreaElement, 'Jet washed indoor and outdoor unit');
+        setInputValue(textareas[2] as HTMLTextAreaElement, 'Cooling temperature verified OK');
+      });
+
+      const step3Btn = Array.from(container.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Next: Customer Sign')
+      );
+      act(() => { step3Btn?.click(); });
+
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+      const form = container.querySelector('form') as HTMLFormElement;
+      await act(async () => {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+
+      expect(submitSpy).toHaveBeenCalledTimes(1);
+      const submittedPayload = submitSpy.mock.calls[0][0];
+      expect(submittedPayload.manualReportNumber).toBe('REP-2026-0042');
+      expect(submittedPayload.reportedVisitDate).toBe('2026-11-15');
+      expect(submittedPayload.startTime).toBe('14:00');
+      expect(submittedPayload.endTime).toBe('16:30');
+      expect(submittedPayload.assets[0].assetId).toBe('asset-101');
+      expect(submittedPayload.assets[0].suctionPressurePsi).toBeUndefined();
+      expect(submittedPayload.assets[0].dischargePressurePsi).toBeUndefined();
+      expect(submittedPayload.assets[0].runAmperage).toBeUndefined();
+      expect(submittedPayload.assets[0].operatingVoltage).toBeUndefined();
+
+      alertSpy.mockRestore();
       cleanup();
     });
   });

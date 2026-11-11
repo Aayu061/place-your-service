@@ -118,8 +118,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [reportNumber, setReportNumber] = useState<string>('');
   const [assistantName, setAssistantName] = useState<string>('');
   const [visitDate, setVisitDate] = useState<string>('');
-  const [startTime, setStartTime] = useState<string>('09:30');
-  const [endTime, setEndTime] = useState<string>('11:45');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
   const [primaryOutcome, setPrimaryOutcome] = useState<ServiceVisitOutcome>('COMPLETED');
   const [workDescription, setWorkDescription] = useState<string>('');
   const [technicianRemarks, setTechnicianRemarks] = useState<string>('');
@@ -185,8 +185,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setReportNumber(initialReport.reportNumber || '');
         setAssistantName(initialReport.assistantName || schedule?.assistantName || '');
         setVisitDate(initialReport.serviceDate || '');
-        setStartTime(initialReport.startTime || '09:30');
-        setEndTime(initialReport.endTime || '11:45');
+        setStartTime((initialReport.startTime || '').slice(0, 5));
+        setEndTime((initialReport.endTime || '').slice(0, 5));
         setPrimaryOutcome(initialReport.primaryOutcome || 'COMPLETED');
         setWorkDescription(initialReport.workDescription || '');
         setTechnicianRemarks(initialReport.technicianRemarks || '');
@@ -295,8 +295,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setReportNumber('');
         setAssistantName(schedule.assistantName || '');
         setVisitDate(schedule.scheduledDate || new Date().toISOString().slice(0, 10));
-        setStartTime(schedule.startTime || '09:30');
-        setEndTime(schedule.endTime || '11:45');
+        setStartTime((schedule.startTime || '').slice(0, 5));
+        setEndTime((schedule.endTime || '').slice(0, 5));
         setPrimaryOutcome('COMPLETED');
         const initialPlanned = schedule.plannedServiceType || null;
         setPlannedServiceType(initialPlanned);
@@ -347,6 +347,25 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       }
     }
   }, [schedule, initialReport, mode, isOpen]);
+
+  // Auto-generate sequential serial report number in create mode (editable if overriding with a paper slip)
+  useEffect(() => {
+    if (!isOpen || mode !== 'create' || !schedule) return;
+    if (typeof serviceReportApi.getNextReportNumber !== 'function') return;
+    let isMounted = true;
+    serviceReportApi
+      .getNextReportNumber()
+      .then((res) => {
+        if (!isMounted || !res?.nextReportNumber) return;
+        setReportNumber((prev) => prev || res.nextReportNumber);
+      })
+      .catch(() => {
+        // Leave empty if sequence endpoint is unavailable
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, mode, schedule]);
 
   // Asynchronously load site assets if schedule has siteId but no specific assetId
   useEffect(() => {
@@ -959,7 +978,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   if (errorMessage) setErrorMessage(null);
                 }}
                 onBlur={() => setReportNumber((prev) => prev.trim())}
-                placeholder="e.g. REP-2026-0042"
+                placeholder="Auto-generated or enter paper slip no."
                 disabled={isSubmitting}
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -988,7 +1007,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               </p>
             ) : (
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                Physical carbon / booklet serial number
+                Auto-generated serial number (editable if overriding with a paper slip)
               </span>
             )}
           </div>
@@ -1016,7 +1035,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   setAssistantName(e.target.value);
                   if (errorMessage) setErrorMessage(null);
                 }}
-                placeholder="e.g. Ramesh Kumar"
+                placeholder="Assistant / Helper full name"
                 disabled={isSubmitting}
                 style={{ fontSize: '13px' }}
               />
@@ -1657,7 +1676,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                         onChange={(e) =>
                           handleAssetFieldChange(idx, 'refrigerantQtyKg', e.target.value)
                         }
-                        placeholder="e.g. 0.8"
+                        placeholder="Qty in kg"
                         disabled={isSubmitting}
                         style={{ fontSize: '12px' }}
                       />
@@ -1840,7 +1859,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     <Input
                       value={item.partNumber}
                       onChange={(e) => updatePartItem(item.id, 'partNumber', e.target.value)}
-                      placeholder="e.g. CAP-4550"
+                      placeholder="Part code / number"
                       disabled={isSubmitting}
                       style={{ fontSize: '12px' }}
                     />
@@ -2235,7 +2254,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   id="svr-payment-ref"
                   value={paymentReference}
                   onChange={(e) => setPaymentReference(e.target.value)}
-                  placeholder="e.g. UPI-9876543210 or UTR..."
+                  placeholder="Enter UPI UTR / Transaction ID or Cheque No."
                   disabled={isSubmitting}
                   style={{ fontSize: '13px' }}
                 />
@@ -2396,7 +2415,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   <Input
                     value={customerRepresentative}
                     onChange={(e) => setCustomerRepresentative(e.target.value)}
-                    placeholder="e.g. Ramesh Shah (Facility Incharge)"
+                    placeholder="Full name of customer representative"
                     disabled={isSubmitting}
                     style={{ fontSize: '12px' }}
                   />

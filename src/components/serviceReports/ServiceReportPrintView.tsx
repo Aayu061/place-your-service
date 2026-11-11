@@ -967,7 +967,7 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
             </div>
           </div>
 
-          {/* Col 2: Company Demo Bank Details */}
+          {/* Col 2: Company Bank Details */}
           <div
             style={{
               borderLeft: '1px solid #e2e8f0',

@@ -450,8 +450,12 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
       setFormError('Please select at least one service area');
       return;
     }
-    if (pinInput.trim() && !/^\d{4,6}$/.test(pinInput.trim())) {
-      setFormError('Field Security PIN must be 4 to 6 numeric digits (or left blank for default 1234)');
+    if (formMode === 'create' && !/^\d{4,6}$/.test(pinInput.trim())) {
+      setFormError('Field Security PIN is required (4 to 6 numeric digits)');
+      return;
+    }
+    if (formMode === 'edit' && pinInput.trim() && !/^\d{4,6}$/.test(pinInput.trim())) {
+      setFormError('Field Security PIN must be 4 to 6 numeric digits');
       return;
     }
 
@@ -2237,18 +2241,19 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <KeyRound size={14} color="#0284c7" />
                     <label style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                      Field Security PIN {formMode === 'create' ? '(Default: 1234)' : '(Leave blank to keep unchanged)'}
+                      Field Security PIN {formMode === 'create' ? '*' : '(Leave blank to keep unchanged)'}
                     </label>
                   </div>
                   <Input
                     type="password"
                     maxLength={6}
-                    placeholder={formMode === 'create' ? 'Default: 1234' : '•••• (Unchanged)'}
+                    placeholder={formMode === 'create' ? 'Enter 4-6 digit PIN' : '•••• (Unchanged)'}
                     value={pinInput}
                     onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    required={formMode === 'create'}
                     helperText={
                       formMode === 'create'
-                        ? '4-6 digits for field mobile login. Defaults to 1234 if left blank.'
+                        ? 'Enter 4-6 numeric digits for Technician Field Portal login.'
                         : 'Enter new 4-6 digits to reset PIN, or leave blank to keep current PIN.'
                     }
                   />

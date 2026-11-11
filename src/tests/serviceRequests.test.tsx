@@ -482,4 +482,85 @@ describe('Phase 6 Frontend Service Request Management Suite', () => {
 
     renderResult.cleanup();
   });
+
+  it('9. Exposes Confirm Completion, Move to Payment, and Close Request lifecycle buttons after report submission', async () => {
+    const resolvedRequest = {
+      ...sampleRequest,
+      status: 'RESOLVED' as const,
+    };
+
+    vi.spyOn(apiClient, 'get').mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/service-requests') {
+        return { requests: [resolvedRequest], total: 1 };
+      }
+      if (endpoint === `/service-requests/${resolvedRequest.id}`) {
+        return { request: resolvedRequest };
+      }
+      return {};
+    });
+
+    const postSpy = vi.spyOn(apiClient, 'post')
+      .mockResolvedValueOnce({ request: { ...resolvedRequest, status: 'COMPLETED' } })
+      .mockResolvedValueOnce({ request: { ...resolvedRequest, status: 'CLOSED' } });
+
+    let renderResult!: ReturnType<typeof renderWithProviders>;
+    await act(async () => {
+      renderResult = renderWithProviders(<ServiceRequestManagement />);
+    });
+
+    const viewBtn = document.body.querySelector('button[aria-label="View SR-2026-000101"]') as HTMLButtonElement;
+    await act(async () => {
+      viewBtn.click();
+    });
+
+    // 1. RESOLVED -> Confirm Completion -> COMPLETED
+    const completeBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm Completion')
+    );
+    expect(completeBtn).toBeTruthy();
+
+    await act(async () => {
+      completeBtn?.click();
+    });
+
+    const confirmCompleteBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm to COMPLETED')
+    );
+    await act(async () => {
+      confirmCompleteBtn?.click();
+    });
+
+    expect(postSpy).toHaveBeenCalledWith(
+      `/service-requests/${resolvedRequest.id}/status`,
+      expect.objectContaining({ status: 'COMPLETED' })
+    );
+
+    // 2. COMPLETED -> Move to Payment & Close Request buttons appear
+    const paymentBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Move to Payment')
+    );
+    const closeBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Close Request')
+    );
+    expect(paymentBtn).toBeTruthy();
+    expect(closeBtn).toBeTruthy();
+
+    await act(async () => {
+      closeBtn?.click();
+    });
+
+    const confirmCloseBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Confirm to CLOSED')
+    );
+    await act(async () => {
+      confirmCloseBtn?.click();
+    });
+
+    expect(postSpy).toHaveBeenCalledWith(
+      `/service-requests/${resolvedRequest.id}/status`,
+      expect.objectContaining({ status: 'CLOSED' })
+    );
+
+    renderResult.cleanup();
+  });
 });

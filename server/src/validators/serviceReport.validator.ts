@@ -16,7 +16,10 @@ const optionalTrimmedString = z.preprocess(
 );
 
 const optionalTime = z.preprocess(
-  (val) => (val === null || val === '' || val === undefined ? undefined : val),
+  (val) => {
+    if (val === null || val === '' || val === undefined) return undefined;
+    return typeof val === 'string' ? val.trim().slice(0, 5) : val;
+  },
   z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:mm (24-hour)').optional()
 );
 
