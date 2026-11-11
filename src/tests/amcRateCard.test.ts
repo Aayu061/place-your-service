@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateAmcQuote, AmcPlan } from '../domain/amcRateCard';
+import { calculateAmcQuote, getPlanBaselineAmount, AmcPlan } from '../domain/amcRateCard';
 
 describe('AMC Rate Card & Dynamic Contract Quotation Engine', () => {
   const semiCompPlan: AmcPlan = {
@@ -138,6 +138,31 @@ describe('AMC Rate Card & Dynamic Contract Quotation Engine', () => {
     const quote = calculateAmcQuote(jacket2Plan, assets);
     expect(quote.baseAmount).toBe(2599 * 3); // 7797
     expect(quote.totalAmount).toBe(7797);
+  });
+
+  it('determines baseline 1-unit preview rate with plan GST correctly', () => {
+    expect(getPlanBaselineAmount(semiCompPlan)).toBe(2999);
+    // SAMC 1 Split: 4499 + 28% GST = 4499 + 1259.72 = 5758.72
+    expect(getPlanBaselineAmount(samc1SplitPlan)).toBe(5758.72);
+    expect(getPlanBaselineAmount(ord3Plan)).toBe(1500);
+    expect(getPlanBaselineAmount(jacket2Plan)).toBe(2599);
+  });
+
+  it('handles empty assets list by returning 1-unit baseline quote', () => {
+    const emptyQuote = calculateAmcQuote(semiCompPlan, []);
+    expect(emptyQuote.totalAmount).toBe(2999);
+    expect(emptyQuote.baseAmount).toBe(2999);
+    expect(emptyQuote.lines).toEqual([]);
+    expect(emptyQuote.warnings).toEqual([]);
+  });
+
+  it('warns when Window AC is attached to Split-only plan', () => {
+    const assets = [
+      { id: 'a1', assetTag: 'AC-WIN', acType: 'WINDOW', capacityTons: 1.0 },
+    ];
+    const quote = calculateAmcQuote(semiCompPlan, assets);
+    expect(quote.warnings.length).toBeGreaterThan(0);
+    expect(quote.warnings[0]).toContain('Window AC');
   });
 });
 
