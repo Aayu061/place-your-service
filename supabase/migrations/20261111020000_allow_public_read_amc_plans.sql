@@ -15,3 +15,4 @@ CREATE POLICY amc_plans_read_all ON public.amc_plans
 DROP POLICY IF EXISTS amc_plans_service_role_all ON public.amc_plans;
 CREATE POLICY amc_plans_service_role_all ON public.amc_plans
   FOR ALL TO service_role USING (true) WITH CHECK (true);
+

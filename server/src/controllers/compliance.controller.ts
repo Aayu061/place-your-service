@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { gstLookupService } from '../services/gstLookup.service';
+import { gstLookupService } from '../services/gstLookup.service.js';
 
 export const lookupGstin = async (req: Request, res: Response) => {
   try {
