@@ -5,26 +5,29 @@ export interface GstinLookupResult extends GstinInfo {
   tradeName?: string;
   principalAddress?: string;
   status?: string;
+  verificationSource?: 'LOCAL_DECODE' | 'LIVE_API';
 }
 
 export class GstLookupService {
   /**
-   * Performs an instant offline decode and attempts a live lookup if API keys exist.
+   * Performs an instant offline decode of the 15-character GSTIN format and checksum.
    */
   async lookupGstin(gstin: string): Promise<GstinLookupResult> {
     const offlineInfo = decodeGstin(gstin);
     
     if (!offlineInfo.isValid) {
-      return offlineInfo;
+      return {
+        ...offlineInfo,
+        verificationSource: 'LOCAL_DECODE',
+      };
     }
 
-    // In a real production scenario, fetch from external API here.
-    // For now, return the decoded offline info.
     return {
       ...offlineInfo,
-      status: 'VERIFIED_OFFLINE',
-      legalName: 'Auto-Decoded Business Entity', // Placeholder
-      tradeName: 'Auto-Decoded Business Entity', // Placeholder
+      status: 'LOCAL_FORMAT_DECODED',
+      verificationSource: 'LOCAL_DECODE',
+      legalName: '',
+      tradeName: '',
     };
   }
 }

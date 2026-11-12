@@ -29,3 +29,11 @@ services:
         value: 900000
       - key: RATE_LIMIT_MAX
         value: 100
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: RESEND_REPLY_TO
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false

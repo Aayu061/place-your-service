@@ -17,6 +17,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
@@ -37,6 +38,14 @@ interface ModelsApiResponse {
 
 export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
   const { showToast } = useToast();
+  const [confirmToggle, setConfirmToggle] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant: 'danger' | 'primary';
+    run: () => Promise<void>;
+  } | null>(null);
+  const [isConfirmingToggle, setIsConfirmingToggle] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'brands' | 'models'>('brands');
 
@@ -256,23 +265,29 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     }
   };
 
-  const handleToggleBrandStatus = async (brand: AcBrand) => {
+  const handleToggleBrandStatus = (brand: AcBrand) => {
     const nextStatus = !brand.isActive;
     const action = nextStatus ? 'activate' : 'deactivate';
-    if (!window.confirm(`Are you sure you want to ${action} brand '${brand.name}'?`)) return;
-
-    try {
-      await apiClient.patch(`/ac-brands/${brand.id}/status`, { isActive: nextStatus });
-      showToast({
-        type: 'success',
-        title: 'Status Updated',
-        message: `AC brand '${brand.name}' ${nextStatus ? 'activated' : 'deactivated'}.`,
-      });
-      await fetchBrands();
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to change brand status';
-      showToast({ type: 'error', title: 'Error', message: msg });
-    }
+    setConfirmToggle({
+      title: `${nextStatus ? 'Activate' : 'Deactivate'} AC Brand`,
+      message: `Are you sure you want to ${action} brand '${brand.name}'?`,
+      confirmLabel: nextStatus ? 'Activate Brand' : 'Deactivate Brand',
+      variant: nextStatus ? 'primary' : 'danger',
+      run: async () => {
+        try {
+          await apiClient.patch(`/ac-brands/${brand.id}/status`, { isActive: nextStatus });
+          showToast({
+            type: 'success',
+            title: 'Status Updated',
+            message: `AC brand '${brand.name}' ${nextStatus ? 'activated' : 'deactivated'}.`,
+          });
+          await fetchBrands();
+        } catch (err) {
+          const msg = err instanceof ApiError ? err.message : 'Failed to change brand status';
+          showToast({ type: 'error', title: 'Error', message: msg });
+        }
+      },
+    });
   };
 
   // Model modal helpers
@@ -358,23 +373,29 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
     }
   };
 
-  const handleToggleModelStatus = async (model: AcModel) => {
+  const handleToggleModelStatus = (model: AcModel) => {
     const nextStatus = !model.isActive;
     const action = nextStatus ? 'activate' : 'deactivate';
-    if (!window.confirm(`Are you sure you want to ${action} model '${model.modelNumber}'?`)) return;
-
-    try {
-      await apiClient.patch(`/ac-models/${model.id}/status`, { isActive: nextStatus });
-      showToast({
-        type: 'success',
-        title: 'Status Updated',
-        message: `AC model '${model.modelNumber}' ${nextStatus ? 'activated' : 'deactivated'}.`,
-      });
-      await fetchModels();
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to change model status';
-      showToast({ type: 'error', title: 'Error', message: msg });
-    }
+    setConfirmToggle({
+      title: `${nextStatus ? 'Activate' : 'Deactivate'} AC Model`,
+      message: `Are you sure you want to ${action} model '${model.modelNumber}'?`,
+      confirmLabel: nextStatus ? 'Activate Model' : 'Deactivate Model',
+      variant: nextStatus ? 'primary' : 'danger',
+      run: async () => {
+        try {
+          await apiClient.patch(`/ac-models/${model.id}/status`, { isActive: nextStatus });
+          showToast({
+            type: 'success',
+            title: 'Status Updated',
+            message: `AC model '${model.modelNumber}' ${nextStatus ? 'activated' : 'deactivated'}.`,
+          });
+          await fetchModels();
+        } catch (err) {
+          const msg = err instanceof ApiError ? err.message : 'Failed to change model status';
+          showToast({ type: 'error', title: 'Error', message: msg });
+        }
+      },
+    });
   };
 
   const fetchVariants = useCallback(async (modelId: string) => {
@@ -1271,6 +1292,26 @@ export const AcMasterManagement: React.FC<AcMasterManagementProps> = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={Boolean(confirmToggle)}
+        onClose={() => !isConfirmingToggle && setConfirmToggle(null)}
+        onConfirm={async () => {
+          if (!confirmToggle) return;
+          setIsConfirmingToggle(true);
+          try {
+            await confirmToggle.run();
+            setConfirmToggle(null);
+          } finally {
+            setIsConfirmingToggle(false);
+          }
+        }}
+        title={confirmToggle?.title || 'Confirm Action'}
+        message={confirmToggle?.message || ''}
+        confirmLabel={confirmToggle?.confirmLabel || 'Confirm'}
+        variant={confirmToggle?.variant || 'danger'}
+        isLoading={isConfirmingToggle}
+      />
     </div>
   );
 };

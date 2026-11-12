@@ -44,4 +44,6 @@ export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   retries?: number;
   retryDelayMs?: number;
+  timeoutMs?: number;
+  skipAuthRefresh?: boolean;
 }

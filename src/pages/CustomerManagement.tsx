@@ -57,177 +57,31 @@ import { useToast } from '@/components/ui/useToast';
 import { normalizeTechnology, TECHNOLOGY_OPTIONS } from '@/utils/technology';
 import { complianceApi } from '@/services/complianceApi';
 import { decodeGstin } from '@/utils/gstinDecoder';
-import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
+import { ModalStepWizard } from '@/components/ui/ModalStepWizard';
+import { getIstTodayIso } from '@/utils/date';
 import {
   calculateDefaultWarrantyEndDate,
-  calculateWarrantyStatus,
   validateWarrantyAllocation,
 } from '@/utils/warranty';
-
-const FLOOR_OPTIONS = [
-  'Basement',
-  'Ground Floor',
-  '1st Floor',
-  '2nd Floor',
-  '3rd Floor',
-  '4th Floor',
-  '5th Floor',
-  'Terrace',
-  'Other',
-];
-
-const getAmcBadgeProps = (amc?: { status: string; contractNumber?: string } | null): { variant: 'brand' | 'warning' | 'neutral' | 'danger'; label: string } => {
-  if (!amc || !amc.status) return { variant: 'neutral', label: 'NO AMC' };
-  switch (amc.status) {
-    case 'ACTIVE':
-      return { variant: 'brand', label: 'ACTIVE' };
-    case 'EXPIRING_SOON':
-      return { variant: 'warning', label: 'EXPIRING SOON' };
-    case 'EXPIRED':
-      return { variant: 'neutral', label: 'EXPIRED' };
-    case 'CANCELLED':
-      return { variant: 'danger', label: 'CANCELLED' };
-    default:
-      return { variant: 'neutral', label: amc.status.replace('_', ' ') };
-  }
-};
-
-const ROOM_OPTIONS = [
-  'Reception',
-  'Waiting Area',
-  'Manager Cabin',
-  'Director Cabin',
-  'Admin Office',
-  'HR Cabin',
-  'Accounts Department',
-  'Sales Department',
-  'Service Department',
-  'IT Room',
-  'Server Room',
-  'Conference Room',
-  'Meeting Room',
-  'Training Room',
-  'Staff Room',
-  'Pantry',
-  'Kitchen',
-  'Cafeteria',
-  'Customer Lounge',
-  'Showroom',
-  'Warehouse',
-  'Store Room',
-  'Workshop',
-  'Technician Room',
-  'Security Room',
-  'Lobby',
-  'Corridor',
-  'Bedroom',
-  'Living Room',
-  'Dining Room',
-  'Guest Room',
-  'Other',
-];
-
-const AC_TYPE_OPTIONS = [
-  'Split AC',
-  'Window AC',
-  'Cassette AC',
-  'Floor Standing AC',
-  'Tower AC',
-  'Ductable AC',
-  'Ceiling Suspended AC',
-  'Portable AC',
-  'Central AC',
-  'Package AC',
-  'VRF System',
-  'VRV System',
-  'AHU / FCU Connected System',
-  'Other',
-];
-
-const RATING_OPTIONS = [
-  '5 Star',
-  '4 Star',
-  '3 Star',
-  '2 Star',
-  '1 Star',
-  'Not Rated',
-  'Unknown',
-];
-
-const REFRIGERANT_OPTIONS = [
-  'R32',
-  'R410A',
-  'R22',
-  'R290',
-  'Other',
-  'Unknown',
-];
-
-const ASSET_STATUS_OPTIONS = [
-  'Active',
-  'Under Service',
-  'Under Repair',
-  'Temporarily Inactive',
-  'Decommissioned',
-  'Replaced',
-  'Scrapped',
-];
-
-const ASSET_CONDITION_OPTIONS = [
-  'Excellent',
-  'Good',
-  'Fair',
-  'Needs Maintenance',
-  'Poor',
-  'Critical',
-];
-
-function computeLiveWarrantyStatus(startDate?: string, endDate?: string): WarrantyStatus {
-  return calculateWarrantyStatus(startDate, endDate);
-}
-
-interface CustomersApiResponse {
-  customers: Customer[];
-  total?: number;
-  page?: number;
-  pageSize?: number;
-  totalPages?: number;
-}
-
-interface CustomerApiResponse {
-  customer: Customer;
-}
-
-interface SitesApiResponse {
-  sites: CustomerSite[];
-  total?: number;
-}
-
-interface SiteApiResponse {
-  site: CustomerSite;
-}
-
-interface AssetsApiResponse {
-  assets: AcAsset[];
-  total?: number;
-}
-
-interface AssetApiResponse {
-  asset: AcAsset;
-}
-
-interface CustomerListMeta {
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-const ASSET_WIZARD_STEPS: WizardStepItem[] = [
-  { id: 'specs', label: '1. Equipment & Specs', description: 'Brand, Model & Specs' },
-  { id: 'serials', label: '2. Serials & Location', description: 'IDU/ODU & Room' },
-  { id: 'warranty', label: '3. Warranty & Services', description: 'Dates & PM visits' },
-];
+import {
+  AC_TYPE_OPTIONS,
+  ASSET_CONDITION_OPTIONS,
+  ASSET_STATUS_OPTIONS,
+  ASSET_WIZARD_STEPS,
+  AssetApiResponse,
+  AssetsApiResponse,
+  CustomerApiResponse,
+  CustomerListMeta,
+  CustomersApiResponse,
+  FLOOR_OPTIONS,
+  RATING_OPTIONS,
+  REFRIGERANT_OPTIONS,
+  ROOM_OPTIONS,
+  SiteApiResponse,
+  SitesApiResponse,
+  computeLiveWarrantyStatus,
+  getAmcBadgeProps,
+} from './customers/customerManagementShared';
 
 export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
@@ -531,8 +385,14 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       if (res.state && !formState) {
         setFormState(res.state);
       }
-      setGstVerificationMessage(`Verified: ${res.state} • ${res.entityType || 'Registered Entity'}`);
-      showToast({ type: 'success', title: 'GSTIN Verified', message: `Identified ${res.state} (${res.entityType || 'Registered'})` });
+      const isLocalDecode = (res as any).verificationSource === 'LOCAL_DECODE' || res.status === 'LOCAL_FORMAT_DECODED';
+      const verificationLabel = isLocalDecode ? 'Format Decoded (Offline)' : 'Registry Verified';
+      setGstVerificationMessage(`${verificationLabel}: ${res.state} • ${res.entityType || 'Registered Entity'}`);
+      showToast({
+        type: isLocalDecode ? 'info' : 'success',
+        title: verificationLabel,
+        message: `Identified ${res.state} (${res.entityType || 'Registered'})`,
+      });
     } catch {
       // Offline fallback
       if (decoded.state && !formState) {
@@ -1256,7 +1116,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
 
   const openAddAssetModal = (defaultSiteId?: string) => {
     const targetSiteId = defaultSiteId || (sites.length > 0 ? sites[0].id : '');
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getIstTodayIso();
     const defaultEndStr = calculateDefaultWarrantyEndDate(todayStr);
 
     setAssetFormSiteId(targetSiteId);
@@ -1925,9 +1785,24 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                         <span>{c.phone}</span>
                       </div>
                       {c.email && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', marginTop: '2px', flexWrap: 'wrap' }}>
                           <Mail size={12} />
                           <span>{c.email}</span>
+                          {((c as any).emailBouncedAt || (c as any).email_bounced_at || (c as any).emailComplainedAt || (c as any).email_complained_at) && (
+                            <span
+                              title={(c as any).emailBounceReason || (c as any).email_bounce_reason || 'Email bounced'}
+                              style={{
+                                padding: '1px 6px',
+                                borderRadius: 999,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                background: 'var(--color-error-bg)',
+                                color: 'var(--color-error-text)',
+                              }}
+                            >
+                              Bounced
+                            </span>
+                          )}
                         </div>
                       )}
                     </td>

@@ -14,6 +14,7 @@ import { UserRole, ServiceStatus, AmcFrequency } from '@/domain/types';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { useToast } from '@/components/ui/useToast';
 import { getAllowedNextStatuses, isValidServiceStatusTransition } from '@/domain/stateMachines';
 import { calculateAmcScheduleDates } from '@/domain/amcCalculator';
 import { config } from '@/config/env';
@@ -23,6 +24,7 @@ interface PhaseZeroOverviewProps {
 }
 
 export const PhaseZeroOverview: React.FC<PhaseZeroOverviewProps> = ({ currentRole }) => {
+  const { showToast } = useToast();
   // Interactive State Machine Playground
   const [selectedStatus, setSelectedStatus] = useState<ServiceStatus>('REQUESTED');
   const [targetStatus, setTargetStatus] = useState<ServiceStatus>('PENDING');
@@ -396,7 +398,11 @@ export const PhaseZeroOverview: React.FC<PhaseZeroOverviewProps> = ({ currentRol
         <Button
           variant="outline"
           onClick={() => {
-            alert('Phase 0 foundation is established. Awaiting explicit user approval for Phase 1.');
+            showToast({
+              type: 'info',
+              title: 'Phase 0 Baseline',
+              message: 'Phase 0 foundation architecture is active and verified.',
+            });
           }}
         >
           Phase 1 Pending Approval

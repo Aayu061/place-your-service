@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Printer, Mail, Send, X, ShieldCheck } from 'lucide-react';
+import { Printer, Mail, Send, X, ShieldCheck, MessageCircle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LEGAL_DISCLAIMERS } from '@/config/legalTerms';
 import { apiClient } from '@/services/api/client';
+import { buildWhatsAppShareUrl } from '@/services/emailApi';
+import { EmailDeliveryHistoryPanel } from '@/components/email/EmailDeliveryHistoryPanel';
 import { useToast } from '@/components/ui/useToast';
 
 export interface AmcContractForPrint {
@@ -56,6 +58,7 @@ export function AmcQuotationPrintModal({
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState(contract.customerEmail || '');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailRefreshTick, setEmailRefreshTick] = useState(0);
 
   const isSamc = Boolean(
     contract.planName?.toLowerCase().includes('special comprehensive') ||
@@ -97,13 +100,19 @@ export function AmcQuotationPrintModal({
     }
     setIsSendingEmail(true);
     try {
-      await apiClient.post(`/amc-contracts/${contract.id}/send-quotation`, {
+      const res = await apiClient.post<{
+        sandboxRedirected?: boolean;
+        effectiveRecipient?: string;
+      }>(`/amc-contracts/${contract.id}/send-quotation`, {
         recipientEmail: recipientEmail.trim(),
       });
+      setEmailRefreshTick((n) => n + 1);
       showToast({
         type: 'success',
         title: 'Quotation Dispatched',
-        message: `Official AMC quotation proposal sent to ${recipientEmail.trim()}`,
+        message: res?.sandboxRedirected
+          ? `Sandbox override delivered quotation to ${res.effectiveRecipient}`
+          : `Official AMC quotation proposal sent to ${recipientEmail.trim()}`,
       });
       setShowEmailDialog(false);
       onEmailSent?.();
@@ -130,9 +139,26 @@ export function AmcQuotationPrintModal({
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Extreme Sales &amp; Services · Place Your Service Platform</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button size="sm" variant="secondary" leftIcon={<Printer size={15} />} onClick={handlePrint}>
               Print Quotation
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<MessageCircle size={15} />}
+              onClick={() => {
+                const msg = [
+                  `Extreme Sales & Services — AMC Quotation ${contract.contractNumber}`,
+                  `Customer: ${contract.customerName || 'Valued Customer'}`,
+                  `Plan: ${contract.planName || 'Annual Maintenance Contract'} (${contract.frequency})`,
+                  `Period: ${contract.startDate} to ${contract.endDate} (${contract.totalVisits} visits)`,
+                  `Total Contract Value: INR ${Number(contract.totalAmount || 0).toLocaleString('en-IN')}`,
+                ].join('\n');
+                window.open(buildWhatsAppShareUrl(contract.customerPhone, msg), '_blank', 'noopener,noreferrer');
+              }}
+            >
+              WhatsApp
             </Button>
             <Button size="sm" variant="primary" leftIcon={<Mail size={15} />} onClick={() => setShowEmailDialog((v) => !v)}>
               Email Customer
@@ -164,6 +190,11 @@ export function AmcQuotationPrintModal({
                 Cancel
               </Button>
             </form>
+            <EmailDeliveryHistoryPanel
+              entityType="AMC_QUOTATION"
+              entityId={contract.id}
+              refreshSignal={emailRefreshTick}
+            />
           </div>
         )}
 

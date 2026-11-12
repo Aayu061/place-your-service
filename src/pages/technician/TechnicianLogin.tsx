@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyRound, Smartphone, LogIn, AlertCircle, ShieldCheck, MessageCircle, CheckSquare, Square } from 'lucide-react';
 import { technicianApi } from '@/services/technicianApi';
+import { getApiErrorMessage } from '@/services/api/client';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 export interface TechnicianLoginProps {
@@ -51,8 +52,8 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
         await technicianApi.login(cleanId, pin, false);
       }
       onLoginSuccess();
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || err.message || 'Login failed. Please check your credentials.';
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, 'Login failed. Please check your credentials.');
       setError(msg);
     } finally {
       setIsSubmitting(false);

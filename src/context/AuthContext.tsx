@@ -70,6 +70,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isMounted = true;
     const supabase = getSupabaseClient();
 
+    apiClient.setTokenRefresher(
+      supabase
+        ? async () => {
+            const { data, error: refreshErr } = await supabase.auth.refreshSession();
+            if (refreshErr || !data.session?.access_token) return null;
+            if (isMounted) setSession(data.session);
+            return data.session.access_token;
+          }
+        : null
+    );
+
     const initializeAuth = async () => {
       if (!supabase) {
         apiClient.setAuthToken(null);
@@ -146,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       isMounted = false;
+      apiClient.setTokenRefresher(null);
       authListener?.subscription?.unsubscribe();
     };
   }, [fetchUserProfile]);

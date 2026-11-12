@@ -1,10 +1,11 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 import { UnauthorizedError, NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors.js';
-import { verifyPin, signTechToken } from '../utils/techAuth.js';
+import { verifyPin, hashPin, signTechToken } from '../utils/techAuth.js';
 import { serviceReportService } from './serviceReport.service.js';
 import { logger } from '../utils/logger.js';
 import { ServiceVisitType } from '../types/index.js';
 import { essIntegrationService } from './essIntegration.service.js';
+import { addDaysIstIso, getCalendarWeekdayShort, getIstTodayIso } from '../utils/date.js';
 
 export interface TechLoginResponse {
   token: string;
@@ -75,7 +76,7 @@ export class TechnicianPortalService {
    */
   async getProfile(techId: string) {
     const supabase = getSupabaseClient();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIstTodayIso();
 
     const { data: tech, error } = await supabase
       .from('technicians')
@@ -140,9 +141,9 @@ export class TechnicianPortalService {
   /**
    * Retrieves today's assigned jobs for the logged-in technician
    */
-  async getAssignedJobs(techId: string, filterDate?: string) {
+  async getAssignedJobs(techId: string, filterDate?: string, includeOverdue = false) {
     const supabase = getSupabaseClient();
-    const targetDate = filterDate || new Date().toISOString().split('T')[0];
+    const targetDate = filterDate || getIstTodayIso();
 
     const fullSelect = `
       id, schedule_number, status, scheduled_date, start_time, end_time,
@@ -153,12 +154,22 @@ export class TechnicianPortalService {
       service_requests ( id, request_number, request_type, priority, description, issue_category )
     `;
 
-    let { data: schedules, error }: { data: any[] | null; error: any } = await supabase
-      .from('service_schedules')
-      .select(fullSelect)
-      .eq('technician_id', techId)
-      .eq('scheduled_date', targetDate)
-      .order('start_time', { ascending: true });
+    const applyScheduleScope = (q: any) => {
+      if (includeOverdue && !filterDate) {
+        return q
+          .lte('scheduled_date', targetDate)
+          .or(
+            `scheduled_date.eq.${targetDate},and(scheduled_date.lt.${targetDate},status.in.(SCHEDULED,EN_ROUTE,IN_PROGRESS))`
+          )
+          .order('scheduled_date', { ascending: true })
+          .order('start_time', { ascending: true });
+      }
+      return q.eq('scheduled_date', targetDate).order('start_time', { ascending: true });
+    };
+
+    let { data: schedules, error }: { data: any[] | null; error: any } = await applyScheduleScope(
+      supabase.from('service_schedules').select(fullSelect).eq('technician_id', techId)
+    );
 
     // Graceful fallback if an optional schema column (e.g. issue_category) is not yet migrated on target DB
     if (error) {
@@ -175,12 +186,9 @@ export class TechnicianPortalService {
         ac_assets ( id, brand, model_number, room_location, asset_tag, serial_number, tonnage:capacity_tons, refrigerant_type ),
         service_requests ( id, request_number, request_type, priority, description )
       `;
-      const fallback = await supabase
-        .from('service_schedules')
-        .select(baseSelect)
-        .eq('technician_id', techId)
-        .eq('scheduled_date', targetDate)
-        .order('start_time', { ascending: true });
+      const fallback = await applyScheduleScope(
+        supabase.from('service_schedules').select(baseSelect).eq('technician_id', techId)
+      );
       schedules = fallback.data as any[] | null;
       error = fallback.error;
     }
@@ -504,7 +512,7 @@ export class TechnicianPortalService {
    */
   async getDailyAnalytics(techId: string, filterDate?: string) {
     const supabase = getSupabaseClient();
-    const todayStr = filterDate || new Date().toISOString().split('T')[0];
+    const todayStr = filterDate || getIstTodayIso();
 
     // 1. Fetch today's schedules assigned to this technician
     const { data: todaySchedules } = await supabase
@@ -521,9 +529,7 @@ export class TechnicianPortalService {
     const completionRatePercent = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0;
 
     // 2. Fetch last 7 days of completed schedules & reports for weekly analytics
-    const sevenDaysAgo = new Date(todayStr);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const sevenDaysAgoStr = addDaysIstIso(todayStr, -6);
 
     const { data: weekSchedules } = await supabase
       .from('service_schedules')
@@ -578,7 +584,6 @@ export class TechnicianPortalService {
     const amcCompleted = completedWeekSchedules.filter((s: any) => Boolean(s.amc_id)).length;
 
     // Build 7-day rolling daily trend
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dailyTrend: Array<{
       date: string;
       dayName: string;
@@ -588,10 +593,8 @@ export class TechnicianPortalService {
     }> = [];
 
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(todayStr);
-      d.setDate(d.getDate() - i);
-      const dateIso = d.toISOString().split('T')[0];
-      const dayName = dayNames[d.getDay()];
+      const dateIso = addDaysIstIso(todayStr, -i);
+      const dayName = getCalendarWeekdayShort(dateIso);
 
       const dayScheds = schedulesList.filter((s: any) => s.scheduled_date === dateIso && s.status === 'COMPLETED');
       const dayBreakdowns = dayScheds.filter((s: any) => Boolean(s.service_request_id)).length;
@@ -623,6 +626,41 @@ export class TechnicianPortalService {
       },
       dailyTrend,
     };
+  }
+
+  async updatePin(techId: string, currentPin: string, newPin: string): Promise<{ updated: boolean }> {
+    const supabase = getSupabaseClient();
+    const { data: tech, error } = await supabase
+      .from('technicians')
+      .select('id,pin_hash')
+      .eq('id', techId)
+      .maybeSingle();
+
+    if (error || !tech) {
+      throw new NotFoundError('Technician record was not found.');
+    }
+
+    if (!verifyPin(currentPin, tech.pin_hash)) {
+      throw new UnauthorizedError('Current PIN is incorrect.');
+    }
+
+    if (currentPin === newPin) {
+      throw new BadRequestError('New PIN must differ from the current PIN.');
+    }
+
+    const { error: updateErr } = await supabase
+      .from('technicians')
+      .update({
+        pin_hash: hashPin(newPin),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', techId);
+
+    if (updateErr) {
+      throw new BadRequestError('Could not update technician PIN.');
+    }
+
+    return { updated: true };
   }
 }
 

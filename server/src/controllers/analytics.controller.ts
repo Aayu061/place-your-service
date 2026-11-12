@@ -13,6 +13,18 @@ export class AnalyticsController {
       next(err);
     }
   }
+
+  public async getOverallAnalytics(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const overall = await analyticsService.getOverallAnalytics();
+      res.status(200).json({
+        success: true,
+        data: overall,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const analyticsController = new AnalyticsController();

@@ -11,6 +11,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { technicianApi, TechDailyAnalytics } from '@/services/technicianApi';
+import { getApiErrorMessage } from '@/services/api/client';
 
 export function TechnicianAnalytics() {
   const [analytics, setAnalytics] = useState<TechDailyAnalytics | null>(null);
@@ -23,8 +24,8 @@ export function TechnicianAnalytics() {
       setError(null);
       const data = await technicianApi.getAnalytics();
       setAnalytics(data);
-    } catch (err: any) {
-      setError(err?.response?.data?.error?.message || 'Failed to load daily analytics.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to load daily analytics.'));
     } finally {
       setIsLoading(false);
     }

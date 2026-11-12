@@ -14,7 +14,9 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
+import { getApiErrorMessage } from '@/services/api/client';
 import { getBreakdownCategoryLabel, getPlannedServiceTypeLabel } from '@/domain/breakdownTypes';
+import { getIstTodayIso } from '@/utils/date';
 
 export interface TechnicianDashboardProps {
   onStartReport: (scheduleId: string) => void;
@@ -25,37 +27,40 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
   const [jobs, setJobs] = useState<TechJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
+  const [includeOverdue, setIncludeOverdue] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getIstTodayIso()
   );
 
-  const loadJobs = async (dateStr: string) => {
+  const loadJobs = async (dateStr: string, withOverdue = includeOverdue) => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await technicianApi.getJobs(dateStr);
+      const data = await technicianApi.getJobs(withOverdue ? undefined : dateStr, withOverdue);
       setJobs(data);
-    } catch (err: any) {
-      setError(err?.response?.data?.error?.message || 'Failed to load dispatch queue.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to load dispatch queue.'));
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadJobs(selectedDate);
-  }, [selectedDate]);
+    loadJobs(selectedDate, includeOverdue);
+  }, [selectedDate, includeOverdue]);
 
   const handleUpdateStatus = async (scheduleId: string, newStatus: string) => {
     try {
+      setActionError(null);
       setUpdatingJobId(scheduleId);
       await technicianApi.updateJobStatus(scheduleId, newStatus);
       setJobs((prev) =>
         prev.map((j) => (j.id === scheduleId ? { ...j, status: newStatus } : j))
       );
-    } catch (err: any) {
-      alert(err?.response?.data?.error?.message || 'Failed to update job status.');
+    } catch (err: unknown) {
+      setActionError(getApiErrorMessage(err, 'Failed to update job status.'));
     } finally {
       setUpdatingJobId(null);
     }
@@ -184,47 +189,95 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
         </div>
       </div>
 
-      {/* Date Picker Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+      {/* Date Picker & Overdue Backlog Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '0 4px' }}>
         <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
           Appointments ({displayedJobs.length})
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <label
-            htmlFor="dispatch-date-input"
+          <button
+            type="button"
+            onClick={() => setIncludeOverdue((prev) => !prev)}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 8px',
+              padding: '5px 10px',
               borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border-default)',
-              fontSize: 'var(--text-xs)',
+              border: includeOverdue ? '1px solid var(--color-brand)' : '1px solid var(--border-default)',
+              backgroundColor: includeOverdue ? 'var(--color-brand-soft)' : 'var(--bg-surface)',
+              color: includeOverdue ? 'var(--color-brand)' : 'var(--text-secondary)',
+              fontSize: '11px',
+              fontWeight: 700,
               cursor: 'pointer',
             }}
           >
-            <Calendar size={13} style={{ color: 'var(--color-brand)' }} />
-            <input
-              id="dispatch-date-input"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+            {includeOverdue ? 'Showing Overdue Backlog' : 'Include Overdue'}
+          </button>
+          {!includeOverdue && (
+            <label
+              htmlFor="dispatch-date-input"
               style={{
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                fontSize: '11px',
-                fontWeight: 600,
-                outline: 'none',
-                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                fontSize: 'var(--text-xs)',
                 cursor: 'pointer',
               }}
-            />
-          </label>
+            >
+              <Calendar size={13} style={{ color: 'var(--color-brand)' }} />
+              <input
+                id="dispatch-date-input"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-primary)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              />
+            </label>
+          )}
         </div>
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          style={{
+            padding: '10px 12px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+            fontSize: 'var(--text-xs)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertCircle size={15} />
+            {actionError}
+          </span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 700, cursor: 'pointer' }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Loading Skeleton */}
       {isLoading && (

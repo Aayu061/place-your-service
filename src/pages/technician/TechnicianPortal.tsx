@@ -11,11 +11,42 @@ export interface TechnicianPortalProps {
   onSwitchToAdmin: () => void;
 }
 
+type TechTab = 'jobs' | 'analytics' | 'completed' | 'profile' | 'report';
+
+function readTechTabFromUrl(): TechTab {
+  if (typeof window === 'undefined') return 'jobs';
+  const params = new URLSearchParams(window.location.search);
+  const jobId = params.get('techJobId');
+  const tab = params.get('techTab');
+  if (jobId && tab === 'report') return 'report';
+  if (tab === 'analytics' || tab === 'completed' || tab === 'profile' || tab === 'jobs') {
+    return tab;
+  }
+  return 'jobs';
+}
+
+function readTechJobIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get('techJobId');
+}
+
 export function TechnicianPortal({ onSwitchToAdmin }: TechnicianPortalProps) {
   const [token, setToken] = useState<string | null>(technicianApi.getToken());
   const [tech, setTech] = useState<TechUser | null>(technicianApi.getStoredTech());
-  const [currentTab, setCurrentTab] = useState<'jobs' | 'analytics' | 'completed' | 'profile' | 'report'>('jobs');
-  const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null);
+  const [currentTab, setCurrentTab] = useState<TechTab>(readTechTabFromUrl);
+  const [activeScheduleId, setActiveScheduleId] = useState<string | null>(readTechJobIdFromUrl);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !token) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('techTab', currentTab);
+    if (currentTab === 'report' && activeScheduleId) {
+      url.searchParams.set('techJobId', activeScheduleId);
+    } else {
+      url.searchParams.delete('techJobId');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [token, currentTab, activeScheduleId]);
 
   useEffect(() => {
     if (!token) return;

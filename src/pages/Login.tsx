@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { ServerWarmupIndicator } from '@/components/feedback/ServerWarmupIndicator';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LegalTermsModal, LegalTab } from '@/components/legal/LegalTermsModal';
+import { getSupabaseClient } from '@/services/supabase';
 
 export interface LoginProps {
   onSwitchToTech?: () => void;
@@ -19,6 +20,8 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToTech }) => {
   const [localError, setLocalError] = useState<string | null>(null);
   const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<LegalTab>('privacy');
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
   const openLegalModal = (tab: LegalTab) => {
     setLegalModalTab(tab);
@@ -30,12 +33,38 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToTech }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+    setResetSuccessMessage(null);
     clearError();
 
     if (!email.trim()) {
       setLocalError('Please enter your work email address.');
       return;
     }
+
+    if (resetMode) {
+      setIsSubmitting(true);
+      try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          setLocalError('Password reset requires live Supabase Auth configuration. Contact your administrator.');
+          return;
+        }
+        const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: window.location.origin,
+        });
+        if (resetErr) {
+          setLocalError(resetErr.message || 'Could not dispatch password reset email.');
+          return;
+        }
+        setResetSuccessMessage(`Password reset instructions sent to ${email.trim()}. Check your inbox.`);
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : 'Unable to send password reset email.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!password) {
       setLocalError('Please enter your password.');
       return;
@@ -172,6 +201,29 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToTech }) => {
           </div>
         )}
 
+        {/* Password Reset Confirmation Banner */}
+        {resetSuccessMessage && (
+          <div
+            role="status"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 'var(--space-2)',
+              padding: 'var(--space-3)',
+              marginBottom: 'var(--space-4)',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-success-bg)',
+              border: '1px solid var(--color-success-border)',
+              color: 'var(--color-success-text)',
+              fontSize: 'var(--text-xs)',
+              lineHeight: 1.4,
+            }}
+          >
+            <CheckCircle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+            <div>{resetSuccessMessage}</div>
+          </div>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleSubmit} noValidate>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -191,35 +243,59 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToTech }) => {
               leftIcon={<Mail size={16} />}
             />
 
-            <Input
-              id="login-password"
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              required
-              disabled={isSubmitting}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (localError) setLocalError(null);
-              }}
-              leftIcon={<Lock size={16} />}
-            />
+            {!resetMode && (
+              <Input
+                id="login-password"
+                label="Password"
+                type="password"
+                autoComplete="current-password"
+                required
+                disabled={isSubmitting}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (localError) setLocalError(null);
+                }}
+                leftIcon={<Lock size={16} />}
+              />
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-6px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setResetMode((prev) => !prev);
+                  setLocalError(null);
+                  setResetSuccessMessage(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--color-brand)',
+                  cursor: 'pointer',
+                }}
+              >
+                {resetMode ? 'Back to Sign In' : 'Forgot Password?'}
+              </button>
+            </div>
 
             <Button
               type="submit"
               variant="primary"
               size="lg"
               isLoading={isSubmitting}
-              leftIcon={<LogIn size={18} />}
+              leftIcon={resetMode ? <Mail size={18} /> : <LogIn size={18} />}
               style={{
                 width: '100%',
                 marginTop: 'var(--space-2)',
                 fontWeight: 600,
               }}
             >
-              Sign In to Dashboard
+              {resetMode ? 'Send Password Reset Link' : 'Sign In to Dashboard'}
             </Button>
 
             <div style={{ marginTop: 'var(--space-3)', textAlign: 'center' }}>

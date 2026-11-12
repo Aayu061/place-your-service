@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, AlertTriangle, CalendarClock, ClipboardList, RefreshCw, Users } from 'lucide-react';
-import { analyticsApi, DashboardSummary } from '@/services/analyticsApi';
+import { analyticsApi, DashboardSummary, OverallAnalytics as OverallAnalyticsResponse } from '@/services/analyticsApi';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -25,17 +25,19 @@ function priorityVariant(priority: string): 'error' | 'warning' | 'neutral' {
 }
 
 export const OverallAnalytics: React.FC<OverallAnalyticsProps> = ({ onNavigate }) => {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [overall, setOverall] = useState<OverallAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setSummary(await analyticsApi.getDashboardSummary()); }
+    try { setOverall(await analyticsApi.getOverallAnalytics()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Operational analytics could not be loaded.'); }
     finally { setLoading(false); }
   }, []);
+
+  const summary: DashboardSummary | null = overall?.summary || null;
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -53,7 +55,7 @@ export const OverallAnalytics: React.FC<OverallAnalyticsProps> = ({ onNavigate }
 
   return <section style={{ display: 'grid', gap: 20 }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
-      <div><div style={muted}>Server-calculated · authenticated internal data</div><h1 style={{ margin: '4px 0', fontSize: 'var(--text-2xl)' }}>Overall Operational Analytics</h1><p style={{ margin: 0, ...muted }}>Snapshot counts describe current open work. Activity bars use the last 7 calendar days in UTC.</p></div>
+      <div><div style={muted}>Server-calculated · authenticated internal data</div><h1 style={{ margin: '4px 0', fontSize: 'var(--text-2xl)' }}>Overall Operational Analytics</h1><p style={{ margin: 0, ...muted }}>Snapshot counts describe current open work. Activity bars use the last 7 calendar days in IST (UTC+05:30).</p></div>
       <Button variant="secondary" isLoading={loading} onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button>
     </header>
     {error && <p role="alert" style={{ color: 'var(--color-error-solid)', margin: 0 }}>{error} · Showing the last loaded values.</p>}
@@ -67,7 +69,7 @@ export const OverallAnalytics: React.FC<OverallAnalyticsProps> = ({ onNavigate }
 
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
       <article className="pys-card-26" style={card}>
-        <div><h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Request and schedule activity</h2><p style={{ margin: '4px 0 0', ...muted }}>Requests created and visits scheduled per UTC calendar day.</p></div>
+        <div><h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Request and schedule activity</h2><p style={{ margin: '4px 0 0', ...muted }}>Requests created and visits scheduled per IST calendar day.</p></div>
         {summary?.trendData.length ? <div style={{ display: 'grid', gap: 14 }}>{summary.trendData.map((day) => <div key={day.date} style={{ display: 'grid', gridTemplateColumns: '82px 1fr 42px', alignItems: 'center', gap: 10 }}>
           <span style={muted}>{day.label} {day.date.slice(5)}</span><div style={{ display: 'grid', gap: 4 }}><div aria-label={`${day.value} requests`} style={{ height: 8, borderRadius: 99, background: 'var(--color-brand)', width: `${Math.max(day.value > 0 ? 4 : 0, (day.value / maximumVolume) * 100)}%` }} /><div aria-label={`${day.secondaryValue} scheduled visits`} style={{ height: 8, borderRadius: 99, background: 'var(--color-success-solid)', width: `${Math.max(day.secondaryValue > 0 ? 4 : 0, (day.secondaryValue / maximumVolume) * 100)}%` }} /></div><strong style={{ textAlign: 'right' }}>{formatNumber.format(day.value + day.secondaryValue)}</strong>
         </div>)}</div> : <EmptyState title="No activity data" description="Activity counts will appear once requests and schedules are recorded." />}
@@ -95,6 +97,45 @@ export const OverallAnalytics: React.FC<OverallAnalyticsProps> = ({ onNavigate }
         {summary?.recentSchedules.length ? summary.recentSchedules.map((schedule) => <button type="button" key={schedule.id} onClick={() => onNavigate?.('service-schedule', { recordId: schedule.id, recordType: 'schedule' })} style={{ border: 0, borderTop: '1px solid var(--border-default)', padding: '11px 0', background: 'transparent', color: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer' }}><span><strong>{schedule.scheduleNumber}</strong><span style={{ display: 'block', ...muted }}>{schedule.customerName || 'Customer'} · {schedule.siteName || 'Site'}</span></span><span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}><span>{formatDate(schedule.scheduledDate)}</span><StatusBadge status={schedule.status} /></span></button>) : <EmptyState title="No open schedules" description="Upcoming and overdue service work will appear here." />}
       </article>
     </div>
+
+    {overall && (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+        <article className="pys-card-26" style={card}>
+          <div><h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Monthly Footprint</h2><p style={{ margin: '4px 0 0', ...muted }}>Master data and current IST month output.</p></div>
+          <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={muted}>Active customers</span><strong>{formatNumber.format(overall.totals.activeCustomers)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={muted}>Tracked AC assets</span><strong>{formatNumber.format(overall.totals.totalAssets)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={muted}>Reports this month</span><strong>{formatNumber.format(overall.totals.reportsThisMonth)}</strong></div>
+          </div>
+        </article>
+        <article className="pys-card-26" style={card}>
+          <div><h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Open Requests by Category</h2></div>
+          {overall.issueCategoryBreakdown.length ? (
+            <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+              {overall.issueCategoryBreakdown.slice(0, 5).map((item) => (
+                <div key={item.category} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={muted}>{item.category.replace(/_/g, ' ')}</span>
+                  <strong>{formatNumber.format(item.count)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : <p style={muted}>No open issue categories recorded.</p>}
+        </article>
+        <article className="pys-card-26" style={card}>
+          <div><h2 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>Technician Output (Month)</h2></div>
+          {overall.technicianPerformance.length ? (
+            <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+              {overall.technicianPerformance.slice(0, 5).map((t) => (
+                <div key={t.technicianId} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t.name}</span>
+                  <strong>{formatNumber.format(t.completedThisMonth)} visits</strong>
+                </div>
+              ))}
+            </div>
+          ) : <p style={muted}>No completed technician visits yet this month.</p>}
+        </article>
+      </div>
+    )}
 
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', ...muted }}><Activity size={15} aria-hidden="true" /> Metrics are computed by the Express API; the browser does not calculate a separate dashboard total.</div>
   </section>;

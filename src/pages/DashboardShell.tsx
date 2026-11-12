@@ -19,6 +19,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { analyticsApi, DashboardSummary } from '@/services/analyticsApi';
+import { getIstTodayIso } from '@/utils/date';
 import { operationsApi, NotificationRecord } from '@/services/operationsApi';
 import { UserRole } from '@/domain/types';
 import { useAuth } from '@/hooks/useAuth';
@@ -120,7 +121,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const allRequests = summary?.recentServiceRequests || [];
   const allSchedules = summary?.recentSchedules || [];
   const recentReports = summary?.recentServiceReports || [];
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = useMemo(() => getIstTodayIso(), []);
 
   const filteredRequests = useMemo(() => {
     return allRequests.filter((req) => {
@@ -141,12 +142,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
     });
   }, [allSchedules, scheduleFilter, todayStr]);
 
-  // Work distribution items for Overview
+  // Work distribution items for Overview (prefers real SQL counts from summary.workDistribution)
   const defaultDistribution = useMemo(() => [
     { label: 'Preventive Maint', count: summary?.kpi?.servicesDueCount || 0, category: 'PM' as const },
     { label: 'Breakdown Repair', count: summary?.kpi?.unassignedRequestsCount || 0, category: 'BREAKDOWN' as const },
-    { label: 'Dry Service', count: Math.max(1, Math.round((summary?.kpi?.servicesDueCount || 0) * 0.6)), category: 'PM' as const },
-    { label: 'Jet Service', count: Math.max(0, Math.round((summary?.kpi?.servicesDueCount || 0) * 0.4)), category: 'PM' as const },
+    { label: 'Dry Service', count: 0, category: 'PM' as const },
+    { label: 'Jet Service', count: 0, category: 'PM' as const },
     { label: 'Urgent / Priority', count: summary?.kpi?.urgentRequestsCount || 0, category: 'BREAKDOWN' as const },
   ], [summary?.kpi]);
 

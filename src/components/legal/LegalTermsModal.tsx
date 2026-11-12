@@ -72,7 +72,7 @@ export function LegalTermsModal({
         </div>
       }
     >
-      <div className="space-y-5">
+      <div className="legal-printable-sheet space-y-5">
         {/* Entity Summary Banner */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded-xl bg-surface-raised border border-brand-border">
           <div className="space-y-1">
@@ -101,7 +101,7 @@ export function LegalTermsModal({
         </div>
 
         {/* Tab Selector */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-brand-border">
+        <div className="no-print flex items-center gap-1 overflow-x-auto pb-1 border-b border-brand-border">
           <button
             type="button"
             onClick={() => setActiveTab('privacy')}
@@ -169,7 +169,7 @@ export function LegalTermsModal({
         </div>
 
         {/* Tab Content Display */}
-        <div className="max-h-[52vh] overflow-y-auto pr-1.5 space-y-4 text-xs leading-relaxed text-brand-primary">
+        <div className="legal-print-body max-h-[52vh] overflow-y-auto pr-1.5 space-y-4 text-xs leading-relaxed text-brand-primary">
           {activeTab === 'privacy' && (
             <div className="space-y-4">
               <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg text-[11px] text-brand-primary">

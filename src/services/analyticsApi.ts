@@ -77,6 +77,18 @@ export interface DashboardSummary {
   trendData: Array<{ label: string; date: string; value: number; secondaryValue: number }>;
 }
 
+export interface OverallAnalytics {
+  summary: DashboardSummary;
+  totals: {
+    activeCustomers: number;
+    totalAssets: number;
+    reportsThisMonth: number;
+  };
+  issueCategoryBreakdown: Array<{ category: string; count: number }>;
+  technicianPerformance: Array<{ technicianId: string; name: string; completedThisMonth: number }>;
+}
+
 export const analyticsApi = {
   getDashboardSummary: () => apiClient.get<DashboardSummary>('/analytics/dashboard-summary'),
+  getOverallAnalytics: () => apiClient.get<OverallAnalytics>('/analytics/overall'),
 };

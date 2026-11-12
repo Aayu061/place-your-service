@@ -20,6 +20,7 @@ import {
   Pencil,
   AlertTriangle,
   Link2,
+  MessageCircle,
 } from 'lucide-react';
 import {
   ServiceVisitReport,
@@ -39,8 +40,10 @@ import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { addDaysIstIso, getIstTodayIso } from '@/utils/date';
 import { ServiceReportPrintView } from '@/components/serviceReports/ServiceReportPrintView';
 import { ServiceVisitReportModal } from '@/components/serviceReports/ServiceVisitReportModal';
+import { buildWhatsAppShareUrl } from '@/services/emailApi';
 
 interface ServiceReportsManagementProps {
   onNavigate?: (module: string) => void;
@@ -347,7 +350,7 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
     }
     setFollowUpReport(fullReport);
     setFollowUpAssetId(assetOptions[0].assetId);
-    setFollowUpDate(new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)); // default +2 days
+    setFollowUpDate(addDaysIstIso(getIstTodayIso(), 2)); // default +2 days
     setFollowUpStartTime('09:00');
     setFollowUpEndTime('11:00');
     setFollowUpNotes('');
@@ -1195,15 +1198,32 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
             <section aria-labelledby="report-email-title" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div><h3 id="report-email-title" className="m-0 text-sm font-bold text-slate-900">Customer email delivery</h3><p className="m-0 mt-1 text-xs text-slate-500">Email status is tracked separately; delivery failure does not change the issued report.</p></div>
-                {['SUBMITTED', 'VERIFIED'].includes(detailedReport.status) && (
-                  detailedReport.customerEmail?.trim() ? (
-                    <Button size="sm" variant="secondary" isLoading={isEmailActionLoading} onClick={() => void sendReportByEmail()}>Email report</Button>
-                  ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--color-warning-text)', background: 'var(--color-warning-subtle)', padding: '4px 8px', borderRadius: 'var(--radius-md)' }}>
-                      <AlertTriangle size={13} aria-hidden="true" /> No customer email on file
-                    </span>
-                  )
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const msg = [
+                        `Extreme Sales & Services — Service Report ${detailedReport.reportNumber}`,
+                        `Date: ${detailedReport.serviceDate} | Outcome: ${detailedReport.primaryOutcome}`,
+                        `Customer: ${detailedReport.customerName || 'Customer'}`,
+                        detailedReport.technicianRemarks ? `Remarks: ${detailedReport.technicianRemarks}` : '',
+                      ].filter(Boolean).join('\n');
+                      window.open(buildWhatsAppShareUrl(detailedReport.customerPhone, msg), '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    <MessageCircle size={13} className="mr-1" /> WhatsApp
+                  </Button>
+                  {['SUBMITTED', 'VERIFIED'].includes(detailedReport.status) && (
+                    detailedReport.customerEmail?.trim() ? (
+                      <Button size="sm" variant="secondary" isLoading={isEmailActionLoading} onClick={() => void sendReportByEmail()}>Email report</Button>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--color-warning-text)', background: 'var(--color-warning-subtle)', padding: '4px 8px', borderRadius: 'var(--radius-md)' }}>
+                        <AlertTriangle size={13} aria-hidden="true" /> No customer email on file
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
               {!emailDeliveriesLoaded ? <p role="status" className="m-0 text-xs text-slate-500">Loading email history…</p> : emailDeliveries.length ? <div className="space-y-2">{emailDeliveries.map((delivery) => <div key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
                 <div><strong>{delivery.recipient_email}</strong><div className="text-slate-500">{delivery.status} · {delivery.transport || 'pending transport'} · {delivery.attempt_count}/{delivery.max_attempts} attempts{delivery.sent_at ? ` · ${formatDate(delivery.sent_at)}` : ''}</div>{delivery.last_error && <div role="alert" className="mt-1 text-red-700">{delivery.last_error}</div>}</div>
@@ -1524,12 +1544,12 @@ export const ServiceReportsManagement: React.FC<ServiceReportsManagementProps> =
 
             {/* Spot Payment Verification Card */}
             {detailedReport.paymentCollected && (
-              <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, fontSize: '12px', color: '#166534' }}>
-                  <span>💰 Spot Payment Collected on Field</span>
+              <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, fontSize: '12px', color: 'var(--color-success-text)' }}>
+                  <span>Spot Payment Collected on Field</span>
                   <span>₹{detailedReport.paymentAmount?.toLocaleString('en-IN') || '0'}</span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#15803d', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--color-success-text)', marginTop: '4px', opacity: 0.9 }}>
                   Mode: <strong>{detailedReport.paymentMethod || 'N/A'}</strong>
                   {detailedReport.paymentReference && ` · UTR / Ref: ${detailedReport.paymentReference}`}
                 </div>

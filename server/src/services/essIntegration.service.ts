@@ -116,6 +116,7 @@ export class EssIntegrationService {
             statusText: response.statusText,
             externalReferenceId: sr.external_reference_id,
           });
+          await this.recordDeliveryFailure(serviceRequestId, sr.external_reference_id, `HTTP ${response.status} ${response.statusText}`, payload);
         } else {
           logger.info('ESS webhook delivered successfully', {
             statusCode: response.status,
@@ -129,12 +130,38 @@ export class EssIntegrationService {
           webhookUrl,
           externalReferenceId: sr.external_reference_id,
         });
+        await this.recordDeliveryFailure(serviceRequestId, sr.external_reference_id, postErr.message || 'Network failure', payload);
       }
     } catch (err: any) {
       logger.error('Unexpected error in ESS webhook dispatcher (non-fatal)', {
         serviceRequestId,
         error: err.message,
       });
+    }
+  }
+
+  private async recordDeliveryFailure(
+    serviceRequestId: string,
+    externalReferenceId: string | null,
+    reason: string,
+    payload: EssStatusWebhookPayload | Record<string, unknown>
+  ): Promise<void> {
+    try {
+      const { logActivity } = await import('./audit.service.js');
+      await logActivity({
+        actorProfileId: null,
+        action: 'ESS_WEBHOOK_DELIVERY_FAILED',
+        entityType: 'service_request',
+        entityId: serviceRequestId,
+        details: {
+          externalReferenceId,
+          reason,
+          payload,
+          retryable: true,
+        },
+      });
+    } catch {
+      // Non-fatal in unit tests where mock supabase has no activity_logs mock
     }
   }
 }

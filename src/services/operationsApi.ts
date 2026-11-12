@@ -126,6 +126,16 @@ export interface SearchRecord {
   occurred_at: string | null;
 }
 
+export type ExportKind =
+  | 'customers'
+  | 'schedules'
+  | 'service-reports'
+  | 'amc-expiry'
+  | 'service-requests'
+  | 'payments'
+  | 'inventory'
+  | 'technicians';
+
 export const operationsApi = {
   listParts: (params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<PartRecord>>('/inventory/parts', { params }),
   createPart: (body: Record<string, unknown>) => apiClient.post<{ part: PartRecord }>('/inventory/parts', body),
@@ -137,11 +147,17 @@ export const operationsApi = {
   listPaymentTransactions: (id: string, params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<PaymentTransactionRecord>>(`/payments/${id}/transactions`, { params }),
   recordPayment: (id: string, body: Record<string, unknown>) => apiClient.post<{ transactionId: string }>(`/payments/${id}/transactions`, body),
   reversePayment: (transactionId: string, body: Record<string, unknown>) => apiClient.post<{ reversalId: string }>(`/payment-transactions/${transactionId}/reversals`, body),
-  sendPaymentInvoice: (id: string, body: { recipientEmail: string }) => apiClient.post<{ success: boolean; messageId?: string }>(`/payments/${id}/send-invoice`, body),
+  sendPaymentInvoice: (id: string, body: { recipientEmail: string }) =>
+    apiClient.post<{
+      success: boolean;
+      messageId?: string;
+      sandboxRedirected?: boolean;
+      effectiveRecipient?: string;
+    }>(`/payments/${id}/send-invoice`, body),
   listNotifications: (params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<NotificationRecord>>('/notifications', { params }),
   markNotificationRead: (id: string, isRead = true) => apiClient.patch<{ notification: NotificationRecord }>(`/notifications/${id}/read`, { isRead }),
   generateNotifications: () => apiClient.post<{ created: number }>('/notifications/generate'),
   listActivityLogs: (params: Record<string, string | number | undefined> = {}) => apiClient.get<PageResult<ActivityLogRecord>>('/activity-logs', { params }),
   search: (q: string, limit = 50) => apiClient.get<{ results: SearchRecord[] }>('/search', { params: { q, limit } }),
-  exportXlsx: (kind: 'customers' | 'schedules' | 'service-reports' | 'amc-expiry', params: Record<string, string | undefined> = {}) => apiClient.download(`/exports/${kind}`, params),
+  exportXlsx: (kind: ExportKind, params: Record<string, string | undefined> = {}) => apiClient.download(`/exports/${kind}`, params),
 };

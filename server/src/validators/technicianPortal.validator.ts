@@ -98,3 +98,57 @@ export const techFieldReportSchema = {
     items: z.array(techSparesItemSchema).optional().default([]),
   }),
 };
+
+const isoDateQuerySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date filter must follow YYYY-MM-DD format')
+  .optional();
+
+export const techAssignedJobsQuerySchema = {
+  query: z.object({
+    date: isoDateQuerySchema,
+    includeOverdue: z.enum(['true', 'false']).optional(),
+  }),
+};
+
+export const techPinChangeSchema = {
+  body: z.object({
+    currentPin: z.string().regex(/^\d{4,6}$/, 'Current PIN must be 4 to 6 digits'),
+    newPin: z.string().regex(/^\d{4,6}$/, 'New PIN must be 4 to 6 digits'),
+  }),
+};
+
+export const mediaUploadUrlSchema = {
+  body: z.object({
+    scope: z.enum(['before-photo', 'after-photo', 'signature']),
+    mimeType: z.enum(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']),
+    entityRef: z.string().trim().max(48).optional(),
+  }),
+};
+
+export const mediaSignedUrlQuerySchema = {
+  query: z.object({
+    path: z.string().trim().min(3).max(260),
+  }),
+};
+
+export const techAnalyticsQuerySchema = {
+  query: z.object({
+    date: isoDateQuerySchema,
+  }),
+};
+
+export const techJobParamSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid job schedule ID'),
+  }),
+};
+
+export const techJobStatusSchema = {
+  params: z.object({
+    id: z.string().uuid('Invalid job schedule ID'),
+  }),
+  body: z.object({
+    status: z.enum(['SCHEDULED', 'EN_ROUTE', 'IN_PROGRESS', 'COMPLETED']),
+  }),
+};

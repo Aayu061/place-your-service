@@ -8,6 +8,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
+import { getApiErrorMessage } from '@/services/api/client';
+import { getIstTodayIso } from '@/utils/date';
+import { uploadFieldMediaFile } from '@/utils/mediaUpload';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import {
@@ -119,9 +122,19 @@ export function TechnicianServiceReportForm({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const compressed = await compressImage(file);
-      if (type === 'before') setBeforePhoto(compressed);
-      else setAfterPhoto(compressed);
+      let resultUrl: string;
+      try {
+        resultUrl = await uploadFieldMediaFile({
+          file,
+          scope: type === 'before' ? 'before-photo' : 'after-photo',
+          entityRef: scheduleId,
+          portal: 'tech',
+        });
+      } catch {
+        resultUrl = await compressImage(file);
+      }
+      if (type === 'before') setBeforePhoto(resultUrl);
+      else setAfterPhoto(resultUrl);
     } catch {
       setError('Failed to process photo from device.');
     }
@@ -223,7 +236,7 @@ export function TechnicianServiceReportForm({
       .getJobDetail(scheduleId)
       .then(({ schedule, existingReport, suggestedReportNumber, siteAssets: loadedSiteAssets }) => {
         if (existingReport) {
-          alert(`A service report (${existingReport.reportNumber}) has already been filed for this appointment.`);
+          setError(`A service report (${existingReport.reportNumber}) has already been filed for this appointment.`);
           onBack();
           return;
         }
@@ -234,7 +247,7 @@ export function TechnicianServiceReportForm({
           setReportNumber((prev) => prev || suggestedReportNumber);
         }
 
-        const resolvedDate = schedule.scheduled_date || new Date().toISOString().split('T')[0];
+        const resolvedDate = schedule.scheduled_date || getIstTodayIso();
         setReportedDate((prev) => prev || resolvedDate);
 
         if (schedule.start_time) {
@@ -261,8 +274,8 @@ export function TechnicianServiceReportForm({
           setPerformedServiceType('DRY_SERVICE');
         }
       })
-      .catch((err) => {
-        setError(err?.response?.data?.error?.message || 'Failed to load appointment details.');
+      .catch((err: unknown) => {
+        setError(getApiErrorMessage(err, 'Failed to load appointment details.'));
       })
       .finally(() => {
         setIsLoading(false);
@@ -431,10 +444,9 @@ export function TechnicianServiceReportForm({
       try {
         localStorage.removeItem(`pys_draft_report_${scheduleId}`);
       } catch (_) {}
-      alert('Service Report submitted successfully! Schedule is now completed.');
       onSuccess();
-    } catch (err: any) {
-      setError(err?.response?.data?.error?.message || err.message || 'Failed to submit service report.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to submit service report.'));
     } finally {
       setIsSubmitting(false);
     }

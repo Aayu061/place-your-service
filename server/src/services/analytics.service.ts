@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 import { BadRequestError } from '../utils/errors.js';
+import { addDaysIstIso, getCalendarWeekdayShort, getIstTodayIso } from '../utils/date.js';
 import { amcService } from './amc.service.js';
 
 type RequestRow = {
@@ -112,12 +113,35 @@ function failQuery(action: string, error: { message?: string } | null): never {
 }
 
 export class AnalyticsService {
+  private async fetchAllRows<T>(
+    fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>,
+    action: string
+  ): Promise<T[]> {
+    const pageSize = 1000;
+    const rows: T[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await fetchPage(from, from + pageSize - 1);
+      if (error) failQuery(action, error);
+      const chunk = data || [];
+      rows.push(...chunk);
+      if (chunk.length < pageSize) break;
+    }
+    return rows;
+  }
+
   public async getDashboardSummary(): Promise<DashboardSummaryResponse> {
     const supabase = getSupabaseClient();
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const startDate = new Date(now);
-    startDate.setUTCDate(startDate.getUTCDate() - 6);
+    const today = getIstTodayIso();
+
+    const { data: rpcSummary, error: rpcError } =
+      typeof (supabase as { rpc?: unknown }).rpc === 'function'
+        ? await supabase.rpc('get_dashboard_summary', { p_today: today })
+        : { data: null, error: { message: 'RPC unavailable' } };
+    if (!rpcError && rpcSummary && typeof rpcSummary === 'object') {
+      return rpcSummary as DashboardSummaryResponse;
+    }
+
+    const startDateIso = addDaysIstIso(today, -6);
     const openStatuses = ['REQUESTED', 'PENDING', 'SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_PARTS', 'REVISIT_REQUIRED', 'ON_HOLD'];
     const dispatchStatuses = ['REQUESTED', 'PENDING', 'AWAITING_PARTS', 'REVISIT_REQUIRED'];
 
@@ -133,9 +157,11 @@ export class AnalyticsService {
       overdueScheduleCount,
       assignedScheduleCount,
       completedTodayResult,
-      paymentsResult,
-      transactionsResult,
-      amcContractsResult,
+      dryServiceCount,
+      jetServiceCount,
+      paymentsData,
+      txnsData,
+      amcData,
     ] = await Promise.all([
       amcService.getActiveCoverageMetrics(),
       supabase.from('service_requests')
@@ -154,32 +180,42 @@ export class AnalyticsService {
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).lt('scheduled_date', today),
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).not('technician_id', 'is', null),
       supabase.from('service_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).eq('status', 'COMPLETED'),
-      supabase.from('payments').select('id, total_amount_due, total_amount_paid, status'),
-      supabase.from('payment_transactions').select('amount, payment_method, entry_type, payment_status').eq('payment_status', 'SUCCESS'),
-      supabase.from('amc_contracts').select('id, total_amount, status'),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).eq('planned_service_type', 'DRY_SERVICE'),
+      supabase.from('service_schedules').select('id', { count: 'exact', head: true }).in('status', openStatuses).eq('planned_service_type', 'JET_SERVICE'),
+      this.fetchAllRows<any>(
+        (from, to) => supabase.from('payments').select('id, total_amount_due, total_amount_paid, status').range(from, to),
+        'payments summary'
+      ),
+      this.fetchAllRows<any>(
+        (from, to) => supabase.from('payment_transactions').select('amount, payment_method, entry_type, payment_status').eq('payment_status', 'SUCCESS').range(from, to),
+        'payment transactions summary'
+      ),
+      this.fetchAllRows<any>(
+        (from, to) => supabase.from('amc_contracts').select('id, total_amount, status').range(from, to),
+        'amc contracts summary'
+      ),
     ]);
 
     for (const [action, result] of [
       ['recent service requests', requestsResult], ['recent schedules', schedulesResult], ['active technician count', technicianResult],
       ['dispatch request count', dueRequestCount], ['urgent request count', urgentRequestCount], ['open schedule count', openScheduleCount],
       ['overdue schedule count', overdueScheduleCount], ['assigned schedule count', assignedScheduleCount], ['completed visits today', completedTodayResult],
+      ['dry service count', dryServiceCount], ['jet service count', jetServiceCount],
     ] as const) if (result.error) failQuery(action, result.error);
 
     const trendData = await Promise.all(Array.from({ length: 7 }, async (_, offset) => {
-      const date = new Date(startDate);
-      date.setUTCDate(date.getUTCDate() + offset);
-      const day = date.toISOString().slice(0, 10);
-      const nextDate = new Date(date);
-      nextDate.setUTCDate(nextDate.getUTCDate() + 1);
-      const next = nextDate.toISOString().slice(0, 10);
+      const day = addDaysIstIso(startDateIso, offset);
+      const next = addDaysIstIso(day, 1);
+      const dayStartUtc = new Date(`${day}T00:00:00+05:30`).toISOString();
+      const dayEndUtc = new Date(`${next}T00:00:00+05:30`).toISOString();
       const [requestCount, scheduleCount] = await Promise.all([
-        supabase.from('service_requests').select('id', { count: 'exact', head: true }).gte('created_at', `${day}T00:00:00.000Z`).lt('created_at', `${next}T00:00:00.000Z`),
+        supabase.from('service_requests').select('id', { count: 'exact', head: true }).gte('created_at', dayStartUtc).lt('created_at', dayEndUtc),
         supabase.from('service_schedules').select('id', { count: 'exact', head: true }).eq('scheduled_date', day),
       ]);
       if (requestCount.error) failQuery(`service request volume for ${day}`, requestCount.error);
       if (scheduleCount.error) failQuery(`scheduled visit volume for ${day}`, scheduleCount.error);
       return {
-        label: new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'UTC' }).format(date),
+        label: getCalendarWeekdayShort(day),
         date: day,
         value: requestCount.count || 0,
         secondaryValue: scheduleCount.count || 0,
@@ -190,10 +226,6 @@ export class AnalyticsService {
     const schedules = (schedulesResult.data || []) as unknown as ScheduleRow[];
     const openSchedules = openScheduleCount.count || 0;
     const overdueSchedules = overdueScheduleCount.count || 0;
-
-    const paymentsData = (paymentsResult?.data || []) as any[];
-    const txnsData = (transactionsResult?.data || []) as any[];
-    const amcData = (amcContractsResult?.data || []) as any[];
 
     const totalInvoiced = paymentsData.reduce((acc, p) => acc + Number(p.total_amount_due || 0), 0);
     const totalCollected = paymentsData.reduce((acc, p) => acc + Number(p.total_amount_paid || 0), 0);
@@ -292,11 +324,73 @@ export class AnalyticsService {
       workDistribution: [
         { label: 'Preventive Maint', count: openSchedules, category: 'PM' as const },
         { label: 'Breakdown / Repair', count: dueRequestCount.count || requests.length || 0, category: 'BREAKDOWN' as const },
-        { label: 'Dry Service', count: Math.max(1, Math.round(openSchedules * 0.6)), category: 'PM' as const },
-        { label: 'Jet Service', count: Math.max(0, Math.round(openSchedules * 0.4)), category: 'PM' as const },
+        { label: 'Dry Service', count: dryServiceCount.count || 0, category: 'PM' as const },
+        { label: 'Jet Service', count: jetServiceCount.count || 0, category: 'PM' as const },
         { label: 'Urgent / Priority', count: urgentRequestCount.count || 0, category: 'BREAKDOWN' as const },
       ],
       trendData,
+    };
+  }
+
+  public async getOverallAnalytics() {
+    const summary = await this.getDashboardSummary();
+    const supabase = getSupabaseClient();
+    const today = getIstTodayIso();
+    const monthStart = `${today.slice(0, 7)}-01`;
+
+    const [customersCountRes, assetsCountRes, monthReportsRes, openRequestsRes, techniciansRes] =
+      await Promise.all([
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('ac_assets').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('service_reports')
+          .select('id,primary_outcome,performed_service_type,service_date,technician_id,technicians(name)')
+          .gte('service_date', monthStart),
+        supabase
+          .from('service_requests')
+          .select('id,issue_category,request_type,priority')
+          .in('status', ['NEW', 'TRIAGED', 'SCHEDULED', 'ASSIGNED', 'IN_PROGRESS', 'ON_HOLD']),
+        supabase
+          .from('technicians')
+          .select('id,name,status')
+          .eq('is_active', true),
+      ]);
+
+    const categoryMap = new Map<string, number>();
+    for (const row of openRequestsRes.data || []) {
+      const key = String((row as any).issue_category || (row as any).request_type || 'GENERAL');
+      categoryMap.set(key, (categoryMap.get(key) || 0) + 1);
+    }
+
+    const techMap = new Map<string, { name: string; completedThisMonth: number }>();
+    for (const tech of techniciansRes.data || []) {
+      techMap.set(tech.id, { name: tech.name, completedThisMonth: 0 });
+    }
+    for (const rep of monthReportsRes.data || []) {
+      const tid = (rep as any).technician_id;
+      if (tid) {
+        const entry = techMap.get(tid) || {
+          name: ((rep as any).technicians?.name as string) || 'Technician',
+          completedThisMonth: 0,
+        };
+        entry.completedThisMonth += 1;
+        techMap.set(tid, entry);
+      }
+    }
+
+    return {
+      summary,
+      totals: {
+        activeCustomers: customersCountRes.count || 0,
+        totalAssets: assetsCountRes.count || 0,
+        reportsThisMonth: monthReportsRes.data?.length || 0,
+      },
+      issueCategoryBreakdown: Array.from(categoryMap.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count),
+      technicianPerformance: Array.from(techMap.entries())
+        .map(([technicianId, stats]) => ({ technicianId, ...stats }))
+        .sort((a, b) => b.completedThisMonth - a.completedThisMonth),
     };
   }
 }

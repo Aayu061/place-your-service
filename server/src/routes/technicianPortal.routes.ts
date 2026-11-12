@@ -7,6 +7,13 @@ import {
   techLoginSchema,
   techStatusSchema,
   techFieldReportSchema,
+  techAssignedJobsQuerySchema,
+  techAnalyticsQuerySchema,
+  techJobParamSchema,
+  techJobStatusSchema,
+  techPinChangeSchema,
+  mediaUploadUrlSchema,
+  mediaSignedUrlQuerySchema,
 } from '../validators/technicianPortal.validator.js';
 
 const techRouter = Router();
@@ -21,19 +28,26 @@ techRouter.get('/me', requireTechAuth, technicianPortalController.getProfile.bin
 techRouter.patch('/status', requireTechAuth, validate(techStatusSchema), technicianPortalController.updateStatus.bind(technicianPortalController));
 
 // 4. Today's Assigned Dispatch Queue
-techRouter.get('/jobs', requireTechAuth, technicianPortalController.getAssignedJobs.bind(technicianPortalController));
+techRouter.get('/jobs', requireTechAuth, validate(techAssignedJobsQuerySchema), technicianPortalController.getAssignedJobs.bind(technicianPortalController));
 
 // 4.1 Update Assigned Job Status (e.g. EN_ROUTE, IN_PROGRESS)
-techRouter.patch('/jobs/:id/status', requireTechAuth, technicianPortalController.updateJobStatus.bind(technicianPortalController));
+techRouter.patch('/jobs/:id/status', requireTechAuth, validate(techJobStatusSchema), technicianPortalController.updateJobStatus.bind(technicianPortalController));
 
 // 4.2 Real-time Daily Work Analytics & 7-Day Performance Trends
-techRouter.get('/analytics', requireTechAuth, technicianPortalController.getAnalytics.bind(technicianPortalController));
+techRouter.get('/analytics', requireTechAuth, validate(techAnalyticsQuerySchema), technicianPortalController.getAnalytics.bind(technicianPortalController));
 
 // 5. Job Appointment Context & AC Details
-techRouter.get('/jobs/:id', requireTechAuth, technicianPortalController.getJobDetail.bind(technicianPortalController));
+techRouter.get('/jobs/:id', requireTechAuth, validate(techJobParamSchema), technicianPortalController.getJobDetail.bind(technicianPortalController));
 
 // 6. Submit Completed On-Site Service Visit Report
 techRouter.post('/service-reports', requireTechAuth, validate(techFieldReportSchema), technicianPortalController.submitFieldReport.bind(technicianPortalController));
+
+// 7. Update 4-6 digit Technician Portal PIN
+techRouter.patch('/pin', requireTechAuth, validate(techPinChangeSchema), technicianPortalController.updatePin.bind(technicianPortalController));
+
+// 8. Signed Storage Upload & View URLs for Field Photos/Signatures
+techRouter.post('/media/upload-url', requireTechAuth, validate(mediaUploadUrlSchema), technicianPortalController.createMediaUploadUrl.bind(technicianPortalController));
+techRouter.get('/media/signed-url', requireTechAuth, validate(mediaSignedUrlQuerySchema), technicianPortalController.getMediaSignedUrl.bind(technicianPortalController));
 
 export default techRouter;
 

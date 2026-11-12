@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { AuthenticatedUser, UserRole } from '../types/index.js';
@@ -18,16 +19,20 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 
     // 1. Fast path: Machine-to-Machine (M2M) API Key or Bearer Token (e.g. Extreme Sales & Services storefront backend)
     const candidateApiKey = apiKeyHeader || bearerToken;
-    if (candidateApiKey && env.M2M_API_KEY && candidateApiKey === env.M2M_API_KEY) {
-      req.user = {
-        userId: '9141b9fc-895f-4e87-b992-2dddf61c739c', // System Administrator profile ID
-        email: 'integration@extreme-sales-services.com',
-        role: 'ADMIN' as UserRole,
-        profileId: '9141b9fc-895f-4e87-b992-2dddf61c739c',
-        staffId: 'fcabf3cd-a62b-4ed9-822d-7eba09a175e6',
-        isActive: true,
-      };
-      return next();
+    if (candidateApiKey && env.M2M_API_KEY) {
+      const providedBuf = Buffer.from(candidateApiKey, 'utf8');
+      const expectedBuf = Buffer.from(env.M2M_API_KEY, 'utf8');
+      if (providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf)) {
+        req.user = {
+          userId: '9141b9fc-895f-4e87-b992-2dddf61c739c', // System Administrator profile ID
+          email: 'integration@extreme-sales-services.com',
+          role: 'ADMIN' as UserRole,
+          profileId: '9141b9fc-895f-4e87-b992-2dddf61c739c',
+          staffId: 'fcabf3cd-a62b-4ed9-822d-7eba09a175e6',
+          isActive: true,
+        };
+        return next();
+      }
     }
 
     // 2. Standard path: User Supabase JWT

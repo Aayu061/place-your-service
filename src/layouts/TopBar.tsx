@@ -10,6 +10,7 @@ import {
   Download,
   Sun,
   Moon,
+  Loader2,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Dropdown, DropdownItem, DropdownDivider, DropdownHeader } from '@/components/ui/Dropdown';
@@ -19,6 +20,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { operationsApi } from '@/services/operationsApi';
 import { GlobalSearchDialog } from '@/components/search/GlobalSearchDialog';
 import { useToast } from '@/components/ui/useToast';
+import { getIstTodayIso } from '@/utils/date';
 
 interface TopBarProps {
   currentRole: UserRole;
@@ -99,8 +101,25 @@ export const TopBar: React.FC<TopBarProps> = ({
     return () => { current = false; };
   }, [activeItem]);
 
-  const exportKinds: Record<string, 'customers' | 'schedules' | 'service-reports' | 'amc-expiry'> = {
-    customers: 'customers', 'service-schedule': 'schedules', 'service-reports': 'service-reports', amc: 'amc-expiry',
+  const exportKinds: Record<
+    string,
+    | 'customers'
+    | 'schedules'
+    | 'service-reports'
+    | 'amc-expiry'
+    | 'service-requests'
+    | 'payments'
+    | 'inventory'
+    | 'technicians'
+  > = {
+    customers: 'customers',
+    'service-schedule': 'schedules',
+    'service-reports': 'service-reports',
+    amc: 'amc-expiry',
+    'service-requests': 'service-requests',
+    payments: 'payments',
+    inventory: 'inventory',
+    technicians: 'technicians',
   };
   const exportKind = exportKinds[activeItem];
   const downloadExport = async () => {
@@ -113,7 +132,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `pys-${exportKind}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      anchor.download = `pys-${exportKind}-${getIstTodayIso()}.xlsx`;
       document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
       showToast({ type: 'success', title: 'Export downloaded', message: 'The workbook reflects the filters in this view.' });
     } catch (error) {
@@ -300,7 +319,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onClick={() => void downloadExport()}
                 disabled={exporting}
               >
-                {exporting ? <span className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
+                {exporting ? <Loader2 size={14} className="animate-spin" aria-label="Preparing export" /> : <Download size={17} />}
               </button>
             )}
 

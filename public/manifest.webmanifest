@@ -1,0 +1,20 @@
+{
+  "name": "Place Your Service — HVAC Field & Operations",
+  "short_name": "PYS Service",
+  "description": "AC Service Management & Field Technician Portal for Extreme Sales & Services.",
+  "start_url": "/?portal=tech",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f7f3",
+  "theme_color": "#a8481c",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

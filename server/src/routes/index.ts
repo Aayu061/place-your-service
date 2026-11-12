@@ -16,6 +16,7 @@ import operationsRouter from './operations.routes.js';
 import exportRouter from './export.routes.js';
 import complianceRouter from './compliance.routes.js';
 import techRouter from './technicianPortal.routes.js';
+import emailRouter from './email.routes.js';
 
 const apiV1Router = Router();
 
@@ -61,6 +62,7 @@ apiV1Router.use('/exports', exportRouter);
 
 // Dedicated Technician Mobile Field Portal Routes
 apiV1Router.use('/tech', techRouter);
+apiV1Router.use('/', emailRouter);
 
 export default apiV1Router;
 

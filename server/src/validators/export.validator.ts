@@ -1,7 +1,18 @@
 import { z } from 'zod';
 
 export const exportKindParamSchema = {
-  params: z.object({ kind: z.enum(['customers', 'schedules', 'service-reports', 'amc-expiry']) }),
+  params: z.object({
+    kind: z.enum([
+      'customers',
+      'schedules',
+      'service-reports',
+      'amc-expiry',
+      'service-requests',
+      'payments',
+      'inventory',
+      'technicians',
+    ]),
+  }),
   query: z.object({
     from: z.string().date().optional(),
     to: z.string().date().optional(),

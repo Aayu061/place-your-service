@@ -26,6 +26,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
+import { getIstTodayIso } from '@/utils/date';
 import {
   Technician,
   TechnicianStatus,
@@ -255,7 +256,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     setWorkEnd('18:00');
     setFormStatus('AVAILABLE');
     setMaxDailyWorkload(5);
-    setJoiningDate(new Date().toISOString().split('T')[0]);
+    setJoiningDate(getIstTodayIso());
     setNotes('');
     setPinInput('');
     setCustomSkillInput('');
