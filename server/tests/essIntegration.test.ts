@@ -7,7 +7,7 @@ import { env } from '../src/config/env.js';
 
 describe('Extreme Sales & Services (ESS) Integration Suite', () => {
   const app = createApp();
-  const m2mKey = env.M2M_API_KEY;
+  const m2mKey = env.M2M_API_KEY!;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -220,7 +220,7 @@ describe('Extreme Sales & Services (ESS) Integration Suite', () => {
       const [url, options] = mockFetch.mock.calls[0];
       expect(url).toBe('https://extreme-sales-services-gh7s.onrender.com/api/webhooks/pys');
       expect(options.method).toBe('POST');
-      expect(options.headers['X-Webhook-Secret']).toBe('ess_pys_shared_secret_2026');
+      expect(options.headers['X-Webhook-Secret']).toBe(env.ESS_WEBHOOK_SECRET);
       expect(options.headers['Content-Type']).toBe('application/json');
 
       const body = JSON.parse(options.body);

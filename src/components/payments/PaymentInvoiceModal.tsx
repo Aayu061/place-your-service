@@ -39,8 +39,8 @@ export function PaymentInvoiceModal({
 
   // Dynamic GST calculation based on linked AMC plan or standard services
   const isSamc = Boolean(
-    (payment.amc_contracts as any)?.plan_name?.toLowerCase().includes('special comprehensive') ||
-    (payment.amc_contracts as any)?.plan_name?.toLowerCase().includes('samc')
+    payment.amc_contracts?.plan_name?.toLowerCase().includes('special comprehensive') ||
+    payment.amc_contracts?.plan_name?.toLowerCase().includes('samc')
   );
   const gstRatePercent = isSamc ? 28 : 18;
   const baseAmount = Math.round((totalDue / (1 + gstRatePercent / 100)) * 100) / 100;
@@ -72,7 +72,7 @@ export function PaymentInvoiceModal({
       });
       setShowEmailDialog(false);
       onPaymentUpdated?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast({
         type: 'error',
         title: 'Email Delivery Failed',

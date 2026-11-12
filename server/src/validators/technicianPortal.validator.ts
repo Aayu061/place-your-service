@@ -4,8 +4,10 @@ export const techLoginSchema = {
   body: z.object({
     identifier: z
       .string()
+      .trim()
       .min(3, 'Identifier must be at least 3 characters')
-      .transform((val) => val.trim()),
+      .max(40, 'Identifier is too long')
+      .regex(/^[a-zA-Z0-9+\-\s]+$/, 'Identifier may only contain letters, numbers, spaces, + or -'),
     pin: z
       .string()
       .regex(/^\d{4,6}$/, 'PIN must be 4 to 6 numeric digits'),

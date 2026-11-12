@@ -32,6 +32,23 @@ export function addDaysIstIso(base: string | Date = new Date(), days: number = 0
 }
 
 /**
+ * Adds a signed number of calendar years (and optional day offset) to a YYYY-MM-DD date.
+ */
+export function addYearsIstIso(
+  base: string | Date = new Date(),
+  years: number = 1,
+  dayOffset: number = 0
+): string {
+  const baseIso = typeof base === 'string' ? base.slice(0, 10) : getIstTodayIso(base);
+  const [y, m, d] = baseIso.split('-').map(Number);
+  if (!y || !m || !d) {
+    return getIstTodayIso();
+  }
+  const utcDate = new Date(Date.UTC(y + years, m - 1, d + dayOffset));
+  return utcDate.toISOString().slice(0, 10);
+}
+
+/**
  * Returns the short weekday label (Mon, Tue, ...) for a YYYY-MM-DD calendar date.
  */
 export function getCalendarWeekdayShort(dateIso: string): string {

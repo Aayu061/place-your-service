@@ -385,7 +385,7 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       if (res.state && !formState) {
         setFormState(res.state);
       }
-      const isLocalDecode = (res as any).verificationSource === 'LOCAL_DECODE' || res.status === 'LOCAL_FORMAT_DECODED';
+      const isLocalDecode = res.verificationSource === 'LOCAL_DECODE' || res.status === 'LOCAL_FORMAT_DECODED';
       const verificationLabel = isLocalDecode ? 'Format Decoded (Offline)' : 'Registry Verified';
       setGstVerificationMessage(`${verificationLabel}: ${res.state} • ${res.entityType || 'Registered Entity'}`);
       showToast({
@@ -1788,9 +1788,9 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)', marginTop: '2px', flexWrap: 'wrap' }}>
                           <Mail size={12} />
                           <span>{c.email}</span>
-                          {((c as any).emailBouncedAt || (c as any).email_bounced_at || (c as any).emailComplainedAt || (c as any).email_complained_at) && (
+                          {(c.emailBouncedAt || c.email_bounced_at || c.emailComplainedAt || c.email_complained_at) && (
                             <span
-                              title={(c as any).emailBounceReason || (c as any).email_bounce_reason || 'Email bounced'}
+                              title={c.emailBounceReason || c.email_bounce_reason || 'Email bounced'}
                               style={{
                                 padding: '1px 6px',
                                 borderRadius: 999,

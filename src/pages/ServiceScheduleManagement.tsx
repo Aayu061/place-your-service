@@ -626,7 +626,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     if (territoryFilter !== 'ALL') {
       const target = territoryFilter.toLowerCase();
       list = list.filter((s) => {
-        const hay = `${s.siteAddress || ''} ${s.siteName || ''} ${(s as any).customerCity || ''}`.toLowerCase();
+        const hay = `${s.siteAddress || ''} ${s.siteName || ''} ${s.customerCity || ''}`.toLowerCase();
         return hay.includes(target);
       });
     }

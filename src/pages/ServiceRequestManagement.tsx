@@ -256,6 +256,21 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }, [searchTerm, statusFilter]);
 
+  // Load customers for create modal
+  const loadCustomersForCreate = useCallback(async () => {
+    try {
+      setIsLoadingCustomers(true);
+      const res = await apiClient.get<CustomersListResponse>('/customers', {
+        params: { pageSize: 100, status: 'ACTIVE' },
+      });
+      setCreateCustomerList(res.customers || []);
+    } catch {
+      toast('Could not load customers', 'error');
+    } finally {
+      setIsLoadingCustomers(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     const syncFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
@@ -273,7 +288,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     syncFromUrl();
     window.addEventListener('popstate', syncFromUrl);
     return () => window.removeEventListener('popstate', syncFromUrl);
-  }, []);
+  }, [loadCustomersForCreate]);
 
   // Load single request detail when drawer opens
   const fetchRequestDetail = useCallback(async (id: string) => {
@@ -307,21 +322,6 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
     }
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }, [selectedRequestId]);
-
-  // Load customers for create modal
-  const loadCustomersForCreate = async () => {
-    try {
-      setIsLoadingCustomers(true);
-      const res = await apiClient.get<CustomersListResponse>('/customers', {
-        params: { pageSize: 100, status: 'ACTIVE' },
-      });
-      setCreateCustomerList(res.customers || []);
-    } catch {
-      toast('Could not load customers', 'error');
-    } finally {
-      setIsLoadingCustomers(false);
-    }
-  };
 
   // Load sites when customer selected
   const loadSitesForCustomer = async (customerId: string) => {

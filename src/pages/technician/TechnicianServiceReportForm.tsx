@@ -191,7 +191,9 @@ export function TechnicianServiceReportForm({
         if (draft.afterPhoto) setAfterPhoto(draft.afterPhoto);
         setHasRecoveredDraft(true);
       }
-    } catch (_) {}
+    } catch {
+      /* ignore localStorage access/parse errors */
+    }
   }, [scheduleId]);
 
   // Save draft on state changes
@@ -219,14 +221,18 @@ export function TechnicianServiceReportForm({
         afterPhoto,
       };
       localStorage.setItem(`pys_draft_report_${scheduleId}`, JSON.stringify(draft));
-    } catch (_) {}
+    } catch {
+      /* ignore localStorage quota/access errors */
+    }
   }, [scheduleId, isLoading, reportNumber, reportedDate, startTime, endTime, selectedAssetId, assistantName, performedServiceType, diagnosisFindings, workPerformed, technicianRemarks, pendingItemDesc, customerRep, paymentCollected, paymentAmount, paymentMethod, paymentReference, beforePhoto, afterPhoto]);
 
   const handleClearDraft = () => {
     try {
       localStorage.removeItem(`pys_draft_report_${scheduleId}`);
       setHasRecoveredDraft(false);
-    } catch (_) {}
+    } catch {
+      /* ignore localStorage access errors */
+    }
   };
 
   useEffect(() => {
@@ -443,7 +449,9 @@ export function TechnicianServiceReportForm({
       await technicianApi.submitFieldReport(payload);
       try {
         localStorage.removeItem(`pys_draft_report_${scheduleId}`);
-      } catch (_) {}
+      } catch {
+        /* ignore localStorage access errors */
+      }
       onSuccess();
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Failed to submit service report.'));
@@ -564,7 +572,7 @@ export function TechnicianServiceReportForm({
           <button
             key={s.num}
             type="button"
-            onClick={() => setStep(s.num as any)}
+            onClick={() => setStep(s.num as 1 | 2 | 3 | 4)}
             style={{
               padding: '6px 4px',
               borderRadius: 'var(--radius-sm)',
@@ -1449,7 +1457,7 @@ export function TechnicianServiceReportForm({
                       <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>Mode</label>
                       <select
                         value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value as any)}
+                        onChange={(e) => setPaymentMethod(e.target.value as 'UPI' | 'CASH' | 'CHEQUE' | 'NEFT')}
                         style={{ width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-surface)', fontSize: 'var(--text-xs)', color: 'var(--text-primary)', boxSizing: 'border-box' }}
                       >
                         <option value="UPI">UPI / QR Code</option>

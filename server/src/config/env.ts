@@ -31,9 +31,10 @@ const envSchema = z.object({
   ESS_WEBHOOK_URL: z
     .string()
     .url('ESS_WEBHOOK_URL must be a valid URL')
-    .default('https://extreme-sales-services-gh7s.onrender.com/api/webhooks/pys'),
-  ESS_WEBHOOK_SECRET: z.string().default('ess_pys_shared_secret_2026'),
-  M2M_API_KEY: z.string().default('pys_m2m_ess_live_secret_key_2026'),
+    .optional(),
+  ESS_WEBHOOK_SECRET: z.string().min(8).optional(),
+  M2M_API_KEY: z.string().min(16).optional(),
+  TECH_JWT_SECRET: z.string().min(16).optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
@@ -62,9 +63,13 @@ function loadEnv(): ServerEnv {
     RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS || '900000',
     RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX || '100',
     ESS_WEBHOOK_URL:
-      process.env.ESS_WEBHOOK_URL || 'https://extreme-sales-services-gh7s.onrender.com/api/webhooks/pys',
-    ESS_WEBHOOK_SECRET: process.env.ESS_WEBHOOK_SECRET || 'ess_pys_shared_secret_2026',
-    M2M_API_KEY: process.env.M2M_API_KEY || 'pys_m2m_ess_live_secret_key_2026',
+      process.env.ESS_WEBHOOK_URL?.trim() ||
+      (isTest ? 'https://extreme-sales-services-gh7s.onrender.com/api/webhooks/pys' : undefined),
+    ESS_WEBHOOK_SECRET:
+      process.env.ESS_WEBHOOK_SECRET?.trim() || (isTest ? 'test-only-ess-webhook-secret' : undefined),
+    M2M_API_KEY:
+      process.env.M2M_API_KEY?.trim() || (isTest ? 'test-only-m2m-api-key-12345' : undefined),
+    TECH_JWT_SECRET: process.env.TECH_JWT_SECRET?.trim() || undefined,
   };
 
   const parsed = envSchema.safeParse(rawEnv);
