@@ -32,6 +32,32 @@ import {
   TechnicianStatus,
   WeekDay,
 } from '@/domain/types';
+
+interface TechnicianScheduleSummaryItem {
+  id: string;
+  schedule_number?: string;
+  status: string;
+  scheduled_date?: string;
+  start_time?: string;
+  end_time?: string;
+  customers?: { name?: string | null } | null;
+}
+
+interface TechnicianReportSummaryItem {
+  id: string;
+  report_number?: string;
+  service_date?: string;
+  primary_outcome?: string | null;
+  customer_signature_url?: string | null;
+  customers?: { name?: string | null } | null;
+}
+
+interface TechnicianWorkSummaryState {
+  activeSchedules: TechnicianScheduleSummaryItem[];
+  recentReports?: TechnicianReportSummaryItem[];
+  completedReports?: TechnicianReportSummaryItem[];
+  totalCompletedReports: number;
+}
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -131,12 +157,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   // Selected Technician & Drawer
   const [selectedTech, setSelectedTech] = useState<Technician | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [workSummary, setWorkSummary] = useState<{
-    activeSchedules: any[];
-    recentReports?: any[];
-    completedReports?: any[];
-    totalCompletedReports: number;
-  } | null>(null);
+  const [workSummary, setWorkSummary] = useState<TechnicianWorkSummaryState | null>(null);
   const [isLoadingWorkSummary, setIsLoadingWorkSummary] = useState<boolean>(false);
 
   // Field Portal PIN Reset State
@@ -310,7 +331,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     try {
       const [res, summaryRes] = await Promise.allSettled([
         apiClient.get<TechnicianApiResponse>(`/technicians/${tech.id}`),
-        apiClient.get<any>(`/technicians/${tech.id}/work-summary`),
+        apiClient.get<TechnicianWorkSummaryState>(`/technicians/${tech.id}/work-summary`),
       ]);
       if (res.status === 'fulfilled' && res.value.technician) {
         setSelectedTech(res.value.technician);
@@ -344,7 +365,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
     const cleanPhone = (tech.phone || '').replace(/\D/g, '');
     const phoneWithCountry = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
     const msg = `Extreme Sales & Services — Field Dispatch Portal\nTechnician: ${tech.name} (${tech.technicianCode})\nYour Access Link: ${url}\nEnter your 4-digit security PIN to access your daily job queue.`;
-    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleResetPinSubmit = async (e: React.FormEvent) => {
@@ -370,7 +391,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
       setIsResetPinModalOpen(false);
       setNewPin('');
       setConfirmPin('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast({
         title: 'PIN Reset Failed',
         message: err instanceof ApiError ? err.message : 'Error updating PIN',
@@ -462,7 +483,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
 
     setFormSubmitting(true);
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim() || null,
@@ -670,7 +691,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
   const recentCompletedReports =
     workSummary?.recentReports ?? workSummary?.completedReports ?? [];
   const ftfResolvedCount = recentCompletedReports.filter(
-    (r: any) =>
+    (r) =>
       !r.primary_outcome ||
       r.primary_outcome === 'COMPLETED' ||
       r.primary_outcome === 'RESOLVED'
@@ -1626,7 +1647,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={() => window.open(getPortalUrl(selectedTech.technicianCode), '_blank')}
+                      onClick={() => window.open(getPortalUrl(selectedTech.technicianCode), '_blank', 'noopener,noreferrer')}
                       leftIcon={<ExternalLink size={12} />}
                       style={{ fontSize: '11px' }}
                     >
@@ -1803,7 +1824,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
 
               {workSummary?.activeSchedules && workSummary.activeSchedules.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {workSummary.activeSchedules.map((s: any) => (
+                  {workSummary.activeSchedules.map((s) => (
                     <div
                       key={s.id}
                       style={{
@@ -1955,7 +1976,7 @@ export const TechnicianManagement: React.FC<{ onNavigate?: (item: string) => voi
 
               {recentCompletedReports.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {recentCompletedReports.map((r: any) => (
+                  {recentCompletedReports.map((r) => (
                     <div
                       key={r.id}
                       style={{

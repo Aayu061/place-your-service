@@ -59,6 +59,12 @@ export interface Customer {
   postalCode?: string | null;
   notes?: string | null;
   isActive: boolean;
+  emailBouncedAt?: string | null;
+  emailBounceReason?: string | null;
+  emailComplainedAt?: string | null;
+  email_bounced_at?: string | null;
+  email_bounce_reason?: string | null;
+  email_complained_at?: string | null;
   siteName?: string | null;
   siteContactPerson?: string | null;
   siteContactPhone?: string | null;
@@ -384,7 +390,7 @@ export interface AmcPlan {
   hasGasCharging?: boolean;
   hasSpareParts?: boolean;
   hasUnlimitedComplaints?: boolean;
-  rateMetadata?: Record<string, any> | null;
+  rateMetadata?: Record<string, unknown> | null;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -402,7 +408,10 @@ export interface AmcCoveredAsset {
   serialNumber?: string | null;
   acType?: AcType;
   capacityTons?: number | null;
+  capacityTonnage?: string | null;
+  installationDate?: string | null;
   roomLocation?: string | null;
+  locationRoom?: string | null;
   floorLocation?: string | null;
   notes?: string | null;
   createdAt: string;
@@ -415,6 +424,10 @@ export interface AmcContract {
   contractCode: string; // Compatibility alias
   customerId: string;
   customerName?: string | null;
+  customerCompanyName?: string | null;
+  companyName?: string | null;
+  customerGstNumber?: string | null;
+  gstNumber?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;
@@ -723,6 +736,7 @@ export interface ServiceSchedule {
   siteId?: string | null;
   siteName?: string | null;
   siteAddress?: string | null;
+  customerCity?: string | null;
   assetId: string | null;
   acAssetId?: string | null; // Compatibility alias
   assetTag?: string | null;
@@ -994,6 +1008,9 @@ export interface ServiceVisitReport {
   pmObligationId?: string | null;
   customerId: string;
   customerName?: string | null;
+  companyName?: string | null;
+  gstNumber?: string | null;
+  customerGstNumber?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;

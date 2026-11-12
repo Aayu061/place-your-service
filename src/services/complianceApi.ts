@@ -9,6 +9,7 @@ export interface GstinLookupResult {
   tradeName?: string;
   principalAddress?: string;
   status?: string;
+  verificationSource?: string;
 }
 
 export const complianceApi = {

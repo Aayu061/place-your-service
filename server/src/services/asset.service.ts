@@ -19,6 +19,7 @@ import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { normalizeTechnology } from '../utils/technology.js';
 import { getIstTodayIso } from '../utils/date.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawAssetJoinRecord {
   id: string;
@@ -303,10 +304,12 @@ export class AssetService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      assetQuery = assetQuery.or(
-        `asset_tag.ilike.%${term}%,brand.ilike.%${term}%,model_number.ilike.%${term}%,serial_number.ilike.%${term}%,indoor_serial_number.ilike.%${term}%,outdoor_serial_number.ilike.%${term}%,floor_location.ilike.%${term}%,room_location.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        assetQuery = assetQuery.or(
+          `asset_tag.ilike.%${term}%,brand.ilike.%${term}%,model_number.ilike.%${term}%,serial_number.ilike.%${term}%,indoor_serial_number.ilike.%${term}%,outdoor_serial_number.ilike.%${term}%,floor_location.ilike.%${term}%,room_location.ilike.%${term}%`
+        );
+      }
     }
 
     assetQuery = assetQuery
@@ -377,10 +380,12 @@ export class AssetService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      assetQuery = assetQuery.or(
-        `asset_tag.ilike.%${term}%,brand.ilike.%${term}%,model_number.ilike.%${term}%,serial_number.ilike.%${term}%,floor_location.ilike.%${term}%,room_location.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        assetQuery = assetQuery.or(
+          `asset_tag.ilike.%${term}%,brand.ilike.%${term}%,model_number.ilike.%${term}%,serial_number.ilike.%${term}%,floor_location.ilike.%${term}%,room_location.ilike.%${term}%`
+        );
+      }
     }
 
     assetQuery = assetQuery

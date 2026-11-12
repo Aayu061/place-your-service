@@ -13,6 +13,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.j
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { hashPin } from '../utils/techAuth.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawTechnicianRecord {
   id: string;
@@ -175,10 +176,12 @@ export class TechnicianService {
 
     // Search filter across code, name, phone, email
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      dbQuery = dbQuery.or(
-        `technician_code.ilike.%${term}%,name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        dbQuery = dbQuery.or(
+          `technician_code.ilike.%${term}%,name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`
+        );
+      }
     }
 
     dbQuery = dbQuery

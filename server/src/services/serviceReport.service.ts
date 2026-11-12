@@ -16,6 +16,7 @@ import { normalizeTechnology } from '../utils/technology.js';
 import { logActivity } from './audit.service.js';
 import { essIntegrationService } from './essIntegration.service.js';
 import { getResolvedEmailConfig } from './email/emailTransport.service.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 import {
   mapServiceReportAssetRow,
   mapServiceReportDetailResponse,
@@ -1573,11 +1574,14 @@ export class ServiceReportService {
         if (!partName) continue;
         const qty = Math.max(1, Number(item.quantity || 1));
 
+        const safePartName = sanitizePostgrestFilterTerm(partName);
+        if (!safePartName) continue;
+
         try {
           const { data: matchedPart } = await supabase
             .from('parts')
             .select('id, part_code, name, current_stock, unit_price')
-            .or(`part_code.eq.${partName},name.ilike.%${partName}%`)
+            .or(`part_code.eq.${safePartName},name.ilike.%${safePartName}%`)
             .limit(1)
             .maybeSingle();
 

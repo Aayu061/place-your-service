@@ -8,6 +8,7 @@ import {
 import { NotFoundError, BadRequestError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawSiteJoinRecord {
   id: string;
@@ -88,8 +89,12 @@ export class SiteService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      siteQuery = siteQuery.or(`site_name.ilike.%${term}%,address.ilike.%${term}%,contact_person.ilike.%${term}%,contact_phone.ilike.%${term}%`);
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        siteQuery = siteQuery.or(
+          `site_name.ilike.%${term}%,address.ilike.%${term}%,contact_person.ilike.%${term}%,contact_phone.ilike.%${term}%`
+        );
+      }
     }
 
     siteQuery = siteQuery

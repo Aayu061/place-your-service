@@ -18,7 +18,7 @@ import {
 import { gstLookupService } from '../src/services/gstLookup.service.js';
 import { mediaStorageService } from '../src/services/mediaStorage.service.js';
 import { technicianPortalService } from '../src/services/technicianPortal.service.js';
-import { hashPin } from '../src/utils/techAuth.js';
+import { hashPin, verifyPin } from '../src/utils/techAuth.js';
 
 describe('Phase 2: Unified Resend Email, Webhooks, Media Storage & API Gaps', () => {
   beforeEach(() => {
@@ -183,9 +183,10 @@ describe('Phase 2: Unified Resend Email, Webhooks, Media Storage & API Gaps', ()
 
       const res = await technicianPortalService.updatePin('tech-1', '1234', '5678');
       expect(res.updated).toBe(true);
-      expect(updateFn).toHaveBeenCalledWith(
-        expect.objectContaining({ pin_hash: hashPin('5678') })
-      );
+      expect(updateFn).toHaveBeenCalledTimes(1);
+      const updatedPayload = updateFn.mock.calls[0][0] as { pin_hash: string };
+      expect(updatedPayload.pin_hash.startsWith('scrypt$')).toBe(true);
+      expect(verifyPin('5678', updatedPayload.pin_hash)).toBe(true);
     });
   });
 });

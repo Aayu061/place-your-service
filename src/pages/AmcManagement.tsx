@@ -23,7 +23,7 @@ import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
-import { addDaysIstIso, getIstTodayIso } from '@/utils/date';
+import { addDaysIstIso, addYearsIstIso, getIstTodayIso } from '@/utils/date';
 import {
   calculateAmcQuote,
   getPlanBaselineAmount,
@@ -450,7 +450,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const selectedPlanObj = plans.find((p) => p.id === formPlanId);
   const selectedAssetsList = availableAssets.filter((a) => formCoveredAssetIds.includes(a.id));
   const liveQuote: AmcQuoteResult | null = selectedPlanObj
-    ? calculateAmcQuote(selectedPlanObj as any, selectedAssetsList)
+    ? calculateAmcQuote(selectedPlanObj, selectedAssetsList)
     : null;
 
   const handleApplyCalculatedQuote = () => {
@@ -502,11 +502,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     setFormCustomerId(preselectedCustomerId || '');
     setFormPlanId('');
     const today = getIstTodayIso();
-    const oneYearLater = new Date(`${today}T00:00:00.000Z`);
-    oneYearLater.setUTCFullYear(oneYearLater.getUTCFullYear() + 1);
-    oneYearLater.setUTCDate(oneYearLater.getUTCDate() - 1);
     setFormStartDate(today);
-    setFormEndDate(oneYearLater.toISOString().slice(0, 10));
+    setFormEndDate(addYearsIstIso(today, 1, -1));
     setFormFrequency('QUARTERLY');
     setFormTotalAmount(0);
     setFormTotalVisits(4);
@@ -2080,9 +2077,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       type="button"
                       onClick={() => {
                         if (formStartDate) {
-                          const d = new Date(`${formStartDate.slice(0, 10)}T00:00:00.000Z`);
-                          d.setUTCFullYear(d.getUTCFullYear() + 1);
-                          setFormEndDate(d.toISOString().split('T')[0]);
+                          setFormEndDate(addYearsIstIso(formStartDate, 1));
                         }
                       }}
                       style={{ fontSize: '10px', color: 'var(--color-brand)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
@@ -2860,7 +2855,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                         assetTag: a.assetTag,
                         acType: a.acType || 'SPLIT',
                         capacityTons: a.capacityTons,
-                        installationDate: (a as any).installationDate || null,
+                        installationDate: a.installationDate || null,
                       }));
                       const quote = calculateAmcQuote(selectedPlan, coveredContext);
                       setFormTotalAmount(quote.totalAmount);
@@ -3375,13 +3370,13 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
             paymentBalanceDue: detailContract.paymentBalanceDue,
             status: detailContract.status,
             notes: detailContract.notes,
-            coveredAssets: detailContract.coveredAssets?.map((a: any) => ({
+            coveredAssets: detailContract.coveredAssets?.map((a) => ({
               assetTag: a.assetTag,
               brand: a.brand,
               modelNumber: a.modelNumber,
               serialNumber: a.serialNumber,
-              capacityTonnage: a.capacityTonnage,
-              locationRoom: a.locationRoom,
+              capacityTonnage: a.capacityTonnage ?? (a.capacityTons !== null && a.capacityTons !== undefined ? String(a.capacityTons) : null),
+              locationRoom: a.locationRoom ?? a.roomLocation ?? null,
             })),
           }}
           onEmailSent={fetchContracts}

@@ -204,7 +204,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res: any = await apiClient.delete(`/amc-contracts/plans/${selectedPlan.id}`);
+      const res = await apiClient.delete<{ action?: string; message?: string }>(`/amc-contracts/plans/${selectedPlan.id}`);
       showToast({
         title: res?.action === 'archived' ? 'Plan Archived' : 'Plan Deleted',
         message: res?.message || `Plan ${selectedPlan.planCode} was processed.`,
@@ -634,7 +634,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.category}
-                onChange={(e: any) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as PlanFormData['category'] })}
                 required
               >
                 <option value="SPECIAL_COMPREHENSIVE">Special Comprehensive (SAMC)</option>
@@ -653,7 +653,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.pricingModel}
-                onChange={(e: any) => setFormData({ ...formData, pricingModel: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, pricingModel: e.target.value as PlanFormData['pricingModel'] })}
                 required
               >
                 <option value="TIERED_TONNAGE">Tiered Capacity Tonnage (0.8-1.0T vs 1.5-2.2T)</option>
@@ -670,7 +670,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.defaultFrequency}
-                onChange={(e: any) => setFormData({ ...formData, defaultFrequency: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, defaultFrequency: e.target.value as AmcFrequency })}
                 required
               >
                 <option value="MONTHLY">Monthly (12 visits)</option>
@@ -893,7 +893,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.category}
-                onChange={(e: any) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value as PlanFormData['category'] })}
                 required
               >
                 <option value="SPECIAL_COMPREHENSIVE">Special Comprehensive (SAMC)</option>
@@ -912,7 +912,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.pricingModel}
-                onChange={(e: any) => setFormData({ ...formData, pricingModel: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, pricingModel: e.target.value as PlanFormData['pricingModel'] })}
                 required
               >
                 <option value="TIERED_TONNAGE">Tiered Capacity Tonnage (0.8-1.0T vs 1.5-2.2T)</option>
@@ -929,7 +929,7 @@ export const AmcPlanRateCards: React.FC<AmcPlanRateCardsProps> = ({
                 className="input-neomorph"
                 style={{ width: '100%', marginTop: '4px' }}
                 value={formData.defaultFrequency}
-                onChange={(e: any) => setFormData({ ...formData, defaultFrequency: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, defaultFrequency: e.target.value as AmcFrequency })}
                 required
               >
                 <option value="MONTHLY">Monthly (12 visits)</option>

@@ -10,6 +10,7 @@ import {
 import { ConflictError, NotFoundError, BadRequestError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawSiteRecord {
   id: string;
@@ -235,10 +236,12 @@ export class CustomerService {
 
     // Search: Name, Company, Phone, Email, Customer Code
     if (query.search && query.search.trim().length > 0) {
-      const term = query.search.trim().replace(/[%_]/g, '');
-      dbQuery = dbQuery.or(
-        `name.ilike.%${term}%,company_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,customer_code.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        dbQuery = dbQuery.or(
+          `name.ilike.%${term}%,company_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,customer_code.ilike.%${term}%`
+        );
+      }
     }
 
     // Sorting and Pagination

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   Clock,
@@ -34,7 +34,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
     getIstTodayIso()
   );
 
-  const loadJobs = async (dateStr: string, withOverdue = includeOverdue) => {
+  const loadJobs = useCallback(async (dateStr: string, withOverdue: boolean) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -45,11 +45,11 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadJobs(selectedDate, includeOverdue);
-  }, [selectedDate, includeOverdue]);
+  }, [loadJobs, selectedDate, includeOverdue]);
 
   const handleUpdateStatus = async (scheduleId: string, newStatus: string) => {
     try {
@@ -118,7 +118,7 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
           </div>
           <button
             type="button"
-            onClick={() => loadJobs(selectedDate)}
+            onClick={() => loadJobs(selectedDate, includeOverdue)}
             title="Refresh Queue"
             style={{
               padding: '8px',

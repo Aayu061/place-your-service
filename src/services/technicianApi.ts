@@ -3,6 +3,7 @@ import { apiClient } from './api/client';
 export interface TechUser {
   id: string;
   technicianCode: string;
+  technician_code?: string;
   name: string;
   phone: string;
   email: string | null;
@@ -79,9 +80,49 @@ export interface TechDailyAnalytics {
   }>;
 }
 
+export interface TechExistingReportRef {
+  id: string;
+  reportNumber: string;
+  status?: string;
+}
+
+export interface TechCompletedReportSummary {
+  id: string;
+  report_number: string;
+  service_date?: string | null;
+  primary_outcome?: string | null;
+  customer_signature_url?: string | null;
+  customers?: { name?: string | null } | null;
+}
+
+export interface TechFieldReportPayload {
+  scheduleId: string;
+  manualReportNumber: string;
+  assistantName?: string | null;
+  reportedVisitDate: string;
+  startTime: string;
+  endTime: string;
+  serviceExecutionType: string;
+  primaryOutcome: string;
+  workDescription?: string | null;
+  technicianRemarks: string;
+  customerRepresentative: string;
+  customerAcknowledgement: string;
+  signatureDataUrl?: string | null;
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
+  paymentCollected?: boolean;
+  paymentAmount?: number;
+  paymentMethod?: string | null;
+  paymentReference?: string | null;
+  emailToCustomer?: boolean;
+  assets: Array<Record<string, unknown>>;
+  items: Array<Record<string, unknown>>;
+}
+
 export interface TechWorkSummary {
   activeSchedules: TechJob[];
-  completedReports: any[];
+  completedReports: TechCompletedReportSummary[];
   totalCompletedReports: number;
 }
 
@@ -174,9 +215,9 @@ export const technicianApi = {
     return response || [];
   },
 
-  async updateJobStatus(scheduleId: string, status: string): Promise<any> {
+  async updateJobStatus(scheduleId: string, status: string): Promise<TechJob> {
     const token = this.getToken();
-    const response = await apiClient.patch<any>(
+    const response = await apiClient.patch<TechJob>(
       `/api/v1/tech/jobs/${scheduleId}/status`,
       { status },
       {
@@ -200,14 +241,14 @@ export const technicianApi = {
 
   async getJobDetail(scheduleId: string): Promise<{
     schedule: TechJob;
-    existingReport: any | null;
+    existingReport: TechExistingReportRef | null;
     suggestedReportNumber?: string;
     siteAssets?: NonNullable<TechJob['ac_assets']>[];
   }> {
     const token = this.getToken();
     const response = await apiClient.get<{
       schedule: TechJob;
-      existingReport: any | null;
+      existingReport: TechExistingReportRef | null;
       suggestedReportNumber?: string;
       siteAssets?: NonNullable<TechJob['ac_assets']>[];
     }>(
@@ -219,9 +260,9 @@ export const technicianApi = {
     return response;
   },
 
-  async submitFieldReport(payload: any): Promise<any> {
+  async submitFieldReport(payload: TechFieldReportPayload): Promise<TechExistingReportRef> {
     const token = this.getToken();
-    const response = await apiClient.post<any>('/api/v1/tech/service-reports', payload, {
+    const response = await apiClient.post<TechExistingReportRef>('/api/v1/tech/service-reports', payload, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response;

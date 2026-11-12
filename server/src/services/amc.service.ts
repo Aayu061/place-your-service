@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { addDaysIstIso, getIstTodayIso } from '../utils/date.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 import {
   calculateAmcQuote,
   getPlanBaselineAmount,
@@ -654,8 +655,11 @@ export class AmcService {
     }
 
     if (query.search) {
-      const s = `%${query.search.trim()}%`;
-      dbQuery = dbQuery.or(`contract_number.ilike.${s},notes.ilike.${s}`);
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        const s = `%${term}%`;
+        dbQuery = dbQuery.or(`contract_number.ilike.${s},notes.ilike.${s}`);
+      }
     }
 
     const today = getIstTodayIso();

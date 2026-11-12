@@ -12,6 +12,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.j
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { essIntegrationService } from './essIntegration.service.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawServiceRequestJoinRecord {
   id: string;
@@ -324,8 +325,10 @@ export class ServiceRequestService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      reqQuery = reqQuery.or(`request_number.ilike.%${term}%,description.ilike.%${term}%,notes.ilike.%${term}%`);
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        reqQuery = reqQuery.or(`request_number.ilike.%${term}%,description.ilike.%${term}%,notes.ilike.%${term}%`);
+      }
     }
 
     reqQuery = reqQuery

@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import { ServiceVisitType } from '../types/index.js';
 import { essIntegrationService } from './essIntegration.service.js';
 import { addDaysIstIso, getCalendarWeekdayShort, getIstTodayIso } from '../utils/date.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 export interface TechLoginResponse {
   token: string;
@@ -25,8 +26,12 @@ export class TechnicianPortalService {
    */
   async login(identifier: string, pin: string): Promise<TechLoginResponse> {
     const supabase = getSupabaseClient();
-    const cleanId = identifier.trim();
+    const cleanId = sanitizePostgrestFilterTerm(identifier);
     const cleanDigits = cleanId.replace(/\D/g, '');
+
+    if (!cleanId) {
+      throw new UnauthorizedError('Invalid technician code or mobile number.');
+    }
 
     // Search by technician_code or phone
     const { data: tech, error } = await supabase
@@ -49,6 +54,18 @@ export class TechnicianPortalService {
     if (!isPinValid) {
       logger.warn('Technician login failed: incorrect PIN', { techId: tech.id });
       throw new UnauthorizedError('Incorrect 4-digit PIN. Please try again or ask admin to reset.');
+    }
+
+    // Opportunistically upgrade legacy SHA-256 PIN hashes to salted scrypt on successful login
+    if (tech.pin_hash && !tech.pin_hash.startsWith('scrypt$')) {
+      try {
+        await supabase
+          .from('technicians')
+          .update({ pin_hash: hashPin(pin) })
+          .eq('id', tech.id);
+      } catch {
+        // Non-fatal if upgrade write fails
+      }
     }
 
     const token = signTechToken({

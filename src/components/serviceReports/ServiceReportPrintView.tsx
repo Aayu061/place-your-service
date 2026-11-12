@@ -617,9 +617,9 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
           <div>
             <div className="pys-field-label">Customer / Business Name</div>
             <div className="pys-field-value">
-              {(report as any).companyName ? (
+              {report.companyName ? (
                 <>
-                  <div style={{ fontWeight: 800, color: '#0369a1' }}>{(report as any).companyName}</div>
+                  <div style={{ fontWeight: 800, color: '#0369a1' }}>{report.companyName}</div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>
                     Attn: {report.customerName} {report.customerCode && `(${report.customerCode})`}
                   </div>
@@ -631,9 +631,9 @@ export const ServiceReportPrintView: React.FC<ServiceReportPrintViewProps> = ({ 
                 </>
               )}
             </div>
-            {((report as any).gstNumber || (report as any).customerGstNumber) && (
+            {(report.gstNumber || report.customerGstNumber) && (
               <div style={{ fontSize: '11.5px', color: '#0f172a', fontWeight: 700, marginTop: '2px' }}>
-                GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{(report as any).gstNumber || (report as any).customerGstNumber}</span>
+                GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{report.gstNumber || report.customerGstNumber}</span>
               </div>
             )}
             {(report.customerPhone || report.customerEmail) && (

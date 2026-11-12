@@ -14,6 +14,10 @@ export interface AmcContractForPrint {
   id: string;
   contractNumber: string;
   customerName?: string | null;
+  customerCompanyName?: string | null;
+  companyName?: string | null;
+  customerGstNumber?: string | null;
+  gstNumber?: string | null;
   customerCode?: string | null;
   customerPhone?: string | null;
   customerEmail?: string | null;
@@ -116,7 +120,7 @@ export function AmcQuotationPrintModal({
       });
       setShowEmailDialog(false);
       onEmailSent?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast({
         type: 'error',
         title: 'Email Delivery Failed',
@@ -252,18 +256,18 @@ export function AmcQuotationPrintModal({
                 Prepared For / Client
               </div>
               <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
-                {(contract as any).customerCompanyName || (contract as any).companyName ? (
+                {contract.customerCompanyName || contract.companyName ? (
                   <>
-                    <div style={{ fontWeight: 800, color: '#0369a1' }}>{(contract as any).customerCompanyName || (contract as any).companyName}</div>
+                    <div style={{ fontWeight: 800, color: '#0369a1' }}>{contract.customerCompanyName || contract.companyName}</div>
                     <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Attn: {contract.customerName}</div>
                   </>
                 ) : (
                   contract.customerName || 'Valued Customer'
                 )}
               </div>
-              {((contract as any).customerGstNumber || (contract as any).gstNumber) && (
+              {(contract.customerGstNumber || contract.gstNumber) && (
                 <div style={{ fontSize: '11.5px', color: '#0f172a', marginTop: 3, fontWeight: 700 }}>
-                  Client GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{(contract as any).customerGstNumber || (contract as any).gstNumber}</span>
+                  Client GSTIN: <span style={{ color: '#0284c7', fontFamily: 'monospace' }}>{contract.customerGstNumber || contract.gstNumber}</span>
                 </div>
               )}
               {contract.customerCode && (

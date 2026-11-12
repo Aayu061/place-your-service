@@ -16,6 +16,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.j
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { normalizeTechnology } from '../utils/technology.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawBrandRow {
   id: string;
@@ -84,8 +85,10 @@ export class MasterDataService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      q = q.or(`name.ilike.%${term}%,code.ilike.%${term}%`);
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        q = q.or(`name.ilike.%${term}%,code.ilike.%${term}%`);
+      }
     }
 
     q = q.order('name', { ascending: true }).range(offset, offset + pageSize - 1);
@@ -146,12 +149,21 @@ export class MasterDataService {
     const name = payload.name.trim();
     const code = payload.code?.trim().toUpperCase() || this.generateBrandCode(name);
 
+    const safeName = sanitizePostgrestFilterTerm(name);
+    const safeCode = sanitizePostgrestFilterTerm(code);
+
     // Check duplicate by name or code (case-insensitive)
-    const { data: existing } = await supabase
-      .from('ac_brands')
-      .select('id, name, code, is_active')
-      .or(`name.ilike.${name},code.eq.${code}`)
-      .maybeSingle();
+    const { data: existing } = safeName || safeCode
+      ? await supabase
+          .from('ac_brands')
+          .select('id, name, code, is_active')
+          .or(
+            [safeName ? `name.ilike.${safeName}` : null, safeCode ? `code.eq.${safeCode}` : null]
+              .filter(Boolean)
+              .join(',')
+          )
+          .maybeSingle()
+      : { data: null };
 
     if (existing) {
       if (existing.is_active === false) {
@@ -193,11 +205,17 @@ export class MasterDataService {
         error?.message?.includes('duplicate key') ||
         error?.message?.includes('uq_ac_brands')
       ) {
-        const { data: dup } = await supabase
-          .from('ac_brands')
-          .select('id, name, code, is_active')
-          .or(`name.ilike.${name},code.eq.${code}`)
-          .maybeSingle();
+        const { data: dup } = safeName || safeCode
+          ? await supabase
+              .from('ac_brands')
+              .select('id, name, code, is_active')
+              .or(
+                [safeName ? `name.ilike.${safeName}` : null, safeCode ? `code.eq.${safeCode}` : null]
+                  .filter(Boolean)
+                  .join(',')
+              )
+              .maybeSingle()
+          : { data: null };
 
         if (dup && !dup.is_active) {
           throw new ConflictError(
@@ -377,10 +395,12 @@ export class MasterDataService {
     }
 
     if (query.search && query.search.trim()) {
-      const term = query.search.trim();
-      q = q.or(
-        `model_number.ilike.%${term}%,ac_type.ilike.%${term}%,technology.ilike.%${term}%,refrigerant.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        q = q.or(
+          `model_number.ilike.%${term}%,ac_type.ilike.%${term}%,technology.ilike.%${term}%,refrigerant.ilike.%${term}%`
+        );
+      }
     }
 
     q = q.order('model_number', { ascending: true }).range(offset, offset + pageSize - 1);

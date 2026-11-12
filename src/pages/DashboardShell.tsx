@@ -118,8 +118,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   };
 
   // Filtered queues for Service Activity view
-  const allRequests = summary?.recentServiceRequests || [];
-  const allSchedules = summary?.recentSchedules || [];
+  const allRequests = useMemo(() => summary?.recentServiceRequests || [], [summary?.recentServiceRequests]);
+  const allSchedules = useMemo(() => summary?.recentSchedules || [], [summary?.recentSchedules]);
   const recentReports = summary?.recentServiceReports || [];
   const todayStr = useMemo(() => getIstTodayIso(), []);
 

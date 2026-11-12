@@ -19,6 +19,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.j
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { essIntegrationService } from './essIntegration.service.js';
+import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 interface RawScheduleJoinRecord {
   id: string;
@@ -284,10 +285,10 @@ export class ScheduleService {
     }
 
     if (query.search && query.search.trim().length > 0) {
-      const term = query.search.trim();
-      dbQuery = dbQuery.or(
-        `schedule_number.ilike.%${term}%,notes.ilike.%${term}%`
-      );
+      const term = sanitizePostgrestFilterTerm(query.search);
+      if (term) {
+        dbQuery = dbQuery.or(`schedule_number.ilike.%${term}%,notes.ilike.%${term}%`);
+      }
     }
 
     // Sort order: by scheduled_date ASC, start_time ASC

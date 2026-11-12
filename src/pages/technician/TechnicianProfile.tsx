@@ -9,7 +9,7 @@ export interface TechnicianProfileProps {
 }
 
 export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileProps) {
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<Awaited<ReturnType<typeof technicianApi.getProfile>> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -205,11 +205,11 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
           </div>
         )}
 
-        {profile?.specializations?.length > 0 && (
+        {(profile?.specializations?.length ?? 0) > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
             <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Specializations</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {profile.specializations.map((spec: string, i: number) => (
+              {(profile?.specializations ?? []).map((spec: string, i: number) => (
                 <span
                   key={i}
                   style={{

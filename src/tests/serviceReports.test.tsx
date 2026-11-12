@@ -1661,14 +1661,16 @@ describe('Service Visit Reports & Completion Management Frontend Suite', () => {
     const handleClose = vi.fn();
     const handleSuccess = vi.fn();
     const createSpy = vi.spyOn(serviceReportApi, 'createReport').mockResolvedValueOnce({
-      ...mockCompletedReport,
-      id: 'rep-pay-1',
-      reportNumber: 'SVR-2026-PAY-01',
-      paymentCollected: true,
-      paymentAmount: 1500,
-      paymentMethod: 'ONLINE',
-      paymentReference: 'UPI-1234567890',
-    } as any);
+      report: {
+        ...mockCompletedReport,
+        id: 'rep-pay-1',
+        reportNumber: 'SVR-2026-PAY-01',
+        paymentCollected: true,
+        paymentAmount: 1500,
+        paymentMethod: 'ONLINE',
+        paymentReference: 'UPI-1234567890',
+      },
+    });
 
     const { container, unmount } = await renderComponent(
       <ServiceVisitReportModal

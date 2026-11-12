@@ -85,6 +85,14 @@ export class EssIntegrationService {
       const webhookUrl = env.ESS_WEBHOOK_URL;
       const webhookSecret = env.ESS_WEBHOOK_SECRET;
 
+      if (!webhookUrl || !webhookSecret) {
+        logger.warn('ESS outbound webhook skipped because ESS_WEBHOOK_URL or ESS_WEBHOOK_SECRET is not configured', {
+          pysRequestId: sr.id,
+          externalReferenceId: sr.external_reference_id,
+        });
+        return;
+      }
+
       logger.info('Dispatching outbound webhook to ESS', {
         webhookUrl,
         pysRequestId: sr.id,
