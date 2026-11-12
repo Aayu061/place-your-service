@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Printer, Mail, Send, FileText, X } from 'lucide-react';
+import { Printer, Mail, Send, FileText, X, MessageCircle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LEGAL_DISCLAIMERS } from '@/config/legalTerms';
 import { operationsApi, PaymentRecord, PaymentTransactionRecord } from '@/services/operationsApi';
+import { buildWhatsAppShareUrl } from '@/services/emailApi';
+import { EmailDeliveryHistoryPanel } from '@/components/email/EmailDeliveryHistoryPanel';
 import { useToast } from '@/components/ui/useToast';
 
 interface PaymentInvoiceModalProps {
@@ -29,6 +31,7 @@ export function PaymentInvoiceModal({
     payment.customers?.email || ''
   );
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailRefreshTick, setEmailRefreshTick] = useState(0);
 
   const totalDue = Number(payment.total_amount_due || 0);
   const totalPaid = Number(payment.total_amount_paid || 0);
@@ -58,11 +61,14 @@ export function PaymentInvoiceModal({
     }
     setIsSendingEmail(true);
     try {
-      await operationsApi.sendPaymentInvoice(payment.id, { recipientEmail: recipientEmail.trim() });
+      const res = await operationsApi.sendPaymentInvoice(payment.id, { recipientEmail: recipientEmail.trim() });
+      setEmailRefreshTick((n) => n + 1);
       showToast({
         type: 'success',
         title: 'Invoice Dispatched',
-        message: `Official invoice & receipt sent to ${recipientEmail.trim()}`,
+        message: res?.sandboxRedirected
+          ? `Sandbox override delivered invoice to ${res.effectiveRecipient}`
+          : `Official invoice & receipt sent to ${recipientEmail.trim()}`,
       });
       setShowEmailDialog(false);
       onPaymentUpdated?.();
@@ -92,9 +98,29 @@ export function PaymentInvoiceModal({
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Extreme Sales &amp; Services · Place Your Service Platform</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button size="sm" variant="secondary" leftIcon={<Printer size={15} />} onClick={handlePrint}>
               Print Invoice
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<MessageCircle size={15} />}
+              onClick={() => {
+                const msg = [
+                  `Extreme Sales & Services — Invoice ${payment.payment_number}`,
+                  `Customer: ${payment.customers?.name || 'Valued Customer'}`,
+                  `Total: INR ${totalDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                  `Paid: INR ${totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                  `Balance Due: INR ${balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                  balanceDue > 0
+                    ? `UPI ID: 7977805245-1@okbizaxis`
+                    : 'Status: Paid in full. Thank you!',
+                ].join('\n');
+                window.open(buildWhatsAppShareUrl(payment.customers?.phone, msg), '_blank', 'noopener,noreferrer');
+              }}
+            >
+              WhatsApp
             </Button>
             <Button size="sm" variant="primary" leftIcon={<Mail size={15} />} onClick={() => setShowEmailDialog((v) => !v)}>
               Email Customer
@@ -126,6 +152,11 @@ export function PaymentInvoiceModal({
                 Cancel
               </Button>
             </form>
+            <EmailDeliveryHistoryPanel
+              entityType="PAYMENT_INVOICE"
+              entityId={payment.id}
+              refreshSignal={emailRefreshTick}
+            />
           </div>
         )}
 

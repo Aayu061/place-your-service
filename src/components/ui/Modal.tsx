@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import { ModalContext, useModal } from './modalContext';
+import { useFocusTrap } from './focusTrap';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -54,6 +55,8 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  useFocusTrap(dialogRef, isOpen);
 
   const requestClose = useCallback(() => {
     if (isDirty) {
@@ -120,6 +123,7 @@ export const Modal: React.FC<ModalProps> = ({
       >
         <div
           ref={dialogRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"

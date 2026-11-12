@@ -18,6 +18,7 @@ import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.j
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
 import { normalizeTechnology } from '../utils/technology.js';
+import { getIstTodayIso } from '../utils/date.js';
 
 interface RawAssetJoinRecord {
   id: string;
@@ -115,7 +116,7 @@ export class AssetService {
       }
 
       // Filter for active contracts and map to asset based on authoritative state and effective dates
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getIstTodayIso();
       const activeContractMap: Record<string, any> = {};
       const amcIdsToFetchSchedules: Set<string> = new Set();
 

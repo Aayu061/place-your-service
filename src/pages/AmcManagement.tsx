@@ -6,8 +6,6 @@ import {
   RefreshCw,
   Eye,
   Edit2,
-  ChevronLeft,
-  ChevronRight,
   Layers,
   Repeat,
   XCircle,
@@ -25,6 +23,7 @@ import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { AmcQuotationPrintModal } from '@/components/amc/AmcQuotationPrintModal';
 import { AmcPlanRateCards } from '@/components/amc/AmcPlanRateCards';
 import { apiClient, ApiError } from '@/services/api/client';
+import { addDaysIstIso, getIstTodayIso } from '@/utils/date';
 import {
   calculateAmcQuote,
   getPlanBaselineAmount,
@@ -32,7 +31,6 @@ import {
   AmcQuoteResult,
   OFFICIAL_ESS_RATE_CHART_PLANS,
 } from '@/domain/amcRateCard';
-import { getSupabaseClient } from '@/services/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import {
   AmcContract,
@@ -42,128 +40,42 @@ import {
   AmcStatus,
   Customer,
   AcAsset,
-  PlannedServiceType,
 } from '@/domain/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { TablePagination } from '@/components/ui/TablePagination';
 import { Drawer } from '@/components/ui/Drawer';
 import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
-import { ModalStepWizard, WizardStepItem } from '@/components/ui/ModalStepWizard';
+import { ModalStepWizard } from '@/components/ui/ModalStepWizard';
 import { getAmcCadenceSlotCount } from '@/utils/amcCadence';
-
-const AMC_WIZARD_STEPS: WizardStepItem[] = [
-  { id: 'terms', label: '1. Commercial Terms', description: 'Customer & billing' },
-  { id: 'allocation', label: '2. PM Allocation', description: 'Dry / Jet visits' },
-  { id: 'assets', label: '3. Covered Equipment', description: 'Protected units' },
-];
-
-interface AmcContractsApiResponse {
-  contracts: AmcContract[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-interface AmcMetricsApiResponse {
-  metrics: {
-    activeContracts: number;
-    expiringSoonContracts: number;
-    expiredContracts: number;
-    coveredAssetsCount: number;
-    upcomingPmCount: number;
-    overduePmCount: number;
-  };
-}
-
-interface AmcPlansApiResponse {
-  plans: AmcPlan[];
-}
-
-interface AmcSingleApiResponse {
-  contract: AmcContract;
-}
-
-interface PmSchedulesApiResponse {
-  schedules: Array<{
-    id: string;
-    scheduleNumber: string;
-    amcId: string | null;
-    assetId: string;
-    assetTag?: string | null;
-    brand?: string | null;
-    modelNumber?: string | null;
-    siteName?: string | null;
-    roomLocation?: string | null;
-    scheduledDate: string;
-    visitNumber: number | null;
-    status: string;
-    plannedServiceType?: PlannedServiceType | null;
-    isSystemGenerated: boolean;
-    notes: string | null;
-  }>;
-}
-
-interface PmGenerationResultResponse {
-  contractId: string;
-  contractNumber: string;
-  generatedCount: number;
-  existingCount: number;
-  skippedCount: number;
-  dateRange: {
-    startDate: string;
-    endDate: string;
-  };
-  generatedDates: string[];
-}
-
-interface CustomersApiResponse {
-  customers: Customer[];
-}
-
-interface SitesApiResponse {
-  sites: Array<{ id: string; siteName: string; isPrimary: boolean }>;
-}
-
-interface AssetsApiResponse {
-  assets: AcAsset[];
-}
-
-export interface AmcManagementProps {
-  onNavigate?: (page: string) => void;
-  preselectedCustomerId?: string;
-}
-
-function isAssetCompatible(asset: AcAsset, plan?: AmcPlan | null): { compatible: boolean; reason?: string } {
-  if (!plan) return { compatible: true };
-  const isSplitOnly = plan.planCode === 'SEMI-COMP-SPLIT' || plan.planCode === 'SAMC-1-SPLIT';
-  const isWindowOnly = plan.planCode === 'SAMC-2-WINDOW';
-  const isWindow = (asset.acType || '').toUpperCase().includes('WINDOW');
-
-  if (isSplitOnly && isWindow) {
-    return { compatible: false, reason: 'Split AC only' };
-  }
-  if (isWindowOnly && !isWindow) {
-    return { compatible: false, reason: 'Window AC only' };
-  }
-  if (plan.maxEquipmentAgeYears) {
-    const age = getAssetAgeYears(asset.installationDate);
-    if (age !== null && age > plan.maxEquipmentAgeYears) {
-      return { compatible: false, reason: `Age ${age}y > ${plan.maxEquipmentAgeYears}y max` };
-    }
-  }
-  return { compatible: true };
-}
+import {
+  AMC_WIZARD_STEPS,
+  AmcContractsApiResponse,
+  AmcManagementProps,
+  AmcMetricsApiResponse,
+  AmcPlansApiResponse,
+  AmcSingleApiResponse,
+  AssetsApiResponse,
+  CustomersApiResponse,
+  PmGenerationResultResponse,
+  PmSchedulesApiResponse,
+  SitesApiResponse,
+  isAssetCompatible,
+} from './amc/amcManagementShared';
+export type { AmcManagementProps } from './amc/amcManagementShared';
 
 export const AmcManagement: React.FC<AmcManagementProps> = ({
   preselectedCustomerId,
 }) => {
   const { showToast } = useToast();
+  const [removeConfirmAssetId, setRemoveConfirmAssetId] = useState<string | null>(null);
+  const [isRemovingAsset, setIsRemovingAsset] = useState(false);
 
   // State
   const [contracts, setContracts] = useState<AmcContract[]>([]);
@@ -249,53 +161,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
     try {
       let fetchedPlans: AmcPlan[] = [];
 
-      // Tier 1: Try Render Express backend
+      // Fetch active/inactive AMC plans from Express backend
       try {
         const plansRes = await apiClient.get<AmcPlansApiResponse>('/amc-contracts/plans?includeInactive=true');
         fetchedPlans = Array.isArray(plansRes) ? plansRes : (plansRes?.plans ?? []);
       } catch (apiErr) {
-        console.warn('[AmcManagement] Render API plans fetch failed or timed out, trying Supabase fallback:', apiErr);
+        console.warn('[AmcManagement] Render API plans fetch failed, preserving official defaults:', apiErr);
       }
 
-      // Tier 2: Try direct Supabase query if backend returned empty or errored
-      if (!fetchedPlans.length) {
-        const supabase = getSupabaseClient();
-        if (supabase) {
-          const { data: sbData, error: sbErr } = await supabase
-            .from('amc_plans')
-            .select('*')
-            .order('default_visits_per_year', { ascending: true });
-
-          if (!sbErr && sbData && sbData.length > 0) {
-            fetchedPlans = sbData.map((row: any) => ({
-              id: row.id,
-              planCode: row.plan_code,
-              name: row.name,
-              category: row.category || 'ORDINARY',
-              description: row.description,
-              coverageSummary: row.coverage_summary,
-              defaultFrequency: row.default_frequency,
-              defaultVisitsPerYear: row.default_visits_per_year,
-              pricingModel: row.pricing_model || 'TIERED_TONNAGE',
-              rateSplitSmall: row.rate_split_small != null ? Number(row.rate_split_small) : null,
-              rateSplitLarge: row.rate_split_large != null ? Number(row.rate_split_large) : null,
-              rateWindowSmall: row.rate_window_small != null ? Number(row.rate_window_small) : null,
-              rateWindowLarge: row.rate_window_large != null ? Number(row.rate_window_large) : null,
-              rateFlat: row.rate_flat != null ? Number(row.rate_flat) : null,
-              gstRatePercent: row.gst_rate_percent != null ? Number(row.gst_rate_percent) : 0,
-              maxEquipmentAgeYears: row.max_equipment_age_years != null ? Number(row.max_equipment_age_years) : null,
-              hasGasCharging: Boolean(row.has_gas_charging),
-              hasSpareParts: Boolean(row.has_spare_parts),
-              hasUnlimitedComplaints: Boolean(row.has_unlimited_complaints),
-              isActive: Boolean(row.is_active),
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-          }
-        }
-      }
-
-      // Tier 3: If both remote calls returned nothing, fallback to OFFICIAL_ESS_RATE_CHART_PLANS
       if (fetchedPlans.length > 0) {
         setPlans(fetchedPlans);
       } else {
@@ -628,7 +501,7 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   const resetForm = () => {
     setFormCustomerId(preselectedCustomerId || '');
     setFormPlanId('');
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIstTodayIso();
     const oneYearLater = new Date(`${today}T00:00:00.000Z`);
     oneYearLater.setUTCFullYear(oneYearLater.getUTCFullYear() + 1);
     oneYearLater.setUTCDate(oneYearLater.getUTCDate() - 1);
@@ -885,17 +758,22 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
   };
 
   // Remove covered asset
-  const handleRemoveAsset = async (assetId: string) => {
+  const handleRemoveAsset = (assetId: string) => {
     if (!detailContract) return;
-    if (!window.confirm('Remove this AC asset from AMC coverage? Future pending visits will be cancelled.')) return;
+    setRemoveConfirmAssetId(assetId);
+  };
 
+  const confirmRemoveAsset = async () => {
+    if (!detailContract || !removeConfirmAssetId) return;
+    setIsRemovingAsset(true);
     try {
-      await apiClient.delete(`/amc-contracts/${detailContract.id}/assets/${assetId}`);
+      await apiClient.delete(`/amc-contracts/${detailContract.id}/assets/${removeConfirmAssetId}`);
       showToast({
         title: 'Asset Removed',
         message: 'AC asset removed from AMC coverage',
         type: 'info',
       });
+      setRemoveConfirmAssetId(null);
       fetchDetailContract(detailContract.id);
       fetchSchedules(detailContract.id);
       fetchContracts();
@@ -906,6 +784,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
         message: err instanceof ApiError ? err.message : 'Error removing asset',
         type: 'error',
       });
+    } finally {
+      setIsRemovingAsset(false);
     }
   };
 
@@ -1473,41 +1353,14 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
 
         {/* Pagination Footer */}
         {total > pageSize && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderTop: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              fontSize: 'var(--text-xs)',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <div>
-              Showing {Math.min((page - 1) * pageSize + 1, total)} to {Math.min(page * pageSize, total)} of {total} contracts
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft style={{ width: '14px', height: '14px' }} />
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-                <ChevronRight style={{ width: '14px', height: '14px' }} />
-              </Button>
-            </div>
-          </div>
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            itemLabel="contracts"
+          />
         )}
       </div>
         </>
@@ -1930,9 +1783,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       onClick={() => {
                         setFormCustomerId(detailContract.customerId);
                         setFormPlanId(detailContract.planId || '');
-                        const prevEnd = new Date(detailContract.endDate);
-                        const nextStart = new Date(prevEnd.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                        const nextEnd = new Date(prevEnd.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                        const nextStart = addDaysIstIso(detailContract.endDate, 1);
+                        const nextEnd = addDaysIstIso(detailContract.endDate, 365);
                         setFormStartDate(nextStart);
                         setFormEndDate(nextEnd);
                         setFormFrequency(detailContract.frequency);
@@ -2228,8 +2080,8 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
                       type="button"
                       onClick={() => {
                         if (formStartDate) {
-                          const d = new Date(formStartDate);
-                          d.setFullYear(d.getFullYear() + 1);
+                          const d = new Date(`${formStartDate.slice(0, 10)}T00:00:00.000Z`);
+                          d.setUTCFullYear(d.getUTCFullYear() + 1);
                           setFormEndDate(d.toISOString().split('T')[0]);
                         }
                       }}
@@ -3701,6 +3553,17 @@ export const AmcManagement: React.FC<AmcManagementProps> = ({
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={Boolean(removeConfirmAssetId)}
+        onClose={() => !isRemovingAsset && setRemoveConfirmAssetId(null)}
+        onConfirm={confirmRemoveAsset}
+        title="Remove Covered AC Asset"
+        message="Remove this AC asset from AMC coverage? Future pending preventive maintenance visits for this asset will be cancelled."
+        confirmLabel="Remove Asset"
+        variant="danger"
+        isLoading={isRemovingAsset}
+      />
     </div>
   );
 };

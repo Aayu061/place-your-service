@@ -1,6 +1,8 @@
 /**
  * Place Your Service — Centralized API HTTP Client
- * Manages communication between Vercel frontend and Render backend API.
+ * Manages communication between Vercel frontend and Render backend API
+ * with timeout guards, idempotent GET retries, cold-start warming notifications,
+ * and single-flight 401 session token refresh.
  */
 
 import { config } from '@/config/env';
@@ -21,9 +23,41 @@ export class ApiError extends Error {
   }
 }
 
+export function getApiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.message) {
+    return err.message;
+  }
+  if (typeof err === 'object' && err !== null) {
+    const anyErr = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+    if (anyErr.response?.data?.error?.message) {
+      return anyErr.response.data.error.message;
+    }
+    if (typeof anyErr.message === 'string' && anyErr.message.trim()) {
+      return anyErr.message;
+    }
+  }
+  return fallback;
+}
+
+const DEFAULT_TIMEOUT_MS = 30000;
+
+function isTestRuntime(): boolean {
+  try {
+    return (
+      (typeof import.meta !== 'undefined' &&
+        (import.meta as { env?: { MODE?: string } }).env?.MODE === 'test') ||
+      (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class ApiClient {
   private baseUrl: string;
   private authToken: string | null = null;
+  private tokenRefresher: (() => Promise<string | null>) | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
   private warmingListeners = new Set<(isWarming: boolean) => void>();
 
   constructor(baseUrl?: string) {
@@ -53,6 +87,28 @@ export class ApiClient {
 
   public getAuthToken(): string | null {
     return this.authToken;
+  }
+
+  public setTokenRefresher(refresher: (() => Promise<string | null>) | null): void {
+    this.tokenRefresher = refresher;
+  }
+
+  private async refreshAccessTokenSingleFlight(): Promise<string | null> {
+    if (!this.tokenRefresher) return null;
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.tokenRefresher()
+        .then((freshToken) => {
+          if (freshToken) {
+            this.setAuthToken(freshToken);
+          }
+          return freshToken;
+        })
+        .catch(() => null)
+        .finally(() => {
+          this.refreshPromise = null;
+        });
+    }
+    return this.refreshPromise;
   }
 
   public setBaseUrl(url: string): void {
@@ -103,86 +159,105 @@ export class ApiClient {
     return headers;
   }
 
-  public async request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-    const { params, headers: customHeaders, retries = 0, retryDelayMs = 2500, ...fetchOptions } = options;
-    const url = this.buildUrl(path, params);
-    const headers = this.buildHeaders(customHeaders);
+  private computeRetryDelay(retryIndex: number, explicitDelayMs?: number): number {
+    if (explicitDelayMs !== undefined) return explicitDelayMs;
+    if (isTestRuntime()) return 1;
+    return Math.min(1000 * 2 ** retryIndex, 4000);
+  }
 
-    let attemptsRemaining = retries;
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number
+  ): Promise<Response> {
+    if (timeoutMs <= 0 || typeof AbortController === 'undefined') {
+      return fetch(url, init);
+    }
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const externalSignal = init.signal;
+
+    const onExternalAbort = () => {
+      controller.abort();
+    };
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+      }
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (timedOut) {
+        throw new Error(`Request timed out after ${timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
+    }
+  }
+
+  private async executeResilientFetch(
+    url: string,
+    headers: Headers,
+    fetchOptions: RequestInit,
+    options: {
+      retries: number;
+      retryDelayMs?: number;
+      timeoutMs: number;
+      skipAuthRefresh: boolean;
+    }
+  ): Promise<Response> {
+    let attemptsRemaining = options.retries;
+    let retryIndex = 0;
     let notifiedWarming = false;
+    let authRetried = false;
 
     while (true) {
       try {
-        const response = await fetch(url, {
-          ...fetchOptions,
-          headers,
-        });
+        const response = await this.fetchWithTimeout(
+          url,
+          { ...fetchOptions, headers },
+          options.timeoutMs
+        );
 
-        const contentType = response.headers.get('content-type');
-        const isJson = contentType && contentType.includes('application/json');
-        const rawData = isJson ? await response.json() : await response.text();
-
-        if (!response.ok) {
-          // If server is cold-starting, proxy returns 502 Bad Gateway, 503 Service Unavailable, or 504 Gateway Timeout
-          const isColdStartGatewayStatus = response.status === 502 || response.status === 503 || response.status === 504;
-          if (isColdStartGatewayStatus && attemptsRemaining > 0) {
-            attemptsRemaining--;
-            if (!notifiedWarming) {
-              notifiedWarming = true;
-              this.notifyWarming(true);
-            }
-            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        if (
+          response.status === 401 &&
+          !options.skipAuthRefresh &&
+          !authRetried &&
+          this.tokenRefresher
+        ) {
+          authRetried = true;
+          const freshToken = await this.refreshAccessTokenSingleFlight();
+          if (freshToken) {
+            headers.set('Authorization', `Bearer ${freshToken}`);
             continue;
           }
-
-          if (notifiedWarming) {
-            this.notifyWarming(false);
-          }
-
-          // Structured API error response
-          if (isJson && typeof rawData === 'object' && rawData !== null && 'error' in rawData) {
-            const errRes = rawData as ApiErrorResponse;
-            throw new ApiError(
-              response.status,
-              errRes.error.code || 'API_ERROR',
-              errRes.error.message || `Request failed with status ${response.status}`,
-              errRes.error.details
-            );
-          }
-
-          // Generic HTTP error response
-          throw new ApiError(
-            response.status,
-            `HTTP_${response.status}`,
-            typeof rawData === 'string' && rawData.length > 0
-              ? rawData
-              : `HTTP error ${response.status}: ${response.statusText}`
-          );
         }
 
-        if (notifiedWarming) {
-          this.notifyWarming(false);
-        }
-
-        // Check if structured payload: { success: true, data: T }
-        if (isJson && typeof rawData === 'object' && rawData !== null && 'data' in rawData && 'success' in rawData) {
-          return (rawData as ApiSuccessResponse<T>).data;
-        }
-
-        return rawData as T;
-      } catch (error) {
-        if (error instanceof ApiError) {
-          throw error;
-        }
-
-        // Transient network error or dropped connection during container spin-up
-        if (attemptsRemaining > 0) {
+        const isColdStartGatewayStatus =
+          response.status === 502 || response.status === 503 || response.status === 504;
+        if (isColdStartGatewayStatus && attemptsRemaining > 0) {
           attemptsRemaining--;
           if (!notifiedWarming) {
             notifiedWarming = true;
             this.notifyWarming(true);
           }
-          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+          const delay = this.computeRetryDelay(retryIndex++, options.retryDelayMs);
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 
@@ -190,11 +265,90 @@ export class ApiClient {
           this.notifyWarming(false);
         }
 
-        // Network / connectivity failure
+        return response;
+      } catch (error) {
+        const externalAborted = Boolean(fetchOptions.signal?.aborted);
+        if (!externalAborted && attemptsRemaining > 0) {
+          attemptsRemaining--;
+          if (!notifiedWarming) {
+            notifiedWarming = true;
+            this.notifyWarming(true);
+          }
+          const delay = this.computeRetryDelay(retryIndex++, options.retryDelayMs);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        if (notifiedWarming) {
+          this.notifyWarming(false);
+        }
+
         const message = error instanceof Error ? error.message : 'Network request failed';
         throw new ApiError(0, 'NETWORK_ERROR', message);
       }
     }
+  }
+
+  private async throwNormalizedHttpError(response: Response, fallbackMessage?: string): Promise<never> {
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    const rawData = isJson ? await response.json() : await response.text();
+
+    if (isJson && typeof rawData === 'object' && rawData !== null && 'error' in rawData) {
+      const errRes = rawData as ApiErrorResponse;
+      throw new ApiError(
+        response.status,
+        errRes.error.code || 'API_ERROR',
+        errRes.error.message || fallbackMessage || `Request failed with status ${response.status}`,
+        errRes.error.details
+      );
+    }
+
+    throw new ApiError(
+      response.status,
+      `HTTP_${response.status}`,
+      typeof rawData === 'string' && rawData.length > 0
+        ? rawData
+        : fallbackMessage || `HTTP error ${response.status}: ${response.statusText}`
+    );
+  }
+
+  public async request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
+    const {
+      params,
+      headers: customHeaders,
+      retries,
+      retryDelayMs,
+      timeoutMs = DEFAULT_TIMEOUT_MS,
+      skipAuthRefresh = false,
+      ...fetchOptions
+    } = options;
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    const resolvedRetries = retries ?? (method === 'GET' ? 2 : 0);
+
+    const url = this.buildUrl(path, params);
+    const headers = this.buildHeaders(customHeaders);
+
+    const response = await this.executeResilientFetch(url, headers, fetchOptions, {
+      retries: resolvedRetries,
+      retryDelayMs,
+      timeoutMs,
+      skipAuthRefresh,
+    });
+
+    if (!response.ok) {
+      await this.throwNormalizedHttpError(response);
+    }
+
+    const contentType = response.headers.get('content-type');
+    const isJson = contentType && contentType.includes('application/json');
+    const rawData = isJson ? await response.json() : await response.text();
+
+    if (isJson && typeof rawData === 'object' && rawData !== null && 'data' in rawData && 'success' in rawData) {
+      return (rawData as ApiSuccessResponse<T>).data;
+    }
+
+    return rawData as T;
   }
 
   public async get<T = unknown>(path: string, options?: RequestOptions): Promise<T> {
@@ -231,23 +385,21 @@ export class ApiClient {
 
   public async download(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<Blob> {
     const url = this.buildUrl(path, params);
-    const headers = this.buildHeaders({ Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json' });
-    try {
-      const response = await fetch(url, { method: 'GET', headers });
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        const raw = contentType.includes('application/json') ? await response.json() : await response.text();
-        if (typeof raw === 'object' && raw !== null && 'error' in raw) {
-          const failure = raw as ApiErrorResponse;
-          throw new ApiError(response.status, failure.error.code || 'API_ERROR', failure.error.message || 'Download failed', failure.error.details);
-        }
-        throw new ApiError(response.status, `HTTP_${response.status}`, typeof raw === 'string' ? raw : 'Download failed');
-      }
-      return await response.blob();
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      throw new ApiError(0, 'NETWORK_ERROR', error instanceof Error ? error.message : 'Download failed');
+    const headers = this.buildHeaders({
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json',
+    });
+
+    const response = await this.executeResilientFetch(url, headers, { method: 'GET' }, {
+      retries: 2,
+      timeoutMs: DEFAULT_TIMEOUT_MS,
+      skipAuthRefresh: false,
+    });
+
+    if (!response.ok) {
+      await this.throwNormalizedHttpError(response, 'Download failed');
     }
+
+    return await response.blob();
   }
 }
 

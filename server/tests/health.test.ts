@@ -55,4 +55,14 @@ describe('GET /api/v1/health (Health & Readiness Endpoints)', () => {
     expect(JSON.stringify(res.body)).not.toContain('password');
     expect(JSON.stringify(res.body)).not.toContain('service_role');
   });
+
+  it('GET / and HEAD / return 200 OK for platform root probes', async () => {
+    const getRes = await request(app).get('/');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.success).toBe(true);
+    expect(getRes.body.status).toBe('ok');
+
+    const headRes = await request(app).head('/');
+    expect(headRes.status).toBe(200);
+  });
 });

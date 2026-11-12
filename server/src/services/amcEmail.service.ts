@@ -1,8 +1,8 @@
-import { env } from '../config/env.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { BadRequestError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { logActivity } from './audit.service.js';
+import { emailOutboxService } from './email/emailOutbox.service.js';
 
 interface QuotationEmailDelivery {
   id: string;
@@ -162,7 +162,13 @@ export class AmcEmailService {
     contractId: string,
     recipientEmail: string,
     actorId: string
-  ): Promise<{ success: boolean; messageId?: string }> {
+  ): Promise<{
+    success: boolean;
+    messageId?: string;
+    delivery?: unknown;
+    sandboxRedirected?: boolean;
+    effectiveRecipient?: string;
+  }> {
     const supabase = getSupabaseClient();
 
     // 1. Fetch contract with customer details
@@ -192,57 +198,39 @@ export class AmcEmailService {
     const customerName = contract.customers?.name || 'Valued Customer';
     const emailData = formatAmcQuotationEmail(contract, customerName, assets);
 
-    let providerMessageId: string | undefined;
-    let status: 'SENT' | 'FAILED' = 'SENT';
-    let errorMessage: string | null = null;
+    const dispatchResult = await emailOutboxService.enqueueAndSend({
+      entityType: 'AMC_QUOTATION',
+      entityId: contractId,
+      templateKey: 'amc_quotation',
+      recipientEmail,
+      recipientName: customerName,
+      subject: emailData.subject,
+      html: emailData.html,
+      text: emailData.text,
+      tags: [{ name: 'contract_number', value: String(contract.contract_number || contractId) }],
+      actorId,
+    });
 
-    // Send using Resend if configured, else log in development
-    if (env.RESEND_API_KEY) {
-      try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: env.RESEND_FROM_EMAIL || 'Place Your Service <support@placeyourservice.internal>',
-            to: recipientEmail,
-            subject: emailData.subject,
-            html: emailData.html,
-            text: emailData.text,
-          }),
-        });
+    const providerMessageId = dispatchResult.delivery.provider_message_id || undefined;
+    const status = dispatchResult.delivery.status === 'FAILED' ? 'FAILED' : 'SENT';
+    const errorMessage = dispatchResult.delivery.last_error;
 
-        const resData = (await response.json()) as any;
-        if (!response.ok) {
-          throw new Error(resData?.message || `Resend returned HTTP ${response.status}`);
-        }
-        providerMessageId = resData?.id;
-      } catch (err: any) {
-        logger.error('Failed to dispatch AMC quotation email via Resend', { error: err.message, contractId });
-        status = 'FAILED';
-        errorMessage = err.message;
-      }
-    } else {
-      providerMessageId = `dev-amc-${Date.now()}`;
-      logger.info('Development transport recorded AMC quotation email dispatch', {
-        contractId,
-        recipientEmail,
+    try {
+      await supabase.from('amc_quotation_email_deliveries').insert({
+        amc_id: contractId,
+        recipient_email: recipientEmail,
         subject: emailData.subject,
+        provider_message_id: providerMessageId || null,
+        status,
+        error_message: errorMessage,
+        sent_by: actorId,
+      });
+    } catch (mirrorErr) {
+      logger.warn('Failed to write legacy amc_quotation_email_deliveries audit row', {
+        contractId,
+        error: mirrorErr instanceof Error ? mirrorErr.message : String(mirrorErr),
       });
     }
-
-    // Record delivery audit
-    await supabase.from('amc_quotation_email_deliveries').insert({
-      amc_id: contractId,
-      recipient_email: recipientEmail,
-      subject: emailData.subject,
-      provider_message_id: providerMessageId || null,
-      status,
-      error_message: errorMessage,
-      sent_by: actorId,
-    });
 
     await logActivity({
       actorProfileId: actorId,
@@ -251,17 +239,26 @@ export class AmcEmailService {
       entityId: contractId,
       details: {
         recipientEmail,
-        status,
+        effectiveRecipient: dispatchResult.effectiveRecipient,
+        sandboxRedirected: dispatchResult.sandboxRedirected,
+        status: dispatchResult.delivery.status,
         providerMessageId: providerMessageId || null,
+        deliveryId: dispatchResult.delivery.id,
         subject: emailData.subject,
       },
     });
 
     if (status === 'FAILED') {
-      throw new BadRequestError(`Failed to send quotation email: ${errorMessage}`);
+      throw new BadRequestError(`Failed to send quotation email: ${errorMessage || 'Email delivery failed'}`);
     }
 
-    return { success: true, messageId: providerMessageId };
+    return {
+      success: true,
+      messageId: providerMessageId,
+      delivery: dispatchResult.delivery,
+      sandboxRedirected: dispatchResult.sandboxRedirected,
+      effectiveRecipient: dispatchResult.effectiveRecipient,
+    };
   }
 }
 

@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -7,12 +8,25 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { requestLoggerMiddleware } from './middleware/logger.js';
 import { errorHandlerMiddleware, notFoundHandler } from './middleware/errorHandler.js';
 import apiV1Router from './routes/index.js';
+import webhookRouter from './routes/webhook.routes.js';
 
 export function createApp(): Express {
   const app = express();
 
   // Trust first proxy hop (Render / Cloudflare / reverse proxy) for accurate IP resolution in express-rate-limit
   app.set('trust proxy', 1);
+
+  // Compress JSON/text API responses while skipping already-compressed binary exports
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.headers['x-no-compression']) return false;
+        const ct = String(res.getHeader('Content-Type') || '');
+        if (ct.includes('spreadsheetml') || ct.includes('octet-stream')) return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
 
   // 1. Security Headers via Helmet
   app.use(
@@ -49,6 +63,8 @@ export function createApp(): Express {
   );
 
   // 3. Body Parsing
+  app.use('/api/v1/webhooks', webhookRouter);
+
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
@@ -79,13 +95,26 @@ export function createApp(): Express {
   });
   app.use('/api/', limiter);
 
-  // 7. Versioned API Routes
+  // 7. Root service status handlers for platform HTTP/HEAD probes (e.g., Render startup checks)
+  app.head('/', (_req, res) => {
+    res.status(200).end();
+  });
+  app.get('/', (_req, res) => {
+    res.status(200).json({
+      success: true,
+      service: 'place-your-service-api',
+      status: 'ok',
+      health: '/api/v1/health',
+    });
+  });
+
+  // 8. Versioned API Routes
   app.use('/api/v1', apiV1Router);
 
-  // 8. 404 Not Found Handler
+  // 9. 404 Not Found Handler
   app.use(notFoundHandler);
 
-  // 9. Centralized Error Handler
+  // 10. Centralized Error Handler
   app.use(errorHandlerMiddleware);
 
   return app;

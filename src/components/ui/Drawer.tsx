@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Button } from './Button';
 import { DrawerContext, useDrawer } from './drawerContext';
+import { useFocusTrap } from './focusTrap';
 export type { DrawerContextType } from './drawerContext';
 
 export interface DrawerProps {
@@ -64,7 +65,10 @@ export const Drawer: React.FC<DrawerProps> = ({
   discardMessage,
   closeLabel = 'Close drawer',
 }) => {
+  const drawerRef = useRef<HTMLDivElement>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  useFocusTrap(drawerRef, isOpen);
 
   const requestClose = useCallback(() => {
     if (isDirty) {
@@ -130,6 +134,8 @@ export const Drawer: React.FC<DrawerProps> = ({
         aria-hidden="true"
       />
       <div
+        ref={drawerRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"

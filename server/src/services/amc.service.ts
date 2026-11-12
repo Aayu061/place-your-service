@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getSupabaseClient } from '../lib/supabase.js';
+import { addDaysIstIso, getIstTodayIso } from '../utils/date.js';
 import {
   calculateAmcQuote,
   getPlanBaselineAmount,
@@ -514,8 +515,8 @@ export class AmcService {
    */
   async getActiveCoverageMetrics(): Promise<Pick<AmcDashboardMetrics, 'activeContracts' | 'expiringSoonContracts' | 'expiredContracts' | 'coveredAssetsCount'>> {
     const supabase = getSupabaseClient();
-    const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const today = getIstTodayIso();
+    const thirtyDaysLater = addDaysIstIso(today, 30);
 
     // Contracts
     const { data: contracts, error: cErr } = await supabase
@@ -572,7 +573,7 @@ export class AmcService {
    */
   async getDashboardMetrics(): Promise<AmcDashboardMetrics> {
     const supabase = getSupabaseClient();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIstTodayIso();
     const coverageMetrics = await this.getActiveCoverageMetrics();
 
     // Only active AMC obligations belong to the AMC due-visit KPI.
@@ -657,8 +658,8 @@ export class AmcService {
       dbQuery = dbQuery.or(`contract_number.ilike.${s},notes.ilike.${s}`);
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const today = getIstTodayIso();
+    const thirtyDaysLater = addDaysIstIso(today, 30);
 
     if (query.isExpiringSoon) {
       dbQuery = dbQuery.gte('end_date', today).lte('end_date', thirtyDaysLater).eq('status', 'ACTIVE');
@@ -901,8 +902,8 @@ export class AmcService {
       `)
       .eq('amc_id', id);
 
-    const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysLater = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const today = getIstTodayIso();
+    const thirtyDaysLater = addDaysIstIso(today, 30);
 
     let completedVisitsCount = 0;
     let nextPmDate: string | null = null;
@@ -1748,7 +1749,7 @@ export class AmcService {
       }
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIstTodayIso();
 
     const { prefix, nextSeq: startSeq } = await this.getNextScheduleSequence();
     let currentSeq = startSeq;
@@ -1897,7 +1898,7 @@ export class AmcService {
       throw new BadRequestError('Failed to fetch PM schedules');
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getIstTodayIso();
 
     return (data || []).map((row: any) => {
       const ac = row.ac_assets;

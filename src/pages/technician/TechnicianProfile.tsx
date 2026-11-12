@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Phone, Mail, LogOut, ArrowLeft } from 'lucide-react';
+import { Phone, Mail, LogOut, ArrowLeft, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { technicianApi } from '@/services/technicianApi';
+import { getApiErrorMessage } from '@/services/api/client';
 
 export interface TechnicianProfileProps {
   onLogout: () => void;
@@ -10,6 +11,32 @@ export interface TechnicianProfileProps {
 export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileProps) {
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [pinUpdating, setPinUpdating] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccess, setPinSuccess] = useState<string | null>(null);
+
+  const handleUpdatePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError(null);
+    setPinSuccess(null);
+    if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin)) {
+      setPinError('Both current and new PINs must be exactly 4 numeric digits.');
+      return;
+    }
+    try {
+      setPinUpdating(true);
+      await technicianApi.updatePin(currentPin, newPin);
+      setCurrentPin('');
+      setNewPin('');
+      setPinSuccess('Field login PIN updated successfully.');
+    } catch (err: unknown) {
+      setPinError(getApiErrorMessage(err, 'Failed to update field PIN.'));
+    } finally {
+      setPinUpdating(false);
+    }
+  };
 
   useEffect(() => {
     technicianApi
@@ -202,6 +229,93 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
           </div>
         )}
       </div>
+
+      {/* Update 4-Digit PIN */}
+      <form
+        onSubmit={handleUpdatePin}
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 'var(--space-4)',
+          boxShadow: 'var(--shadow-xs)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-3)',
+          fontSize: 'var(--text-xs)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--text-primary)' }}>
+          <Lock size={14} style={{ color: 'var(--color-brand)' }} />
+          <span>Update 4-Digit Field PIN</span>
+        </div>
+
+        {pinError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-error-text)', backgroundColor: 'var(--color-error-bg)', padding: '8px', borderRadius: 'var(--radius-sm)' }}>
+            <AlertCircle size={14} />
+            <span>{pinError}</span>
+          </div>
+        )}
+        {pinSuccess && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-success-text)', backgroundColor: 'var(--color-success-bg)', padding: '8px', borderRadius: 'var(--radius-sm)' }}>
+            <CheckCircle2 size={14} />
+            <span>{pinSuccess}</span>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="Current PIN"
+            aria-label="Current 4-digit PIN"
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-xs)',
+            }}
+          />
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="New PIN"
+            aria-label="New 4-digit PIN"
+            value={newPin}
+            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)',
+              backgroundColor: 'var(--bg-surface-subtle)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-xs)',
+            }}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={pinUpdating}
+          style={{
+            padding: '9px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-brand)',
+            backgroundColor: 'var(--color-brand)',
+            color: '#ffffff',
+            fontWeight: 700,
+            fontSize: 'var(--text-xs)',
+            cursor: pinUpdating ? 'wait' : 'pointer',
+          }}
+        >
+          {pinUpdating ? 'Updating PIN...' : 'Update Field PIN'}
+        </button>
+      </form>
 
       {/* Logout Action */}
       <button

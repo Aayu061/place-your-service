@@ -42,6 +42,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
 import { formatDate } from '@/utils/formatters';
+import { addDaysIstIso, getIstTodayIso } from '@/utils/date';
 
 interface ServiceScheduleManagementProps {
   onNavigate?: (module: string) => void;
@@ -67,7 +68,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
   // Operational Date for "Today" and "Calendar" views
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    return getIstTodayIso();
   });
 
   // Data states
@@ -159,7 +160,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
     plannedServiceType: PlannedServiceType | '';
     notes: string;
   }>({
-    scheduledDate: new Date().toISOString().slice(0, 10),
+    scheduledDate: getIstTodayIso(),
     startTime: '09:00',
     endTime: '11:00',
     durationMinutes: 120,
@@ -529,7 +530,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const openCreateForUnscheduled = (item: UnscheduledWorkItem) => {
     setActiveUnscheduledItem(item);
     setCreateForm({
-      scheduledDate: item.dueDate || new Date().toISOString().slice(0, 10),
+      scheduledDate: item.dueDate || getIstTodayIso(),
       startTime: '09:00',
       endTime: '11:00',
       durationMinutes: item.suggestedDurationMinutes || 120,
@@ -604,7 +605,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
   const metrics = useMemo(() => {
     const list = Array.isArray(schedules) ? schedules : [];
     const queue = Array.isArray(unscheduledItems) ? unscheduledItems : [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getIstTodayIso();
     const todayJobs = list.filter((s) => s.scheduledDate === todayStr && s.status !== 'CANCELLED');
     const assignedJobs = list.filter((s) => Boolean(s.technicianId) && s.status !== 'CANCELLED');
     const unassignedJobs = list.filter((s) => !s.technicianId && s.status !== 'CANCELLED');
@@ -634,9 +635,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
 
   // Date stepper
   const handleDateShift = (days: number) => {
-    const curr = new Date(selectedDate);
-    curr.setDate(curr.getDate() + days);
-    setSelectedDate(curr.toISOString().slice(0, 10));
+    setSelectedDate(addDaysIstIso(selectedDate, days));
   };
 
   return (
@@ -890,7 +889,7 @@ export const ServiceScheduleManagement: React.FC<ServiceScheduleManagementProps>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+              onClick={() => setSelectedDate(getIstTodayIso())}
             >
               Today
             </Button>

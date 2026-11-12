@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../lib/supabase.js';
 import { BadRequestError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { logActivity } from './audit.service.js';
+import { EmailDeliveryError, resendTransport } from './email/emailTransport.service.js';
 
 interface EmailDelivery {
   id: string;
@@ -61,45 +62,38 @@ class DevelopmentLogTransport implements EmailTransport {
 
 class ResendEmailTransport implements EmailTransport {
   async send(delivery: EmailDelivery): Promise<TransportResult> {
-    if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL) {
-      return { success: false, transport: 'resend', error: 'Resend API key and sender address are not configured.', retryable: false };
-    }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': `pys-service-report-${delivery.id}`,
-        },
-        body: JSON.stringify({
-          from: env.RESEND_FROM_EMAIL,
-          to: [delivery.recipient_email],
-          subject: delivery.subject,
-          html: delivery.html_body,
-          text: delivery.text_body,
-        }),
+      const result = await resendTransport.send({
+        to: delivery.recipient_email,
+        subject: delivery.subject,
+        html: delivery.html_body,
+        text: delivery.text_body,
+        tags: [
+          { name: 'entity_type', value: 'SERVICE_REPORT' },
+          { name: 'entity_id', value: delivery.service_report_id },
+        ],
+        idempotencyKey: `pys-service-report-${delivery.id}`,
       });
-      const body = await response.json().catch(() => ({})) as { id?: string; message?: string; error?: { message?: string } };
-      if (response.ok) return { success: true, transport: 'resend', providerMessageId: body.id, retryable: false };
-      const retryable = response.status === 429 || response.status >= 500;
       return {
-        success: false, transport: 'resend', retryable,
-        error: body.message || body.error?.message || `Resend returned HTTP ${response.status}`,
+        success: true,
+        transport: result.transport,
+        providerMessageId: result.providerMessageId,
+        retryable: false,
       };
     } catch (error) {
-      return { success: false, transport: 'resend', retryable: true, error: error instanceof Error ? error.message : 'Resend request failed' };
-    } finally {
-      clearTimeout(timeout);
+      const retryable = error instanceof EmailDeliveryError ? error.retryable : true;
+      return {
+        success: false,
+        transport: 'resend',
+        retryable,
+        error: error instanceof Error ? error.message : 'Resend request failed',
+      };
     }
   }
 }
 
 function getEmailTransport(): EmailTransport {
-  if (env.NODE_ENV !== 'production' && (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL)) return new DevelopmentLogTransport();
+  if (env.NODE_ENV !== 'production' && !env.RESEND_API_KEY) return new DevelopmentLogTransport();
   return new ResendEmailTransport();
 }
 

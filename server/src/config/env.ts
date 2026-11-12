@@ -15,7 +15,17 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid URL'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(10, 'SUPABASE_SERVICE_ROLE_KEY must be provided'),
   RESEND_API_KEY: z.string().min(10).optional(),
-  RESEND_FROM_EMAIL: z.string().email().optional(),
+  RESEND_FROM_EMAIL: z
+    .string()
+    .regex(/^([^<>]+<\s*[^\s@<>]+@[^\s@<>]+\s*>|[^\s@<>]+@[^\s@<>]+)$/)
+    .optional(),
+  RESEND_REPLY_TO: z.string().email().optional(),
+  RESEND_SANDBOX_OVERRIDE_TO: z.string().email().optional(),
+  RESEND_WEBHOOK_SECRET: z.string().min(8).optional(),
+  RESEND_INBOUND_DOMAIN: z.string().min(3).optional(),
+  EMAIL_AUTO_SEND_REPORT_ON_VERIFY: z.enum(['true', 'false']).optional(),
+  EMAIL_AUTO_SEND_AMC_REMINDERS: z.enum(['true', 'false']).optional(),
+  EMAIL_AUTO_SEND_RECEIPT_ON_PAID: z.enum(['true', 'false']).optional(),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(900000), // 15 minutes
   RATE_LIMIT_MAX: z.coerce.number().default(100),
   ESS_WEBHOOK_URL: z
@@ -40,8 +50,15 @@ function loadEnv(): ServerEnv {
     SUPABASE_URL: process.env.SUPABASE_URL || (isTest ? 'https://test-placeholder.supabase.co' : undefined),
     SUPABASE_SERVICE_ROLE_KEY:
       process.env.SUPABASE_SERVICE_ROLE_KEY || (isTest ? 'mock-test-service-role-key-12345' : undefined),
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
-    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    RESEND_API_KEY: process.env.RESEND_API_KEY?.trim() || undefined,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL?.trim() || undefined,
+    RESEND_REPLY_TO: process.env.RESEND_REPLY_TO?.trim() || undefined,
+    RESEND_SANDBOX_OVERRIDE_TO: process.env.RESEND_SANDBOX_OVERRIDE_TO?.trim() || undefined,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET?.trim() || undefined,
+    RESEND_INBOUND_DOMAIN: process.env.RESEND_INBOUND_DOMAIN?.trim() || undefined,
+    EMAIL_AUTO_SEND_REPORT_ON_VERIFY: process.env.EMAIL_AUTO_SEND_REPORT_ON_VERIFY?.trim() || undefined,
+    EMAIL_AUTO_SEND_AMC_REMINDERS: process.env.EMAIL_AUTO_SEND_AMC_REMINDERS?.trim() || undefined,
+    EMAIL_AUTO_SEND_RECEIPT_ON_PAID: process.env.EMAIL_AUTO_SEND_RECEIPT_ON_PAID?.trim() || undefined,
     RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS || '900000',
     RATE_LIMIT_MAX: process.env.RATE_LIMIT_MAX || '100',
     ESS_WEBHOOK_URL:

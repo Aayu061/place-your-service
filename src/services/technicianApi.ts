@@ -162,9 +162,12 @@ export const technicianApi = {
     return response;
   },
 
-  async getJobs(date?: string): Promise<TechJob[]> {
+  async getJobs(date?: string, includeOverdue = false): Promise<TechJob[]> {
     const token = this.getToken();
-    const query = date ? `?date=${encodeURIComponent(date)}` : '';
+    const params = new URLSearchParams();
+    if (date) params.set('date', date);
+    if (includeOverdue) params.set('includeOverdue', 'true');
+    const query = params.toString() ? `?${params.toString()}` : '';
     const response = await apiClient.get<TechJob[]>(`/api/v1/tech/jobs${query}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -222,6 +225,33 @@ export const technicianApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response;
+  },
+
+  async updatePin(currentPin: string, newPin: string): Promise<{ updated: boolean }> {
+    const token = this.getToken();
+    return apiClient.patch<{ updated: boolean }>(
+      '/api/v1/tech/pin',
+      { currentPin, newPin },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  },
+
+  async createMediaUploadUrl(body: {
+    scope: 'before-photo' | 'after-photo' | 'signature';
+    mimeType: 'image/jpeg' | 'image/jpg' | 'image/png' | 'image/webp';
+    entityRef?: string;
+  }): Promise<{ bucket: string; path: string; signedUrl: string; token: string; expiresInSeconds: number }> {
+    const token = this.getToken();
+    return apiClient.post('/api/v1/tech/media/upload-url', body, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  async getMediaSignedUrl(path: string): Promise<{ signedUrl: string }> {
+    const token = this.getToken();
+    return apiClient.get(`/api/v1/tech/media/signed-url?path=${encodeURIComponent(path)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
 
   async getWorkSummary(techId: string): Promise<TechWorkSummary> {

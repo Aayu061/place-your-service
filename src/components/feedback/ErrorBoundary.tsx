@@ -24,9 +24,29 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('[Application Error Caught by ErrorBoundary]:', error, errorInfo);
   }
 
-  private handleReset = () => {
+  private handleTryAgain = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  private handleReload = () => {
     this.setState({ hasError: false, error: null });
     window.location.reload();
+  };
+
+  private handleClearCacheAndReset = () => {
+    try {
+      const keys = Object.keys(window.localStorage);
+      for (const k of keys) {
+        if (k.startsWith('pys_') || k.startsWith('sb-')) {
+          window.localStorage.removeItem(k);
+        }
+      }
+      window.sessionStorage?.clear();
+    } catch {
+      // Ignore storage access errors in restricted contexts
+    }
+    this.setState({ hasError: false, error: null });
+    window.location.assign('/');
   };
 
   public render() {
@@ -71,25 +91,35 @@ export class ErrorBoundary extends Component<Props, State> {
             <p style={{ marginBottom: 'var(--space-6)' }}>
               An unexpected error occurred while rendering this view. Your session and operational data are safe.
             </p>
-            {this.state.error && (
-              <pre
+            {this.state.error?.message && (
+              <div
+                role="alert"
                 style={{
-                  backgroundColor: 'var(--color-neutral-100)',
+                  backgroundColor: 'var(--bg-surface-subtle)',
+                  border: '1px solid var(--border-default)',
                   padding: 'var(--space-3)',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: 'var(--text-xs)',
                   textAlign: 'left',
-                  overflowX: 'auto',
                   marginBottom: 'var(--space-6)',
-                  color: 'var(--color-neutral-800)',
+                  color: 'var(--text-secondary)',
+                  wordBreak: 'break-word',
                 }}
               >
                 {this.state.error.message}
-              </pre>
+              </div>
             )}
-            <Button variant="primary" onClick={this.handleReset}>
-              Reload Application
-            </Button>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button variant="primary" onClick={this.handleTryAgain}>
+                Try Again
+              </Button>
+              <Button variant="secondary" onClick={this.handleReload}>
+                Reload Application
+              </Button>
+              <Button variant="outline" onClick={this.handleClearCacheAndReset}>
+                Clear Local Cache &amp; Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       );

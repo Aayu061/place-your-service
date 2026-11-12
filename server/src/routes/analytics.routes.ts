@@ -8,5 +8,6 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/dashboard-summary', analyticsController.getDashboardSummary.bind(analyticsController));
+router.get('/overall', analyticsController.getOverallAnalytics.bind(analyticsController));
 
 export default router;

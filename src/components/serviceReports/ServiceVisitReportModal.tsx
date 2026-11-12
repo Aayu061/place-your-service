@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ServiceSchedule,
   ServiceVisitType,
   ServiceVisitOutcome,
   PlannedServiceType,
   PerformedServiceType,
   CreateServiceReportPayload,
-  ServiceVisitReport,
   AcAsset,
 } from '@/domain/types';
 import {
@@ -16,6 +14,7 @@ import {
 } from '@/domain/breakdownTypes';
 import { serviceReportApi } from '@/services/serviceReportApi';
 import { apiClient, ApiError } from '@/services/api/client';
+import { getIstTodayIso } from '@/utils/date';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -41,56 +40,14 @@ import {
 } from 'lucide-react';
 import { UpiQrCode } from '@/components/common/UpiQrCode';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
-
-export interface ServiceVisitReportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  schedule?: ServiceSchedule | null;
-  initialReport?: ServiceVisitReport | null;
-  mode?: 'create' | 'edit';
-  onSuccess: () => void;
-}
-
-interface AssetReportState {
-  assetId: string;
-  assetTag: string;
-  brand: string;
-  modelNumber: string;
-  roomLocation: string;
-  faultReported: string;
-  diagnosisFindings: string;
-  workPerformed: string;
-  assetOutcome: ServiceVisitOutcome;
-  finalCondition: string;
-  refrigerantAdded: boolean;
-  refrigerantQtyKg: string;
-  notes: string;
-}
-
-interface PartItemState {
-  id: string;
-  assetId?: string;
-  itemName: string;
-  partNumber: string;
-  quantity: number;
-  reason: string;
-  acCondition: string;
-  isRevisitRequired: boolean;
-}
-
-interface RepairItemState {
-  id: string;
-  assetId?: string;
-  itemName: string;
-  reason: string;
-  diagnosis: string;
-  workCompleted: string;
-  isApprovalRequired: boolean;
-  isSpecialistRequired: boolean;
-  isRevisitRequired: boolean;
-}
-
-type FormStatus = 'IDLE' | 'VALIDATING' | 'SUBMITTING' | 'SUCCESS' | 'ERROR';
+import {
+  AssetReportState,
+  FormStatus,
+  PartItemState,
+  RepairItemState,
+  ServiceVisitReportModalProps,
+} from './serviceReportModalTypes';
+export type { ServiceVisitReportModalProps } from './serviceReportModalTypes';
 
 export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = ({
   isOpen,
@@ -141,6 +98,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'ONLINE' | 'UPI' | 'CHEQUE' | 'NEFT'>('CASH');
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const [emailCopyToCustomer, setEmailCopyToCustomer] = useState<boolean>(false);
   const isNonCashPayment =
     paymentMethod === 'ONLINE' ||
     paymentMethod === 'UPI' ||
@@ -294,7 +252,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       } else if (schedule) {
         setReportNumber('');
         setAssistantName(schedule.assistantName || '');
-        setVisitDate(schedule.scheduledDate || new Date().toISOString().slice(0, 10));
+        setVisitDate(schedule.scheduledDate || getIstTodayIso());
         setStartTime((schedule.startTime || '').slice(0, 5));
         setEndTime((schedule.endTime || '').slice(0, 5));
         setPrimaryOutcome('COMPLETED');
@@ -712,8 +670,10 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
             : [],
       };
 
+      let savedReportId: string | undefined;
+
       if (mode === 'edit' && initialReport) {
-        await serviceReportApi.updateReport(initialReport.id, {
+        const updated = await serviceReportApi.updateReport(initialReport.id, {
           correctionReason: correctionReason.trim(),
           reportNumber: trimmedNumber,
           serviceDate: visitDate,
@@ -736,6 +696,7 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           paymentReference: paymentCollected && isNonCashPayment ? paymentReference.trim() || null : null,
           paymentNotes: paymentNotes.trim() || null,
         });
+        savedReportId = updated?.report?.id || initialReport.id;
 
         setFormStatus('SUCCESS');
         showToast({
@@ -744,7 +705,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           message: `Service Visit Report #${trimmedNumber} updated successfully`,
         });
       } else {
-        await serviceReportApi.createReport(payload);
+        const created = await serviceReportApi.createReport(payload);
+        savedReportId = created?.report?.id;
 
         setFormStatus('SUCCESS');
         showToast({
@@ -752,6 +714,23 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           title: 'Visit Report Saved',
           message: `Service Visit Report #${trimmedNumber} persisted successfully (${primaryOutcome})`,
         });
+      }
+
+      if (emailCopyToCustomer && savedReportId) {
+        try {
+          await serviceReportApi.sendReportEmail(savedReportId);
+          showToast({
+            type: 'info',
+            title: 'Report Email Queued',
+            message: `Customer copy for report #${trimmedNumber} queued via Resend.`,
+          });
+        } catch (emailErr: unknown) {
+          showToast({
+            type: 'warning',
+            title: 'Report Saved, Email Failed',
+            message: emailErr instanceof Error ? emailErr.message : 'Report saved cleanly, but emailing customer failed.',
+          });
+        }
       }
 
       onSuccess();
@@ -811,10 +790,20 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
       maxWidth="1040px"
       isDirty={isFormDirty}
       footer={({ requestClose }) => (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ShieldCheck size={16} style={{ color: 'var(--color-success-solid)' }} />
-            <span>All fields with asterisk (*) are required for persistence</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ShieldCheck size={16} style={{ color: 'var(--color-success-solid)' }} />
+              <span>All fields with asterisk (*) are required for persistence</span>
+            </div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500 }}>
+              <input
+                type="checkbox"
+                checked={emailCopyToCustomer}
+                onChange={(e) => setEmailCopyToCustomer(e.target.checked)}
+              />
+              Email copy to customer
+            </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <Button

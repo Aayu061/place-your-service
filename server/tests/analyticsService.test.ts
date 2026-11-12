@@ -14,6 +14,7 @@ function createAnalyticsClient() {
       not: vi.fn((column: string, operator: string, value: unknown) => { state.filters[`${column}:not:${operator}`] = value; return builder; }),
       order: vi.fn(() => builder),
       limit: vi.fn(() => builder),
+      range: vi.fn(() => builder),
       then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => {
         let data: unknown[] = [];
         let count = 0;
@@ -27,7 +28,9 @@ function createAnalyticsClient() {
           if (statuses?.includes('COMPLETED')) count = 1;
           else if (state.filters['scheduled_date:lt']) count = 1;
           else if (state.filters.technician_id === 'not') count = 1;
-          else count = 3;
+          else if (state.filters.planned_service_type === 'DRY_SERVICE') count = 5;
+          else if (state.filters.planned_service_type === 'JET_SERVICE') count = 2;
+          else count = 7;
         }
         return Promise.resolve({ data, count, error: null }).then(resolve, reject);
       },
@@ -68,7 +71,19 @@ describe('AnalyticsService', () => {
     expect(summary.kpi.draftQuotationsCount).toBe(1);
 
     expect(Array.isArray(summary.workDistribution)).toBe(true);
-    expect(summary.workDistribution.length).toBeGreaterThan(0);
+    expect(summary.workDistribution.find((d) => d.label === 'Dry Service')?.count).toBe(5);
+    expect(summary.workDistribution.find((d) => d.label === 'Jet Service')?.count).toBe(2);
     expect(Array.isArray(summary.recentServiceReports)).toBe(true);
+  });
+
+  it('uses get_dashboard_summary SQL RPC directly when available', async () => {
+    const rpcPayload = { kpi: { activeAmcCount: 9 }, workDistribution: [{ label: 'Dry Service', count: 16 }] };
+    const rpc = vi.fn().mockResolvedValue({ data: rpcPayload, error: null });
+    vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue({ rpc } as any);
+
+    const summary = await new AnalyticsService().getDashboardSummary();
+
+    expect(rpc).toHaveBeenCalledWith('get_dashboard_summary', expect.objectContaining({ p_today: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
+    expect(summary).toEqual(rpcPayload);
   });
 });

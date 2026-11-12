@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { serviceReportService } from '../services/serviceReport.service.js';
+import { mediaStorageService } from '../services/mediaStorage.service.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 import {
   CreateServiceReportPayload,
@@ -110,6 +111,28 @@ export class ServiceReportController {
         actorId
       );
       sendSuccess(res, { report }, 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async createMediaUploadUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const result = await mediaStorageService.createSignedUploadUrl({
+        scope: req.body.scope,
+        mimeType: req.body.mimeType,
+        entityRef: req.body.entityRef || req.user?.profileId,
+      });
+      sendSuccess(res, result, 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getMediaSignedUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const signedUrl = await mediaStorageService.createSignedViewUrl(String(req.query.path));
+      sendSuccess(res, { signedUrl });
     } catch (err) {
       next(err);
     }

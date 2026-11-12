@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
 import { validate } from '../middleware/validate.js';
 import { reportEmailController } from '../controllers/reportEmail.controller.js';
+import { mediaUploadUrlSchema, mediaSignedUrlQuerySchema } from '../validators/technicianPortal.validator.js';
 import {
   createServiceReportSchema,
   updateServiceReportSchema,
@@ -55,6 +56,18 @@ serviceReportRouter.get(
 serviceReportRouter.get(
   '/next-number',
   serviceReportController.getNextReportNumber.bind(serviceReportController)
+);
+
+// 1c. Signed Storage upload and read URLs for service report media
+serviceReportRouter.post(
+  '/media/upload-url',
+  validate(mediaUploadUrlSchema),
+  serviceReportController.createMediaUploadUrl.bind(serviceReportController)
+);
+serviceReportRouter.get(
+  '/media/signed-url',
+  validate(mediaSignedUrlQuerySchema),
+  serviceReportController.getMediaSignedUrl.bind(serviceReportController)
 );
 
 // 2. Create new service visit report

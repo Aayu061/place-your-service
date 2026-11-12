@@ -3,10 +3,12 @@ import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { Server } from 'node:http';
 import { startReportEmailDeliveryWorker } from './services/reportEmail.service.js';
+import { emailOutboxService } from './services/email/emailOutbox.service.js';
 import { operationsService } from './services/operations.service.js';
 
 let server: Server | null = null;
 let reportEmailWorker: NodeJS.Timeout | null = null;
+let outboxEmailWorker: NodeJS.Timeout | null = null;
 let notificationWorker: NodeJS.Timeout | null = null;
 
 function startServer(): void {
@@ -19,8 +21,17 @@ function startServer(): void {
       pid: process.pid,
     });
     reportEmailWorker = startReportEmailDeliveryWorker();
+    outboxEmailWorker = setInterval(() => {
+      void emailOutboxService.processPending().catch((error) => logger.error('Unified email outbox worker failed', {
+        error: error instanceof Error ? error.message : 'Unknown worker error',
+      }));
+    }, 60 * 1000);
+    outboxEmailWorker.unref();
     notificationWorker = setInterval(() => {
       void operationsService.generateNotifications().catch((error) => logger.error('Scheduled notification generation failed', {
+        error: error instanceof Error ? error.message : 'Unknown worker error',
+      }));
+      void emailOutboxService.runAmcExpiryReminders().catch((error) => logger.error('AMC expiry reminder worker failed', {
         error: error instanceof Error ? error.message : 'Unknown worker error',
       }));
     }, 10 * 60 * 1000);
@@ -34,6 +45,7 @@ function startServer(): void {
   const shutdown = (signal: string) => {
     logger.info(`Received ${signal}. Initiating graceful shutdown...`);
     if (reportEmailWorker) clearInterval(reportEmailWorker);
+    if (outboxEmailWorker) clearInterval(outboxEmailWorker);
     if (notificationWorker) clearInterval(notificationWorker);
 
     if (server) {

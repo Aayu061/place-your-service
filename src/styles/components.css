@@ -1897,12 +1897,17 @@
   .invoice-printable-sheet,
   .invoice-printable-sheet *,
   .quotation-printable-sheet,
-  .quotation-printable-sheet * {
+  .quotation-printable-sheet *,
+  .legal-printable-sheet,
+  .legal-printable-sheet *,
+  .pys-print-document,
+  .pys-print-document * {
     visibility: visible;
   }
 
   .invoice-printable-sheet,
-  .quotation-printable-sheet {
+  .quotation-printable-sheet,
+  .legal-printable-sheet {
     position: absolute;
     left: 0;
     top: 0;
@@ -1916,6 +1921,12 @@
     color: #0f172a !important;
     font-size: 11pt !important;
     page-break-after: avoid;
+  }
+
+  .legal-printable-sheet .legal-print-body {
+    max-height: none !important;
+    overflow: visible !important;
+    padding-right: 0 !important;
   }
 
   .no-print {

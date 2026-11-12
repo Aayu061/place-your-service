@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { technicianPortalService } from '../services/technicianPortal.service.js';
+import { mediaStorageService } from '../services/mediaStorage.service.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 import { BadRequestError } from '../utils/errors.js';
 
@@ -48,7 +49,8 @@ export class TechnicianPortalController {
         throw new BadRequestError('Technician context missing.');
       }
       const date = req.query.date as string | undefined;
-      const jobs = await technicianPortalService.getAssignedJobs(techId, date);
+      const includeOverdue = req.query.includeOverdue === 'true';
+      const jobs = await technicianPortalService.getAssignedJobs(techId, date, includeOverdue);
       sendSuccess(res, jobs, 200);
     } catch (err) {
       next(err);
@@ -106,6 +108,53 @@ export class TechnicianPortalController {
       }
       const createdReport = await technicianPortalService.submitFieldReport(techId, req.body);
       sendSuccess(res, createdReport, 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePin(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const techId = req.technician?.id;
+      if (!techId) {
+        throw new BadRequestError('Technician context missing.');
+      }
+      const result = await technicianPortalService.updatePin(
+        techId,
+        String(req.body.currentPin),
+        String(req.body.newPin)
+      );
+      sendSuccess(res, result, 200);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async createMediaUploadUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const techId = req.technician?.id;
+      if (!techId) {
+        throw new BadRequestError('Technician context missing.');
+      }
+      const result = await mediaStorageService.createSignedUploadUrl({
+        scope: req.body.scope,
+        mimeType: req.body.mimeType,
+        entityRef: req.body.entityRef || techId,
+      });
+      sendSuccess(res, result, 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getMediaSignedUrl(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const techId = req.technician?.id;
+      if (!techId) {
+        throw new BadRequestError('Technician context missing.');
+      }
+      const signedUrl = await mediaStorageService.createSignedViewUrl(String(req.query.path));
+      sendSuccess(res, { signedUrl }, 200);
     } catch (err) {
       next(err);
     }

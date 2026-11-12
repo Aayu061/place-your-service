@@ -46,7 +46,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
     const url = new URL(window.location.href);
     url.searchParams.set('workspace', item);
     url.searchParams.delete('tab');
-    for (const key of ['recordId', 'recordType', 'search', 'status', 'from', 'to', 'customerId']) url.searchParams.delete(key);
+    for (const key of ['recordId', 'recordType', 'search', 'status', 'from', 'to', 'customerId', 'action']) url.searchParams.delete(key);
     if (params) for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
     window.history.pushState({ workspace: item }, '', `${url.pathname}${url.search}${url.hash}`);
   }, [canVisit]);
@@ -92,7 +92,7 @@ export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
           onNavigate={navigate}
           onSearchClick={() => {}}
           onNewServiceClick={() => {
-            navigate('service-requests');
+            navigate('service-requests', { action: 'new' });
           }}
         />
 

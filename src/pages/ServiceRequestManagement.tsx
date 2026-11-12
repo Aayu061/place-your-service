@@ -19,6 +19,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { apiClient, ApiError } from '@/services/api/client';
+import { getIstTodayIso } from '@/utils/date';
 import { BREAKDOWN_CATEGORIES, getBreakdownCategoryLabel } from '@/domain/breakdownTypes';
 import {
   ServiceRequest,
@@ -164,7 +165,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
 
   const handleOpenSchedule = (req: ServiceRequest) => {
     setScheduleTargetRequest(req);
-    const defaultDate = req.preferredDate || new Date().toISOString().slice(0, 10);
+    const defaultDate = req.preferredDate || getIstTodayIso();
     setScheduleDate(defaultDate);
     setScheduleStartTime('09:00');
     setScheduleEndTime('11:00');
@@ -260,6 +261,13 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
       const params = new URLSearchParams(window.location.search);
       if (params.get('recordType') === 'service_request' && params.get('recordId')) {
         setSelectedRequestId(params.get('recordId'));
+      }
+      if (params.get('action') === 'new') {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('action');
+        window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+        loadCustomersForCreate();
+        setIsCreateModalOpen(true);
       }
     };
     syncFromUrl();
@@ -1983,7 +1991,7 @@ export const ServiceRequestManagement: React.FC<ServiceRequestManagementProps> =
             <Input
               type="date"
               value={scheduleDate}
-              min={new Date().toISOString().slice(0, 10)}
+              min={getIstTodayIso()}
               onChange={(e) => setScheduleDate(e.target.value)}
               required
             />
