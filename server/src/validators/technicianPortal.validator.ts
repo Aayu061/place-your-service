@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeFinalCondition } from '../services/serviceReport.service.js';
 
 export const techLoginSchema = {
   body: z.object({
@@ -30,7 +31,7 @@ export const techAssetFindingSchema = z.object({
   diagnosisFindings: z.string().min(2, 'Diagnosis findings are required'),
   workPerformed: z.string().min(2, 'Work performed description is required'),
   assetOutcome: z.enum(['COMPLETED', 'PENDING_PARTS', 'PENDING_REPAIRS']),
-  finalCondition: z.enum(['EXCELLENT', 'GOOD', 'FAIR', 'POOR', 'CRITICAL', 'OPERATIONAL']).optional(),
+  finalCondition: z.string().optional().transform((val) => normalizeFinalCondition(val)),
   // Field Diagnostics
   filterCleaned: z.boolean().optional(),
   coilJetWashed: z.boolean().optional(),

@@ -20,7 +20,12 @@ export interface AssetReportState {
   workPerformed: string;
   assetOutcome: ServiceVisitOutcome;
   finalCondition: string;
+  filterCleaned?: boolean;
+  coilJetWashed?: boolean;
+  drainCleared?: boolean;
+  electricalTightened?: boolean;
   refrigerantAdded: boolean;
+  refrigerantType?: string;
   refrigerantQtyKg: string;
   notes: string;
 }

@@ -1,7 +1,7 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 import { UnauthorizedError, NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors.js';
 import { verifyPin, hashPin, signTechToken } from '../utils/techAuth.js';
-import { serviceReportService } from './serviceReport.service.js';
+import { serviceReportService, normalizeFinalCondition } from './serviceReport.service.js';
 import { logger } from '../utils/logger.js';
 import { ServiceVisitType } from '../types/index.js';
 import { essIntegrationService } from './essIntegration.service.js';
@@ -215,15 +215,40 @@ export class TechnicianPortalService {
       throw new BadRequestError(`Failed to load dispatch queue${error.message ? `: ${error.message}` : '.'}`);
     }
 
-    return (schedules || []).map((s: any) => ({
-      ...s,
-      sites: s.sites
-        ? {
-            ...s.sites,
-            city: s.customers?.city || '',
+    const scheduleList = schedules || [];
+    const scheduleIds = scheduleList.map((s: any) => s.id).filter(Boolean);
+    let reportsMap = new Map<string, any>();
+
+    if (scheduleIds.length > 0) {
+      try {
+        const { data: reports } = await supabase
+          .from('service_reports')
+          .select('id, report_number, status, created_at, primary_outcome, service_schedule_id')
+          .in('service_schedule_id', scheduleIds);
+        if (reports && reports.length > 0) {
+          for (const rep of reports) {
+            reportsMap.set(rep.service_schedule_id, rep);
           }
-        : null,
-    }));
+        }
+      } catch (repErr) {
+        logger.warn('Non-blocking query error fetching linked reports for assigned jobs', { error: repErr });
+      }
+    }
+
+    return scheduleList.map((s: any) => {
+      const existingReport = reportsMap.get(s.id) || null;
+      return {
+        ...s,
+        service_reports: existingReport ? [existingReport] : [],
+        existingReport,
+        sites: s.sites
+          ? {
+              ...s.sites,
+              city: s.customers?.city || '',
+            }
+          : null,
+      };
+    });
   }
 
   /**
@@ -276,12 +301,21 @@ export class TechnicianPortalService {
       throw new NotFoundError('Job assignment not found or not allocated to your technician profile.');
     }
 
-    // Check if report already filed for this schedule
+    // Check if report already filed for this schedule (fetch full record for read-only view)
     const { data: existingReport } = await supabase
       .from('service_reports')
-      .select('id, report_number, primary_outcome, created_at')
+      .select('id, report_number, primary_outcome, status, created_at, work_description, observations, action_taken, recommendation, customer_representative, customer_acknowledgement, customer_signature_url, before_photo_url, after_photo_url, payment_collected, payment_amount, payment_method, payment_reference')
       .eq('service_schedule_id', scheduleId)
       .maybeSingle();
+
+    let existingReportAssets: any[] = [];
+    if (existingReport?.id) {
+      const { data: assets } = await supabase
+        .from('service_report_assets')
+        .select('*')
+        .eq('report_id', existingReport.id);
+      existingReportAssets = assets || [];
+    }
 
     // Pre-fetch next sequential serial number & available site AC units (when visit isn't tied to one unit)
     const [{ nextReportNumber }, siteAssetsRes] = await Promise.all([
@@ -306,7 +340,12 @@ export class TechnicianPortalService {
             }
           : null,
       },
-      existingReport: existingReport || null,
+      existingReport: existingReport
+        ? {
+            ...existingReport,
+            assets: existingReportAssets,
+          }
+        : null,
       suggestedReportNumber: nextReportNumber,
       siteAssets: siteAssetsRes?.data || [],
     };
@@ -381,7 +420,7 @@ export class TechnicianPortalService {
         diagnosisFindings: a.diagnosisFindings,
         workPerformed: a.workPerformed,
         assetOutcome: a.assetOutcome,
-        finalCondition: a.finalCondition || 'GOOD',
+        finalCondition: normalizeFinalCondition(a.finalCondition),
         refrigerantAdded: a.refrigerantAdded || false,
         refrigerantType: a.refrigerantType || null,
         refrigerantQtyKg: a.refrigerantQtyKg || null,
@@ -490,18 +529,21 @@ export class TechnicianPortalService {
       throw new BadRequestError('Failed to update job status.');
     }
 
-    // Advance Service Request lifecycle state if linked
-    if (schedule.service_request_id && (status === 'IN_PROGRESS' || status === 'COMPLETED')) {
-      const targetSrStatus = status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'COMPLETED';
-      await supabase
-        .from('service_requests')
-        .update({
-          status: targetSrStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', schedule.service_request_id);
+    // Advance Service Request lifecycle state if linked and dispatch real-time ESS webhook for customer tracking
+    if (schedule.service_request_id) {
+      if (status === 'EN_ROUTE' || status === 'IN_PROGRESS' || status === 'COMPLETED') {
+        const targetSrStatus = status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS';
+        await supabase
+          .from('service_requests')
+          .update({
+            status: targetSrStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', schedule.service_request_id);
 
-      void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, targetSrStatus);
+        const webhookStatus = status === 'EN_ROUTE' ? 'EN_ROUTE' : targetSrStatus;
+        void essIntegrationService.notifyServiceRequestStatusUpdate(schedule.service_request_id, webhookStatus);
+      }
     }
 
     // Auto-update technician operational status

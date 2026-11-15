@@ -401,7 +401,9 @@ export class CustomerPortalService {
       `);
 
     if (cleanId.startsWith('SR-')) {
-      query = query.eq('request_number', cleanId);
+      query = query.or(`request_number.eq.${cleanId},external_reference_id.eq.${cleanId}`);
+    } else if (cleanId.startsWith('AC-')) {
+      query = query.or(`external_reference_id.eq.${cleanId},request_number.eq.${cleanId},external_reference_id.ilike.%${cleanId}%`);
     } else if (cleanPhone && cleanPhone.length >= 10) {
       // Find customer by phone first
       const { data: cust } = await supabase
@@ -416,8 +418,8 @@ export class CustomerPortalService {
         throw new NotFoundError('No service requests found for this mobile number.');
       }
     } else if (cleanId.length > 0) {
-      // Try by request number exact or prefix
-      query = query.or(`request_number.eq.${cleanId},request_number.ilike.%${cleanId}%`);
+      // Try by request number exact or prefix, or external reference ID
+      query = query.or(`request_number.eq.${cleanId},external_reference_id.eq.${cleanId},request_number.ilike.%${cleanId}%,external_reference_id.ilike.%${cleanId}%`);
     } else {
       throw new BadRequestError('Please provide a valid Service Request Number (e.g. SR-20261115-0001) or Mobile Number.');
     }

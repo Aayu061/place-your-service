@@ -33,6 +33,8 @@ export function TechnicianServiceReportForm({
   const [job, setJob] = useState<TechJob | null>(null);
   const [siteAssets, setSiteAssets] = useState<NonNullable<TechJob['ac_assets']>[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
+  const [existingReport, setExistingReport] = useState<any | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,13 +242,44 @@ export function TechnicianServiceReportForm({
 
     technicianApi
       .getJobDetail(scheduleId)
-      .then(({ schedule, existingReport, suggestedReportNumber, siteAssets: loadedSiteAssets }) => {
-        if (existingReport) {
-          setError(`A service report (${existingReport.reportNumber}) has already been filed for this appointment.`);
-          onBack();
+      .then(({ schedule, existingReport: loadedReport, suggestedReportNumber, siteAssets: loadedSiteAssets }) => {
+        setJob(schedule);
+
+        if (loadedReport) {
+          setExistingReport(loadedReport);
+          setIsReadOnly(true);
+          setReportNumber(loadedReport.reportNumber || loadedReport.report_number || '');
+          setReportedDate(loadedReport.serviceDate || loadedReport.service_date || schedule.scheduled_date || '');
+          setCustomerRep(loadedReport.customerRepresentative || loadedReport.customer_representative || schedule.customers?.name || '');
+          setTechnicianRemarks(loadedReport.technicianRemarks || loadedReport.technician_remarks || '');
+          setPrimaryOutcome(loadedReport.primaryOutcome || loadedReport.primary_outcome || 'COMPLETED');
+          if (loadedReport.beforePhotoUrl || loadedReport.before_photo_url) {
+            setBeforePhoto(loadedReport.beforePhotoUrl || loadedReport.before_photo_url);
+          }
+          if (loadedReport.afterPhotoUrl || loadedReport.after_photo_url) {
+            setAfterPhoto(loadedReport.afterPhotoUrl || loadedReport.after_photo_url);
+          }
+          if (loadedReport.paymentCollected || loadedReport.payment_collected) {
+            setPaymentCollected(true);
+            setPaymentAmount(String(loadedReport.paymentAmount || loadedReport.payment_amount || '0'));
+            setPaymentMethod(loadedReport.paymentMethod || loadedReport.payment_method || 'UPI');
+            setPaymentReference(loadedReport.paymentReference || loadedReport.payment_reference || '');
+          }
+          const repAsset = loadedReport.assets?.[0];
+          if (repAsset) {
+            setDiagnosisFindings(repAsset.diagnosis_findings || repAsset.diagnosisFindings || '');
+            setWorkPerformed(repAsset.work_performed || repAsset.workPerformed || '');
+            setFilterCleaned(Boolean(repAsset.filter_cleaned || repAsset.filterCleaned || repAsset.work_performed?.includes('Filter')));
+            setCoilJetWashed(Boolean(repAsset.coil_jet_washed || repAsset.coilJetWashed || repAsset.work_performed?.includes('Coil')));
+            setDrainCleared(Boolean(repAsset.drain_cleared || repAsset.drainCleared || repAsset.work_performed?.includes('Drain')));
+            setElectricalTightened(Boolean(repAsset.electrical_tightened || repAsset.electricalTightened || repAsset.work_performed?.includes('Electrical')));
+            setGasAdded(Boolean(repAsset.refrigerant_added || repAsset.refrigerantAdded));
+            setGasType(repAsset.refrigerant_type || repAsset.refrigerantType || 'R32');
+            setGasQty(repAsset.refrigerant_qty_kg || repAsset.refrigerantQtyKg ? String(repAsset.refrigerant_qty_kg || repAsset.refrigerantQtyKg) : '');
+          }
           return;
         }
-        setJob(schedule);
+
         setCustomerRep((prev) => prev || schedule.customers?.name || '');
 
         if (suggestedReportNumber) {
@@ -420,7 +453,7 @@ export function TechnicianServiceReportForm({
                 diagnosisFindings: diagnosisFindings.trim(),
                 workPerformed: workPerformed.trim(),
                 assetOutcome: primaryOutcome,
-                finalCondition: primaryOutcome === 'COMPLETED' ? 'GOOD' : 'FAIR',
+                finalCondition: primaryOutcome === 'COMPLETED' ? 'Good' : 'Fair',
                 filterCleaned,
                 coilJetWashed,
                 drainCleared,
@@ -454,7 +487,9 @@ export function TechnicianServiceReportForm({
       }
       onSuccess();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, 'Failed to submit service report.'));
+      const msg = getApiErrorMessage(err, 'Failed to submit service report.');
+      setError(msg);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
     }
@@ -464,6 +499,247 @@ export function TechnicianServiceReportForm({
     return (
       <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
         Loading appointment details...
+      </div>
+    );
+  }
+
+  if (isReadOnly && existingReport) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {/* Top Bar with Back Button */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--text-secondary)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              fontWeight: 600,
+            }}
+          >
+            <ArrowLeft size={16} />
+            <span>Back to Dashboard</span>
+          </button>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {job?.schedule_number}
+          </div>
+        </div>
+
+        {/* Informative Header Banner */}
+        <div
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={18} />
+              <span>Service Report #{reportNumber} Filed &amp; Archived</span>
+            </div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              This appointment has been completed. You are viewing the submitted field visit report in inspection mode.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              fontSize: 'var(--text-xs)',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ← Back to Jobs
+          </button>
+        </div>
+
+        {/* Visit & Asset Details */}
+        <div
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+        >
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
+            Visit Summary
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', fontSize: 'var(--text-xs)' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Customer:</span>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{job?.customers?.name || 'Customer'}</div>
+              <div style={{ color: 'var(--text-secondary)' }}>{job?.customers?.phone || ''}</div>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Site Location:</span>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{job?.sites?.site_name || 'Main Site'}</div>
+              <div style={{ color: 'var(--text-secondary)' }}>{job?.sites?.address || ''}</div>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Visit Date:</span>
+              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{reportedDate || job?.scheduled_date}</div>
+            </div>
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Primary Outcome:</span>
+              <div style={{ fontWeight: 800, color: primaryOutcome === 'COMPLETED' ? '#16a34a' : '#d97706' }}>
+                {primaryOutcome}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* HVAC Maintenance Protocol Checklist */}
+        <div
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+        >
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
+            HVAC Maintenance Protocol
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: 'var(--text-xs)' }}>
+            <div style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: filterCleaned ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)' }}>
+              {filterCleaned ? '✅' : '⬜'} Air Filter Cleaned
+            </div>
+            <div style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: coilJetWashed ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)' }}>
+              {coilJetWashed ? '✅' : '⬜'} Coil Jet Washed
+            </div>
+            <div style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: drainCleared ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)' }}>
+              {drainCleared ? '✅' : '⬜'} Drain Line Cleared
+            </div>
+            <div style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: electricalTightened ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-surface-subtle)', border: '1px solid var(--border-default)' }}>
+              {electricalTightened ? '✅' : '⬜'} Electrical Tightened
+            </div>
+          </div>
+
+          {gasAdded && (
+            <div style={{ fontSize: 'var(--text-xs)', marginTop: '4px', padding: '8px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.2)', color: '#2563eb', fontWeight: 600 }}>
+              ❄️ Refrigerant Gas Added: {gasQty || '0.5'} kg ({gasType || 'R32'})
+            </div>
+          )}
+
+          {workPerformed && (
+            <div style={{ marginTop: '4px', fontSize: 'var(--text-xs)' }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Work Performed:</span>
+              <div style={{ marginTop: '2px', color: 'var(--text-secondary)' }}>{workPerformed}</div>
+            </div>
+          )}
+
+          {technicianRemarks && (
+            <div style={{ marginTop: '4px', fontSize: 'var(--text-xs)' }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Technician Remarks:</span>
+              <div style={{ marginTop: '2px', color: 'var(--text-secondary)' }}>{technicianRemarks}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Photo Evidence */}
+        {(beforePhoto || afterPhoto) && (
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: 'var(--radius-lg)',
+              backgroundColor: 'var(--bg-surface)',
+              border: '1px solid var(--border-default)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.05em' }}>
+              Service Photo Proof
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              {beforePhoto && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>Before Service</div>
+                  <img src={beforePhoto} alt="Before Service" style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border-default)' }} />
+                </div>
+              )}
+              {afterPhoto && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>After Service</div>
+                  <img src={afterPhoto} alt="After Service" style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border-default)' }} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Customer Sign-off & Spot Payment */}
+        <div
+          style={{
+            padding: '16px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '12px',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Customer Sign-off:</span>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{customerRep || 'Customer Representative'}</div>
+            <div style={{ color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              {isDigitallySigned ? '✓ Digitally Signed on Field Device' : '✓ Verified On-Site'}
+            </div>
+          </div>
+          <div>
+            <span style={{ color: 'var(--text-muted)' }}>Spot Payment:</span>
+            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+              {paymentCollected ? `₹${paymentAmount} via ${paymentMethod}` : 'No Payment Collected (AMC / Balance Due)'}
+            </div>
+            {paymentReference && <div style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Ref: {paymentReference}</div>}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--bg-surface-subtle)',
+            border: '1px solid var(--border-default)',
+            fontWeight: 700,
+            fontSize: 'var(--text-xs)',
+            cursor: 'pointer',
+          }}
+        >
+          ← Return to Dispatch Queue
+        </button>
       </div>
     );
   }
@@ -1589,6 +1865,25 @@ export function TechnicianServiceReportForm({
 
             {/* Final Submit Button */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '8px' }}>
+              {error && (
+                <div
+                  style={{
+                    padding: 'var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--color-error-bg)',
+                    border: '1px solid var(--color-error-border)',
+                    color: 'var(--color-error-text)',
+                    fontSize: 'var(--text-xs)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{error}</span>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isSubmitting}

@@ -54,6 +54,20 @@ export interface TechJob {
     tonnage?: number;
     refrigerant_type?: string;
   } | null;
+  service_reports?: {
+    id: string;
+    report_number: string;
+    status: string;
+    primary_outcome?: string;
+    created_at?: string;
+  }[];
+  existingReport?: {
+    id: string;
+    report_number: string;
+    status: string;
+    primary_outcome?: string;
+    created_at?: string;
+  } | null;
 }
 
 export interface TechDailyAnalytics {

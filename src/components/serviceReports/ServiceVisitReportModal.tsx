@@ -99,6 +99,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
   const [paymentReference, setPaymentReference] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
   const [emailCopyToCustomer, setEmailCopyToCustomer] = useState<boolean>(false);
+  const [beforePhotoUrl, setBeforePhotoUrl] = useState<string | null>(null);
+  const [afterPhotoUrl, setAfterPhotoUrl] = useState<string | null>(null);
   const isNonCashPayment =
     paymentMethod === 'ONLINE' ||
     paymentMethod === 'UPI' ||
@@ -179,6 +181,9 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
           setIsAdditionalOpen(false);
         }
 
+        setBeforePhotoUrl(initialReport.beforePhotoUrl || null);
+        setAfterPhotoUrl(initialReport.afterPhotoUrl || null);
+
         if (initialReport.assets && initialReport.assets.length > 0) {
           setAssets(
             initialReport.assets.map((a) => ({
@@ -192,7 +197,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               workPerformed: a.workPerformed || '',
               assetOutcome: a.assetOutcome || initialReport.primaryOutcome,
               finalCondition: a.finalCondition || 'Good',
+              filterCleaned: Boolean((a as any).filterCleaned || a.workPerformed?.includes('Filter Cleaned')),
+              coilJetWashed: Boolean((a as any).coilJetWashed || a.workPerformed?.includes('Coil Jet Washed') || a.workPerformed?.includes('Pressure Jet')),
+              drainCleared: Boolean((a as any).drainCleared || a.workPerformed?.includes('Drain Cleared') || a.workPerformed?.includes('Drain Line')),
+              electricalTightened: Boolean((a as any).electricalTightened || a.workPerformed?.includes('Electrical')),
               refrigerantAdded: Boolean(a.refrigerantAdded),
+              refrigerantType: (a as any).refrigerantType || 'R32',
               refrigerantQtyKg: a.refrigerantQtyKg != null ? String(a.refrigerantQtyKg) : '',
               notes: a.notes || '',
             }))
@@ -210,7 +220,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               workPerformed: '',
               assetOutcome: initialReport.primaryOutcome,
               finalCondition: 'Good',
+              filterCleaned: false,
+              coilJetWashed: false,
+              drainCleared: false,
+              electricalTightened: false,
               refrigerantAdded: false,
+              refrigerantType: 'R32',
               refrigerantQtyKg: '',
               notes: '',
             },
@@ -272,6 +287,8 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         setPaymentMethod('CASH');
         setPaymentReference('');
         setPaymentNotes('');
+        setBeforePhotoUrl(null);
+        setAfterPhotoUrl(null);
         setIsAdditionalOpen(false);
         setErrorMessage(null);
         setReportNumberError(null);
@@ -294,7 +311,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
               workPerformed: '',
               assetOutcome: 'COMPLETED',
               finalCondition: 'Good',
+              filterCleaned: false,
+              coilJetWashed: false,
+              drainCleared: false,
+              electricalTightened: false,
               refrigerantAdded: false,
+              refrigerantType: 'R32',
               refrigerantQtyKg: '',
               notes: '',
             },
@@ -350,7 +372,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                 workPerformed: '',
                 assetOutcome: primaryOutcome,
                 finalCondition: 'Good',
+                filterCleaned: false,
+                coilJetWashed: false,
+                drainCleared: false,
+                electricalTightened: false,
                 refrigerantAdded: false,
+                refrigerantType: 'R32',
                 refrigerantQtyKg: '',
                 notes: '',
               },
@@ -627,22 +654,36 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
         technicianRemarks: technicianRemarks.trim() || null,
         customerRepresentative: customerRepresentative.trim() || null,
         customerAcknowledgement: customerAcknowledgement.trim() || null,
+        beforePhotoUrl: beforePhotoUrl || null,
+        afterPhotoUrl: afterPhotoUrl || null,
         paymentCollected,
         paymentAmount: paymentAmount ? Math.max(0, parseFloat(paymentAmount) || 0) : 0,
         paymentMethod: paymentCollected ? paymentMethod : null,
         paymentReference: paymentCollected && isNonCashPayment ? paymentReference.trim() || null : null,
         paymentNotes: paymentNotes.trim() || null,
-        assets: assets.map((a) => ({
-          assetId: a.assetId,
-          faultReported: a.faultReported.trim() || null,
-          diagnosisFindings: a.diagnosisFindings.trim() || null,
-          workPerformed: a.workPerformed.trim() || null,
-          assetOutcome: a.assetOutcome,
-          finalCondition: a.finalCondition || null,
-          refrigerantAdded: a.refrigerantAdded,
-          refrigerantQtyKg: a.refrigerantQtyKg ? parseFloat(a.refrigerantQtyKg) : null,
-          notes: a.notes.trim() || null,
-        })),
+        assets: assets.map((a) => {
+          const checklist = [
+            a.filterCleaned ? 'Air Filter Cleaned' : null,
+            a.coilJetWashed ? 'Coil Jet Washed' : null,
+            a.drainCleared ? 'Drain Cleared' : null,
+            a.electricalTightened ? 'Electrical Checked' : null,
+          ].filter(Boolean);
+          const checklistPrefix = checklist.length > 0 ? `[Checklist: ${checklist.join(', ')}] ` : '';
+          const effectiveWork = a.workPerformed.trim() ? `${checklistPrefix}${a.workPerformed.trim()}` : (checklistPrefix ? checklistPrefix.trim() : null);
+
+          return {
+            assetId: a.assetId,
+            faultReported: a.faultReported.trim() || null,
+            diagnosisFindings: a.diagnosisFindings.trim() || null,
+            workPerformed: effectiveWork,
+            assetOutcome: a.assetOutcome,
+            finalCondition: a.finalCondition || 'Good',
+            refrigerantAdded: a.refrigerantAdded,
+            refrigerantType: a.refrigerantAdded ? (a.refrigerantType || 'R32') : null,
+            refrigerantQtyKg: a.refrigerantQtyKg ? parseFloat(a.refrigerantQtyKg) : null,
+            notes: a.notes.trim() || null,
+          };
+        }),
         items:
           primaryOutcome === 'PENDING_PARTS'
             ? partItems.map((p) => ({
@@ -1469,7 +1510,12 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                             workPerformed: '',
                             assetOutcome: primaryOutcome,
                             finalCondition: 'Good',
+                            filterCleaned: false,
+                            coilJetWashed: false,
+                            drainCleared: false,
+                            electricalTightened: false,
                             refrigerantAdded: false,
+                            refrigerantType: 'R32',
                             refrigerantQtyKg: '',
                             notes: '',
                           },
@@ -1652,25 +1698,101 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                   </div>
 
                   {asset.refrigerantAdded && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                        Gas Qty Added (Kg)
-                      </label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0.1"
-                        max="20"
-                        value={asset.refrigerantQtyKg}
-                        onChange={(e) =>
-                          handleAssetFieldChange(idx, 'refrigerantQtyKg', e.target.value)
-                        }
-                        placeholder="Qty in kg"
-                        disabled={isSubmitting}
-                        style={{ fontSize: '12px' }}
-                      />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                          Refrigerant Type
+                        </label>
+                        <select
+                          value={asset.refrigerantType || 'R32'}
+                          onChange={(e) => handleAssetFieldChange(idx, 'refrigerantType', e.target.value)}
+                          disabled={isSubmitting}
+                          style={{
+                            width: '100%',
+                            fontSize: '12px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-default)',
+                            padding: '7px 10px',
+                            backgroundColor: 'var(--bg-surface)',
+                            fontWeight: 500,
+                            color: 'var(--text-primary)',
+                          }}
+                        >
+                          <option value="R32">R32</option>
+                          <option value="R410A">R410A</option>
+                          <option value="R22">R22</option>
+                          <option value="R134a">R134a</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                          Gas Qty Added (Kg)
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          max="20"
+                          value={asset.refrigerantQtyKg}
+                          onChange={(e) =>
+                            handleAssetFieldChange(idx, 'refrigerantQtyKg', e.target.value)
+                          }
+                          placeholder="Qty in kg"
+                          disabled={isSubmitting}
+                          style={{ fontSize: '12px' }}
+                        />
+                      </div>
                     </div>
                   )}
+                </div>
+
+                {/* 4-Point HVAC Preventive Maintenance Checklist */}
+                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: 'var(--bg-canvas, #f8fafc)', borderRadius: '8px', border: '1px solid var(--border-default, #e2e8f0)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    HVAC Maintenance Checklist (Standard Protocol)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(asset.filterCleaned)}
+                        onChange={(e) => handleAssetFieldChange(idx, 'filterCleaned', e.target.checked)}
+                        disabled={isSubmitting}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      <span>Air Filter Cleaned</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(asset.coilJetWashed)}
+                        onChange={(e) => handleAssetFieldChange(idx, 'coilJetWashed', e.target.checked)}
+                        disabled={isSubmitting}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      <span>Coil Pressure Jet Washed</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(asset.drainCleared)}
+                        onChange={(e) => handleAssetFieldChange(idx, 'drainCleared', e.target.checked)}
+                        disabled={isSubmitting}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      <span>Drain Line Flushed &amp; Cleared</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(asset.electricalTightened)}
+                        onChange={(e) => handleAssetFieldChange(idx, 'electricalTightened', e.target.checked)}
+                        disabled={isSubmitting}
+                        style={{ accentColor: 'var(--color-brand)' }}
+                      />
+                      <span>Electrical Wiring &amp; Capacitors Checked</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2420,6 +2542,49 @@ export const ServiceVisitReportModal: React.FC<ServiceVisitReportModalProps> = (
                     disabled={isSubmitting}
                     style={{ fontSize: '12px' }}
                   />
+                </div>
+              </div>
+
+              {/* Photo Evidence Parity with Field Technician Portal */}
+              <div style={{ gridColumn: '1 / -1', marginTop: '4px', padding: '12px', border: '1px solid var(--border-default)', borderRadius: '8px', backgroundColor: 'var(--bg-canvas)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  Visual Photo Evidence (Before &amp; After)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      Before Service Photo (URL or Data)
+                    </label>
+                    <Input
+                      value={beforePhotoUrl || ''}
+                      onChange={(e) => setBeforePhotoUrl(e.target.value.trim() || null)}
+                      placeholder="https://... or photo reference"
+                      disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
+                    />
+                    {beforePhotoUrl && (
+                      <div style={{ marginTop: '6px' }}>
+                        <img src={beforePhotoUrl} alt="Before Service" style={{ maxHeight: '70px', borderRadius: '4px', objectFit: 'cover' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                      After Service Photo (URL or Data)
+                    </label>
+                    <Input
+                      value={afterPhotoUrl || ''}
+                      onChange={(e) => setAfterPhotoUrl(e.target.value.trim() || null)}
+                      placeholder="https://... or photo reference"
+                      disabled={isSubmitting}
+                      style={{ fontSize: '12px' }}
+                    />
+                    {afterPhotoUrl && (
+                      <div style={{ marginTop: '6px' }}>
+                        <img src={afterPhotoUrl} alt="After Service" style={{ maxHeight: '70px', borderRadius: '4px', objectFit: 'cover' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Car,
   MessageSquare,
+  Eye,
 } from 'lucide-react';
 import { technicianApi, TechJob } from '@/services/technicianApi';
 import { getApiErrorMessage } from '@/services/api/client';
@@ -66,11 +67,15 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
     }
   };
 
-  const completedCount = jobs.filter((j) => j.status === 'COMPLETED').length;
-  const inProgressCount = jobs.filter((j) => j.status === 'IN_PROGRESS' || j.status === 'EN_ROUTE').length;
+  const isJobDone = (j: TechJob) =>
+    j.status === 'COMPLETED' ||
+    Boolean((j.service_reports && j.service_reports.length > 0) || j.existingReport);
+
+  const completedCount = jobs.filter(isJobDone).length;
+  const inProgressCount = jobs.filter((j) => !isJobDone(j) && (j.status === 'IN_PROGRESS' || j.status === 'EN_ROUTE')).length;
   const displayedJobs = filterTab === 'completed'
-    ? jobs.filter((j) => j.status === 'COMPLETED')
-    : jobs;
+    ? jobs.filter(isJobDone)
+    : jobs.filter((j) => !isJobDone(j));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -364,7 +369,15 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
       {!isLoading && displayedJobs.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {displayedJobs.map((job) => {
-            const isCompleted = job.status === 'COMPLETED';
+            const hasFiledReport = Boolean(
+              (job.service_reports && job.service_reports.length > 0) ||
+              job.existingReport
+            );
+            const filedReportNumber =
+              job.service_reports?.[0]?.report_number ||
+              job.existingReport?.report_number ||
+              '';
+            const isCompleted = job.status === 'COMPLETED' || hasFiledReport;
             const isUpdating = updatingJobId === job.id;
             const customerPhone = job.customers?.phone;
             const fullAddress = [
@@ -679,8 +692,33 @@ export function TechnicianDashboard({ onStartReport, filterTab = 'jobs' }: Techn
                     <Navigation size={16} />
                   </a>
 
-                  {/* Main Action: Progressive Status Action or Completed Badge */}
-                  {isCompleted ? (
+                  {/* Main Action: View Report if filed, or Progressive Status Action */}
+                  {hasFiledReport ? (
+                    <button
+                      type="button"
+                      onClick={() => onStartReport(job.id)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--bg-surface-subtle)',
+                        border: '1px solid var(--border-default)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 700,
+                        fontSize: 'var(--text-xs)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        boxShadow: 'var(--shadow-xs)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Eye size={16} style={{ color: 'var(--color-brand)' }} />
+                      <span>View Report {filedReportNumber ? `(#${filedReportNumber})` : ''}</span>
+                    </button>
+                  ) : isCompleted ? (
                     <div
                       style={{
                         flex: 1,

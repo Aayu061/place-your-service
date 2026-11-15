@@ -25,6 +25,23 @@ import {
   resolveAssetCustomerId,
 } from './serviceReport/mappers.js';
 
+export function normalizeFinalCondition(cond?: string | null): string {
+  if (!cond) return 'Good';
+  const trimmed = cond.trim();
+  const upper = trimmed.toUpperCase();
+  if (upper === 'GOOD' || upper === 'EXCELLENT') return 'Good';
+  if (upper === 'FAIR') return 'Fair';
+  if (upper === 'POOR') return 'Poor';
+  if (upper === 'CRITICAL') return 'Critical';
+  if (upper === 'OPERATIONAL') return 'OPERATIONAL';
+  if (upper === 'DEGRADED') return 'DEGRADED';
+  if (upper === 'NON_OPERATIONAL') return 'NON_OPERATIONAL';
+  if (['Good', 'Fair', 'Poor', 'Critical', 'OPERATIONAL', 'DEGRADED', 'NON_OPERATIONAL'].includes(trimmed)) {
+    return trimmed;
+  }
+  return 'Good';
+}
+
 export class ServiceReportService {
   /**
    * Resolves a valid profiles(id) actor for ledger operations requiring NOT NULL recorded_by / staff actor.
@@ -585,7 +602,7 @@ export class ServiceReportService {
         diagnosis_findings: a.diagnosisFindings || null,
         work_performed: a.workPerformed || null,
         asset_outcome: a.assetOutcome,
-        final_condition: a.finalCondition || null,
+        final_condition: normalizeFinalCondition(a.finalCondition),
         refrigerant_added: a.refrigerantAdded ?? false,
         refrigerant_qty_kg: a.refrigerantQtyKg ?? null,
         notes: a.notes || null,
