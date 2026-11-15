@@ -252,17 +252,30 @@ export function TechnicianServiceReportForm({
           setReportedDate(loadedReport.serviceDate || loadedReport.service_date || schedule.scheduled_date || '');
           setCustomerRep(loadedReport.customerRepresentative || loadedReport.customer_representative || schedule.customers?.name || '');
           setTechnicianRemarks(loadedReport.technicianRemarks || loadedReport.technician_remarks || '');
-          setPrimaryOutcome(loadedReport.primaryOutcome || loadedReport.primary_outcome || 'COMPLETED');
-          if (loadedReport.beforePhotoUrl || loadedReport.before_photo_url) {
-            setBeforePhoto(loadedReport.beforePhotoUrl || loadedReport.before_photo_url);
+          const outcome = loadedReport.primaryOutcome || loadedReport.primary_outcome;
+          if (outcome === 'PENDING_PARTS' || outcome === 'PENDING_REPAIRS') {
+            setPrimaryOutcome(outcome);
+          } else {
+            setPrimaryOutcome('COMPLETED');
           }
-          if (loadedReport.afterPhotoUrl || loadedReport.after_photo_url) {
-            setAfterPhoto(loadedReport.afterPhotoUrl || loadedReport.after_photo_url);
+
+          const beforeUrl = loadedReport.beforePhotoUrl || loadedReport.before_photo_url;
+          if (beforeUrl) {
+            setBeforePhoto(beforeUrl);
+          }
+          const afterUrl = loadedReport.afterPhotoUrl || loadedReport.after_photo_url;
+          if (afterUrl) {
+            setAfterPhoto(afterUrl);
           }
           if (loadedReport.paymentCollected || loadedReport.payment_collected) {
             setPaymentCollected(true);
             setPaymentAmount(String(loadedReport.paymentAmount || loadedReport.payment_amount || '0'));
-            setPaymentMethod(loadedReport.paymentMethod || loadedReport.payment_method || 'UPI');
+            const pMethod = loadedReport.paymentMethod || loadedReport.payment_method;
+            if (pMethod === 'CASH' || pMethod === 'CHEQUE' || pMethod === 'NEFT') {
+              setPaymentMethod(pMethod);
+            } else {
+              setPaymentMethod('UPI');
+            }
             setPaymentReference(loadedReport.paymentReference || loadedReport.payment_reference || '');
           }
           const repAsset = loadedReport.assets?.[0];
