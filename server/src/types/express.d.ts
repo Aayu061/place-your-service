@@ -9,6 +9,15 @@ export interface AuthenticatedTechnician {
   isActive: boolean;
 }
 
+export interface AuthenticatedCustomer {
+  id: string;
+  customerCode: string;
+  name: string;
+  phone: string;
+  email?: string;
+  isActive: boolean;
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -16,6 +25,7 @@ declare global {
       startTime?: number;
       user?: AuthenticatedUser;
       technician?: AuthenticatedTechnician;
+      customer?: AuthenticatedCustomer;
     }
   }
 }

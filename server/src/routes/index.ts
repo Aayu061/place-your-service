@@ -17,6 +17,10 @@ import exportRouter from './export.routes.js';
 import complianceRouter from './compliance.routes.js';
 import techRouter from './technicianPortal.routes.js';
 import emailRouter from './email.routes.js';
+import { adminBackupRouter } from './adminBackup.routes.js';
+import { adminTelemetryRouter } from './adminTelemetry.routes.js';
+import { essStorefrontRouter } from './essStorefront.routes.js';
+import { customerPortalRouter } from './customerPortal.routes.js';
 
 const apiV1Router = Router();
 
@@ -63,6 +67,18 @@ apiV1Router.use('/exports', exportRouter);
 // Dedicated Technician Mobile Field Portal Routes
 apiV1Router.use('/tech', techRouter);
 apiV1Router.use('/', emailRouter);
+
+// Database Replica, Backup & Disaster Recovery Routes
+apiV1Router.use('/admin/database', adminBackupRouter);
+
+// Admin Telemetry, Server Logs & Bug Inspector Routes
+apiV1Router.use('/admin/telemetry', adminTelemetryRouter);
+
+// Extreme Sales & Services (ESS) Storefront Routes
+apiV1Router.use('/', essStorefrontRouter);
+
+// Dedicated ESS Customer Self-Service Portal Routes
+apiV1Router.use('/portal', customerPortalRouter);
 
 export default apiV1Router;
 

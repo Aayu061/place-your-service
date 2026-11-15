@@ -27,7 +27,8 @@ const isPlaceholder = (val?: string) => !val || val.includes('your-project-ref')
 const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawSupabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabaseUrl = !isPlaceholder(rawSupabaseUrl) ? rawSupabaseUrl! : DEFAULT_SUPABASE_URL;
+const rawCleanUrl = !isPlaceholder(rawSupabaseUrl) ? rawSupabaseUrl! : DEFAULT_SUPABASE_URL;
+const supabaseUrl = rawCleanUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const supabaseAnonKey = !isPlaceholder(rawSupabaseAnonKey) ? rawSupabaseAnonKey! : DEFAULT_SUPABASE_ANON_KEY;
 
 const defaultApiBaseUrl = import.meta.env.PROD

@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "bootstrap-admin": "tsx src/scripts/bootstrapAdmin.ts",
+    "backup": "tsx src/scripts/backupDatabase.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

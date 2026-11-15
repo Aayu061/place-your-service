@@ -4,6 +4,7 @@ import { sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeData } from '../utils/piiSanitizer.js';
 import { env } from '../config/env.js';
+import { telemetryLogService } from '../services/telemetryLog.service.js';
 
 export function errorHandlerMiddleware(
   err: Error | AppError,
@@ -29,6 +30,34 @@ export function errorHandlerMiddleware(
     code,
     stack: env.NODE_ENV !== 'production' ? err.stack : undefined,
   });
+
+  // Automatically feed 500 errors into telemetry and bug inspector
+  if (statusCode >= 500) {
+    telemetryLogService.recordCrash({
+      service: 'PYS',
+      errorName: err.name || 'InternalServerError',
+      message: err.message || 'Unhandled 500 server error',
+      stack: err.stack,
+      url: req.originalUrl,
+      method: req.method,
+      statusCode,
+      context: {
+        code,
+        requestId: req.id,
+        ip: req.ip,
+      },
+    }).catch(() => {});
+  } else {
+    telemetryLogService.addLog({
+      id: `err-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      timestamp: new Date().toISOString(),
+      service: 'PYS',
+      level: 'WARN',
+      category: 'HTTP_REQUEST_ERROR',
+      message: `[${req.method} ${req.originalUrl}] ${statusCode} ${code}: ${message}`,
+      details: sanitizedDetails,
+    });
+  }
 
   sendError(res, statusCode, code, message, sanitizedDetails);
 }

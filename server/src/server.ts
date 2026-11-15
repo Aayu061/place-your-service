@@ -5,6 +5,7 @@ import { Server } from 'node:http';
 import { startReportEmailDeliveryWorker } from './services/reportEmail.service.js';
 import { emailOutboxService } from './services/email/emailOutbox.service.js';
 import { operationsService } from './services/operations.service.js';
+import { telemetryLogService } from './services/telemetryLog.service.js';
 
 let server: Server | null = null;
 let reportEmailWorker: NodeJS.Timeout | null = null;
@@ -72,16 +73,32 @@ function startServer(): void {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled Promise Rejection detected', {
-      reason: reason instanceof Error ? reason.message : String(reason),
+    const errorMsg = reason instanceof Error ? reason.message : String(reason);
+    const errorStack = reason instanceof Error ? reason.stack : undefined;
+    logger.error('Unhandled Promise Rejection detected', { reason: errorMsg });
+    void telemetryLogService.recordCrash({
+      service: 'PYS',
+      errorName: 'UnhandledPromiseRejection',
+      message: errorMsg,
+      stack: errorStack,
     });
   });
 
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', async (error) => {
     logger.error('Uncaught Exception detected. Terminating process.', {
       error: error.message,
       stack: error.stack,
     });
+    try {
+      await telemetryLogService.recordCrash({
+        service: 'PYS',
+        errorName: error.name || 'UncaughtException',
+        message: error.message,
+        stack: error.stack,
+      });
+    } catch {
+      // Ignore fallback failures during terminal shutdown
+    }
     process.exit(1);
   });
 }

@@ -47,6 +47,28 @@ interface RawModelRow {
 }
 
 export class MasterDataService {
+  // In-Memory High-Speed Cache for AC Master Data (< 2ms response times)
+  private static cache = new Map<string, { data: any; expiresAt: number }>();
+  private static readonly CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+  private getFromCache<T>(key: string): T | null {
+    const entry = MasterDataService.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      MasterDataService.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  private setInCache<T>(key: string, data: T): void {
+    MasterDataService.cache.set(key, { data, expiresAt: Date.now() + MasterDataService.CACHE_TTL_MS });
+  }
+
+  public clearCache(): void {
+    MasterDataService.cache.clear();
+  }
+
   /**
    * Generates a slug code for a brand if not explicitly provided.
    */
@@ -65,6 +87,12 @@ export class MasterDataService {
   public async listBrands(
     query: AcBrandListQuery = {}
   ): Promise<{ brands: AcBrandResponse[]; total: number; page: number; pageSize: number; totalPages: number }> {
+    const cacheKey = `brands_${JSON.stringify(query)}`;
+    const cached = this.getFromCache<{ brands: AcBrandResponse[]; total: number; page: number; pageSize: number; totalPages: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const supabase = getSupabaseClient();
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 50;
@@ -112,8 +140,9 @@ export class MasterDataService {
 
     const total = count || 0;
     const totalPages = Math.ceil(total / pageSize) || 1;
-
-    return { brands, total, page, pageSize, totalPages };
+    const result = { brands, total, page, pageSize, totalPages };
+    this.setInCache(cacheKey, result);
+    return result;
   }
 
   public async getBrandById(brandId: string): Promise<AcBrandResponse> {
@@ -240,6 +269,7 @@ export class MasterDataService {
       details: { name: created.name, code: created.code },
       ipAddress,
     });
+    this.clearCache();
 
     return {
       id: created.id,
@@ -323,6 +353,7 @@ export class MasterDataService {
       details: { updatedFields: Object.keys(updates) },
       ipAddress,
     });
+    this.clearCache();
 
     return this.getBrandById(brandId);
   }
@@ -360,6 +391,7 @@ export class MasterDataService {
       details: { isActive },
       ipAddress,
     });
+    this.clearCache();
 
     return this.getBrandById(brandId);
   }
@@ -371,14 +403,22 @@ export class MasterDataService {
   public async listModels(
     query: AcModelListQuery = {}
   ): Promise<{ models: AcModelResponse[]; total: number; page: number; pageSize: number; totalPages: number }> {
+    const cacheKey = `models_${JSON.stringify(query)}`;
+    const cached = this.getFromCache<{ models: AcModelResponse[]; total: number; page: number; pageSize: number; totalPages: number }>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const supabase = getSupabaseClient();
     const page = query.page && query.page > 0 ? query.page : 1;
     const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 50;
     const offset = (page - 1) * pageSize;
 
+    // Fast-path: avoid exact table count if activeOnly dropdown query
+    const needsExactCount = !query.brandId;
     let q = supabase
       .from('ac_models')
-      .select('*, ac_brands(name, code)', { count: 'exact' });
+      .select('*, ac_brands(name, code)', needsExactCount ? { count: 'exact' } : undefined);
 
     if (query.brandId) {
       q = q.eq('brand_id', query.brandId);
@@ -428,10 +468,11 @@ export class MasterDataService {
       updatedAt: row.updated_at,
     }));
 
-    const total = count || 0;
+    const total = count || models.length;
     const totalPages = Math.ceil(total / pageSize) || 1;
-
-    return { models, total, page, pageSize, totalPages };
+    const result = { models, total, page, pageSize, totalPages };
+    this.setInCache(cacheKey, result);
+    return result;
   }
 
   public async getModelById(modelId: string): Promise<AcModelResponse> {
@@ -523,6 +564,7 @@ export class MasterDataService {
       },
       ipAddress,
     });
+    this.clearCache();
 
     const row = created as RawModelRow;
     return {
@@ -605,6 +647,7 @@ export class MasterDataService {
       details: { updatedFields: Object.keys(updates) },
       ipAddress,
     });
+    this.clearCache();
 
     return this.getModelById(modelId);
   }
@@ -642,6 +685,7 @@ export class MasterDataService {
       details: { isActive },
       ipAddress,
     });
+    this.clearCache();
 
     return this.getModelById(modelId);
   }
@@ -649,6 +693,12 @@ export class MasterDataService {
   // --- MODEL VARIANTS ---
 
   public async listModelVariants(modelId: string, activeOnly = true): Promise<AcModelVariantResponse[]> {
+    const cacheKey = `variants_${modelId}_${activeOnly}`;
+    const cached = this.getFromCache<AcModelVariantResponse[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const supabase = getSupabaseClient();
     await this.getModelById(modelId);
 
@@ -668,7 +718,7 @@ export class MasterDataService {
       throw new BadRequestError(`Failed to list AC model variants: ${error.message}`);
     }
 
-    return (data || []).map((row: any) => ({
+    const variants = (data || []).map((row: any) => ({
       id: row.id,
       modelId: row.model_id,
       variantCode: row.variant_code || null,
@@ -684,6 +734,8 @@ export class MasterDataService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+    this.setInCache(cacheKey, variants);
+    return variants;
   }
 
   public async getVariantById(variantId: string): Promise<AcModelVariantResponse> {
@@ -784,6 +836,7 @@ export class MasterDataService {
       },
       ipAddress,
     });
+    this.clearCache();
 
     return {
       id: created.id,
@@ -881,6 +934,7 @@ export class MasterDataService {
       details: { updatedFields: Object.keys(updates) },
       ipAddress,
     });
+    this.clearCache();
 
     return {
       id: updated.id,
@@ -933,6 +987,7 @@ export class MasterDataService {
       details: { isActive },
       ipAddress,
     });
+    this.clearCache();
 
     return {
       id: updated.id,

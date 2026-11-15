@@ -19,7 +19,15 @@
     "server:test": "npm --prefix server run test",
     "server:typecheck": "npm --prefix server run typecheck",
     "server:lint": "npm --prefix server run lint",
-    "test:all": "npm test && npm run server:test"
+    "test:all": "npm test && npm run server:test",
+    "git:status": "node scripts/gitStatus.js",
+    "push:pys": "git add -A && git commit -m \"feat(pys): update enterprise system\" && git push origin main",
+    "push:ess": "git -C extreme-sales-services-main add -A && git -C extreme-sales-services-main commit -m \"feat(ess): update storefront, customer portal & supabase\" && git -C extreme-sales-services-main push origin main",
+    "push:all": "npm run push:pys && npm run push:ess",
+    "ess:dev": "npm --prefix extreme-sales-services-main start",
+    "ess:test": "npm --prefix extreme-sales-services-main test",
+    "db:backup": "npm --prefix server run backup",
+    "db:restore": "npm --prefix server run tsx src/scripts/restoreDatabase.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

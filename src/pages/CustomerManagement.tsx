@@ -83,6 +83,10 @@ import {
   getAmcBadgeProps,
 } from './customers/customerManagementShared';
 
+// High-Speed Master Data Client Caches (0ms Instant Brand & Model Selection)
+const clientModelsByBrandCache = new Map<string, AcModel[]>();
+const clientVariantsByModelCache = new Map<string, AcModelVariant[]>();
+
 export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
 
@@ -868,17 +872,24 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setAssetFormRating('');
       setAssetFormRefrigerant('');
 
-      setIsLoadingMasterModels(true);
-      try {
-        const res = await apiClient.get<{ data?: { models: AcModel[] }; models?: AcModel[] }>(
-          `/ac-models?brandId=${found.id}&activeOnly=true&pageSize=100`
-        );
-        const modelList = res.data?.models || res.models || [];
-        setAvailableModels(modelList);
-      } catch {
-        setAvailableModels([]);
-      } finally {
+      // Check client-side memory cache first (< 0ms instant display)
+      if (clientModelsByBrandCache.has(found.id)) {
+        setAvailableModels(clientModelsByBrandCache.get(found.id)!);
         setIsLoadingMasterModels(false);
+      } else {
+        setIsLoadingMasterModels(true);
+        try {
+          const res = await apiClient.get<{ data?: { models: AcModel[] }; models?: AcModel[] }>(
+            `/ac-models?brandId=${found.id}&activeOnly=true&pageSize=100`
+          );
+          const modelList = res.data?.models || res.models || [];
+          clientModelsByBrandCache.set(found.id, modelList);
+          setAvailableModels(modelList);
+        } catch {
+          setAvailableModels([]);
+        } finally {
+          setIsLoadingMasterModels(false);
+        }
       }
     } else {
       setAssetFormBrandId('');
@@ -910,17 +921,24 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
       setAssetFormRating(found.rating || '');
       setAssetFormRefrigerant(found.refrigerant || '');
 
-      setIsLoadingMasterVariants(true);
-      try {
-        const res = await apiClient.get<{ data?: { variants?: AcModelVariant[] }; variants?: AcModelVariant[] }>(
-          `/ac-models/${found.id}/variants?activeOnly=true`
-        );
-        const vList = res.data?.variants || res.variants || [];
-        setAvailableVariants(vList);
-      } catch {
-        setAvailableVariants([]);
-      } finally {
+      // Check client-side memory cache first (< 0ms instant display)
+      if (clientVariantsByModelCache.has(found.id)) {
+        setAvailableVariants(clientVariantsByModelCache.get(found.id)!);
         setIsLoadingMasterVariants(false);
+      } else {
+        setIsLoadingMasterVariants(true);
+        try {
+          const res = await apiClient.get<{ data?: { variants?: AcModelVariant[] }; variants?: AcModelVariant[] }>(
+            `/ac-models/${found.id}/variants?activeOnly=true`
+          );
+          const vList = res.data?.variants || res.variants || [];
+          clientVariantsByModelCache.set(found.id, vList);
+          setAvailableVariants(vList);
+        } catch {
+          setAvailableVariants([]);
+        } finally {
+          setIsLoadingMasterVariants(false);
+        }
       }
     } else {
       setAssetFormModelId('');

@@ -51,3 +51,10 @@ coverage
 .temp
 .tmp
 *.tsbuildinfo
+
+# Extreme Sales & Services separate repository
+extreme-sales-services-main/
+
+# Database snapshot backups
+backups/
+server/backups/

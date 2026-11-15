@@ -22,6 +22,8 @@ const ServiceScheduleManagement = lazy(() => import('@/pages/ServiceScheduleMana
 const ServiceReportsManagement = lazy(() => import('@/pages/ServiceReportsManagement').then((m) => ({ default: m.ServiceReportsManagement })));
 const PhaseZeroOverview = lazy(() => import('@/pages/PhaseZeroOverview').then((m) => ({ default: m.PhaseZeroOverview })));
 const TechnicianPortal = lazy(() => import('@/pages/technician/TechnicianPortal').then((m) => ({ default: m.TechnicianPortal })));
+const ServerManagementWorkspace = lazy(() => import('@/pages/serverManagement/ServerManagementWorkspace').then((m) => ({ default: m.ServerManagementWorkspace })));
+const ExtremeSalesManagementWorkspace = lazy(() => import('@/pages/integrations/ExtremeSalesManagementWorkspace').then((m) => ({ default: m.ExtremeSalesManagementWorkspace })));
 
 const RouteLoadingFallback: React.FC = () => (
   <div
@@ -169,6 +171,16 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ onSwitchToTech }) =
             return <AcMasterManagement onNavigate={onNavigate} />;
           }
 
+          // Centralized Server & Database Management Workspace
+          if (activeItem === 'server-management') {
+            return <ServerManagementWorkspace />;
+          }
+
+          // Extreme Sales & Services Operational Control Workspace
+          if (activeItem === 'ess-management') {
+            return <ExtremeSalesManagementWorkspace onNavigate={onNavigate} />;
+          }
+
           if (activeItem === 'phase-zero-review') {
             return <PhaseZeroOverview currentRole={currentRole} />;
           }
@@ -177,7 +189,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ onSwitchToTech }) =
             return <OperationalWorkspace moduleId={activeItem} role={currentRole} onNavigate={onNavigate} />;
           }
 
-          if (activeItem === 'settings') return <SettingsWorkspace />;
+          if (activeItem === 'settings') return <SettingsWorkspace onNavigate={onNavigate} />;
 
           // Fallback to Dashboard
           return (

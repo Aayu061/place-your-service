@@ -14,6 +14,8 @@ import {
   History,
   ShieldCheck,
   Settings,
+  Server,
+  Store,
 } from 'lucide-react';
 
 export interface NavItemDef {
@@ -74,6 +76,8 @@ export const NAV_STRUCTURE: NavGroupDef[] = [
     adminOnly: true,
     items: [
       { id: 'ac-master', label: 'AC Master Data', icon: Boxes, adminOnly: true },
+      { id: 'server-management', label: 'Server & Database', icon: Server, adminOnly: true },
+      { id: 'ess-management', label: 'Extreme S&S Portal', icon: Store, adminOnly: true },
       { id: 'staff', label: 'Staff Management', icon: ShieldCheck, adminOnly: true },
       { id: 'settings', label: 'Settings', icon: Settings, adminOnly: true },
     ],
