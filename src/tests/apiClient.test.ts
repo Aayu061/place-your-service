@@ -162,4 +162,41 @@ describe('Frontend API Client Foundation', () => {
       expect.anything()
     );
   });
+
+  it('bypasses tokenRefresher on 401 when request sets skipAuthRefresh: true', async () => {
+    const refresherMock = vi.fn().mockResolvedValue('fresh_token_123');
+    const client = new ApiClient('http://localhost:5000');
+    client.setTokenRefresher(refresherMock);
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ success: false, error: { message: 'Unauthorized custom auth' } }),
+    });
+
+    await expect(client.get('/api/v1/tech/jobs', { skipAuthRefresh: true, retries: 0 })).rejects.toThrow();
+    expect(refresherMock).not.toHaveBeenCalled();
+  });
+
+  it('bypasses tokenRefresher on 401 for technician and portal routes automatically', async () => {
+    const refresherMock = vi.fn().mockResolvedValue('fresh_token_123');
+    const client = new ApiClient('http://localhost:5000');
+    client.setTokenRefresher(refresherMock);
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ success: false, error: { message: 'Unauthorized custom PIN' } }),
+    });
+
+    // /tech/ route
+    await expect(client.get('/api/v1/tech/me', { retries: 0 })).rejects.toThrow();
+    expect(refresherMock).not.toHaveBeenCalled();
+
+    // /portal/ route
+    await expect(client.get('/api/v1/portal/my-tickets', { retries: 0 })).rejects.toThrow();
+    expect(refresherMock).not.toHaveBeenCalled();
+  });
 });

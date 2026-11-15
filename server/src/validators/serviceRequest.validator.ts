@@ -13,13 +13,16 @@ export const requestTypeEnum = z.enum([
   'OTHER',
 ]);
 
-export const priorityEnum = z.enum([
-  'LOW',
-  'MEDIUM',
-  'HIGH',
-  'URGENT',
-  'EMERGENCY',
-]);
+export const priorityEnum = z
+  .enum([
+    'LOW',
+    'MEDIUM',
+    'HIGH',
+    'URGENT',
+    'EMERGENCY',
+    'CRITICAL',
+  ])
+  .transform((val) => (val === 'CRITICAL' ? 'URGENT' : val));
 
 export const statusEnum = z.enum([
   'REQUESTED',
@@ -103,7 +106,11 @@ export const createServiceRequestSchema = {
     issueCategory: z.string().max(100).trim().optional().nullable(),
     preferredDate: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Preferred date must be in YYYY-MM-DD format')
+      .transform((val) => {
+        if (!val) return null;
+        const match = val.match(/^\d{4}-\d{2}-\d{2}/);
+        return match ? match[0] : null;
+      })
       .optional()
       .nullable(),
     notes: z.string().max(2000).trim().optional().nullable(),
@@ -123,7 +130,11 @@ export const updateServiceRequestSchema = {
     issueCategory: z.string().max(100).trim().optional().nullable(),
     preferredDate: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Preferred date must be in YYYY-MM-DD format')
+      .transform((val) => {
+        if (!val) return null;
+        const match = val.match(/^\d{4}-\d{2}-\d{2}/);
+        return match ? match[0] : null;
+      })
       .optional()
       .nullable(),
     notes: z.string().max(2000).trim().optional().nullable(),
