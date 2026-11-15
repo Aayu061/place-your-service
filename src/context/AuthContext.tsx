@@ -73,10 +73,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     apiClient.setTokenRefresher(
       supabase
         ? async () => {
-            const { data, error: refreshErr } = await supabase.auth.refreshSession();
-            if (refreshErr || !data.session?.access_token) return null;
-            if (isMounted) setSession(data.session);
-            return data.session.access_token;
+            try {
+              const { data, error: refreshErr } = await supabase.auth.refreshSession();
+              if (refreshErr || !data.session?.access_token) {
+                // If refresh failed (e.g. invalid grant / 400), clean up dead storage
+                await supabase.auth.signOut().catch(() => {});
+                return null;
+              }
+              if (isMounted) setSession(data.session);
+              return data.session.access_token;
+            } catch {
+              await supabase.auth.signOut().catch(() => {});
+              return null;
+            }
           }
         : null
     );
@@ -123,6 +132,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err) {
         console.warn('[AuthContext] Session restoration error:', err);
+        // Cleanly purge invalid or revoked session from storage
+        await supabase.auth.signOut().catch(() => {});
         apiClient.setAuthToken(null);
         if (isMounted) {
           setSession(null);

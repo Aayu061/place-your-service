@@ -24,6 +24,31 @@ export function getSupabaseClient(): SupabaseClient | null {
     return null;
   }
 
+  // Pre-flight check: If stored Supabase session in localStorage has expired or is malformed,
+  // purge it gracefully to prevent redundant 400 Bad Request refresh_token network failures.
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const storageKey = `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.expires_at) {
+            const expiryMs = parsed.expires_at * 1000;
+            // If the token is already expired by more than 24 hours, purge it
+            if (expiryMs < Date.now() - 24 * 60 * 60 * 1000) {
+              window.localStorage.removeItem(storageKey);
+            }
+          }
+        } catch {
+          window.localStorage.removeItem(storageKey);
+        }
+      }
+    }
+  } catch {
+    // Ignore storage access errors (e.g. sandboxed iframes or private mode)
+  }
+
   try {
     supabaseClientInstance = createClient(url, anonKey, {
       auth: {
