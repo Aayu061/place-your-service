@@ -229,7 +229,11 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
             variant="secondary"
             size="sm"
             leftIcon={<ExternalLink size={14} />}
-            onClick={() => window.open('http://localhost:5002', '_blank')}
+            onClick={() => {
+              const url = (import.meta.env.VITE_ESS_STOREFRONT_URL as string | undefined) ||
+                (import.meta.env.PROD ? 'https://extreme-sales-services-gh7s.onrender.com' : 'http://localhost:5002');
+              window.open(url, '_blank', 'noopener,noreferrer');
+            }}
           >
             Open Storefront
           </Button>
