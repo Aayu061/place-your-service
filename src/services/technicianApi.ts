@@ -94,10 +94,76 @@ export interface TechDailyAnalytics {
   }>;
 }
 
+export interface TechExistingReportAsset {
+  id?: string;
+  asset_id?: string;
+  assetId?: string;
+  asset_tag?: string;
+  assetTag?: string;
+  brand?: string;
+  model_number?: string;
+  modelNumber?: string;
+  room_location?: string;
+  roomLocation?: string;
+  fault_reported?: string | null;
+  faultReported?: string | null;
+  diagnosis_findings?: string | null;
+  diagnosisFindings?: string | null;
+  work_performed?: string | null;
+  workPerformed?: string | null;
+  asset_outcome?: string | null;
+  assetOutcome?: string | null;
+  final_condition?: string | null;
+  finalCondition?: string | null;
+  filter_cleaned?: boolean | null;
+  filterCleaned?: boolean | null;
+  coil_jet_washed?: boolean | null;
+  coilJetWashed?: boolean | null;
+  drain_cleared?: boolean | null;
+  drainCleared?: boolean | null;
+  electrical_tightened?: boolean | null;
+  electricalTightened?: boolean | null;
+  refrigerant_added?: boolean | null;
+  refrigerantAdded?: boolean | null;
+  refrigerant_type?: string | null;
+  refrigerantType?: string | null;
+  refrigerant_qty_kg?: number | string | null;
+  refrigerantQtyKg?: number | string | null;
+  notes?: string | null;
+}
+
 export interface TechExistingReportRef {
   id: string;
-  reportNumber: string;
+  reportNumber?: string;
+  report_number?: string;
   status?: string;
+  serviceDate?: string | null;
+  service_date?: string | null;
+  primaryOutcome?: string | null;
+  primary_outcome?: string | null;
+  customerRepresentative?: string | null;
+  customer_representative?: string | null;
+  customerAcknowledgement?: string | null;
+  customer_acknowledgement?: string | null;
+  customerSignatureUrl?: string | null;
+  customer_signature_url?: string | null;
+  technicianRemarks?: string | null;
+  technician_remarks?: string | null;
+  workDescription?: string | null;
+  work_description?: string | null;
+  beforePhotoUrl?: string | null;
+  before_photo_url?: string | null;
+  afterPhotoUrl?: string | null;
+  after_photo_url?: string | null;
+  paymentCollected?: boolean | null;
+  payment_collected?: boolean | null;
+  paymentAmount?: number | string | null;
+  payment_amount?: number | string | null;
+  paymentMethod?: string | null;
+  payment_method?: string | null;
+  paymentReference?: string | null;
+  payment_reference?: string | null;
+  assets?: TechExistingReportAsset[];
 }
 
 export interface TechCompletedReportSummary {

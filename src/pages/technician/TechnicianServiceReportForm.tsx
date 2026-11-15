@@ -7,7 +7,7 @@ import {
   Camera,
   Trash2,
 } from 'lucide-react';
-import { technicianApi, TechJob } from '@/services/technicianApi';
+import { technicianApi, TechJob, TechExistingReportRef } from '@/services/technicianApi';
 import { getApiErrorMessage } from '@/services/api/client';
 import { getIstTodayIso } from '@/utils/date';
 import { uploadFieldMediaFile } from '@/utils/mediaUpload';
@@ -33,7 +33,7 @@ export function TechnicianServiceReportForm({
   const [job, setJob] = useState<TechJob | null>(null);
   const [siteAssets, setSiteAssets] = useState<NonNullable<TechJob['ac_assets']>[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
-  const [existingReport, setExistingReport] = useState<any | null>(null);
+  const [existingReport, setExistingReport] = useState<TechExistingReportRef | null>(null);
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);

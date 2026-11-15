@@ -965,6 +965,10 @@ export interface ServiceReportAsset {
   workPerformed?: string | null;
   assetOutcome: ServiceVisitOutcome;
   finalCondition?: string | null;
+  filterCleaned?: boolean | null;
+  coilJetWashed?: boolean | null;
+  drainCleared?: boolean | null;
+  electricalTightened?: boolean | null;
   refrigerantAdded: boolean;
   refrigerantQtyKg?: number | null;
   notes?: string | null;
