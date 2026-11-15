@@ -176,7 +176,7 @@ export class TechnicianPortalService {
         return q
           .lte('scheduled_date', targetDate)
           .or(
-            `scheduled_date.eq.${targetDate},and(scheduled_date.lt.${targetDate},status.in.(SCHEDULED,EN_ROUTE,IN_PROGRESS))`
+            `scheduled_date.eq.${targetDate},and(scheduled_date.lt.${targetDate},status.in.(SCHEDULED,ASSIGNED,EN_ROUTE,IN_PROGRESS))`
           )
           .order('scheduled_date', { ascending: true })
           .order('start_time', { ascending: true });
