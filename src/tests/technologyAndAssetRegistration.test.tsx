@@ -5,7 +5,8 @@ import { act } from 'react';
 // @ts-expect-error global React flag
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot } from 'react-dom/client';
-import { CustomerManagement, clearClientMasterCache } from '@/pages/CustomerManagement';
+import { CustomerManagement } from '@/pages/CustomerManagement';
+import { clearClientMasterCache } from '@/utils/customerMasterCache';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { apiClient } from '@/services/api/client';

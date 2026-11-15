@@ -82,15 +82,10 @@ import {
   computeLiveWarrantyStatus,
   getAmcBadgeProps,
 } from './customers/customerManagementShared';
-
-// High-Speed Master Data Client Caches (0ms Instant Brand & Model Selection)
-const clientModelsByBrandCache = new Map<string, AcModel[]>();
-const clientVariantsByModelCache = new Map<string, AcModelVariant[]>();
-
-export function clearClientMasterCache() {
-  clientModelsByBrandCache.clear();
-  clientVariantsByModelCache.clear();
-}
+import {
+  clientModelsByBrandCache,
+  clientVariantsByModelCache,
+} from '../utils/customerMasterCache';
 
 export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
