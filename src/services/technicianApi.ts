@@ -168,7 +168,8 @@ export const technicianApi = {
   async login(identifier: string, pin: string, rememberMe = true): Promise<{ token: string; technician: TechUser }> {
     const response = await apiClient.post<{ token: string; technician: TechUser }>(
       '/api/v1/tech/login',
-      { identifier, pin }
+      { identifier, pin },
+      { skipAuthRefresh: true }
     );
     this.setSession(response.token, response.technician, rememberMe);
     return response;
@@ -180,6 +181,7 @@ export const technicianApi = {
       '/api/v1/tech/me',
       {
         headers: { Authorization: `Bearer ${token}` },
+        skipAuthRefresh: true,
       }
     );
     return response;
@@ -189,6 +191,7 @@ export const technicianApi = {
     const token = this.getToken();
     const response = await apiClient.patch<{ status: string }>('/api/v1/tech/status', { status }, {
       headers: { Authorization: `Bearer ${token}` },
+      skipAuthRefresh: true,
     });
     const current = this.getStoredTech();
     if (current) {
@@ -211,6 +214,7 @@ export const technicianApi = {
     const query = params.toString() ? `?${params.toString()}` : '';
     const response = await apiClient.get<TechJob[]>(`/api/v1/tech/jobs${query}`, {
       headers: { Authorization: `Bearer ${token}` },
+      skipAuthRefresh: true,
     });
     return response || [];
   },
@@ -222,6 +226,7 @@ export const technicianApi = {
       { status },
       {
         headers: { Authorization: `Bearer ${token}` },
+        skipAuthRefresh: true,
       }
     );
     return response;
@@ -234,6 +239,7 @@ export const technicianApi = {
       `/api/v1/tech/analytics${query}`,
       {
         headers: { Authorization: `Bearer ${token}` },
+        skipAuthRefresh: true,
       }
     );
     return response;
@@ -255,6 +261,7 @@ export const technicianApi = {
       `/api/v1/tech/jobs/${scheduleId}`,
       {
         headers: { Authorization: `Bearer ${token}` },
+        skipAuthRefresh: true,
       }
     );
     return response;
@@ -264,6 +271,7 @@ export const technicianApi = {
     const token = this.getToken();
     const response = await apiClient.post<TechExistingReportRef>('/api/v1/tech/service-reports', payload, {
       headers: { Authorization: `Bearer ${token}` },
+      skipAuthRefresh: true,
     });
     return response;
   },
@@ -273,7 +281,10 @@ export const technicianApi = {
     return apiClient.patch<{ updated: boolean }>(
       '/api/v1/tech/pin',
       { currentPin, newPin },
-      { headers: { Authorization: `Bearer ${token}` } }
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        skipAuthRefresh: true,
+      }
     );
   },
 
@@ -285,6 +296,7 @@ export const technicianApi = {
     const token = this.getToken();
     return apiClient.post('/api/v1/tech/media/upload-url', body, {
       headers: { Authorization: `Bearer ${token}` },
+      skipAuthRefresh: true,
     });
   },
 
@@ -292,12 +304,18 @@ export const technicianApi = {
     const token = this.getToken();
     return apiClient.get(`/api/v1/tech/media/signed-url?path=${encodeURIComponent(path)}`, {
       headers: { Authorization: `Bearer ${token}` },
+      skipAuthRefresh: true,
     });
   },
 
   async getWorkSummary(techId: string): Promise<TechWorkSummary> {
+    const token = this.getToken();
     const response = await apiClient.get<TechWorkSummary>(
-      `/api/v1/technicians/${techId}/work-summary`
+      `/api/v1/technicians/${techId}/work-summary`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        skipAuthRefresh: true,
+      }
     );
     return response;
   },

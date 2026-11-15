@@ -39,7 +39,7 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 function isTestRuntime(): boolean {
   try {
@@ -234,9 +234,11 @@ export class ApiClient {
           options.timeoutMs
         );
 
+        const isCustomAuthRoute = url.includes('/tech/') || url.includes('/portal/');
         if (
           response.status === 401 &&
           !options.skipAuthRefresh &&
+          !isCustomAuthRoute &&
           !authRetried &&
           this.tokenRefresher
         ) {

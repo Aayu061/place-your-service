@@ -35,8 +35,8 @@ export function getSupabaseClient(): SupabaseClient | null {
           const parsed = JSON.parse(raw);
           if (parsed && parsed.expires_at) {
             const expiryMs = parsed.expires_at * 1000;
-            // If the token is already expired by more than 24 hours, purge it
-            if (expiryMs < Date.now() - 24 * 60 * 60 * 1000) {
+            // If the token is already expired, purge it to prevent redundant 400 Bad Request refresh_token network failures
+            if (expiryMs < Date.now()) {
               window.localStorage.removeItem(storageKey);
             }
           }

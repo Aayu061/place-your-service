@@ -148,21 +148,22 @@ essStorefrontRouter.post('/contact-enquiries', async (req: Request, res: Respons
       productOfInterest,
     } = req.body;
 
-    if (!name || !phone) {
-      return res.status(400).json({ success: false, message: 'Name and phone number are required.' });
+    if (!name || (!phone && !email)) {
+      return res.status(400).json({ success: false, message: 'Name and either a phone number or email are required.' });
     }
 
     const enqNumber = `ENQ-${Math.floor(100000 + Math.random() * 900000)}`;
     const effectiveServiceType = serviceType || service_type || null;
     const effectiveSource = sourceChannel || source_channel || 'EXTREME_SALES_SERVICES';
     const effectiveSubject = subject || (productOfInterest ? `Inquiry for ${productOfInterest}` : (effectiveServiceType || 'Customer Service Request'));
+    const resolvedPhone = phone ? phone.trim() : 'N/A';
 
     const { data, error } = await supabase
       .from('contact_enquiries')
       .insert({
         enquiry_number: enqNumber,
         name: name.trim(),
-        phone: phone.trim(),
+        phone: resolvedPhone,
         email: email?.trim() || null,
         service_type: effectiveServiceType,
         subject: effectiveSubject,
