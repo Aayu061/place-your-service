@@ -110,11 +110,12 @@ export const SettingsWorkspace: React.FC<{ onNavigate?: (item: string) => void }
         title: 'Snapshot Downloaded',
         message: 'Saved database JSON replica snapshot to your PC.',
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       showToast({
         type: 'error',
         title: 'Download Failed',
-        message: err.message || 'Could not stream replica.',
+        message: msg || 'Could not stream replica.',
       });
     } finally {
       setDownloading(false);

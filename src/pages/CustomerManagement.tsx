@@ -87,6 +87,11 @@ import {
 const clientModelsByBrandCache = new Map<string, AcModel[]>();
 const clientVariantsByModelCache = new Map<string, AcModelVariant[]>();
 
+export function clearClientMasterCache() {
+  clientModelsByBrandCache.clear();
+  clientVariantsByModelCache.clear();
+}
+
 export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
 

@@ -66,7 +66,7 @@ interface LogEntry {
   level: 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
   category: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
   stack?: string;
 }
 
@@ -77,7 +77,10 @@ interface CrashIncident {
   message: string;
   error_name?: string;
   stack_trace?: string;
-  context_data?: any;
+  context_data?: {
+    remediationAdvice?: string;
+    [key: string]: unknown;
+  };
   resolved: boolean;
   resolved_at?: string;
   created_at: string;
@@ -154,12 +157,13 @@ export const ServerManagementWorkspace: React.FC = () => {
       if (metaRes?.data) {
         setMetadata(metaRes.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!isBackground) {
+        const msg = err instanceof Error ? err.message : String(err);
         showToast({
           type: 'error',
           title: 'Telemetry Refresh Error',
-          message: err.message || 'Unable to communicate with telemetry API.',
+          message: msg || 'Unable to communicate with telemetry API.',
         });
       }
     } finally {
@@ -192,11 +196,12 @@ export const ServerManagementWorkspace: React.FC = () => {
         message: 'Bug Inspector successfully captured and recorded the simulated crash in Supabase.',
       });
       await fetchTelemetry(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       showToast({
         type: 'error',
         title: 'Self-Test Failed',
-        message: err.message || 'Could not trigger diagnostic test.',
+        message: msg || 'Could not trigger diagnostic test.',
       });
     } finally {
       setTriggeringTest(false);
@@ -216,11 +221,12 @@ export const ServerManagementWorkspace: React.FC = () => {
         setInspectedCrash({ ...inspectedCrash, resolved: true });
       }
       void fetchTelemetry(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       showToast({
         type: 'error',
         title: 'Resolution Error',
-        message: err.message || 'Could not update incident status.',
+        message: msg || 'Could not update incident status.',
       });
     }
   };
@@ -264,11 +270,12 @@ export const ServerManagementWorkspace: React.FC = () => {
         message: `Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB) directly to disk.`,
       });
       void fetchTelemetry(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       showToast({
         type: 'error',
         title: 'Download Failed',
-        message: err.message || 'Could not stream database replica.',
+        message: msg || 'Could not stream database replica.',
       });
     } finally {
       setDownloadingFormat(null);
@@ -826,7 +833,7 @@ export const ServerManagementWorkspace: React.FC = () => {
                   AUTOMATED ROOT-CAUSE REMEDIATION RECOMMENDATION:
                 </div>
                 <div style={{ fontSize: 'var(--text-xs)', lineHeight: 1.6 }}>
-                  {inspectedCrash.context_data.remediationAdvice}
+                  {String(inspectedCrash.context_data.remediationAdvice)}
                 </div>
               </div>
             )}

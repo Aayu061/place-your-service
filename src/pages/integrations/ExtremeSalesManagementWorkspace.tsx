@@ -87,17 +87,22 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
       setBookings(reqList);
 
       // 2. Load Storefront Products from PYS or Supabase
-      const prodRes = await apiClient.get<any>('/ess-products').catch(() => ({ products: [] }));
+      const prodRes = await apiClient
+        .get<{ products?: EssProduct[]; data?: { products?: EssProduct[] } }>('/ess-products')
+        .catch(() => ({ products: [] as EssProduct[], data: undefined }));
       const prodList = prodRes?.products || prodRes?.data?.products || [];
       setProducts(prodList);
 
       // 3. Load Contact Enquiries
-      const enqRes = await apiClient.get<any>('/contact-enquiries').catch(() => ({ enquiries: [] }));
+      const enqRes = await apiClient
+        .get<{ enquiries?: ContactEnquiry[]; data?: { enquiries?: ContactEnquiry[] } }>('/contact-enquiries')
+        .catch(() => ({ enquiries: [] as ContactEnquiry[], data: undefined }));
       const enqList = enqRes?.enquiries || enqRes?.data?.enquiries || [];
       setEnquiries(enqList);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Non-fatal fallback for UI development
-      console.warn('Failed loading ESS data:', err.message);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('Failed loading ESS data:', msg);
     } finally {
       setLoading(false);
     }
@@ -124,11 +129,12 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
         message: res.message || `Created Customer ${res.data.customerCode} and Ticket ${res.data.requestNumber}.`,
       });
       void loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       showToast({
         type: 'error',
         title: 'Conversion Failed',
-        message: err.message || 'Could not convert inquiry to ticket.',
+        message: msg || 'Could not convert inquiry to ticket.',
       });
     } finally {
       setConvertingId(null);
@@ -189,8 +195,9 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
       });
       setIsProductModalOpen(false);
       void loadData();
-    } catch (err: any) {
-      showToast({ type: 'error', title: 'Save Failed', message: err.message || 'Unable to save product.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast({ type: 'error', title: 'Save Failed', message: msg || 'Unable to save product.' });
     } finally {
       setIsSubmitting(false);
     }

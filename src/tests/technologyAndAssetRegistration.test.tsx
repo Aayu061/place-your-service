@@ -5,7 +5,7 @@ import { act } from 'react';
 // @ts-expect-error global React flag
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 import { createRoot } from 'react-dom/client';
-import { CustomerManagement } from '@/pages/CustomerManagement';
+import { CustomerManagement, clearClientMasterCache } from '@/pages/CustomerManagement';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { apiClient } from '@/services/api/client';
@@ -78,6 +78,7 @@ describe('Phase B: Technology Normalization & Form Integrity Tests', () => {
     beforeEach(() => {
       vi.restoreAllMocks();
       document.body.innerHTML = '';
+      clearClientMasterCache();
     });
 
     const mockAdminUser = {
