@@ -7,7 +7,7 @@ import { signTechToken, hashPin } from '../src/utils/techAuth.js';
 
 describe('Dual-Platform Integration & Gap Closure Verification Suite', () => {
   const app = createApp();
-  const m2mKey = env.M2M_API_KEY || '***REMOVED***';
+  const m2mKey = env.M2M_API_KEY || 'test-m2m-key-placeholder';
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -114,7 +114,7 @@ describe('Dual-Platform Integration & Gap Closure Verification Suite', () => {
       expect(res.body.success).toBe(false);
     });
 
-    it('converts contact inquiry to customer and service request with address fallback', async () => {
+    it('refuses enquiry conversion with the ESS integration key (staff-only action)', async () => {
       const enquiryId = 'enq-uuid-100';
       const mockEnquiry = {
         id: enquiryId,
@@ -203,14 +203,13 @@ describe('Dual-Platform Integration & Gap Closure Verification Suite', () => {
       } as any;
       vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
 
+      // Converting an enquiry is a staff action: the ESS integration key must be refused.
       const res = await request(app)
         .post(`/api/v1/contact-enquiries/${enquiryId}/convert`)
         .set('X-API-Key', m2mKey);
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.customerCode).toMatch(/^CUST-\d{6}$/);
-      expect(res.body.data.requestNumber).toMatch(/^SR-\d{8}-\d{4}$/);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
     });
   });
 

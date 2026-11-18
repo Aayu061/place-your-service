@@ -7,6 +7,27 @@ import { logger } from '../utils/logger.js';
 import { env } from '../config/env.js';
 
 /**
+ * Endpoints the ESS storefront backend may call with the M2M key.
+ * The key is NOT a general admin credential: any other method/path is refused.
+ * Paths are matched against the full request path (without query string).
+ */
+const M2M_ALLOWED_ENDPOINTS: ReadonlyArray<{ method: string; path: RegExp }> = [
+  { method: 'GET', path: /^\/api\/v1\/customers\/?$/ },
+  { method: 'POST', path: /^\/api\/v1\/customers\/?$/ },
+  { method: 'GET', path: /^\/api\/v1\/customers\/[^/]+\/sites\/?$/ },
+  { method: 'POST', path: /^\/api\/v1\/sites\/?$/ },
+  { method: 'POST', path: /^\/api\/v1\/service-requests\/?$/ },
+  { method: 'GET', path: /^\/api\/v1\/amc-contracts\/plans\/?$/ },
+  { method: 'POST', path: /^\/api\/v1\/compliance\/gstin\/lookup\/?$/ },
+  { method: 'POST', path: /^\/api\/v1\/admin\/telemetry\/crash-report\/?$/ },
+];
+
+export function isM2mEndpointAllowed(method: string, originalUrl: string): boolean {
+  const path = originalUrl.split('?')[0];
+  return M2M_ALLOWED_ENDPOINTS.some((rule) => rule.method === method.toUpperCase() && rule.path.test(path));
+}
+
+/**
  * Authentication Middleware:
  * Verifies Supabase JWT token or Machine-to-Machine (M2M) API Key,
  * loads profile and staff identity, and attaches verified user context to req.user.
@@ -23,6 +44,13 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       const providedBuf = Buffer.from(candidateApiKey, 'utf8');
       const expectedBuf = Buffer.from(env.M2M_API_KEY, 'utf8');
       if (providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf)) {
+        if (!isM2mEndpointAllowed(req.method, req.originalUrl)) {
+          logger.warn('M2M key used on an endpoint outside its allow-list', {
+            method: req.method,
+            path: req.originalUrl.split('?')[0],
+          });
+          throw new ForbiddenError('This integration key is not permitted to call this endpoint.');
+        }
         req.user = {
           userId: '9141b9fc-895f-4e87-b992-2dddf61c739c', // System Administrator profile ID
           email: 'integration@extreme-sales-services.com',

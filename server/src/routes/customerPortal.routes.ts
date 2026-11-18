@@ -12,10 +12,26 @@ import { logger } from '../utils/logger.js';
 export const customerPortalRouter = Router();
 
 /**
+ * The customer portal is paused until verified (email OTP) login ships.
+ * Phone-number-only login let anyone open another customer's data, so login,
+ * overview, booking and asset registration return 503 until then.
+ * Public ticket tracking (/track) stays available.
+ */
+export const CUSTOMER_PORTAL_PAUSED = true;
+
+function portalPaused(_req: Request, res: Response, next: NextFunction) {
+  if (!CUSTOMER_PORTAL_PAUSED) return next();
+  return res.status(503).json({
+    success: false,
+    message: 'The customer portal is being upgraded with secure login. Please call +91 7977805245 or use Track Request in the meantime.',
+  });
+}
+
+/**
  * POST /api/v1/portal/auth/login
  * Customer login / verification via registered mobile number
  */
-customerPortalRouter.post('/auth/login', authLimiter, async (req: Request, res: Response, next: NextFunction) => {
+customerPortalRouter.post('/auth/login', portalPaused, authLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { phone, name } = req.body;
     if (!phone) {
@@ -37,7 +53,7 @@ customerPortalRouter.post('/auth/login', authLimiter, async (req: Request, res: 
  * GET /api/v1/portal/overview
  * Fetches the complete portal overview for the authenticated customer
  */
-customerPortalRouter.get('/overview', requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
+customerPortalRouter.get('/overview', portalPaused, requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const customerId = req.customer!.id;
     const overview = await customerPortalService.getCustomerOverview(customerId);
@@ -55,7 +71,7 @@ customerPortalRouter.get('/overview', requireCustomerAuth, async (req: Request, 
  * POST /api/v1/portal/book-service
  * Customer books a service request from the portal
  */
-customerPortalRouter.post('/book-service', requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
+customerPortalRouter.post('/book-service', portalPaused, requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const customerId = req.customer!.id;
     const { assetId, siteId, requestType, description, preferredDate } = req.body;
@@ -88,7 +104,7 @@ customerPortalRouter.post('/book-service', requireCustomerAuth, async (req: Requ
  * POST /api/v1/portal/register-asset
  * Customer registers a new AC unit in their asset register
  */
-customerPortalRouter.post('/register-asset', requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
+customerPortalRouter.post('/register-asset', portalPaused, requireCustomerAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const customerId = req.customer!.id;
     const { siteId, brand, modelNumber, acType, capacityTons, starRating, roomLocation, serialNumber } = req.body;
@@ -129,10 +145,10 @@ customerPortalRouter.get('/track', async (req: Request, res: Response, next: Nex
     const ticketId = (req.query.ticket as string) || (req.query.id as string) || '';
     const phone = (req.query.phone as string) || '';
 
-    if (!ticketId && !phone) {
+    if (!ticketId || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide a Service Request Number (e.g. SR-20261115-0001) or registered mobile number.',
+        message: 'Please provide both your Request ID and the mobile number used for the booking.',
       });
     }
 
@@ -142,7 +158,7 @@ customerPortalRouter.get('/track', async (req: Request, res: Response, next: Nex
       data: trackingData,
     });
   } catch (error) {
-    logger.warn('Service tracking lookup error', { error, query: req.query });
+    logger.warn('Service tracking lookup error', { error });
     return next(error);
   }
 });

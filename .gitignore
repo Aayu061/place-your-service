@@ -58,3 +58,6 @@ extreme-sales-services-main/
 # Database snapshot backups
 backups/
 server/backups/
+
+# Local browser-automation screenshots/snapshots
+.playwright-mcp/

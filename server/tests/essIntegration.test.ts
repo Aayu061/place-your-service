@@ -33,41 +33,51 @@ describe('Extreme Sales & Services (ESS) Integration Suite', () => {
   });
 
   describe('2. Machine-to-Machine (M2M) Authentication', () => {
-    it('authenticates M2M calls using X-API-Key header without requiring Supabase JWT', async () => {
-      const mockSupabase: any = {
-        from: vi.fn((table: string) => ({
-          select: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockResolvedValue({ data: [], error: null, count: 0 }),
-        })),
-      };
+    const customersListMock = () => ({
+      from: vi.fn((_table: string) => ({
+        select: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockResolvedValue({ data: [], error: null, count: 0 }),
+      })),
+    });
+
+    it('authenticates M2M calls using X-API-Key header on an allowed endpoint (customer search)', async () => {
+      const mockSupabase: any = customersListMock();
       vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
 
       const res = await request(app)
-        .get('/api/v1/service-requests')
+        .get('/api/v1/customers?search=9876543210')
         .set('X-API-Key', m2mKey);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(mockSupabase.from).toHaveBeenCalledWith('service_requests');
+      expect(mockSupabase.from).toHaveBeenCalledWith('customers');
     });
 
-    it('authenticates M2M calls using Authorization: Bearer <M2M_KEY>', async () => {
-      const mockSupabase: any = {
-        from: vi.fn((table: string) => ({
-          select: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockResolvedValue({ data: [], error: null, count: 0 }),
-        })),
-      };
+    it('authenticates M2M calls using Authorization: Bearer <M2M_KEY> on an allowed endpoint', async () => {
+      const mockSupabase: any = customersListMock();
       vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
 
       const res = await request(app)
-        .get('/api/v1/service-requests')
+        .get('/api/v1/customers')
         .set('Authorization', `Bearer ${m2mKey}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+
+    it('refuses the M2M key on endpoints outside its allow-list (403), e.g. listing all service requests or staff', async () => {
+      const mockSupabase: any = customersListMock();
+      vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(mockSupabase);
+
+      for (const path of ['/api/v1/service-requests', '/api/v1/staff', '/api/v1/admin/database/backup', '/api/v1/contact-enquiries']) {
+        const res = await request(app).get(path).set('X-API-Key', m2mKey);
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+      }
+      expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
     it('rejects calls with an invalid API key and no JWT', async () => {

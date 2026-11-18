@@ -6,7 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import { getSupabaseClient } from '../lib/supabase.js';
-import { verifyCustomerToken, normalizePhone } from '../utils/customerAuth.js';
+import { verifyCustomerToken } from '../utils/customerAuth.js';
 import { logger } from '../utils/logger.js';
 
 export async function requireCustomerAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
@@ -23,33 +23,6 @@ export async function requireCustomerAuth(req: Request, _res: Response, next: Ne
         throw new UnauthorizedError('Invalid or expired customer session token.');
       }
       customerId = payload.customerId;
-    } else if (req.query.phone || req.body.phone) {
-      // Fallback: direct phone query for trusted portal requests
-      const rawPhone = String(req.query.phone || req.body.phone);
-      const cleanPhone = normalizePhone(rawPhone);
-
-      const supabase = getSupabaseClient();
-      const { data: cust, error: custErr } = await supabase
-        .from('customers')
-        .select('id, customer_code, name, phone, email, is_active')
-        .or(`phone.eq.${cleanPhone},phone.eq.+91${cleanPhone},phone.eq.91${cleanPhone}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (custErr || !cust) {
-        throw new UnauthorizedError('No registered customer profile found for this phone number.');
-      }
-
-      req.customer = {
-        id: cust.id,
-        customerCode: cust.customer_code,
-        name: cust.name,
-        phone: cust.phone,
-        email: cust.email || undefined,
-        isActive: cust.is_active,
-      };
-
-      return next();
     } else {
       throw new UnauthorizedError('Authorization header with Bearer token is required.');
     }

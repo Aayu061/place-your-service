@@ -11,7 +11,7 @@
 
 ### Vercel (`place-your-service`)
 - `VITE_SUPABASE_URL`: `https://jvccvdxfilzlncbgiplk.supabase.co`
-- `VITE_SUPABASE_ANON_KEY`: `eyJhbGciOi...`
+- `VITE_SUPABASE_ANON_KEY`: Configured in Vercel (public anon key)
 - `VITE_ESS_STOREFRONT_URL`: `https://extreme-sales-services.vercel.app`
 - `VITE_API_BASE_URL`: `https://place-your-service-api.onrender.com`
 
@@ -19,12 +19,12 @@
 - `CORS_ORIGIN`: `https://place-your-service.vercel.app,https://extreme-sales-services-gh7s.onrender.com,https://extreme-sales-services.vercel.app`
 - `SUPABASE_URL`: `https://jvccvdxfilzlncbgiplk.supabase.co`
 - `SUPABASE_SERVICE_ROLE_KEY`: Configured
-- `M2M_API_KEY`: `***REMOVED***`
+- `M2M_API_KEY`: Configured in Render (secret — never write the value here)
 - `ESS_WEBHOOK_URL`: `https://extreme-sales-services-gh7s.onrender.com/api/webhooks/pys`
-- `ESS_WEBHOOK_SECRET`: `***REMOVED***`
+- `ESS_WEBHOOK_SECRET`: Configured in Render (secret — never write the value here)
 - `RESEND_API_KEY`: Configured
 - `RESEND_FROM_EMAIL`: `Extreme Sales & Services <onboarding@resend.dev>`
-- `RESEND_REPLY_TO`: `extremesales24@gmail.com`
+- `RESEND_REPLY_TO`: `extremess0121@gmail.com`
 - `RATE_LIMIT_WINDOW_MS`: `60000`
 - `RATE_LIMIT_MAX`: `100`
 

@@ -14,6 +14,17 @@ import { normalizePhone } from '../utils/customerAuth.js';
 export const essStorefrontRouter = Router();
 
 /**
+ * The storefront sells new air conditioners only (residential, commercial,
+ * industrial). Refurbished/used units and spare parts are no longer sold.
+ */
+export const NEW_AC_CATEGORY = 'new_ac';
+export const BLOCKED_PRODUCT_CATEGORIES = ['refurbished', 'used_ac', 'used', 'spare_parts', 'spare_part'] as const;
+
+export function isBlockedProductCategory(category: unknown): boolean {
+  return typeof category === 'string' && (BLOCKED_PRODUCT_CATEGORIES as readonly string[]).includes(category.trim().toLowerCase());
+}
+
+/**
  * GET /api/v1/ess-products
  * Public / Admin: Retrieves all storefront products
  */
@@ -23,11 +34,12 @@ essStorefrontRouter.get('/ess-products', async (_req: Request, res: Response, ne
     const { data, error } = await supabase
       .from('ess_products')
       .select('*')
+      .not('category', 'in', `(${BLOCKED_PRODUCT_CATEGORIES.join(',')})`)
       .order('created_at', { ascending: false });
 
     if (error) {
       logger.error('Failed to query ess_products', { error: error.message });
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Unable to load products right now.' });
     }
 
     return res.json({
@@ -41,9 +53,9 @@ essStorefrontRouter.get('/ess-products', async (_req: Request, res: Response, ne
 
 /**
  * POST /api/v1/ess-products
- * Admin: Upserts a storefront product into Supabase
+ * Admin/Staff: Upserts a storefront product into Supabase (new ACs only)
  */
-essStorefrontRouter.post('/ess-products', async (req: Request, res: Response, next: NextFunction) => {
+essStorefrontRouter.post('/ess-products', requireAuth, requireRole('ADMIN', 'STAFF'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const supabase = getSupabaseClient();
     const {
@@ -63,11 +75,18 @@ essStorefrontRouter.post('/ess-products', async (req: Request, res: Response, ne
       image_url,
     } = req.body;
 
+    if (isBlockedProductCategory(category)) {
+      return res.status(400).json({ success: false, message: 'Only new air conditioners can be listed on the storefront.' });
+    }
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({ success: false, message: 'Product name is required.' });
+    }
+
     const prodId = id || `prod-${Date.now()}`;
     const productPayload = {
       id: prodId,
       name,
-      category: category || 'new_ac',
+      category: typeof category === 'string' && category.trim() ? category.trim().toLowerCase() : NEW_AC_CATEGORY,
       price: Number(price) || 0,
       price_display: price_display || `₹${(Number(price) || 0).toLocaleString('en-IN')}`,
       stock: Number(stock) || 0,
@@ -90,7 +109,7 @@ essStorefrontRouter.post('/ess-products', async (req: Request, res: Response, ne
 
     if (error) {
       logger.error('Failed to upsert ess_product', { error: error.message });
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Unable to save the product right now.' });
     }
 
     return res.status(201).json({
@@ -104,9 +123,9 @@ essStorefrontRouter.post('/ess-products', async (req: Request, res: Response, ne
 
 /**
  * GET /api/v1/contact-enquiries
- * Admin: Lists web enquiries from contact forms
+ * Admin/Staff: Lists web enquiries from contact forms (contains personal data — never public)
  */
-essStorefrontRouter.get('/contact-enquiries', async (_req: Request, res: Response, next: NextFunction) => {
+essStorefrontRouter.get('/contact-enquiries', requireAuth, requireRole('ADMIN', 'STAFF'), async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
@@ -116,7 +135,7 @@ essStorefrontRouter.get('/contact-enquiries', async (_req: Request, res: Respons
 
     if (error) {
       logger.error('Failed to query contact_enquiries', { error: error.message });
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Unable to load enquiries right now.' });
     }
 
     return res.json({
@@ -176,7 +195,7 @@ essStorefrontRouter.post('/contact-enquiries', async (req: Request, res: Respons
 
     if (error) {
       logger.error('Failed to insert contact_enquiry', { error: error.message });
-      return res.status(500).json({ success: false, message: error.message });
+      return res.status(500).json({ success: false, message: 'Unable to submit your enquiry right now. Please call us instead.' });
     }
 
     return res.status(201).json({

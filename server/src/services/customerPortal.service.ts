@@ -368,85 +368,75 @@ export class CustomerPortalService {
     const cleanId = (identifier || '').trim().toUpperCase();
     const cleanPhone = rawPhone ? normalizePhone(rawPhone) : '';
 
-    let query = supabase
-      .from('service_requests')
-      .select(`
+    // Exact lookups only: no partial matches, no phone-only enumeration.
+    if (!/^[A-Z0-9-]{4,40}$/.test(cleanId)) {
+      throw new BadRequestError('Please enter a valid Request ID (for example SR-20261115-0001 or AC-20261115-ABC123).');
+    }
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      throw new BadRequestError('Please enter the 10-digit mobile number used for the booking.');
+    }
+
+    const selectColumns = `
         id,
         request_number,
         request_type,
         priority,
         status,
         description,
-        source_channel,
         preferred_date,
         resolved_at,
         created_at,
         customer:customers (
-          id,
-          customer_code,
           name,
+          customer_code,
           phone,
-          address,
           city
         ),
         asset:ac_assets (
-          id,
-          asset_tag,
           brand,
-          model_number,
           ac_type,
-          capacity_tons,
-          room_location
+          capacity_tons
         )
-      `);
+      `;
 
-    if (cleanId.startsWith('SR-')) {
-      query = query.or(`request_number.eq.${cleanId},external_reference_id.eq.${cleanId}`);
-    } else if (cleanId.startsWith('AC-')) {
-      query = query.or(`external_reference_id.eq.${cleanId},request_number.eq.${cleanId},external_reference_id.ilike.%${cleanId}%`);
-    } else if (cleanPhone && cleanPhone.length >= 10) {
-      // Find customer by phone first
-      const { data: cust } = await supabase
-        .from('customers')
-        .select('id')
-        .or(`phone.eq.${cleanPhone},phone.eq.+91${cleanPhone},phone.eq.91${cleanPhone}`)
-        .limit(1);
+    const notFound = new NotFoundError('No request found for this Request ID and mobile number.');
 
-      if (cust && cust.length > 0) {
-        query = query.eq('customer_id', cust[0].id).order('created_at', { ascending: false });
-      } else {
-        throw new NotFoundError('No service requests found for this mobile number.');
-      }
-    } else if (cleanId.length > 0) {
-      // Try by request number exact or prefix, or external reference ID
-      query = query.or(`request_number.eq.${cleanId},external_reference_id.eq.${cleanId},request_number.ilike.%${cleanId}%,external_reference_id.ilike.%${cleanId}%`);
-    } else {
-      throw new BadRequestError('Please provide a valid Service Request Number (e.g. SR-20261115-0001) or Mobile Number.');
+    let { data: ticket } = await supabase
+      .from('service_requests')
+      .select(selectColumns)
+      .eq('request_number', cleanId)
+      .maybeSingle();
+
+    if (!ticket) {
+      const byExternalRef = await supabase
+        .from('service_requests')
+        .select(selectColumns)
+        .eq('external_reference_id', cleanId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      ticket = byExternalRef.data;
     }
 
-    const { data: tickets, error } = await query.limit(5);
-
-    if (error || !tickets || tickets.length === 0) {
-      throw new NotFoundError(`No service ticket found matching "${identifier || rawPhone}".`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customer = (ticket as any)?.customer as { name?: string; customer_code?: string; phone?: string; city?: string } | null;
+    if (!ticket || !customer?.phone || normalizePhone(customer.phone) !== cleanPhone) {
+      throw notFound;
     }
 
-    const primaryTicket = tickets[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const primaryTicket = ticket as any;
 
-    // Fetch schedule for primary ticket
     const { data: schedule } = await supabase
       .from('service_schedules')
       .select(`
-        id,
-        schedule_number,
         scheduled_date,
         start_time,
         end_time,
         planned_service_type,
         status,
         technician:technicians (
-          id,
-          name,
-          phone
+          name
         )
       `)
       .eq('service_request_id', primaryTicket.id)
@@ -469,7 +459,6 @@ export class CustomerPortalService {
 
     return {
       ticket: {
-        id: primaryTicket.id,
         requestNumber: primaryTicket.request_number,
         requestType: primaryTicket.request_type,
         priority: primaryTicket.priority,
@@ -480,15 +469,21 @@ export class CustomerPortalService {
         createdAt: primaryTicket.created_at,
         resolvedAt: primaryTicket.resolved_at,
       },
-      customer: primaryTicket.customer,
-      asset: primaryTicket.asset,
+      // Only what the tracking page shows — no street address, phone or technician phone.
+      customer: {
+        name: customer.name ?? null,
+        customerCode: customer.customer_code ?? null,
+        city: customer.city ?? null,
+        address: customer.city ?? '',
+      },
+      asset: primaryTicket.asset
+        ? {
+            brand: primaryTicket.asset.brand ?? null,
+            acType: primaryTicket.asset.ac_type ?? null,
+            capacityTons: primaryTicket.asset.capacity_tons ?? null,
+          }
+        : null,
       schedule: schedule || null,
-      allMatchingTickets: tickets.map((t) => ({
-        requestNumber: t.request_number,
-        requestType: t.request_type,
-        status: t.status,
-        createdAt: t.created_at,
-      })),
     };
   }
 
