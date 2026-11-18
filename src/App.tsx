@@ -23,6 +23,7 @@ const ServiceReportsManagement = lazy(() => import('@/pages/ServiceReportsManage
 const PhaseZeroOverview = lazy(() => import('@/pages/PhaseZeroOverview').then((m) => ({ default: m.PhaseZeroOverview })));
 const TechnicianPortal = lazy(() => import('@/pages/technician/TechnicianPortal').then((m) => ({ default: m.TechnicianPortal })));
 const ServerManagementWorkspace = lazy(() => import('@/pages/serverManagement/ServerManagementWorkspace').then((m) => ({ default: m.ServerManagementWorkspace })));
+const ApprovalInbox = lazy(() => import('@/pages/intakes/ApprovalInbox').then((m) => ({ default: m.ApprovalInbox })));
 const ExtremeSalesManagementWorkspace = lazy(() => import('@/pages/integrations/ExtremeSalesManagementWorkspace').then((m) => ({ default: m.ExtremeSalesManagementWorkspace })));
 
 const RouteLoadingFallback: React.FC = () => (
@@ -136,6 +137,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ onSwitchToTech }) =
             return <StaffManagement />;
           }
 
+          // Approval Inbox: website requests awaiting review (Admin & Staff)
+          if (activeItem === 'approval-inbox') {
+            return <ApprovalInbox onNavigate={onNavigate} />;
+          }
+
           // Dedicated Phase 4 Customer Management (Admin & Staff)
           if (activeItem === 'customers') {
             return <CustomerManagement onNavigate={onNavigate} />;
@@ -172,12 +178,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ onSwitchToTech }) =
           }
 
           // Centralized Server & Database Management Workspace
-          if (activeItem === 'server-management') {
+          if (activeItem === 'server-management' && currentRole === 'ADMIN') {
             return <ServerManagementWorkspace />;
           }
 
           // Extreme Sales & Services Operational Control Workspace
-          if (activeItem === 'ess-management') {
+          if (activeItem === 'ess-management' && currentRole === 'ADMIN') {
             return <ExtremeSalesManagementWorkspace onNavigate={onNavigate} />;
           }
 

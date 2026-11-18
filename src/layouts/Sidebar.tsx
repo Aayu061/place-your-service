@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 import { LegalTermsModal } from '@/components/legal/LegalTermsModal';
 import { NAV_STRUCTURE } from './navStructure';
+import { usePendingIntakeCount } from '@/hooks/usePendingIntakeCount';
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -37,6 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  // Approval Inbox badge: polls /intakes/stats every 60 s, fails silently.
+  const pendingIntakes = usePendingIntakeCount(Boolean(user));
 
   // Keyboard shortcut listener: Toggle sidebar with Ctrl+B or Cmd+B
   useEffect(() => {
@@ -306,6 +309,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   if (item.adminOnly && currentRole !== 'ADMIN') return null;
                   const Icon = item.icon;
                   const isActive = activeItem === item.id;
+                  const badgeCount = item.id === 'approval-inbox' && pendingIntakes ? pendingIntakes : 0;
+                  const badgeText = badgeCount > 99 ? '99+' : String(badgeCount);
 
                   const navButton = (
                     <button
@@ -379,6 +384,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           }}
                         >
                           {item.label}
+                        </span>
+                      )}
+                      {badgeCount > 0 && (
+                        <span
+                          data-testid="approval-inbox-badge"
+                          aria-label={`${badgeCount} waiting for approval`}
+                          style={{
+                            marginLeft: isCollapsed ? 0 : 'auto',
+                            position: isCollapsed ? 'absolute' : 'static',
+                            top: isCollapsed ? 2 : undefined,
+                            right: isCollapsed ? 4 : undefined,
+                            minWidth: 18,
+                            height: 18,
+                            padding: '0 5px',
+                            borderRadius: 9,
+                            background: 'var(--color-warning, #d97706)',
+                            color: '#ffffff',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            lineHeight: '18px',
+                            textAlign: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {badgeText}
                         </span>
                       )}
                     </button>

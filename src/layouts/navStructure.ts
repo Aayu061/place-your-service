@@ -16,6 +16,7 @@ import {
   Settings,
   Server,
   Store,
+  Inbox,
 } from 'lucide-react';
 
 export interface NavItemDef {
@@ -42,6 +43,7 @@ export const NAV_STRUCTURE: NavGroupDef[] = [
   {
     group: 'OPERATIONS',
     items: [
+      { id: 'approval-inbox', label: 'Approval Inbox', icon: Inbox },
       { id: 'customers', label: 'Customers', icon: Users },
       { id: 'service-requests', label: 'Service Requests', icon: Wrench },
       { id: 'service-schedule', label: 'Service Schedule', icon: CalendarDays },

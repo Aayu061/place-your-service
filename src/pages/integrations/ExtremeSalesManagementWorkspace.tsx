@@ -1,7 +1,7 @@
 // src/pages/integrations/ExtremeSalesManagementWorkspace.tsx
 // ═══════════════════════════════════════════════════════════════════════════
 // EXTREME SALES & SERVICES (ESS) CENTRALIZED MANAGEMENT HUB
-// Manage ESS Storefront Bookings, Products, Enquiries & Rate Sync inside PYS
+// Manage ESS Storefront Bookings, Products, Enquiries & live AMC prices inside PYS
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -24,6 +24,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
 import { apiClient } from '@/services/api/client';
 import { ServiceRequest } from '@/domain/types';
+import { CatalogAmcPlansPanel } from './CatalogAmcPlansPanel';
 
 interface EssProduct {
   id: string;
@@ -281,7 +282,7 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
           leftIcon={<ShieldCheck size={14} />}
           onClick={() => setActiveTab('amc')}
         >
-          AMC Rate Sync
+          AMC Plan Prices
         </Button>
       </div>
 
@@ -480,40 +481,9 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
         </Card>
       )}
 
-      {/* TAB 4: AMC RATE SYNC */}
+      {/* TAB 4: AMC PLAN PRICES — live from the shared catalog */}
       {activeTab === 'amc' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Official AMC Rate Plan Synchronization</CardTitle>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-              The 10 official statutory rate plans configured in PYS match the rates displayed on Extreme Sales &amp; Services.
-            </p>
-          </CardHeader>
-          <CardBody>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
-              <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Comprehensive Split AC AMC</div>
-                <div style={{ color: 'var(--color-brand)', fontWeight: 800, fontSize: 'var(--text-lg)', margin: '4px 0' }}>₹4,200 / year</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Includes Compressor, Gas, Spares, 2 Dry + 1 Wet Visit</div>
-                <Badge variant="success" style={{ marginTop: 8 }}>100% In Sync</Badge>
-              </div>
-
-              <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Semi-Comprehensive Split AC AMC</div>
-                <div style={{ color: 'var(--color-brand)', fontWeight: 800, fontSize: 'var(--text-lg)', margin: '4px 0' }}>₹2,600 / year</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Includes Labour, Routine Electrical Spares, Breakdown Visits</div>
-                <Badge variant="success" style={{ marginTop: 8 }}>100% In Sync</Badge>
-              </div>
-
-              <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Non-Comprehensive Split AC AMC</div>
-                <div style={{ color: 'var(--color-brand)', fontWeight: 800, fontSize: 'var(--text-lg)', margin: '4px 0' }}>₹1,600 / year</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Annual maintenance, 3 scheduled checkups. Spares extra.</div>
-                <Badge variant="success" style={{ marginTop: 8 }}>100% In Sync</Badge>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+        <CatalogAmcPlansPanel onOpenInbox={onNavigate ? () => onNavigate('approval-inbox') : undefined} />
       )}
 
       {/* PRODUCT ADD/EDIT MODAL */}
