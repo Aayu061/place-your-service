@@ -232,7 +232,6 @@ export class CustomerPortalService {
         description,
         source_channel,
         preferred_date,
-        resolved_at,
         created_at,
         site_id,
         asset_id
@@ -384,7 +383,6 @@ export class CustomerPortalService {
         status,
         description,
         preferred_date,
-        resolved_at,
         created_at,
         customer:customers (
           name,
@@ -401,11 +399,15 @@ export class CustomerPortalService {
 
     const notFound = new NotFoundError('No request found for this Request ID and mobile number.');
 
-    let { data: ticket } = await supabase
+    const byNumber = await supabase
       .from('service_requests')
       .select(selectColumns)
       .eq('request_number', cleanId)
       .maybeSingle();
+    if (byNumber.error) {
+      logger.error('Tracking lookup failed', { error: byNumber.error.message });
+    }
+    let ticket = byNumber.data;
 
     if (!ticket) {
       const byExternalRef = await supabase
@@ -415,6 +417,9 @@ export class CustomerPortalService {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (byExternalRef.error) {
+        logger.error('Tracking lookup by external reference failed', { error: byExternalRef.error.message });
+      }
       ticket = byExternalRef.data;
     }
 
@@ -467,7 +472,7 @@ export class CustomerPortalService {
         description: primaryTicket.description,
         preferredDate: primaryTicket.preferred_date,
         createdAt: primaryTicket.created_at,
-        resolvedAt: primaryTicket.resolved_at,
+        resolvedAt: null,
       },
       // Only what the tracking page shows — no street address, phone or technician phone.
       customer: {
