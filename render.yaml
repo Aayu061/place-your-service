@@ -43,3 +43,5 @@ services:
         sync: false
       - key: RESEND_WEBHOOK_SECRET
         sync: false
+      - key: INTEGRATION_SECRET_KEY
+        sync: false

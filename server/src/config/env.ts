@@ -41,6 +41,9 @@ const envSchema = z.object({
   ESS_WEBHOOK_SECRET: z.string().min(8).optional(),
   M2M_API_KEY: z.string().min(16).optional(),
   TECH_JWT_SECRET: z.string().min(16).optional(),
+  // 32-byte key (base64) that encrypts integration signing secrets at rest. Required to create or
+  // verify ESS keys; without it the signed /api/v1/ess routes answer 503.
+  INTEGRATION_SECRET_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, 'INTEGRATION_SECRET_KEY must be 32 bytes, base64-encoded').optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
@@ -81,6 +84,8 @@ function loadEnv(): ServerEnv {
     M2M_API_KEY:
       process.env.M2M_API_KEY?.trim() || (isTest ? 'test-only-m2m-api-key-12345' : undefined),
     TECH_JWT_SECRET: process.env.TECH_JWT_SECRET?.trim() || undefined,
+    INTEGRATION_SECRET_KEY:
+      process.env.INTEGRATION_SECRET_KEY?.trim() || (isTest ? Buffer.alloc(32, 7).toString('base64') : undefined),
   };
 
   const parsed = envSchema.safeParse(rawEnv);

@@ -22,6 +22,8 @@ import { adminTelemetryRouter } from './adminTelemetry.routes.js';
 import { essStorefrontRouter } from './essStorefront.routes.js';
 import { customerPortalRouter } from './customerPortal.routes.js';
 import { catalogRouter } from './catalog.routes.js';
+import { essApiRouter } from './ess/index.js';
+import { integrationRouter } from './integration.routes.js';
 
 const apiV1Router = Router();
 
@@ -42,6 +44,10 @@ apiV1Router.use('/assets', assetRouter);
 
 // Shared service & AMC price catalog (PYS + ESS)
 apiV1Router.use('/catalog', catalogRouter);
+
+// Signed server-to-server API for the ESS website + Admin key/outbox management
+apiV1Router.use('/ess', essApiRouter);
+apiV1Router.use('/integrations', integrationRouter);
 
 // AC Brand, Model & Variant Master Data Routes
 apiV1Router.use('/ac-brands', brandRouter);

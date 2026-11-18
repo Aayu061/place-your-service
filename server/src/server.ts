@@ -6,11 +6,13 @@ import { startReportEmailDeliveryWorker } from './services/reportEmail.service.j
 import { emailOutboxService } from './services/email/emailOutbox.service.js';
 import { operationsService } from './services/operations.service.js';
 import { telemetryLogService } from './services/telemetryLog.service.js';
+import { outboxService } from './services/outbox.service.js';
 
 let server: Server | null = null;
 let reportEmailWorker: NodeJS.Timeout | null = null;
 let outboxEmailWorker: NodeJS.Timeout | null = null;
 let notificationWorker: NodeJS.Timeout | null = null;
+let outboundEventWorker: NodeJS.Timeout | null = null;
 
 function startServer(): void {
   const port = env.PORT;
@@ -37,6 +39,15 @@ function startServer(): void {
       }));
     }, 10 * 60 * 1000);
     notificationWorker.unref();
+    let housekeepingTick = 0;
+    outboundEventWorker = setInterval(() => {
+      void outboxService.processPending().catch((error) => logger.error('Outbound event worker failed', {
+        error: error instanceof Error ? error.message : 'Unknown worker error',
+      }));
+      housekeepingTick = (housekeepingTick + 1) % 20;
+      if (housekeepingTick === 0) void outboxService.housekeeping();
+    }, 30 * 1000);
+    outboundEventWorker.unref();
     void operationsService.generateNotifications().catch((error) => logger.error('Initial notification generation failed', {
       error: error instanceof Error ? error.message : 'Unknown worker error',
     }));
@@ -48,6 +59,7 @@ function startServer(): void {
     if (reportEmailWorker) clearInterval(reportEmailWorker);
     if (outboxEmailWorker) clearInterval(outboxEmailWorker);
     if (notificationWorker) clearInterval(notificationWorker);
+    if (outboundEventWorker) clearInterval(outboundEventWorker);
 
     if (server) {
       server.close((err) => {

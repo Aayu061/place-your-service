@@ -65,7 +65,15 @@ export function createApp(): Express {
   // 3. Body Parsing
   app.use('/api/v1/webhooks', webhookRouter);
 
-  app.use(express.json({ limit: '1mb' }));
+  // Keep the exact bytes so signed integration requests (/api/v1/ess) can be verified.
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        (req as unknown as { rawBody?: Buffer }).rawBody = buf;
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   // 4. Request Correlation ID
