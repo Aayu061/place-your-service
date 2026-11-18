@@ -328,15 +328,23 @@ async function sendVisitDateChangedIfDue(
     .filter((key) => statusKeys.has(key) || key.startsWith(datePrefix));
   if (earlierVisitEmails.length === 0) return null;
 
-  const idempotencyKey = visitDateIdempotencyKey(
+  const dateKey = visitDateIdempotencyKey(
     request.id,
     schedule.id,
     schedule.scheduled_date,
     schedule.start_time,
     schedule.end_time,
   );
-  // This exact date and window was already emailed: nothing new to tell.
-  if (earlierVisitEmails.includes(idempotencyKey)) return 'SKIPPED';
+  // Rows are newest first. Compare with the LAST date the customer was told, not every date ever
+  // emailed: a visit moved A -> B -> A must announce A again.
+  const baseOf = (key: string) => key.split('#')[0];
+  const lastDateEmail = earlierVisitEmails.find((key) => key.startsWith(datePrefix));
+  if (lastDateEmail && baseOf(lastDateEmail) === dateKey) return 'SKIPPED';
+  // A date announced before (then changed) gets a per-event key so the email outbox does not
+  // treat it as a duplicate; retries of the same event still share one key.
+  const idempotencyKey = earlierVisitEmails.some((key) => baseOf(key) === dateKey)
+    ? `${dateKey}#${event.id}`
+    : dateKey;
 
   const technicianFirstName = schedule.technician_id ? await loadTechnicianFirstName(schedule.technician_id) : null;
   const trackingCode = await loadTrackingCode(request.id);

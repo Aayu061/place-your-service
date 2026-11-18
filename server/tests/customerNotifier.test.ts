@@ -413,6 +413,35 @@ describe('customer notifier', () => {
       expect(send.mock.calls[0][0].idempotencyKey).toBe('sr-visit-date:sr-1:sch-1:2026-11-27:1400-1600');
     });
 
+    it('emails again when the visit moves back to an earlier date (A -> B -> A)', async () => {
+      // Newest first: customer was last told 27 Nov, earlier told 25 Nov; now it is back on 25 Nov.
+      tables.email_deliveries = {
+        data: [
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-27:1400-1600' },
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600' },
+          { idempotency_key: 'sr-status:sr-1:SCHEDULED' },
+        ],
+        error: null,
+      };
+      const ev = movedEvent({ previousScheduledDate: '2026-11-27' });
+      await expect(handleServiceStatusChanged(ev)).resolves.toBe('DONE');
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0].idempotencyKey).toBe(`sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600#${ev.id}`);
+    });
+
+    it('does not repeat a re-announced date (A -> B -> A, then another A event)', async () => {
+      tables.email_deliveries = {
+        data: [
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600#evt-9' },
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-27:1400-1600' },
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600' },
+        ],
+        error: null,
+      };
+      await expect(handleServiceStatusChanged(movedEvent())).resolves.toBe('SKIPPED');
+      expect(send).not.toHaveBeenCalled();
+    });
+
     it('first scheduling still sends only the SCHEDULED email', async () => {
       tables.service_schedules = { data: [schedule], error: null };
       tables.email_deliveries = { data: [], error: null };
