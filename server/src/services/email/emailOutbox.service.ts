@@ -29,7 +29,12 @@ export type EmailEntityType =
   | 'PAYMENT_INVOICE'
   | 'PAYMENT_RECEIPT'
   | 'DISPATCH_CONFIRMATION'
-  | 'TEST_EMAIL';
+  | 'TEST_EMAIL'
+  | 'INTAKE_RECEIPT'
+  | 'INTAKE_CONFIRMATION'
+  | 'INTAKE_REJECTION'
+  | 'SERVICE_STATUS_UPDATE'
+  | 'PORTAL_OTP';
 
 export type EmailDeliveryStatus =
   | 'PENDING'

@@ -7,6 +7,7 @@ import { emailOutboxService } from './services/email/emailOutbox.service.js';
 import { operationsService } from './services/operations.service.js';
 import { telemetryLogService } from './services/telemetryLog.service.js';
 import { outboxService } from './services/outbox.service.js';
+import { registerCustomerNotifier } from './services/notifications/customerNotifier.js';
 
 let server: Server | null = null;
 let reportEmailWorker: NodeJS.Timeout | null = null;
@@ -39,6 +40,7 @@ function startServer(): void {
       }));
     }, 10 * 60 * 1000);
     notificationWorker.unref();
+    registerCustomerNotifier();
     let housekeepingTick = 0;
     outboundEventWorker = setInterval(() => {
       void outboxService.processPending().catch((error) => logger.error('Outbound event worker failed', {

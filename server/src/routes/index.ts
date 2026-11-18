@@ -24,6 +24,7 @@ import { customerPortalRouter } from './customerPortal.routes.js';
 import { catalogRouter } from './catalog.routes.js';
 import { essApiRouter } from './ess/index.js';
 import { integrationRouter } from './integration.routes.js';
+import { intakeRouter } from './intake.routes.js';
 
 const apiV1Router = Router();
 
@@ -48,6 +49,8 @@ apiV1Router.use('/catalog', catalogRouter);
 // Signed server-to-server API for the ESS website + Admin key/outbox management
 apiV1Router.use('/ess', essApiRouter);
 apiV1Router.use('/integrations', integrationRouter);
+// Website request approval inbox (staff)
+apiV1Router.use('/intakes', intakeRouter);
 
 // AC Brand, Model & Variant Master Data Routes
 apiV1Router.use('/ac-brands', brandRouter);
