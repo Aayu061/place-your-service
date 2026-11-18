@@ -21,6 +21,7 @@ import { adminBackupRouter } from './adminBackup.routes.js';
 import { adminTelemetryRouter } from './adminTelemetry.routes.js';
 import { essStorefrontRouter } from './essStorefront.routes.js';
 import { customerPortalRouter } from './customerPortal.routes.js';
+import { catalogRouter } from './catalog.routes.js';
 
 const apiV1Router = Router();
 
@@ -38,6 +39,9 @@ apiV1Router.use('/compliance', complianceRouter);
 // Phase 5 Customer Sites & AC Asset Register Routes
 apiV1Router.use('/sites', siteRouter);
 apiV1Router.use('/assets', assetRouter);
+
+// Shared service & AMC price catalog (PYS + ESS)
+apiV1Router.use('/catalog', catalogRouter);
 
 // AC Brand, Model & Variant Master Data Routes
 apiV1Router.use('/ac-brands', brandRouter);
