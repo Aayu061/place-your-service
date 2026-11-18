@@ -17,6 +17,27 @@ export function escapeEmailHtml(val: unknown): string {
   });
 }
 
+/**
+ * ESS "Cool Air" email colours (same tokens as the ESS website, plan §5A.2). Text/background
+ * pairs meet WCAG AA; cyan is only used for the thin accent bar, never for small text.
+ */
+export const EMAIL_BRAND = {
+  frost: '#F3F7FA',
+  paper: '#FFFFFF',
+  navy: '#0F2340',
+  slate: '#4A5B70',
+  line: '#D6E1EA',
+  cyan: '#1AA7C9',
+  deepCyan: '#0B7A99',
+} as const;
+
+/** Hosted copy of the transparent ESS logo (PYS public/brand). Alt text keeps emails readable when images are blocked. */
+export const ESS_EMAIL_LOGO_URL = 'https://place-your-service.vercel.app/brand/ess-logo-512.png';
+
+/**
+ * Shared layout for every customer email (intake receipts, confirmations, status updates,
+ * reports, invoices, AMC). Table-based so it renders in Gmail, Outlook and phone mail apps.
+ */
 export function wrapBrandedEmailLayout(opts: {
   title: string;
   badgeText?: string;
@@ -24,36 +45,58 @@ export function wrapBrandedEmailLayout(opts: {
   badgeBg?: string;
   bodyHtml: string;
 }): string {
+  const b = EMAIL_BRAND;
   const badgeHtml = opts.badgeText
-    ? `<span style="display:inline-block;padding:4px 10px;border-radius:12px;font-size:11.5px;font-weight:700;letter-spacing:0.04em;background:${opts.badgeBg || '#e0f2fe'};color:${opts.badgeColor || '#0369a1'};">${escapeEmailHtml(opts.badgeText)}</span>`
+    ? `<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:0.04em;background:${opts.badgeBg || '#e0f2fe'};color:${opts.badgeColor || '#0369a1'};">${escapeEmailHtml(opts.badgeText)}</span>`
     : '';
 
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>${escapeEmailHtml(opts.title)}</title>
 </head>
-<body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;">
-  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:32px;">
-    <div style="border-bottom:2px solid #0284c7;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-      <div>
-        <h1 style="margin:0;font-size:22px;color:#0f172a;letter-spacing:-0.02em;">Extreme Sales &amp; Services</h1>
-        <p style="margin:2px 0 0;font-size:12px;color:#0284c7;font-weight:600;">Air Conditioning Sales, Preventive Maintenance &amp; Services · Place Your Service Platform</p>
-        <p style="margin:4px 0 0;font-size:11.5px;color:#64748b;line-height:1.45;">
-          Office: 1/1, Samrat Ashok Nagar, Chembur, Mumbai - 400043<br>
-          Billing: 204 Kokan Residency, 2nd floor, Vikas Wadi, Nr J P Bar, Devad, New Panvel - 410206<br>
-          Tel: +91 7977805245 / 9969423500 | Email: extremess0121@gmail.com | <strong>GSTIN: 27ANTPP9778J1ZO</strong>
-        </p>
-      </div>
-      ${badgeHtml}
-    </div>
-    ${opts.bodyHtml}
-    <div style="margin-top:24px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:12px;">
-      Extreme Sales &amp; Services · Operating on Place Your Service Platform (PYS)<br>
-      For questions or replies, write to extremess0121@gmail.com or call +91 7977805245
-    </div>
-  </div>
+<body style="margin:0;padding:0;background:${b.frost};font-family:Archivo,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${b.navy};">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${b.frost};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:${b.paper};border:1px solid ${b.line};border-radius:14px;">
+          <tr><td style="height:4px;background:${b.cyan};border-radius:14px 14px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <tr>
+            <td style="padding:24px 28px 16px;border-bottom:1px solid ${b.line};">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td width="64" valign="top" style="padding-right:14px;">
+                    <img src="${ESS_EMAIL_LOGO_URL}" width="56" height="56" alt="ESS" style="display:block;border:0;width:56px;height:56px;">
+                  </td>
+                  <td valign="top">
+                    <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;color:${b.navy};">Extreme Sales &amp; Services</div>
+                    <div style="margin-top:2px;font-size:12.5px;color:${b.deepCyan};font-weight:600;">AC sales, servicing, repairs and AMC</div>
+                  </td>
+                  <td valign="top" align="right">${badgeHtml}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 28px;font-size:15px;line-height:1.55;color:${b.navy};">
+              ${opts.bodyHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 28px 24px;border-top:1px solid ${b.line};font-size:11.5px;line-height:1.5;color:${b.slate};">
+              Office: 1/1, Samrat Ashok Nagar, Chembur, Mumbai - 400043<br>
+              Billing: 204 Kokan Residency, 2nd floor, Vikas Wadi, Nr J P Bar, Devad, New Panvel - 410206<br>
+              Tel: +91 7977805245 / 9969423500 · Email: <a href="mailto:extremess0121@gmail.com" style="color:${b.deepCyan};">extremess0121@gmail.com</a> · GSTIN: 27ANTPP9778J1ZO<br>
+              Questions? Reply to this email or call +91 7977805245.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }

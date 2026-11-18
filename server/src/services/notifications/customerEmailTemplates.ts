@@ -71,7 +71,7 @@ function detailsTable(rows: Row[]): { html: string; text: string } {
   const html = `<table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0 16px;">${present
     .map(
       ([label, value]) =>
-        `<tr><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;color:#64748b;width:40%;">${escapeEmailHtml(label)}</td><td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;color:#0f172a;font-weight:600;">${escapeEmailHtml(value)}</td></tr>`,
+        `<tr><td style="padding:6px 8px;border-bottom:1px solid #D6E1EA;color:#4A5B70;width:40%;">${escapeEmailHtml(label)}</td><td style="padding:6px 8px;border-bottom:1px solid #D6E1EA;color:#0F2340;font-weight:600;">${escapeEmailHtml(value)}</td></tr>`,
     )
     .join('')}</table>`;
   const text = present.map(([label, value]) => `${label}: ${value}`).join('\n');
@@ -100,7 +100,7 @@ function render(opts: {
   const hello = `Hello ${greetingName(opts.name)},`;
   const table = detailsTable(opts.rows);
   const bodyHtml = [
-    `<h2 style="font-size:18px;margin:0 0 12px;color:#0f172a;">${escapeEmailHtml(opts.heading)}</h2>`,
+    `<h2 style="font-size:18px;margin:0 0 12px;color:#0F2340;">${escapeEmailHtml(opts.heading)}</h2>`,
     paragraph(hello),
     ...opts.intro.map(paragraph),
     table.html,
