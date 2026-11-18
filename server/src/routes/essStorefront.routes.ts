@@ -6,6 +6,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { getSupabaseClient } from '../lib/supabase.js';
+import { nextBusinessNumber } from '../utils/businessNumber.js';
 import { logger } from '../utils/logger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
@@ -171,7 +172,7 @@ essStorefrontRouter.post('/contact-enquiries', async (req: Request, res: Respons
       return res.status(400).json({ success: false, message: 'Name and either a phone number or email are required.' });
     }
 
-    const enqNumber = `ENQ-${Math.floor(100000 + Math.random() * 900000)}`;
+    const enqNumber = await nextBusinessNumber('ENQUIRY', () => `ENQ-${Math.floor(100000 + Math.random() * 900000)}`);
     const effectiveServiceType = serviceType || service_type || null;
     const effectiveSource = sourceChannel || source_channel || 'EXTREME_SALES_SERVICES';
     const effectiveSubject = subject || (productOfInterest ? `Inquiry for ${productOfInterest}` : (effectiveServiceType || 'Customer Service Request'));
@@ -252,7 +253,7 @@ essStorefrontRouter.post(
         customerId = existingCust.id;
         customerCode = existingCust.customer_code;
       } else {
-        customerCode = `CUST-${Math.floor(100000 + Math.random() * 900000)}`;
+        customerCode = await nextBusinessNumber('CUSTOMER', () => `CUST-${Math.floor(100000 + Math.random() * 900000)}`);
         const { data: newCust, error: custErr } = await supabase
           .from('customers')
           .insert({
@@ -296,7 +297,7 @@ essStorefrontRouter.post(
 
       // 4. Create Service Request ticket
       const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const reqNumber = `SR-${todayStr}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const reqNumber = await nextBusinessNumber('SERVICE_REQUEST', () => `SR-${todayStr}-${Math.floor(1000 + Math.random() * 9000)}`);
 
       const { data: newTicket, error: ticketErr } = await supabase
         .from('service_requests')

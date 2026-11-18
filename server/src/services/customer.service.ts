@@ -1,3 +1,4 @@
+import { nextBusinessNumber } from '../utils/businessNumber.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
   CustomerResponse,
@@ -97,6 +98,10 @@ export class CustomerService {
    * Generates a unique, collision-resistant customer business code (e.g., CUST-849201).
    */
   private async generateCustomerCode(): Promise<string> {
+    return nextBusinessNumber('CUSTOMER', () => this.legacyCustomerCode());
+  }
+
+  private async legacyCustomerCode(): Promise<string> {
     const supabase = getSupabaseClient();
     for (let attempt = 0; attempt < 5; attempt++) {
       const randomNum = Math.floor(100000 + Math.random() * 900000);

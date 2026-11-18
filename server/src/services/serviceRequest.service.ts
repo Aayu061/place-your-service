@@ -1,3 +1,4 @@
+import { nextBusinessNumber } from '../utils/businessNumber.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
   ServiceRequestResponse,
@@ -73,6 +74,10 @@ export class ServiceRequestService {
    * Generates a collision-resistant unique Service Request number (e.g. SR-2026-104921).
    */
   private async generateRequestNumber(): Promise<string> {
+    return nextBusinessNumber('SERVICE_REQUEST', () => this.legacyRequestNumber());
+  }
+
+  private async legacyRequestNumber(): Promise<string> {
     const supabase = getSupabaseClient();
     const year = new Date().getFullYear();
     for (let i = 0; i < 5; i++) {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { nextBusinessNumber } from '../utils/businessNumber.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import {
   ServiceVisitReportResponse,
@@ -158,6 +159,10 @@ export class ServiceReportService {
    * Generates a collision-resistant unique Service Schedule number for follow-ups
    */
   private async generateScheduleNumber(isPm = false): Promise<string> {
+    return nextBusinessNumber(isPm ? 'PM_SCHEDULE' : 'SCHEDULE', () => this.legacyScheduleNumber(isPm));
+  }
+
+  private async legacyScheduleNumber(isPm = false): Promise<string> {
     const supabase = getSupabaseClient();
     const year = new Date().getFullYear();
     const prefix = isPm ? `PM-${year}-` : `SCH-${year}-`;

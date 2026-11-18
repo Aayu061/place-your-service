@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { nextBusinessNumber, nextBusinessNumbers } from '../utils/businessNumber.js';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { addDaysIstIso, getIstTodayIso } from '../utils/date.js';
 import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
@@ -146,6 +147,10 @@ export class AmcService {
    * Generate collision-safe contract number (AMC-YYYY-XXXX)
    */
   private async generateContractNumber(): Promise<string> {
+    return nextBusinessNumber('AMC_CONTRACT', () => this.legacyContractNumber());
+  }
+
+  private async legacyContractNumber(): Promise<string> {
     const supabase = getSupabaseClient();
     const year = new Date().getFullYear();
     const prefix = `AMC-${year}-`;
@@ -213,9 +218,11 @@ export class AmcService {
   /**
    * Generate collision-safe PM schedule number (PM-YYYY-XXXXXX)
    */
-  private async generateScheduleNumber(): Promise<string> {
-    const { prefix, nextSeq } = await this.getNextScheduleSequence();
-    return `${prefix}${String(nextSeq).padStart(6, '0')}`;
+  private async generateScheduleNumbers(count: number): Promise<string[]> {
+    return nextBusinessNumbers('PM_SCHEDULE', count, async (n) => {
+      const { prefix, nextSeq } = await this.getNextScheduleSequence();
+      return Array.from({ length: n }, (_, i) => `${prefix}${String(nextSeq + i).padStart(6, '0')}`);
+    });
   }
 
   /**
@@ -1755,9 +1762,6 @@ export class AmcService {
 
     const today = getIstTodayIso();
 
-    const { prefix, nextSeq: startSeq } = await this.getNextScheduleSequence();
-    let currentSeq = startSeq;
-
     // Verify actorId exists in profiles or set null to avoid FK violation
     let validActorId: string | null = null;
     if (actorId) {
@@ -1800,7 +1804,6 @@ export class AmcService {
         if (existingVisitKeySet.has(visitKey) || existingDateKeySet.has(dateKey)) {
           existingCount++;
         } else {
-          const scheduleNumber = `${prefix}${String(currentSeq++).padStart(6, '0')}`;
           let status: ServiceScheduleStatus = 'SCHEDULED';
           if (date < today) {
             status = 'OVERDUE';
@@ -1809,7 +1812,7 @@ export class AmcService {
           }
 
           toInsert.push({
-            schedule_number: scheduleNumber,
+            schedule_number: '', // assigned below in one atomic reservation
             amc_id: id,
             asset_id: asset.assetId,
             customer_id: contract.customerId || null,
@@ -1831,6 +1834,10 @@ export class AmcService {
 
     let actuallyInsertedCount = toInsert.length;
     if (toInsert.length > 0) {
+      const numbers = await this.generateScheduleNumbers(toInsert.length);
+      toInsert.forEach((row, idx) => {
+        row.schedule_number = numbers[idx];
+      });
       const { error: insErr } = await supabase.from('service_schedules').insert(toInsert);
       if (insErr) {
         // Concurrency safeguard: if another process inserted concurrently, suppress unique collision
