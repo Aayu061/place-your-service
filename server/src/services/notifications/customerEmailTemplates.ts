@@ -313,6 +313,52 @@ function timeWindow(start?: string | null, end?: string | null): string | null {
   return s || null;
 }
 
+export interface VisitDateChangedEmailInput {
+  customerName: string | null;
+  requestNumber: string;
+  trackingCode?: string | null;
+  /** The date we told the customer before, when known. */
+  previousDate?: string | null;
+  previousStartTime?: string | null;
+  previousEndTime?: string | null;
+  newDate: string;
+  newStartTime?: string | null;
+  newEndTime?: string | null;
+  /** First name only. Never pass a full name or phone number. */
+  technicianFirstName?: string | null;
+}
+
+function visitWhen(date?: string | null, start?: string | null, end?: string | null): string | null {
+  const parts = [formatCustomerDate(date), timeWindow(start, end)].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+}
+
+/** "Your visit has a new date": old date (when known) -> new date and window. No address, no technician phone. */
+export function buildVisitDateChangedEmail(input: VisitDateChangedEmailInput): EmailContent {
+  const previous = visitWhen(input.previousDate, input.previousStartTime, input.previousEndTime);
+  return render({
+    subject: `Your visit has a new date: ${input.requestNumber} | ${BUSINESS_NAME}`,
+    heading: 'Your visit has a new date',
+    badgeText: 'NEW DATE',
+    badgeBg: '#fef3c7',
+    badgeColor: '#b45309',
+    name: input.customerName,
+    intro: ['The visit for your service request has been moved. Please see the new date below.'],
+    rows: [
+      ['Service request number', input.requestNumber],
+      ['Tracking code', input.trackingCode],
+      ['Earlier date', previous],
+      ['New visit date', formatCustomerDate(input.newDate)],
+      ['Time window', timeWindow(input.newStartTime, input.newEndTime)],
+      ['Technician', firstNameOnly(input.technicianFirstName)],
+    ],
+    outro: [
+      'The time shown is our planned window; our team may call you before the visit.',
+      `If the new date does not suit you, reply to this email or call us on ${BUSINESS_PHONE}.`,
+    ],
+  });
+}
+
 export function buildServiceStatusEmail(input: ServiceStatusEmailInput): EmailContent {
   const status = CUSTOMER_STATUSES[input.code];
   const copy = STATUS_COPY[input.code] ?? {

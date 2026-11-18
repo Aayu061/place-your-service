@@ -8,6 +8,7 @@ import {
   buildIntakeReceiptEmail,
   buildIntakeRejectionEmail,
   buildServiceStatusEmail,
+  buildVisitDateChangedEmail,
   EmailContent,
   firstNameOnly,
 } from './customerEmailTemplates.js';
@@ -16,7 +17,8 @@ import {
  * Sends customer emails for web intake events and service status changes.
  * Rules: never email about events older than 24 h (an old backlog must not spam customers),
  * skip when there is no usable email or the feature flag is off, and send each status once per
- * request (idempotency key on email_deliveries).
+ * request (idempotency key on email_deliveries). When a visit moves to a new date/window after a
+ * date was already emailed, a "new date" email is sent once per new date (sr-visit-date key).
  */
 
 export const CUSTOMER_EVENT_TYPES = [
@@ -246,6 +248,121 @@ interface ScheduleRow {
   technician_id: string | null;
 }
 
+/** Only the technician's name column is read; customers see the first name only. */
+async function loadTechnicianFirstName(technicianId: string): Promise<string | null> {
+  const { data, error } = await getSupabaseClient()
+    .from('technicians')
+    .select('name')
+    .eq('id', technicianId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load technician: ${error.message}`);
+  return firstNameOnly((data as { name?: string | null } | null)?.name);
+}
+
+/** Tracking code is nice-to-have: requests that did not come from the website have none. */
+async function loadTrackingCode(serviceRequestId: string): Promise<string | null> {
+  const { data, error } = await getSupabaseClient()
+    .from('web_intakes')
+    .select('tracking_code')
+    .eq('service_request_id', serviceRequestId)
+    .limit(1);
+  if (error) return null;
+  return one(data as Array<{ tracking_code: string | null }> | null)?.tracking_code ?? null;
+}
+
+/** Status emails that showed the customer a visit date. */
+const VISIT_STATUS_EMAIL_CODES = ['SCHEDULED', 'TECHNICIAN_ASSIGNED', 'ON_THE_WAY'] as const;
+/** Visit statuses that still describe an upcoming visit (RESCHEDULED = moved in place, no technician yet). */
+const UPCOMING_VISIT_STATUSES = new Set(['SCHEDULED', 'PLANNED', 'DUE', 'OVERDUE', 'ASSIGNED', 'RESCHEDULED']);
+/** Request statuses where a visit date no longer matters to the customer. */
+const FINISHED_REQUEST_STATUSES = new Set(['RESOLVED', 'COMPLETED', 'PAYMENT', 'CLOSED', 'CANCELLED']);
+
+function hhmm(value: string | null | undefined): string {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value ?? '').trim());
+  return match ? `${match[1].padStart(2, '0')}${match[2]}` : 'any';
+}
+
+/** One key per request + visit + date + window: each genuinely new date emails once. */
+export function visitDateIdempotencyKey(
+  serviceRequestId: string,
+  scheduleId: string,
+  scheduledDate: string,
+  startTime: string | null | undefined,
+  endTime: string | null | undefined,
+): string {
+  return `sr-visit-date:${serviceRequestId}:${scheduleId}:${scheduledDate.slice(0, 10)}:${hhmm(startTime)}-${hhmm(endTime)}`;
+}
+
+function payloadString(event: OutboundEvent, key: string): string | null {
+  const value = event.payload?.[key];
+  return typeof value === 'string' && value ? value : null;
+}
+
+/**
+ * Sends "Your visit has a new date" when the live visit's date/window differs from what the
+ * customer was already emailed. Returns null to fall back to the normal status email, e.g. when
+ * no date was ever emailed (the first SCHEDULED email covers that, so never both).
+ */
+async function sendVisitDateChangedIfDue(
+  event: OutboundEvent,
+  request: RequestRow,
+  customerName: string | null,
+  email: string,
+  schedule: ScheduleRow | null,
+): Promise<OutboxOutcome | null> {
+  if (!schedule?.scheduled_date) return null;
+  if (FINISHED_REQUEST_STATUSES.has(request.status) || !UPCOMING_VISIT_STATUSES.has(schedule.status)) return null;
+
+  const { data, error } = await getSupabaseClient()
+    .from('email_deliveries')
+    .select('idempotency_key,created_at')
+    .eq('entity_type', 'SERVICE_STATUS_UPDATE')
+    .eq('entity_id', request.id)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Failed to load earlier customer emails: ${error.message}`);
+
+  const statusKeys = new Set(VISIT_STATUS_EMAIL_CODES.map((code) => `sr-status:${request.id}:${code}`));
+  const datePrefix = `sr-visit-date:${request.id}:`;
+  const earlierVisitEmails = ((data as Array<{ idempotency_key: string | null }> | null) ?? [])
+    .map((row) => row.idempotency_key ?? '')
+    .filter((key) => statusKeys.has(key) || key.startsWith(datePrefix));
+  if (earlierVisitEmails.length === 0) return null;
+
+  const idempotencyKey = visitDateIdempotencyKey(
+    request.id,
+    schedule.id,
+    schedule.scheduled_date,
+    schedule.start_time,
+    schedule.end_time,
+  );
+  // This exact date and window was already emailed: nothing new to tell.
+  if (earlierVisitEmails.includes(idempotencyKey)) return 'SKIPPED';
+
+  const technicianFirstName = schedule.technician_id ? await loadTechnicianFirstName(schedule.technician_id) : null;
+  const trackingCode = await loadTrackingCode(request.id);
+
+  return sendCustomerEmail({
+    entityType: 'SERVICE_STATUS_UPDATE',
+    entityId: request.id,
+    templateKey: 'service_visit_date_changed',
+    recipientEmail: email,
+    recipientName: customerName,
+    idempotencyKey,
+    content: buildVisitDateChangedEmail({
+      customerName,
+      requestNumber: request.request_number,
+      trackingCode,
+      previousDate: payloadString(event, 'previousScheduledDate'),
+      previousStartTime: payloadString(event, 'previousStartTime'),
+      previousEndTime: payloadString(event, 'previousEndTime'),
+      newDate: schedule.scheduled_date,
+      newStartTime: schedule.start_time,
+      newEndTime: schedule.end_time,
+      technicianFirstName,
+    }),
+  });
+}
+
 /**
  * SERVICE_REQUEST_STATUS_CHANGED and SERVICE_SCHEDULE_STATUS_CHANGED share one handler.
  * The customer status is computed from the CURRENT request + latest visit (not the payload),
@@ -288,6 +405,12 @@ export async function handleServiceStatusChanged(event: OutboundEvent): Promise<
   if (scheduleError) throw new Error(`Failed to load service schedule: ${scheduleError.message}`);
   const schedule = one(scheduleData as ScheduleRow[] | null);
 
+  // The visit moved to a new date/window after the customer was already told a date.
+  if (event.event_type === 'SERVICE_SCHEDULE_STATUS_CHANGED' && event.payload?.dateChanged === true) {
+    const outcome = await sendVisitDateChangedIfDue(event, request, customer?.name ?? null, email, schedule);
+    if (outcome) return outcome;
+  }
+
   const status = customerStatusFor(request, schedule);
   if (!shouldEmailForStatus(status.code)) return 'SKIPPED';
   // RESOLVED = technician finished but staff have not verified; wait for COMPLETED/CLOSED.
@@ -295,25 +418,10 @@ export async function handleServiceStatusChanged(event: OutboundEvent): Promise<
 
   let technicianFirstName: string | null = null;
   if ((status.code === 'TECHNICIAN_ASSIGNED' || status.code === 'ON_THE_WAY') && schedule?.technician_id) {
-    const { data: tech, error: techError } = await supabase
-      .from('technicians')
-      .select('name')
-      .eq('id', schedule.technician_id)
-      .maybeSingle();
-    if (techError) throw new Error(`Failed to load technician: ${techError.message}`);
-    technicianFirstName = firstNameOnly((tech as { name?: string | null } | null)?.name);
+    technicianFirstName = await loadTechnicianFirstName(schedule.technician_id);
   }
 
-  // Tracking code is nice-to-have: requests that did not come from the website have none.
-  let trackingCode: string | null = null;
-  const { data: intakeData, error: intakeError } = await supabase
-    .from('web_intakes')
-    .select('tracking_code')
-    .eq('service_request_id', serviceRequestId)
-    .limit(1);
-  if (!intakeError) {
-    trackingCode = one(intakeData as Array<{ tracking_code: string | null }> | null)?.tracking_code ?? null;
-  }
+  const trackingCode = await loadTrackingCode(serviceRequestId);
 
   const showVisit = status.code === 'SCHEDULED' || status.code === 'TECHNICIAN_ASSIGNED' || status.code === 'ON_THE_WAY';
   return sendCustomerEmail({

@@ -20,6 +20,7 @@ import {
   handleIntakeRejected,
   handleServiceStatusChanged,
   isEventTooOld,
+  visitDateIdempotencyKey,
 } from '../src/services/notifications/customerNotifier.js';
 import { buildServiceStatusEmail } from '../src/services/notifications/customerEmailTemplates.js';
 
@@ -343,6 +344,110 @@ describe('customer notifier', () => {
       handleServiceStatusChanged(event('SERVICE_REQUEST_STATUS_CHANGED', { serviceRequestId: 'sr-1', toStatus: 'SCHEDULED' })),
     ).rejects.toThrow('timeout');
     await expect(handleIntakeReceived(event('WEB_INTAKE_RECEIVED', {}))).rejects.toThrow('missing intakeId');
+  });
+
+  describe('visit moved to a new date', () => {
+    const moved = { ...schedule, scheduled_date: '2026-11-25', start_time: '14:00:00', end_time: '16:00' };
+    const movedEvent = (extra: Record<string, unknown> = {}) =>
+      event('SERVICE_SCHEDULE_STATUS_CHANGED', {
+        serviceRequestId: 'sr-1',
+        scheduleId: 'sch-1',
+        fromStatus: 'SCHEDULED',
+        toStatus: 'SCHEDULED',
+        dateChanged: true,
+        scheduledDate: '2026-11-25',
+        startTime: '14:00',
+        endTime: '16:00',
+        previousScheduledDate: '2026-11-22',
+        previousStartTime: '10:00',
+        previousEndTime: '12:00',
+        ...extra,
+      });
+
+    beforeEach(() => {
+      tables.service_schedules = { data: [moved], error: null };
+      tables.email_deliveries = { data: [{ idempotency_key: 'sr-status:sr-1:SCHEDULED' }], error: null };
+    });
+
+    it('sends the new-date email with a per-date idempotency key', async () => {
+      await expect(handleServiceStatusChanged(movedEvent())).resolves.toBe('DONE');
+      expect(send).toHaveBeenCalledTimes(1);
+      const arg = send.mock.calls[0][0];
+      expect(arg).toMatchObject({
+        entityType: 'SERVICE_STATUS_UPDATE',
+        entityId: 'sr-1',
+        templateKey: 'service_visit_date_changed',
+        idempotencyKey: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600',
+        recipientEmail: 'ravi@example.com',
+      });
+      expect(visitDateIdempotencyKey('sr-1', 'sch-1', '2026-11-25', '14:00', '16:00')).toBe(arg.idempotencyKey);
+      expect(arg.subject).toContain('Your visit has a new date');
+      expect(arg.text).toContain('Earlier date: Sun, 22 Nov 2026, 10:00 - 12:00');
+      expect(arg.text).toContain('New visit date: Wed, 25 Nov 2026');
+      expect(arg.text).toContain('14:00 - 16:00');
+      expect(arg.text).toContain('TRK7Q2');
+      expect(arg.text).toContain('+91 7977805245');
+      // Earlier customer emails are looked up for this request only.
+      expect(calls).toContainEqual(['eq', 'entity_id', 'sr-1']);
+    });
+
+    it('does not email the same new date twice', async () => {
+      tables.email_deliveries = {
+        data: [
+          { idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600' },
+          { idempotency_key: 'sr-status:sr-1:SCHEDULED' },
+        ],
+        error: null,
+      };
+      await expect(handleServiceStatusChanged(movedEvent())).resolves.toBe('SKIPPED');
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('emails again when the date moves a second time', async () => {
+      tables.email_deliveries = {
+        data: [{ idempotency_key: 'sr-visit-date:sr-1:sch-1:2026-11-25:1400-1600' }],
+        error: null,
+      };
+      tables.service_schedules = { data: [{ ...moved, scheduled_date: '2026-11-27' }], error: null };
+      await handleServiceStatusChanged(movedEvent({ previousScheduledDate: '2026-11-25' }));
+      expect(send.mock.calls[0][0].idempotencyKey).toBe('sr-visit-date:sr-1:sch-1:2026-11-27:1400-1600');
+    });
+
+    it('first scheduling still sends only the SCHEDULED email', async () => {
+      tables.service_schedules = { data: [schedule], error: null };
+      tables.email_deliveries = { data: [], error: null };
+      await handleServiceStatusChanged(
+        event('SERVICE_SCHEDULE_STATUS_CHANGED', { serviceRequestId: 'sr-1', scheduleId: 'sch-1', toStatus: 'SCHEDULED', dateChanged: false }),
+      );
+      // Even a date-change event, when no date was ever emailed, falls back to the status email.
+      await handleServiceStatusChanged(movedEvent());
+      expect(send.mock.calls.map((c) => c[0].idempotencyKey)).toEqual(['sr-status:sr-1:SCHEDULED', 'sr-status:sr-1:SCHEDULED']);
+      expect(send.mock.calls.every((c) => c[0].templateKey === 'service_status_scheduled')).toBe(true);
+    });
+
+    it('shows the technician first name only, never the phone', async () => {
+      tables.service_schedules = { data: [{ ...moved, status: 'ASSIGNED', technician_id: 'tech-1' }], error: null };
+      await handleServiceStatusChanged(movedEvent());
+      const arg = send.mock.calls[0][0];
+      expect(arg.text).toContain('Technician: Suresh');
+      for (const body of [arg.html, arg.text, arg.subject]) {
+        expect(body).not.toContain('Patil');
+        expect(body).not.toContain('9999988888');
+      }
+      // No customer address (the HTML footer carries the business's own office address).
+      expect(arg.text).not.toContain('Chembur');
+      expect(calls).toContainEqual(['select', 'name']);
+    });
+
+    it('keeps the 24 h skip, the opt-out flag and finished requests quiet', async () => {
+      await expect(handleServiceStatusChanged({ ...movedEvent(), created_at: new Date(Date.now() - 25 * 3600_000).toISOString() })).resolves.toBe('SKIPPED');
+      process.env.EMAIL_AUTO_SEND_CUSTOMER_UPDATES = 'false';
+      await expect(handleServiceStatusChanged(movedEvent())).resolves.toBe('SKIPPED');
+      delete process.env.EMAIL_AUTO_SEND_CUSTOMER_UPDATES;
+      tables.service_requests = { data: { ...srBase, status: 'CANCELLED' }, error: null };
+      await handleServiceStatusChanged(movedEvent());
+      expect(send.mock.calls.map((c) => c[0].idempotencyKey)).toEqual(['sr-status:sr-1:CANCELLED']);
+    });
   });
 
   it('status template never prints a full technician name', () => {
