@@ -3,7 +3,9 @@ import type {
   CatalogPrice,
   CatalogService,
   IntakeDto,
+  IntakeItemType,
   IntakeKind,
+  IntakeLineStatus,
   IntakeSlot,
   IntakeStatus,
   PublicCatalog,
@@ -19,6 +21,23 @@ export const KIND_LABELS: Record<IntakeKind, string> = {
   AMC_REQUEST: 'AMC request',
   PRODUCT_ENQUIRY: 'Product enquiry',
   CONTACT: 'Contact message',
+  BASKET: 'Basket (several items)',
+  SELLER_INTEREST: 'Dealer wants to sell on ESS',
+};
+
+export const ITEM_TYPE_LABELS: Record<IntakeItemType, string> = {
+  SERVICE: 'Service',
+  AMC: 'AMC plan',
+  PRODUCT: 'AC (product)',
+};
+
+export const LINE_STATUS_LABELS: Record<IntakeLineStatus, string> = {
+  PENDING: 'Waiting',
+  APPROVED: 'Approved',
+  QUOTE_PENDING: 'Seller to quote',
+  FULFILLED: 'Done',
+  REJECTED: 'Not accepted',
+  CANCELLED: 'Cancelled',
 };
 
 export const STATUS_LABELS: Record<IntakeStatus, string> = {
@@ -121,6 +140,14 @@ export function pickAmcRate(plan: CatalogAmcPlan, ac: IntakeDto['ac']): { label:
 
 /** Default request type for the approve dialog: catalog first, then a kind-based guess. */
 export function defaultRequestType(intake: IntakeDto, catalog: PublicCatalog | null): ServiceType {
+  if (intake.kind === 'BASKET') {
+    const items = intake.items ?? [];
+    const firstService = items.find((i) => i.type === 'SERVICE');
+    const basketType = findCatalogService(catalog, firstService?.serviceCode ?? null)?.requestType;
+    if (basketType && REQUEST_TYPE_VALUES.has(basketType)) return basketType as ServiceType;
+    if (items.some((i) => i.type === 'AMC')) return 'INSPECTION';
+    return 'OTHER';
+  }
   const fromCatalog = findCatalogService(catalog, intake.request.serviceCode)?.requestType;
   if (fromCatalog && REQUEST_TYPE_VALUES.has(fromCatalog)) return fromCatalog as ServiceType;
   if (intake.kind === 'AMC_REQUEST') return 'INSPECTION';

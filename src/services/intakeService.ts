@@ -12,7 +12,33 @@ import type { ServicePriority, ServiceType } from '@/domain/types';
 /* Intake types                                                        */
 /* ------------------------------------------------------------------ */
 
-export type IntakeKind = 'SERVICE_BOOKING' | 'AMC_REQUEST' | 'PRODUCT_ENQUIRY' | 'CONTACT';
+export type IntakeKind =
+  | 'SERVICE_BOOKING'
+  | 'AMC_REQUEST'
+  | 'PRODUCT_ENQUIRY'
+  | 'CONTACT'
+  | 'BASKET'
+  | 'SELLER_INTEREST';
+
+export type IntakeItemType = 'SERVICE' | 'AMC' | 'PRODUCT';
+export type IntakeLineStatus = 'PENDING' | 'APPROVED' | 'QUOTE_PENDING' | 'FULFILLED' | 'REJECTED' | 'CANCELLED';
+
+/** One line of a basket request, with the price the customer saw (per unit, incl. GST). */
+export interface IntakeItemDto {
+  id: string;
+  lineNo: number;
+  type: IntakeItemType;
+  serviceCode: string | null;
+  amcPlanCode: string | null;
+  productId: string | null;
+  name: string;
+  quantity: number;
+  ac: { type: string | null; tonnage: number | null; brand: string | null };
+  notes: string | null;
+  price: { total: number; base?: number; gst?: number; gstRatePercent?: number; label: string } | null;
+  status: IntakeLineStatus;
+  seller: { code: string; name: string } | null;
+}
 
 export type IntakeStatus =
   | 'PENDING_REVIEW'
@@ -75,6 +101,8 @@ export interface IntakeDto {
   matchedCustomer: IntakeCustomerRef | null;
   review: { reviewedBy: string | null; reviewedAt: string | null; rejectionReason: string | null };
   serviceRequest: { id: string; requestNumber: string } | null;
+  /** Basket lines (empty or missing for single-item requests). */
+  items?: IntakeItemDto[];
   createdAt: string;
 }
 

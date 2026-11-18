@@ -239,6 +239,46 @@ describe('Approval Inbox', () => {
     expect(headings()).toEqual(expect.arrayContaining(['Address', 'Air conditioner', 'Requested']));
   });
 
+  it('shows basket lines with prices, seller and an estimated total; default job type comes from the first service', async () => {
+    const basket = makeIntake({
+      id: 'k',
+      kind: 'BASKET',
+      contact: { name: 'Basket Buyer', phone: '9820000004', email: null },
+      request: { serviceCode: null, serviceName: null, amcPlanCode: null, message: null, preferredDate: null, preferredSlot: null },
+      createdAt: minutesAgo(400),
+      items: [
+        {
+          id: 'l1', lineNo: 1, type: 'SERVICE', serviceCode: 'SVC-GAS', amcPlanCode: null, productId: null, name: 'Gas top-up',
+          quantity: 2, ac: { type: 'SPLIT', tonnage: 1.5, brand: null }, notes: null,
+          price: { total: 2360, label: 'Gas top-up' }, status: 'PENDING', seller: null,
+        },
+        {
+          id: 'l2', lineNo: 2, type: 'PRODUCT', serviceCode: null, amcPlanCode: null, productId: 'lg-15', name: 'LG 1.5T Split',
+          quantity: 1, ac: { type: null, tonnage: null, brand: null }, notes: null,
+          price: { total: 42000, label: 'LG' }, status: 'PENDING', seller: { code: 'ESS', name: 'Extreme Sales & Services' },
+        },
+        {
+          id: 'l3', lineNo: 3, type: 'AMC', serviceCode: null, amcPlanCode: 'ORD-4', productId: null, name: 'Ordinary 4',
+          quantity: 1, ac: { type: 'CASSETTE', tonnage: 3, brand: null }, notes: null, price: null, status: 'PENDING', seller: null,
+        },
+      ],
+    });
+    vi.spyOn(intakeService, 'list').mockResolvedValue({ items: [basket], total: 1, page: 1, pageSize: 25 });
+    vi.spyOn(intakeService, 'get').mockResolvedValue(asDetail(basket));
+    await renderInbox();
+
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Basket (several items)');
+    expect(text).toContain('Basket (3)');
+    expect(text).toContain('Sold by Extreme Sales & Services');
+    expect(text).toContain('After inspection');
+    expect(text).toContain('Estimated total (priced lines only)');
+    expect(text).toContain('₹46,720'); // 2 × 2,360 + 42,000
+
+    await click(buttonByText('Approve'));
+    expect((document.getElementById('approve-request-type') as HTMLSelectElement).value).toBe('REPAIR');
+  });
+
   it('shows the error state with retry when the list fails', async () => {
     vi.spyOn(intakeService, 'list').mockRejectedValueOnce(new Error('Server down'));
     await renderInbox();

@@ -3,9 +3,11 @@ import { CheckCircle2, XCircle, UserCheck, UserPlus, ExternalLink, Phone, Mail }
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
-import type { IntakeCandidate, IntakeDetailDto, IntakeDto, PublicCatalog } from '@/services/intakeService';
+import type { IntakeCandidate, IntakeDetailDto, IntakeDto, IntakeItemDto, PublicCatalog } from '@/services/intakeService';
 import {
+  ITEM_TYPE_LABELS,
   KIND_LABELS,
+  LINE_STATUS_LABELS,
   NEW_CUSTOMER,
   SLOT_LABELS,
   STATUS_BADGE,
@@ -55,6 +57,62 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
     <dl style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>{children}</dl>
   </section>
 );
+
+/** Basket lines as the customer chose them, with the price they saw (per unit, incl. GST). */
+const BasketItems: React.FC<{ items: IntakeItemDto[] }> = ({ items }) => {
+  const total = items.reduce((sum, i) => sum + (i.price ? i.price.total * i.quantity : 0), 0);
+  const unpriced = items.some((i) => !i.price);
+  const cell: React.CSSProperties = { padding: '6px 8px', borderBottom: '1px solid var(--border-subtle)', verticalAlign: 'top' };
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-xs)' }}>
+        <thead>
+          <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+            <th style={cell}>Item</th>
+            <th style={cell}>AC</th>
+            <th style={{ ...cell, textAlign: 'right' }}>Qty</th>
+            <th style={{ ...cell, textAlign: 'right' }}>Price shown</th>
+            <th style={cell}>Line</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.id}>
+              <td style={cell}>
+                <div style={{ fontWeight: 600 }}>{i.name}</div>
+                <div style={{ color: 'var(--text-muted)' }}>
+                  {ITEM_TYPE_LABELS[i.type] ?? i.type}
+                  {i.seller ? ` · Sold by ${i.seller.name}` : ''}
+                </div>
+                {i.notes && <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{i.notes}</div>}
+              </td>
+              <td style={cell}>
+                {[i.ac.type, i.ac.brand, i.ac.tonnage ? `${i.ac.tonnage} ton` : null].filter(Boolean).join(' · ') || '—'}
+              </td>
+              <td style={{ ...cell, textAlign: 'right' }}>{i.quantity}</td>
+              <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {i.price ? formatCurrency(i.price.total) : 'After inspection'}
+              </td>
+              <td style={cell}>{LINE_STATUS_LABELS[i.status] ?? i.status}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td style={{ ...cell, fontWeight: 600 }} colSpan={3}>
+              Estimated total{unpriced ? ' (priced lines only)' : ''}
+            </td>
+            <td style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>{formatCurrency(total)}</td>
+            <td style={cell} />
+          </tr>
+        </tfoot>
+      </table>
+      <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+        On approval, service and AMC lines become one service request; AC lines go to the seller for a quote.
+      </p>
+    </div>
+  );
+};
 
 const orDash = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '—' : String(v));
 
@@ -312,6 +370,13 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
           </Field>
         )}
       </Section>
+
+      {(data.items?.length ?? 0) > 0 && (
+        <section style={{ padding: 'var(--space-3) 0', borderTop: '1px solid var(--border-subtle)' }}>
+          <h3 style={sectionTitle}>Basket ({data.items!.length})</h3>
+          <BasketItems items={data.items!} />
+        </section>
+      )}
 
       {/* Sections a request type does not use (e.g. a contact message has no AC) stay hidden. */}
       {addressLine && (
