@@ -3,7 +3,7 @@ import { getSupabaseClient } from '../lib/supabase.js';
 import { BadRequestError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { logActivity } from './audit.service.js';
-import { EmailDeliveryError, resendTransport } from './email/emailTransport.service.js';
+import { EmailDeliveryError, getActiveEmailTransport, resendTransport } from './email/emailTransport.service.js';
 
 interface EmailDelivery {
   id: string;
@@ -84,7 +84,7 @@ class ResendEmailTransport implements EmailTransport {
       const retryable = error instanceof EmailDeliveryError ? error.retryable : true;
       return {
         success: false,
-        transport: 'resend',
+        transport: getActiveEmailTransport(),
         retryable,
         error: error instanceof Error ? error.message : 'Resend request failed',
       };
@@ -93,7 +93,10 @@ class ResendEmailTransport implements EmailTransport {
 }
 
 function getEmailTransport(): EmailTransport {
-  if (env.NODE_ENV !== 'production' && !env.RESEND_API_KEY) return new DevelopmentLogTransport();
+  const hasProvider = getActiveEmailTransport() === 'gmail'
+    ? Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD)
+    : Boolean(env.RESEND_API_KEY);
+  if (env.NODE_ENV !== 'production' && !hasProvider) return new DevelopmentLogTransport();
   return new ResendEmailTransport();
 }
 

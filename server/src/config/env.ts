@@ -23,6 +23,12 @@ const envSchema = z.object({
   RESEND_SANDBOX_OVERRIDE_TO: z.string().email().optional(),
   RESEND_WEBHOOK_SECRET: z.string().min(8).optional(),
   RESEND_INBOUND_DOMAIN: z.string().min(3).optional(),
+  // Email transport: 'gmail' (SMTP with an app password, no domain needed) or 'resend' (verified domain).
+  // When unset, Gmail is used if GMAIL_USER + GMAIL_APP_PASSWORD are present, otherwise Resend.
+  EMAIL_TRANSPORT: z.enum(['gmail', 'resend']).optional(),
+  GMAIL_USER: z.string().email().optional(),
+  GMAIL_APP_PASSWORD: z.string().regex(/^[a-zA-Z]{16}$/, 'GMAIL_APP_PASSWORD must be the 16-letter Google app password').optional(),
+  EMAIL_FROM_NAME: z.string().min(2).max(80).optional(),
   EMAIL_AUTO_SEND_REPORT_ON_VERIFY: z.enum(['true', 'false']).optional(),
   EMAIL_AUTO_SEND_AMC_REMINDERS: z.enum(['true', 'false']).optional(),
   EMAIL_AUTO_SEND_RECEIPT_ON_PAID: z.enum(['true', 'false']).optional(),
@@ -57,6 +63,11 @@ function loadEnv(): ServerEnv {
     RESEND_SANDBOX_OVERRIDE_TO: process.env.RESEND_SANDBOX_OVERRIDE_TO?.trim() || undefined,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET?.trim() || undefined,
     RESEND_INBOUND_DOMAIN: process.env.RESEND_INBOUND_DOMAIN?.trim() || undefined,
+    EMAIL_TRANSPORT: process.env.EMAIL_TRANSPORT?.trim().toLowerCase() || undefined,
+    GMAIL_USER: process.env.GMAIL_USER?.trim() || undefined,
+    // Google shows app passwords in groups of 4 ("abcd efgh ijkl mnop"); accept them with spaces.
+    GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, '') || undefined,
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME?.trim() || undefined,
     EMAIL_AUTO_SEND_REPORT_ON_VERIFY: process.env.EMAIL_AUTO_SEND_REPORT_ON_VERIFY?.trim() || undefined,
     EMAIL_AUTO_SEND_AMC_REMINDERS: process.env.EMAIL_AUTO_SEND_AMC_REMINDERS?.trim() || undefined,
     EMAIL_AUTO_SEND_RECEIPT_ON_PAID: process.env.EMAIL_AUTO_SEND_RECEIPT_ON_PAID?.trim() || undefined,

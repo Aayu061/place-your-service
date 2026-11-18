@@ -105,7 +105,7 @@ export const ResendDiagnosticsPanel: React.FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
             <CardTitle>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <Mail size={18} /> Email &amp; Resend Health
+                <Mail size={18} /> Email Sending Health
               </span>
             </CardTitle>
             <Button size="sm" variant="secondary" isLoading={loading} onClick={() => void loadAll()}>
@@ -146,9 +146,17 @@ export const ResendDiagnosticsPanel: React.FC = () => {
                 }}
               >
                 <div>
-                  <dt style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>Resend API Key</dt>
+                  <dt style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {config.transport === 'gmail' ? 'Sending via Gmail' : 'Resend API Key'}
+                  </dt>
                   <dd style={{ margin: '4px 0 0', fontWeight: 600 }}>
-                    {config.configured ? 'Configured' : 'Missing (dev-log fallback in dev)'}
+                    {config.configured
+                      ? config.transport === 'gmail'
+                        ? 'Gmail app password configured'
+                        : 'Configured'
+                      : config.transport === 'gmail'
+                        ? 'Missing GMAIL_USER / GMAIL_APP_PASSWORD on Render'
+                        : 'Missing (dev-log fallback in dev)'}
                   </dd>
                 </div>
                 <div>

@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 
@@ -25,7 +26,7 @@ export interface EmailSendPayload {
 }
 
 export interface EmailTransportResult {
-  transport: 'resend' | 'dev-log' | 'memory';
+  transport: 'resend' | 'gmail' | 'dev-log' | 'memory';
   providerMessageId: string;
   effectiveRecipient: string;
   sandboxRedirected: boolean;
@@ -56,11 +57,39 @@ export function isSandboxSender(fromEmail?: string | null): boolean {
   return raw.endsWith('@resend.dev');
 }
 
+export const DEFAULT_FROM_NAME = 'Extreme Sales & Services';
+
+/** Which provider sends email: explicit EMAIL_TRANSPORT, else Gmail when its credentials exist, else Resend. */
+export function getActiveEmailTransport(): 'gmail' | 'resend' {
+  if (env.EMAIL_TRANSPORT) return env.EMAIL_TRANSPORT;
+  return env.GMAIL_USER && env.GMAIL_APP_PASSWORD ? 'gmail' : 'resend';
+}
+
 export function getResolvedEmailConfig() {
+  const transport = getActiveEmailTransport();
+  if (transport === 'gmail') {
+    const fromName = (env.EMAIL_FROM_NAME || DEFAULT_FROM_NAME).replace(/[<>"\r\n]/g, '');
+    return {
+      transport,
+      configured: Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD),
+      fromEmail: env.GMAIL_USER ? `${fromName} <${env.GMAIL_USER}>` : `${fromName} <not-configured>`,
+      replyTo: env.RESEND_REPLY_TO || env.GMAIL_USER || DEFAULT_REPLY_TO,
+      sandboxMode: false,
+      sandboxOverrideTo: null,
+      webhookConfigured: false,
+      inboundDomain: null,
+      automation: {
+        autoSendReportOnVerify: env.EMAIL_AUTO_SEND_REPORT_ON_VERIFY === 'true',
+        autoSendAmcReminders: env.EMAIL_AUTO_SEND_AMC_REMINDERS === 'true',
+        autoSendReceiptOnPaid: env.EMAIL_AUTO_SEND_RECEIPT_ON_PAID === 'true',
+      },
+    };
+  }
   const fromEmail = env.RESEND_FROM_EMAIL || DEFAULT_RESEND_FROM;
   const replyTo = env.RESEND_REPLY_TO || DEFAULT_REPLY_TO;
   const sandboxMode = isSandboxSender(fromEmail);
   return {
+    transport,
     configured: Boolean(env.RESEND_API_KEY),
     fromEmail,
     replyTo,
@@ -98,6 +127,104 @@ export function isRetryableResendError(statusCode?: number | null, message?: str
   return true;
 }
 
+/** SMTP errors: auth/permanent (5xx) failures are not retried; network and 4xx are. */
+export function isRetryableSmtpError(err: { code?: string; responseCode?: number } | null | undefined): boolean {
+  if (!err) return true;
+  if (err.code === 'EAUTH' || err.code === 'EENVELOPE' || err.code === 'EMESSAGE') return false;
+  if (typeof err.responseCode === 'number') {
+    if (err.responseCode === 421 || err.responseCode === 450 || err.responseCode === 451 || err.responseCode === 452) return true;
+    if (err.responseCode >= 500) return false;
+    if (err.responseCode >= 400) return true;
+  }
+  return true;
+}
+
+type SmtpTransporter = { sendMail: (mail: Record<string, unknown>) => Promise<{ messageId?: string }> };
+
+class GmailTransportService {
+  private transporter: SmtpTransporter | null = null;
+  private cachedFor: string | null = null;
+
+  /** Overridable in tests. */
+  createTransporter(user: string, pass: string): SmtpTransporter {
+    return nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user, pass },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+    }) as unknown as SmtpTransporter;
+  }
+
+  private getTransporter(): SmtpTransporter | null {
+    if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return null;
+    const key = `${env.GMAIL_USER}:${env.GMAIL_APP_PASSWORD.length}`;
+    if (!this.transporter || this.cachedFor !== key) {
+      this.transporter = this.createTransporter(env.GMAIL_USER, env.GMAIL_APP_PASSWORD);
+      this.cachedFor = key;
+    }
+    return this.transporter;
+  }
+
+  async send(payload: EmailSendPayload): Promise<EmailTransportResult> {
+    const config = getResolvedEmailConfig();
+    const transporter = this.getTransporter();
+    if (!transporter) {
+      if (env.NODE_ENV === 'production') {
+        throw new EmailDeliveryError(
+          'GMAIL_USER / GMAIL_APP_PASSWORD are not configured in production environment.',
+          false,
+          'GMAIL_NOT_CONFIGURED'
+        );
+      }
+      const devId = `dev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      logger.info('Gmail dev-log transport captured email dispatch', {
+        to: payload.to,
+        subject: payload.subject,
+        providerMessageId: devId,
+      });
+      return { transport: 'dev-log', providerMessageId: devId, effectiveRecipient: payload.to, sandboxRedirected: false };
+    }
+
+    try {
+      const info = await transporter.sendMail({
+        from: config.fromEmail,
+        to: payload.to,
+        replyTo: payload.replyTo || config.replyTo,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        headers: payload.idempotencyKey ? { 'X-Entity-Ref-ID': payload.idempotencyKey } : undefined,
+        attachments: payload.attachments?.map((att) => ({
+          filename: att.filename,
+          content: att.content,
+          contentType: att.contentType,
+        })),
+        disableFileAccess: true,
+        disableUrlAccess: true,
+      });
+      const id = info?.messageId;
+      if (!id) {
+        throw new EmailDeliveryError('Gmail SMTP returned no message id.', true, 'GMAIL_EMPTY_ID');
+      }
+      return { transport: 'gmail', providerMessageId: id, effectiveRecipient: payload.to, sandboxRedirected: false };
+    } catch (err) {
+      if (err instanceof EmailDeliveryError) throw err;
+      const e = err as { message?: string; code?: string; responseCode?: number };
+      const code = e.code === 'EAUTH' ? 'GMAIL_AUTH_FAILED' : `GMAIL_${e.code || 'SEND_FAILED'}`;
+      const message =
+        e.code === 'EAUTH'
+          ? 'Gmail rejected the login. Check GMAIL_USER and that GMAIL_APP_PASSWORD is a current 16-letter app password.'
+          : e.message || 'Gmail SMTP send failed';
+      throw new EmailDeliveryError(message, isRetryableSmtpError(e), code);
+    }
+  }
+}
+
+export const gmailTransport = new GmailTransportService();
+
 class ResendTransportService {
   private client: Resend | null = null;
   private cachedKey: string | null = null;
@@ -112,6 +239,10 @@ class ResendTransportService {
   }
 
   async send(payload: EmailSendPayload): Promise<EmailTransportResult> {
+    // Single entry point used across the app: route to Gmail when it is the active transport.
+    if (getActiveEmailTransport() === 'gmail') {
+      return gmailTransport.send(payload);
+    }
     const config = getResolvedEmailConfig();
     const effectiveRecipient =
       config.sandboxMode && config.sandboxOverrideTo

@@ -15,6 +15,7 @@ import {
   EmailTransportResult,
   getResolvedEmailConfig,
   resendTransport,
+  getActiveEmailTransport,
 } from './emailTransport.service.js';
 import {
   buildAmcExpiryReminderTemplate,
@@ -223,7 +224,7 @@ export class EmailOutboxService {
     const { data: completed, error: completeErr } = await supabase.rpc('complete_email_delivery', {
       p_delivery_id: row.id,
       p_succeeded: succeeded,
-      p_transport: transportResult?.transport || 'resend',
+      p_transport: transportResult?.transport || getActiveEmailTransport(),
       p_provider_message_id: transportResult?.providerMessageId || null,
       p_error: sendError?.message || null,
       p_retryable: retryable,
@@ -364,7 +365,7 @@ export class EmailOutboxService {
         await supabase.rpc('complete_email_delivery', {
           p_delivery_id: item.id,
           p_succeeded: false,
-          p_transport: 'resend',
+          p_transport: getActiveEmailTransport(),
           p_provider_message_id: null,
           p_error: err instanceof Error ? err.message : 'Email delivery error',
           p_retryable: retryable,

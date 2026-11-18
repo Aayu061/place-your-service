@@ -43,6 +43,8 @@ export interface UnifiedEmailDeliveryRecord {
 }
 
 export interface EmailConfigStatus {
+  /** Active sending provider ('gmail' until a domain is verified in Resend). */
+  transport?: 'gmail' | 'resend';
   configured: boolean;
   fromEmail: string;
   replyTo: string;
