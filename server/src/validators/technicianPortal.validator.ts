@@ -117,7 +117,7 @@ export const techAssignedJobsQuerySchema = {
 export const techPinChangeSchema = {
   body: z.object({
     currentPin: z.string().regex(/^\d{4,6}$/, 'Current PIN must be 4 to 6 digits'),
-    newPin: z.string().regex(/^\d{4,6}$/, 'New PIN must be 4 to 6 digits'),
+    newPin: z.string().regex(/^\d{6}$/, 'New PIN must be exactly 6 digits'),
   }),
 };
 

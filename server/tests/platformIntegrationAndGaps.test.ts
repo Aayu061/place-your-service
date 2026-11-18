@@ -497,7 +497,7 @@ describe('Dual-Platform Integration & Gap Closure Verification Suite', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Incorrect 4-digit PIN');
+      expect(res.body.error.message).toContain('Wrong technician code, mobile number or PIN');
     });
 
     it('allows access to GET /api/v1/tech/me with valid technician PIN token', async () => {

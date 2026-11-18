@@ -40,7 +40,10 @@ const envSchema = z.object({
     .optional(),
   ESS_WEBHOOK_SECRET: z.string().min(8).optional(),
   M2M_API_KEY: z.string().min(16).optional(),
-  TECH_JWT_SECRET: z.string().min(16).optional(),
+  // Signs technician portal tokens. Must be at least 32 characters in production. It is not
+  // validated here on purpose: a missing/short value must not crash the whole server; instead
+  // technician login answers 503 (see utils/techAuth.ts). Outside production a dev-only secret is used.
+  TECH_JWT_SECRET: z.string().optional(),
   // 32-byte key (base64) that encrypts integration signing secrets at rest. Required to create or
   // verify ESS keys; without it the signed /api/v1/ess routes answer 503.
   INTEGRATION_SECRET_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, 'INTEGRATION_SECRET_KEY must be 32 bytes, base64-encoded').optional(),

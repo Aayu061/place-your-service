@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { technicianPortalController } from '../controllers/technicianPortal.controller.js';
-import { requireTechAuth } from '../middleware/techAuth.js';
+import { requireTechAuth, requireTechAuthAllowPinChange } from '../middleware/techAuth.js';
 import { validate } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimiters.js';
 import {
@@ -42,8 +42,9 @@ techRouter.get('/jobs/:id', requireTechAuth, validate(techJobParamSchema), techn
 // 6. Submit Completed On-Site Service Visit Report
 techRouter.post('/service-reports', requireTechAuth, validate(techFieldReportSchema), technicianPortalController.submitFieldReport.bind(technicianPortalController));
 
-// 7. Update 4-6 digit Technician Portal PIN
-techRouter.patch('/pin', requireTechAuth, validate(techPinChangeSchema), technicianPortalController.updatePin.bind(technicianPortalController));
+// 7. Change the technician's PIN (new PIN: 6 digits). Also accepts the short-lived
+//    'pin_change' token from a login that requires a new PIN.
+techRouter.patch('/pin', requireTechAuthAllowPinChange, validate(techPinChangeSchema), technicianPortalController.updatePin.bind(technicianPortalController));
 
 // 8. Signed Storage Upload & View URLs for Field Photos/Signatures
 techRouter.post('/media/upload-url', requireTechAuth, validate(mediaUploadUrlSchema), technicianPortalController.createMediaUploadUrl.bind(technicianPortalController));

@@ -55,16 +55,16 @@ export interface SystemHealthMetrics {
     checkedAt: string;
     details?: string;
   };
-  services: {
-    pysApi: { port: number; status: 'ONLINE' };
-    essPlatform: { port: number; status: 'ONLINE' | 'UNKNOWN' };
-  };
+  /** When this API process started; the in-memory log buffer only covers time since then. */
+  startedAt: string;
+  environment: string;
+  nodeVersion: string;
 }
 
 class TelemetryLogService {
   private readonly maxBufferSize = 500;
   private ringBuffer: LogEntry[] = [];
-  private startTime = Date.now();
+  private readonly startTime = Date.now();
   private prevCpuUsage = process.cpuUsage();
   private prevCpuTime = Date.now();
 
@@ -96,6 +96,15 @@ class TelemetryLogService {
         console.error('[Telemetry] Failed to persist error log to Supabase:', err.message);
       });
     }
+  }
+
+  /** ISO time this process started (the in-memory log buffer is empty before this). */
+  public getStartedAt(): string {
+    return new Date(this.startTime).toISOString();
+  }
+
+  public getBufferCapacity(): number {
+    return this.maxBufferSize;
   }
 
   /**
@@ -166,7 +175,7 @@ class TelemetryLogService {
     let persisted = false;
     try {
       const supabase = getSupabaseClient();
-      await supabase.from('system_error_logs').insert({
+      const { error: insertError } = await supabase.from('system_error_logs').insert({
         service_name: report.service,
         error_level: 'FATAL',
         message: report.message,
@@ -180,6 +189,7 @@ class TelemetryLogService {
           remediationAdvice: remediation,
         },
       });
+      if (insertError) throw new Error(insertError.message);
       persisted = true;
     } catch (err: any) {
       logger.error('Failed to write crash to Supabase system_error_logs', { error: err.message });
@@ -198,7 +208,7 @@ class TelemetryLogService {
   private async persistToSupabase(entry: LogEntry): Promise<void> {
     try {
       const supabase = getSupabaseClient();
-      await supabase.from('system_error_logs').insert({
+      const { error: insertError } = await supabase.from('system_error_logs').insert({
         service_name: entry.service,
         error_level: entry.level,
         message: entry.message,
@@ -206,6 +216,7 @@ class TelemetryLogService {
         stack_trace: entry.stack || null,
         context_data: entry.details || {},
       });
+      if (insertError) console.error('[Telemetry] Supabase error log insertion error:', insertError.message);
     } catch (err: any) {
       console.error('[Telemetry] Supabase error log insertion error:', err.message);
     }
@@ -274,7 +285,7 @@ class TelemetryLogService {
     const dbStartTime = Date.now();
     let dbStatus: 'ONLINE' | 'OFFLINE' | 'SLOW' = 'ONLINE';
     let dbLatencyMs = 0;
-    let dbDetails = 'PostgreSQL jvccvdxfilzlncbgiplk connected';
+    let dbDetails = 'Supabase PostgreSQL reachable';
 
     try {
       const supabase = getSupabaseClient();
@@ -325,10 +336,9 @@ class TelemetryLogService {
         checkedAt: new Date().toISOString(),
         details: dbDetails,
       },
-      services: {
-        pysApi: { port: 5000, status: 'ONLINE' },
-        essPlatform: { port: 5002, status: 'ONLINE' },
-      },
+      startedAt: this.getStartedAt(),
+      environment: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
     };
   }
 
@@ -336,6 +346,7 @@ class TelemetryLogService {
    * Retrieves persistent crash logs from Supabase
    */
   public async getCrashesFromDb(limit = 50) {
+    limit = Math.min(Math.max(Number.isFinite(limit) ? Math.trunc(limit) : 50, 1), 200);
     const supabase = getSupabaseClient();
     const { data, error } = await supabase
       .from('system_error_logs')

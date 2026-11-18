@@ -170,7 +170,7 @@ describe('Phase 2: Unified Resend Email, Webhooks, Media Storage & API Gaps', ()
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
           maybeSingle: vi.fn().mockResolvedValue({
-            data: { id: 'tech-1', pin_hash: currentHash },
+            data: { id: 'tech-1', technician_code: 'TECH-0001', name: 'T', phone: '9876543210', pin_hash: currentHash, token_version: 0 },
             error: null,
           }),
           update: updateFn,
@@ -178,15 +178,19 @@ describe('Phase 2: Unified Resend Email, Webhooks, Media Storage & API Gaps', ()
       } as any);
 
       await expect(
-        technicianPortalService.updatePin('tech-1', '9999', '5678')
+        technicianPortalService.updatePin('tech-1', '9999', '582941')
       ).rejects.toThrow(/incorrect/i);
-
-      const res = await technicianPortalService.updatePin('tech-1', '1234', '5678');
-      expect(res.updated).toBe(true);
+      // The wrong PIN was counted towards the lockout (one update call), but no PIN was written.
       expect(updateFn).toHaveBeenCalledTimes(1);
-      const updatedPayload = updateFn.mock.calls[0][0] as { pin_hash: string };
+      expect((updateFn.mock.calls[0][0] as Record<string, unknown>).pin_hash).toBeUndefined();
+
+      const res = await technicianPortalService.updatePin('tech-1', '1234', '582941');
+      expect(res.updated).toBe(true);
+      expect(updateFn).toHaveBeenCalledTimes(2);
+      const updatedPayload = updateFn.mock.calls[1][0] as { pin_hash: string; token_version: number };
       expect(updatedPayload.pin_hash.startsWith('scrypt$')).toBe(true);
-      expect(verifyPin('5678', updatedPayload.pin_hash)).toBe(true);
+      expect(verifyPin('582941', updatedPayload.pin_hash)).toBe(true);
+      expect(updatedPayload.token_version).toBe(1);
     });
   });
 });

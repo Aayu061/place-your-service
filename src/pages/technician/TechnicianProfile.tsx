@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Phone, Mail, LogOut, ArrowLeft, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { technicianApi } from '@/services/technicianApi';
 import { getApiErrorMessage } from '@/services/api/client';
+import { checkNewTechPin, storeTokenAfterPinChange } from './pinRules';
 
 export interface TechnicianProfileProps {
   onLogout: () => void;
@@ -21,16 +22,23 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
     e.preventDefault();
     setPinError(null);
     setPinSuccess(null);
-    if (!/^\d{4}$/.test(currentPin) || !/^\d{4}$/.test(newPin)) {
-      setPinError('Both current and new PINs must be exactly 4 numeric digits.');
+    if (!/^\d{4,6}$/.test(currentPin)) {
+      setPinError('Enter your current PIN (4 to 6 digits).');
+      return;
+    }
+    const problem = checkNewTechPin(newPin, currentPin);
+    if (problem) {
+      setPinError(problem);
       return;
     }
     try {
       setPinUpdating(true);
-      await technicianApi.updatePin(currentPin, newPin);
+      const result = (await technicianApi.updatePin(currentPin, newPin)) as { updated: boolean; token?: string };
+      // The server signs out older sessions on a PIN change; keep this one with the new token.
+      storeTokenAfterPinChange(result?.token);
       setCurrentPin('');
       setNewPin('');
-      setPinSuccess('Field login PIN updated successfully.');
+      setPinSuccess('PIN updated. Other devices are signed out.');
     } catch (err: unknown) {
       setPinError(getApiErrorMessage(err, 'Failed to update field PIN.'));
     } finally {
@@ -267,11 +275,11 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
           <input
             type="password"
             inputMode="numeric"
-            maxLength={4}
+            maxLength={6}
             placeholder="Current PIN"
-            aria-label="Current 4-digit PIN"
+            aria-label="Current PIN"
             value={currentPin}
-            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             style={{
               padding: '8px 10px',
               borderRadius: 'var(--radius-md)',
@@ -284,11 +292,11 @@ export function TechnicianProfile({ onLogout, onBackToJobs }: TechnicianProfileP
           <input
             type="password"
             inputMode="numeric"
-            maxLength={4}
-            placeholder="New PIN"
-            aria-label="New 4-digit PIN"
+            maxLength={6}
+            placeholder="New 6-digit PIN"
+            aria-label="New 6-digit PIN"
             value={newPin}
-            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             style={{
               padding: '8px 10px',
               borderRadius: 'var(--radius-md)',

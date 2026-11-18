@@ -24,6 +24,8 @@ adminBackupRouter.get('/backup', async (req: Request, res: Response, next: NextF
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
     res.setHeader('X-Checksum-SHA256', result.checksumSha256);
     res.setHeader('X-Total-Records', String(result.totalRecords));
+    res.setHeader('X-Backup-Incomplete', result.incomplete ? 'true' : 'false');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Checksum-SHA256, X-Total-Records, X-Backup-Incomplete');
 
     return res.send(result.content);
   } catch (error) {
@@ -64,6 +66,7 @@ adminBackupRouter.post('/backup/trigger', async (req: Request, res: Response, ne
         fileSizeBytes: result.fileSizeBytes,
         totalRecords: result.totalRecords,
         checksumSha256: result.checksumSha256,
+        incomplete: result.incomplete,
         filePath,
       },
     });

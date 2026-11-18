@@ -39,7 +39,8 @@ adminTelemetryRouter.get('/health', async (_req: Request, res: Response, next: N
  */
 adminTelemetryRouter.get('/logs', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+    const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 100, 1), 500);
     const service = (req.query.service as string) || 'ALL';
     const level = (req.query.level as string) || 'ALL';
     const search = (req.query.search as string) || '';
@@ -55,6 +56,10 @@ adminTelemetryRouter.get('/logs', async (req: Request, res: Response, next: Next
       success: true,
       data: {
         totalReturned: logs.length,
+        // The buffer is in memory: it starts empty whenever the server restarts.
+        // Errors are also saved to system_error_logs (see /crashes), which survives restarts.
+        bufferStartedAt: telemetryLogService.getStartedAt(),
+        bufferCapacity: telemetryLogService.getBufferCapacity(),
         logs,
       },
     });
@@ -69,7 +74,8 @@ adminTelemetryRouter.get('/logs', async (req: Request, res: Response, next: Next
  */
 adminTelemetryRouter.get('/crashes', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const limit = Number.isFinite(parsedLimit) ? parsedLimit : 50;
     const crashes = await telemetryLogService.getCrashesFromDb(limit);
 
     return res.json({

@@ -127,7 +127,7 @@ describe('Technician Mobile Field Portal API (/api/v1/tech)', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Incorrect 4-digit PIN');
+      expect(res.body.error.message).toContain('Wrong technician code, mobile number or PIN');
     });
 
     it('rejects unknown technician with 401 UNAUTHORIZED', async () => {
@@ -160,7 +160,8 @@ describe('Technician Mobile Field Portal API (/api/v1/tech)', () => {
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Invalid technician code or mobile number');
+      // Same message as a wrong PIN, so the response does not reveal which part was wrong.
+      expect(res.body.error.message).toContain('Wrong technician code, mobile number or PIN');
     });
   });
 

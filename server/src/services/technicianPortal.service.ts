@@ -1,6 +1,14 @@
 import { getSupabaseClient } from '../lib/supabase.js';
-import { UnauthorizedError, NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors.js';
-import { verifyPin, hashPin, signTechToken } from '../utils/techAuth.js';
+import { AppError, UnauthorizedError, NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors.js';
+import {
+  verifyPin,
+  hashPin,
+  signTechToken,
+  validateNewTechPin,
+  isTechAuthConfigured,
+  TechAuthNotConfiguredError,
+  KNOWN_DEFAULT_PINS,
+} from '../utils/techAuth.js';
 import { serviceReportService, normalizeFinalCondition } from './serviceReport.service.js';
 import { logger } from '../utils/logger.js';
 import { ServiceVisitType } from '../types/index.js';
@@ -10,6 +18,8 @@ import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
 export interface TechLoginResponse {
   token: string;
+  /** true = the token only allows PATCH /tech/pin; the app must show the "set a new PIN" screen. */
+  pinChangeRequired: boolean;
   technician: {
     id: string;
     technicianCode: string;
@@ -20,29 +30,109 @@ export interface TechLoginResponse {
   };
 }
 
+export const MAX_FAILED_PIN_ATTEMPTS = 5;
+export const PIN_LOCK_MINUTES = 15;
+const GENERIC_LOGIN_ERROR = 'Wrong technician code, mobile number or PIN.';
+
+export class TechLoginLockedError extends AppError {
+  constructor() {
+    super(429, 'TECH_LOGIN_LOCKED', `Too many wrong PIN attempts. Try again in ${PIN_LOCK_MINUTES} minutes or ask the admin to reset your PIN.`);
+  }
+}
+
+interface TechAuthRow {
+  id: string;
+  technician_code: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  status: string;
+  is_active: boolean;
+  pin_hash: string | null;
+  pin_reset_required?: boolean | null;
+  token_version?: number | null;
+  failed_pin_attempts?: number | null;
+  locked_until?: string | null;
+}
+
+const TECH_AUTH_COLUMNS =
+  'id, technician_code, name, phone, email, status, is_active, pin_hash, pin_reset_required, token_version, failed_pin_attempts, locked_until';
+
+function isLocked(lockedUntil?: string | null): boolean {
+  if (!lockedUntil) return false;
+  const t = Date.parse(lockedUntil);
+  return Number.isFinite(t) && t > Date.now();
+}
+
 export class TechnicianPortalService {
+  /** Counts a wrong PIN; the 5th in a row locks the account for 15 minutes. Never throws. */
+  private async registerFailedPin(tech: TechAuthRow): Promise<boolean> {
+    const attempts = Number(tech.failed_pin_attempts ?? 0) + 1;
+    const lock = attempts >= MAX_FAILED_PIN_ATTEMPTS;
+    try {
+      const supabase = getSupabaseClient();
+      await supabase
+        .from('technicians')
+        .update({
+          failed_pin_attempts: lock ? 0 : attempts,
+          locked_until: lock ? new Date(Date.now() + PIN_LOCK_MINUTES * 60 * 1000).toISOString() : null,
+        })
+        .eq('id', tech.id);
+    } catch (err) {
+      logger.error('Could not record failed technician PIN attempt', {
+        techId: tech.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    if (lock) {
+      logger.warn('Technician account locked after repeated wrong PINs', { techId: tech.id });
+    }
+    return lock;
+  }
+
   /**
-   * Fast mobile authentication using Technician Code or Phone Number + 4-digit PIN
+   * Technician login with technician code or mobile number + PIN.
+   * - Fails closed with 503 when the token secret is not configured.
+   * - 5 wrong PINs in a row lock the account for 15 minutes (429).
+   * - Accounts flagged pin_reset_required, or using a known default PIN, only get a short-lived
+   *   'pin_change' token and must set a new 6-digit PIN first.
    */
   async login(identifier: string, pin: string): Promise<TechLoginResponse> {
+    if (!isTechAuthConfigured()) {
+      throw new TechAuthNotConfiguredError();
+    }
+
     const supabase = getSupabaseClient();
     const cleanId = sanitizePostgrestFilterTerm(identifier);
     const cleanDigits = cleanId.replace(/\D/g, '');
 
     if (!cleanId) {
-      throw new UnauthorizedError('Invalid technician code or mobile number.');
+      throw new UnauthorizedError(GENERIC_LOGIN_ERROR);
     }
 
     // Search by technician_code or phone
-    const { data: tech, error } = await supabase
+    const { data, error } = await supabase
       .from('technicians')
-      .select('id, technician_code, name, phone, email, status, is_active, pin_hash')
+      .select(TECH_AUTH_COLUMNS)
       .or(`technician_code.ilike.${cleanId},phone.ilike.%${cleanDigits || cleanId}%`)
       .maybeSingle();
+    const tech = data as TechAuthRow | null;
 
     if (error || !tech) {
-      logger.warn('Technician login failed: identifier not found', { identifier: cleanId });
-      throw new UnauthorizedError('Invalid technician code or mobile number.');
+      logger.warn('Technician login failed: identifier not found');
+      throw new UnauthorizedError(GENERIC_LOGIN_ERROR);
+    }
+
+    if (isLocked(tech.locked_until)) {
+      logger.warn('Technician login refused: account locked', { techId: tech.id });
+      throw new TechLoginLockedError();
+    }
+
+    if (!verifyPin(pin, tech.pin_hash)) {
+      logger.warn('Technician login failed: incorrect PIN', { techId: tech.id });
+      const locked = await this.registerFailedPin(tech);
+      if (locked) throw new TechLoginLockedError();
+      throw new UnauthorizedError(GENERIC_LOGIN_ERROR);
     }
 
     if (!tech.is_active) {
@@ -50,33 +140,39 @@ export class TechnicianPortalService {
       throw new ForbiddenError('Your technician account is inactive. Please contact your administrator.');
     }
 
-    const isPinValid = verifyPin(pin, tech.pin_hash);
-    if (!isPinValid) {
-      logger.warn('Technician login failed: incorrect PIN', { techId: tech.id });
-      throw new UnauthorizedError('Incorrect 4-digit PIN. Please try again or ask admin to reset.');
+    // Correct PIN: clear the failure counter, and upgrade legacy SHA-256 hashes to scrypt.
+    const housekeeping: Record<string, unknown> = {};
+    if (Number(tech.failed_pin_attempts ?? 0) > 0 || tech.locked_until) {
+      housekeeping.failed_pin_attempts = 0;
+      housekeeping.locked_until = null;
     }
-
-    // Opportunistically upgrade legacy SHA-256 PIN hashes to salted scrypt on successful login
     if (tech.pin_hash && !tech.pin_hash.startsWith('scrypt$')) {
+      housekeeping.pin_hash = hashPin(pin);
+    }
+    if (Object.keys(housekeeping).length > 0) {
       try {
-        await supabase
-          .from('technicians')
-          .update({ pin_hash: hashPin(pin) })
-          .eq('id', tech.id);
+        await supabase.from('technicians').update(housekeeping).eq('id', tech.id);
       } catch {
-        // Non-fatal if upgrade write fails
+        // Non-fatal
       }
     }
 
-    const token = signTechToken({
-      id: tech.id,
-      technicianCode: tech.technician_code,
-      phone: tech.phone,
-      name: tech.name,
-    });
+    const pinChangeRequired = tech.pin_reset_required === true || KNOWN_DEFAULT_PINS.includes(pin);
+
+    const token = signTechToken(
+      {
+        id: tech.id,
+        technicianCode: tech.technician_code,
+        phone: tech.phone,
+        name: tech.name,
+        tokenVersion: tech.token_version ?? 0,
+      },
+      { scope: pinChangeRequired ? 'pin_change' : 'full' }
+    );
 
     return {
       token,
+      pinChangeRequired,
       technician: {
         id: tech.id,
         technicianCode: tech.technician_code,
@@ -687,30 +783,53 @@ export class TechnicianPortalService {
     };
   }
 
-  async updatePin(techId: string, currentPin: string, newPin: string): Promise<{ updated: boolean }> {
+  /**
+   * Technician changes their own PIN (also the forced "set a new PIN" step).
+   * The current PIN is checked (wrong attempts count towards the lockout), the new PIN must pass
+   * validateNewTechPin, token_version is bumped so every older token stops working, and a fresh
+   * full-access token is returned.
+   */
+  async updatePin(
+    techId: string,
+    currentPin: string,
+    newPin: string
+  ): Promise<{ updated: boolean; token: string; pinChangeRequired: false }> {
     const supabase = getSupabaseClient();
-    const { data: tech, error } = await supabase
+    const { data, error } = await supabase
       .from('technicians')
-      .select('id,pin_hash')
+      .select(TECH_AUTH_COLUMNS)
       .eq('id', techId)
       .maybeSingle();
+    const tech = data as TechAuthRow | null;
 
     if (error || !tech) {
       throw new NotFoundError('Technician record was not found.');
     }
 
+    if (isLocked(tech.locked_until)) {
+      throw new TechLoginLockedError();
+    }
+
     if (!verifyPin(currentPin, tech.pin_hash)) {
+      const locked = await this.registerFailedPin(tech);
+      if (locked) throw new TechLoginLockedError();
       throw new UnauthorizedError('Current PIN is incorrect.');
     }
 
-    if (currentPin === newPin) {
-      throw new BadRequestError('New PIN must differ from the current PIN.');
+    const problem = validateNewTechPin(newPin, { pin: currentPin, hash: tech.pin_hash });
+    if (problem) {
+      throw new BadRequestError(problem);
     }
 
+    const nextVersion = Number(tech.token_version ?? 0) + 1;
     const { error: updateErr } = await supabase
       .from('technicians')
       .update({
         pin_hash: hashPin(newPin),
+        pin_reset_required: false,
+        token_version: nextVersion,
+        failed_pin_attempts: 0,
+        locked_until: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', techId);
@@ -719,7 +838,15 @@ export class TechnicianPortalService {
       throw new BadRequestError('Could not update technician PIN.');
     }
 
-    return { updated: true };
+    const token = signTechToken({
+      id: tech.id,
+      technicianCode: tech.technician_code,
+      phone: tech.phone,
+      name: tech.name,
+      tokenVersion: nextVersion,
+    });
+
+    return { updated: true, token, pinChangeRequired: false };
   }
 }
 

@@ -336,6 +336,8 @@ export class TechnicianService {
 
     const initialStatus = payload.status || 'AVAILABLE';
     const isActive = initialStatus !== 'INACTIVE';
+    // A PIN set by the admin (or the legacy default) is a temporary PIN: the technician must
+    // choose their own 6-digit PIN at first login (pin_reset_required).
     const initialPin = payload.pin && payload.pin.trim().length > 0 ? payload.pin.trim() : '1234';
     const pinHash = hashPin(initialPin);
 
@@ -345,6 +347,7 @@ export class TechnicianService {
       phone: cleanPhone,
       email: cleanEmail,
       pin_hash: pinHash,
+      pin_reset_required: true,
       specializations,
       service_areas: serviceAreas,
       status: initialStatus,
@@ -467,7 +470,14 @@ export class TechnicianService {
     }
 
     if (payload.name !== undefined) updateData.name = payload.name.trim();
-    if (payload.pin && payload.pin.trim().length > 0) updateData.pin_hash = hashPin(payload.pin.trim());
+    if (payload.pin && payload.pin.trim().length > 0) {
+      // Admin-set PIN: force the technician to choose a new one and sign out existing sessions.
+      updateData.pin_hash = hashPin(payload.pin.trim());
+      updateData.pin_reset_required = true;
+      updateData.token_version = Number((existingRecord as { token_version?: number | null }).token_version ?? 0) + 1;
+      updateData.failed_pin_attempts = 0;
+      updateData.locked_until = null;
+    }
     if (payload.maxDailyWorkload !== undefined) updateData.max_daily_workload = payload.maxDailyWorkload;
     if (payload.joiningDate !== undefined) updateData.joining_date = payload.joiningDate || null;
     if (payload.notes !== undefined) updateData.notes = payload.notes?.trim() || null;
@@ -694,7 +704,7 @@ export class TechnicianService {
 
     const { data: tech, error: fetchErr } = await supabase
       .from('technicians')
-      .select('id, technician_code, name')
+      .select('id, technician_code, name, token_version')
       .eq('id', id)
       .maybeSingle();
 
@@ -702,11 +712,17 @@ export class TechnicianService {
       throw new NotFoundError(`Technician with ID '${id}' not found`);
     }
 
+    // The admin-chosen PIN is temporary: the technician must set their own 6-digit PIN at next
+    // login, every existing session is signed out (token_version bump), and any lockout is cleared.
     const hashed = hashPin(cleanPin);
     const { error: updateErr } = await supabase
       .from('technicians')
       .update({
         pin_hash: hashed,
+        pin_reset_required: true,
+        token_version: Number((tech as { token_version?: number | null }).token_version ?? 0) + 1,
+        failed_pin_attempts: 0,
+        locked_until: null,
         updated_at: new Date().toISOString(),
         updated_by: actorProfileId || null,
       })

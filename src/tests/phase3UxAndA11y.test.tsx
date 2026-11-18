@@ -288,8 +288,8 @@ describe('Phase 3 UI/UX, Recovery, Accessibility & Tech Portal Features', () => 
       root.render(<TechnicianProfile onLogout={vi.fn()} />);
     });
 
-    const currentPin = container.querySelector('input[aria-label="Current 4-digit PIN"]') as HTMLInputElement;
-    const newPin = container.querySelector('input[aria-label="New 4-digit PIN"]') as HTMLInputElement;
+    const currentPin = container.querySelector('input[aria-label="Current PIN"]') as HTMLInputElement;
+    const newPin = container.querySelector('input[aria-label="New 6-digit PIN"]') as HTMLInputElement;
     expect(currentPin).not.toBeNull();
     expect(newPin).not.toBeNull();
 
@@ -297,7 +297,7 @@ describe('Phase 3 UI/UX, Recovery, Accessibility & Tech Portal Features', () => 
     await act(async () => {
       setter?.call(currentPin, '1234');
       currentPin.dispatchEvent(new Event('input', { bubbles: true }));
-      setter?.call(newPin, '5678');
+      setter?.call(newPin, '482913');
       newPin.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
@@ -306,8 +306,8 @@ describe('Phase 3 UI/UX, Recovery, Accessibility & Tech Portal Features', () => 
       pinForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
 
-    expect(updatePinSpy).toHaveBeenCalledWith('1234', '5678');
-    expect(container.textContent).toContain('Field login PIN updated successfully.');
+    expect(updatePinSpy).toHaveBeenCalledWith('1234', '482913');
+    expect(container.textContent).toContain('PIN updated. Other devices are signed out.');
 
     await act(async () => {
       root.unmount();

@@ -1,9 +1,8 @@
 // src/pages/serverManagement/ServerManagementWorkspace.tsx
-// ═══════════════════════════════════════════════════════════════════════════
-// ADMIN-ONLY SERVER, DATABASE & BUG INSPECTOR TELEMETRY WORKSPACE
-// Real-time Health Meters, 500-Slot Circular Log Streamer, Crash Inspector,
-// Interactive Architecture Flow & 1-Click Disaster Recovery Replicas
-// ═══════════════════════════════════════════════════════════════════════════
+// Admin-only Server & Database page: live server health, saved errors, the in-memory log
+// stream, per-table record counts and database snapshot downloads.
+// Every number on this page comes from the API. When a value cannot be loaded, the page says so
+// instead of showing a made-up figure.
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
@@ -22,17 +21,21 @@ import {
   Terminal,
   X,
   Zap,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/useToast';
-import { apiClient } from '@/services/api/client';
+import { apiClient, ApiError } from '@/services/api/client';
 
-interface SystemHealthResponse {
+export interface SystemHealthResponse {
   timestamp: string;
   status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
   uptimeSeconds: number;
+  startedAt?: string;
+  environment?: string;
+  nodeVersion?: string;
   cpu: {
     cores: number;
     model: string;
@@ -53,10 +56,6 @@ interface SystemHealthResponse {
     checkedAt: string;
     details?: string;
   };
-  services: {
-    pysApi: { port: number; status: 'ONLINE' };
-    essPlatform: { port: number; status: 'ONLINE' | 'UNKNOWN' };
-  };
 }
 
 interface LogEntry {
@@ -68,6 +67,13 @@ interface LogEntry {
   message: string;
   details?: Record<string, unknown>;
   stack?: string;
+}
+
+interface LogsResponse {
+  totalReturned: number;
+  bufferStartedAt?: string;
+  bufferCapacity?: number;
+  logs: LogEntry[];
 }
 
 interface CrashIncident {
@@ -86,9 +92,22 @@ interface CrashIncident {
   created_at: string;
 }
 
-interface BackupMetadataResponse {
+export interface TableCountEntry {
+  tableName: string;
+  count: number | null;
+  status: 'ok' | 'missing' | 'error';
+  exported: boolean;
+  error?: string;
+}
+
+export interface BackupMetadataResponse {
+  countedAt?: string;
+  tables?: TableCountEntry[];
   tableCounts: Record<string, number>;
   totalRecords: number;
+  tablesCounted?: number;
+  tablesMissing?: number;
+  tablesFailed?: number;
   recentBackups: {
     id: string;
     file_name: string;
@@ -99,16 +118,52 @@ interface BackupMetadataResponse {
     created_at: string;
     status: string;
   }[];
+  recentBackupsError?: string;
+}
+
+type SectionKey = 'health' | 'logs' | 'crashes' | 'metadata';
+type SectionErrors = Partial<Record<SectionKey, string>>;
+
+const UNAVAILABLE = 'Unavailable';
+
+function describeError(reason: unknown): string {
+  if (reason instanceof ApiError && reason.statusCode === 403) {
+    return 'Admins only. Your account does not have access to this page.';
+  }
+  if (reason instanceof Error && reason.message) return reason.message;
+  return 'Could not reach the server.';
+}
+
+function formatDateTime(iso?: string): string {
+  if (!iso) return UNAVAILABLE;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return UNAVAILABLE;
+  return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+}
+
+/** Normalises the manifest: new API sends `tables`, older API only `tableCounts`. */
+function manifestRows(metadata: BackupMetadataResponse | null): TableCountEntry[] {
+  if (!metadata) return [];
+  if (Array.isArray(metadata.tables) && metadata.tables.length > 0) return metadata.tables;
+  return Object.entries(metadata.tableCounts || {}).map(([tableName, count]) => ({
+    tableName,
+    count,
+    status: 'ok' as const,
+    exported: true,
+  }));
 }
 
 export const ServerManagementWorkspace: React.FC = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadedOnce, setLoadedOnce] = useState<boolean>(false);
   const [downloadingFormat, setDownloadingFormat] = useState<'json' | 'sql' | null>(null);
   const [health, setHealth] = useState<SystemHealthResponse | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logBufferStartedAt, setLogBufferStartedAt] = useState<string | undefined>(undefined);
   const [crashes, setCrashes] = useState<CrashIncident[]>([]);
   const [metadata, setMetadata] = useState<BackupMetadataResponse | null>(null);
+  const [errors, setErrors] = useState<SectionErrors>({});
 
   // Filters for Log Streamer
   const [selectedService, setSelectedService] = useState<string>('ALL');
@@ -122,54 +177,60 @@ export const ServerManagementWorkspace: React.FC = () => {
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
-  // 1. Fetch live telemetry, logs and crashes
-  const fetchTelemetry = useCallback(async (isBackground = false) => {
-    if (!isBackground) setLoading(true);
-    try {
-      // System Health
-      const healthData = await apiClient.get<{ success: boolean; data: SystemHealthResponse }>('/admin/telemetry/health');
-      if (healthData?.data) {
-        setHealth(healthData.data);
-      }
+  // 1. Fetch health, logs, saved errors and table counts. Each section loads on its own, so one
+  //    failing endpoint does not blank the others. apiClient already unwraps { success, data }.
+  const fetchTelemetry = useCallback(
+    async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
 
-      // Logs from Ring Buffer
       const queryParams = new URLSearchParams();
       if (selectedService !== 'ALL') queryParams.append('service', selectedService);
       if (selectedLevel !== 'ALL') queryParams.append('level', selectedLevel);
       if (searchFilter.trim()) queryParams.append('search', searchFilter.trim());
       queryParams.append('limit', '80');
 
-      const logsData = await apiClient.get<{ success: boolean; data: { logs: LogEntry[] } }>(
-        `/admin/telemetry/logs?${queryParams.toString()}`
-      );
-      if (logsData?.data?.logs) {
-        setLogs(logsData.data.logs);
-      }
+      // Table counts are heavier (one query per table): only on manual/initial loads.
+      const [healthRes, logsRes, crashesRes, metaRes] = await Promise.allSettled([
+        apiClient.get<SystemHealthResponse>('/admin/telemetry/health'),
+        apiClient.get<LogsResponse>(`/admin/telemetry/logs?${queryParams.toString()}`),
+        apiClient.get<CrashIncident[]>('/admin/telemetry/crashes?limit=20'),
+        isBackground ? Promise.resolve(null) : apiClient.get<BackupMetadataResponse>('/admin/database/backup/metadata'),
+      ]);
 
-      // Crashes from Supabase system_error_logs
-      const crashesData = await apiClient.get<{ success: boolean; data: CrashIncident[] }>('/admin/telemetry/crashes?limit=20');
-      if (crashesData?.data) {
-        setCrashes(crashesData.data);
-      }
+      const nextErrors: SectionErrors = {};
 
-      // Backup metadata
-      const metaRes = await apiClient.get<{ success: boolean; data: BackupMetadataResponse }>('/admin/database/backup/metadata');
-      if (metaRes?.data) {
-        setMetadata(metaRes.data);
-      }
-    } catch (err: unknown) {
+      if (healthRes.status === 'fulfilled' && healthRes.value) setHealth(healthRes.value);
+      else if (healthRes.status === 'rejected') nextErrors.health = describeError(healthRes.reason);
+
+      if (logsRes.status === 'fulfilled' && logsRes.value) {
+        setLogs(Array.isArray(logsRes.value.logs) ? logsRes.value.logs : []);
+        setLogBufferStartedAt(logsRes.value.bufferStartedAt);
+      } else if (logsRes.status === 'rejected') nextErrors.logs = describeError(logsRes.reason);
+
+      if (crashesRes.status === 'fulfilled') setCrashes(Array.isArray(crashesRes.value) ? crashesRes.value : []);
+      else nextErrors.crashes = describeError(crashesRes.reason);
+
+      if (metaRes.status === 'fulfilled') {
+        if (metaRes.value) setMetadata(metaRes.value);
+      } else nextErrors.metadata = describeError(metaRes.reason);
+
+      setErrors((prev) => (isBackground ? { ...nextErrors, metadata: prev.metadata } : nextErrors));
+
       if (!isBackground) {
-        const msg = err instanceof Error ? err.message : String(err);
-        showToast({
-          type: 'error',
-          title: 'Telemetry Refresh Error',
-          message: msg || 'Unable to communicate with telemetry API.',
-        });
+        setLoading(false);
+        setLoadedOnce(true);
+        const failed = Object.keys(nextErrors).length;
+        if (failed === 4) {
+          showToast({
+            type: 'error',
+            title: 'Could not load server information',
+            message: nextErrors.health || 'The API did not respond.',
+          });
+        }
       }
-    } finally {
-      if (!isBackground) setLoading(false);
-    }
-  }, [selectedService, selectedLevel, searchFilter, showToast]);
+    },
+    [selectedService, selectedLevel, searchFilter, showToast]
+  );
 
   // Initial load
   useEffect(() => {
@@ -192,17 +253,12 @@ export const ServerManagementWorkspace: React.FC = () => {
       await apiClient.post('/admin/telemetry/test-error', {});
       showToast({
         type: 'success',
-        title: 'Diagnostic Exception Triggered',
-        message: 'Bug Inspector successfully captured and recorded the simulated crash in Supabase.',
+        title: 'Test error recorded',
+        message: 'A controlled test error was saved to the error log.',
       });
-      await fetchTelemetry(false);
+      await fetchTelemetry(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showToast({
-        type: 'error',
-        title: 'Self-Test Failed',
-        message: msg || 'Could not trigger diagnostic test.',
-      });
+      showToast({ type: 'error', title: 'Self-test failed', message: describeError(err) });
     } finally {
       setTriggeringTest(false);
     }
@@ -212,48 +268,23 @@ export const ServerManagementWorkspace: React.FC = () => {
   const handleResolveCrash = async (id: string) => {
     try {
       await apiClient.patch(`/admin/telemetry/crashes/${id}/resolve`, {});
-      showToast({
-        type: 'success',
-        title: 'Crash Incident Resolved',
-        message: 'Marked incident as resolved in Supabase system_error_logs.',
-      });
+      showToast({ type: 'success', title: 'Marked resolved', message: 'The error is marked as resolved.' });
       if (inspectedCrash && inspectedCrash.id === id) {
         setInspectedCrash({ ...inspectedCrash, resolved: true });
       }
       void fetchTelemetry(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showToast({
-        type: 'error',
-        title: 'Resolution Error',
-        message: msg || 'Could not update incident status.',
-      });
+      showToast({ type: 'error', title: 'Could not update', message: describeError(err) });
     }
   };
 
-  // 4. Download Database Replica
+  // 4. Download a database snapshot (uses the signed-in session via apiClient)
   const handleDownloadBackup = async (format: 'json' | 'sql') => {
     setDownloadingFormat(format);
     try {
-      const token = localStorage.getItem('pys_auth_token') || sessionStorage.getItem('pys_auth_token');
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
-      const downloadUrl = `${baseUrl.replace(/\/$/, '')}/admin/database/backup?format=${format}`;
-
-      const res = await fetch(downloadUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
-
-      const blob = await res.blob();
-      const contentDisposition = res.headers.get('Content-Disposition');
-      let fileName = `pys_supabase_backup_${new Date().toISOString().split('T')[0]}.${format}`;
-      if (contentDisposition && contentDisposition.includes('filename=')) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match?.[1]) fileName = match[1];
-      }
+      const blob = await apiClient.download('/admin/database/backup', { format });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `pys_supabase_replica_${stamp}.${format}`;
 
       const objectUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -266,17 +297,12 @@ export const ServerManagementWorkspace: React.FC = () => {
 
       showToast({
         type: 'success',
-        title: 'Database Snapshot Downloaded',
-        message: `Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB) directly to disk.`,
+        title: 'Snapshot downloaded',
+        message: `Saved ${fileName} (${(blob.size / 1024).toFixed(1)} KB).`,
       });
-      void fetchTelemetry(true);
+      void fetchTelemetry(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showToast({
-        type: 'error',
-        title: 'Download Failed',
-        message: msg || 'Could not stream database replica.',
-      });
+      showToast({ type: 'error', title: 'Download failed', message: describeError(err) });
     } finally {
       setDownloadingFormat(null);
     }
@@ -284,7 +310,8 @@ export const ServerManagementWorkspace: React.FC = () => {
 
   // Format uptime in friendly string
   const formatUptime = (seconds?: number) => {
-    if (!seconds) return 'Just started';
+    if (seconds === undefined || seconds === null) return UNAVAILABLE;
+    if (seconds < 60) return 'Just started';
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -294,32 +321,57 @@ export const ServerManagementWorkspace: React.FC = () => {
     return `${m}m ${s}s`;
   };
 
+  const rows = manifestRows(metadata);
+  const okRows = rows.filter((r) => r.status === 'ok');
+  const problemRows = rows.filter((r) => r.status !== 'ok');
+  const metaLoading = loading && !metadata;
+  const placeholder = loadedOnce ? UNAVAILABLE : 'Loading…';
+
+  const iconBox = (bg: string, color: string, icon: React.ReactNode) => (
+    <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-lg)', background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      {icon}
+    </div>
+  );
+
+  const flowSteps: { title: string; body: string }[] = [
+    {
+      title: 'PYS web app (Vercel)',
+      body: 'Admin, staff and technician screens. Runs in the browser and calls the PYS API over HTTPS.',
+    },
+    {
+      title: 'PYS API (Render)',
+      body: 'Checks logins and roles, applies business rules, and is the only part that writes to the database.',
+    },
+    {
+      title: 'Supabase PostgreSQL',
+      body: 'The single source of truth for customers, AC units, requests, AMC, reports and payments, protected by row-level security.',
+    },
+    {
+      title: 'ESS website',
+      body: 'Sends bookings and enquiries to PYS through the signed /api/v1/ess link (each request is signed and can only be used once).',
+    },
+    {
+      title: 'Email (Resend)',
+      body: 'Emails are queued in an outbox and sent through Resend, with retries and a delivery history.',
+    },
+  ];
+
   return (
     <div style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       {/* HEADER & CONTROLS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             <span style={{ color: 'var(--color-brand)' }}><Server size={26} /></span>
-            <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 800 }}>Admin Server &amp; Database Telemetry</h1>
-            <Badge variant="success">Admin Role Only</Badge>
+            <h1 style={{ margin: 0, fontSize: 'var(--text-2xl)', fontWeight: 800 }}>Server &amp; Database</h1>
+            <Badge variant="neutral">Admin only</Badge>
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-            Real-time server metrics, 500-slot log streamer, automated bug inspector &amp; disaster recovery backups.
+            Live server health, saved errors, recent server logs, record counts and database snapshots.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleTriggerSelfTest}
-            isLoading={triggeringTest}
-            leftIcon={<Bug size={14} />}
-          >
-            Trigger Diagnostic Self-Test
-          </Button>
-
           <Button
             variant="primary"
             size="sm"
@@ -332,132 +384,132 @@ export const ServerManagementWorkspace: React.FC = () => {
         </div>
       </div>
 
-      {/* SECTION 1: LIVE HARDWARE & SERVICE HEALTH GAUGES */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 'var(--space-4)' }}>
-        {/* CPU Gauge */}
+      {errors.health && (
+        <div role="alert" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: 'var(--text-sm)' }}>
+          <AlertTriangle size={16} style={{ color: 'var(--color-danger)' }} />
+          <span>Server health is unavailable: {errors.health}</span>
+        </div>
+      )}
+
+      {/* SECTION 1: LIVE SERVER HEALTH */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
         <Card>
           <CardBody style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-lg)', background: 'var(--color-brand-subtle)', color: 'var(--color-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Cpu size={22} />
-            </div>
+            {iconBox('var(--color-brand-subtle)', 'var(--color-brand)', <Cpu size={22} />)}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>CPU PROCESS LOAD</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>API PROCESS CPU</div>
               <div style={{ fontSize: 'var(--text-xl)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{health?.cpu?.processCpuPercent ?? 1.2}%</span>
-                <Badge variant={health && health.cpu.processCpuPercent > 60 ? 'warning' : 'success'}>
-                  {health?.cpu?.cores ?? 4} Cores
-                </Badge>
+                <span>{!health ? placeholder : `${health.cpu.processCpuPercent}%`}</span>
+                {health && (
+                  <Badge variant={health.cpu.processCpuPercent > 60 ? 'warning' : 'success'}>{health.cpu.cores} cores</Badge>
+                )}
               </div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Load 1m: {health?.cpu?.loadAvg1m ?? 0.0}
+                Load (1 min): {health ? health.cpu.loadAvg1m : '—'}
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* Node.js Heap Memory */}
         <Card>
           <CardBody style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-lg)', background: '#8b5cf620', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Activity size={22} />
-            </div>
+            {iconBox('#8b5cf620', '#8b5cf6', <Activity size={22} />)}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>NODE HEAP MEMORY</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>API MEMORY (HEAP)</div>
               <div style={{ fontSize: 'var(--text-xl)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{health?.memory?.heapUsedMb ?? 48.5} MB</span>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  / {health?.memory?.heapTotalMb ?? 72} MB
-                </span>
+                {health ? (
+                  <>
+                    <span>{health.memory.heapUsedMb} MB</span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 }}>/ {health.memory.heapTotalMb} MB</span>
+                  </>
+                ) : (
+                  <span>{placeholder}</span>
+                )}
               </div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Heap Utilization: {health?.memory?.heapUsagePercent ?? 67}%
+                {health ? `In use: ${health.memory.heapUsagePercent}% · Total process: ${health.memory.rssMb} MB` : '—'}
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* Supabase Database Latency */}
         <Card>
           <CardBody style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-lg)', background: '#10b98120', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Database size={22} />
-            </div>
+            {iconBox('#10b98120', '#10b981', <Database size={22} />)}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>SUPABASE POSTGRESQL</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>DATABASE (SUPABASE)</div>
               <div style={{ fontSize: 'var(--text-xl)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{health?.database?.status ?? 'ONLINE'}</span>
-                <Badge variant="success">
-                  {health?.database?.latencyMs ?? 16} ms
-                </Badge>
+                <span>{health ? health.database.status : placeholder}</span>
+                {health && (
+                  <Badge variant={health.database.status === 'ONLINE' ? 'success' : health.database.status === 'SLOW' ? 'warning' : 'danger'}>
+                    {health.database.latencyMs} ms
+                  </Badge>
+                )}
               </div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                Pool: jvccvdxfilzlncbgiplk (Healthy)
+                {health?.database.details || '—'}
               </div>
             </div>
           </CardBody>
         </Card>
 
-        {/* System Uptime */}
         <Card>
           <CardBody style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-lg)', background: '#3b82f620', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe size={22} />
-            </div>
+            {iconBox('#3b82f620', '#3b82f6', <Globe size={22} />)}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>SYSTEM UPTIME &amp; ENV</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 600 }}>API UPTIME</div>
               <div style={{ fontSize: 'var(--text-base)', fontWeight: 800 }}>
-                {formatUptime(health?.uptimeSeconds)}
+                {health ? formatUptime(health.uptimeSeconds) : placeholder}
               </div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                PYS: 5000 · ESS: 5002 · Vite: 5173
+                {health?.startedAt ? `Started ${formatDateTime(health.startedAt)}` : '—'}
+                {health?.environment ? ` · ${health.environment}` : ''}
               </div>
             </div>
           </CardBody>
         </Card>
       </div>
 
-      {/* SECTION 2: AUTOMATED BUG & CRASH INSPECTOR */}
+      {/* SECTION 2: SAVED ERRORS (system_error_logs, survives restarts) */}
       <Card>
-        <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <div>
             <CardTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Bug size={18} style={{ color: 'var(--color-danger)' }} />
-              Automated Bug &amp; Crash Inspector
+              Saved Errors
               {crashes.filter((c) => !c.resolved).length > 0 && (
-                <Badge variant="danger">
-                  {crashes.filter((c) => !c.resolved).length} Unresolved
-                </Badge>
+                <Badge variant="danger">{crashes.filter((c) => !c.resolved).length} unresolved</Badge>
               )}
             </CardTitle>
             <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-              Intercepts uncaught server exceptions, client crashes, and HTTP 500s across both PYS and ESS platforms with AI root-cause diagnostics.
+              Server errors are saved in the database, so they stay here after a restart. Showing the latest 20.
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<Zap size={14} />}
-            onClick={handleTriggerSelfTest}
-            isLoading={triggeringTest}
-          >
-            Simulate Controlled Error
+          <Button size="sm" variant="secondary" leftIcon={<Zap size={14} />} onClick={handleTriggerSelfTest} isLoading={triggeringTest}>
+            Record a test error
           </Button>
         </CardHeader>
         <CardBody>
-          {crashes.length === 0 ? (
+          {errors.crashes ? (
+            <div role="alert" style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--color-danger)', fontSize: 'var(--text-sm)' }}>
+              Saved errors are unavailable: {errors.crashes}
+            </div>
+          ) : !loadedOnce ? (
+            <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Loading…</div>
+          ) : crashes.length === 0 ? (
             <div style={{ padding: 'var(--space-6)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
               <CheckCircle size={32} style={{ color: 'var(--color-success)', margin: '0 auto 8px' }} />
-              <div>All systems clear — Zero crashes or unhandled server exceptions recorded in Supabase.</div>
+              <div>No saved errors.</div>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', fontSize: 'var(--text-xs)', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border-subtle)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                    <th style={{ padding: '8px 10px' }}>Platform</th>
+                    <th style={{ padding: '8px 10px' }}>Source</th>
                     <th style={{ padding: '8px 10px' }}>Level</th>
-                    <th style={{ padding: '8px 10px' }}>Error &amp; Message</th>
-                    <th style={{ padding: '8px 10px' }}>Occurred At</th>
+                    <th style={{ padding: '8px 10px' }}>Error</th>
+                    <th style={{ padding: '8px 10px' }}>When</th>
                     <th style={{ padding: '8px 10px' }}>Status</th>
                     <th style={{ padding: '8px 10px', textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -472,9 +524,7 @@ export const ServerManagementWorkspace: React.FC = () => {
                       }}
                     >
                       <td style={{ padding: '8px 10px' }}>
-                        <Badge variant={crash.service_name === 'PYS' ? 'brand' : 'neutral'}>
-                          {crash.service_name}
-                        </Badge>
+                        <Badge variant={crash.service_name === 'PYS' ? 'brand' : 'neutral'}>{crash.service_name}</Badge>
                       </td>
                       <td style={{ padding: '8px 10px' }}>
                         <Badge variant={crash.error_level === 'FATAL' || crash.error_level === 'ERROR' ? 'danger' : 'warning'}>
@@ -482,39 +532,22 @@ export const ServerManagementWorkspace: React.FC = () => {
                         </Badge>
                       </td>
                       <td style={{ padding: '8px 10px', maxWidth: 360 }}>
-                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {crash.error_name || 'UnhandledError'}
-                        </div>
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{crash.error_name || 'Error'}</div>
                         <div style={{ color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                           {crash.message}
                         </div>
                       </td>
-                      <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {new Date(crash.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                      </td>
+                      <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDateTime(crash.created_at)}</td>
                       <td style={{ padding: '8px 10px' }}>
-                        {crash.resolved ? (
-                          <Badge variant="success">Resolved</Badge>
-                        ) : (
-                          <Badge variant="danger">Active Incident</Badge>
-                        )}
+                        {crash.resolved ? <Badge variant="success">Resolved</Badge> : <Badge variant="danger">Open</Badge>}
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          style={{ marginRight: 6 }}
-                          onClick={() => setInspectedCrash(crash)}
-                        >
-                          Inspect Stack &amp; Fix
+                        <Button size="sm" variant="ghost" style={{ marginRight: 6 }} onClick={() => setInspectedCrash(crash)}>
+                          Details
                         </Button>
                         {!crash.resolved && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => void handleResolveCrash(crash.id)}
-                          >
-                            Mark Resolved
+                          <Button size="sm" variant="secondary" onClick={() => void handleResolveCrash(crash.id)}>
+                            Mark resolved
                           </Button>
                         )}
                       </td>
@@ -527,81 +560,59 @@ export const ServerManagementWorkspace: React.FC = () => {
         </CardBody>
       </Card>
 
-      {/* SECTION 3: LIVE SERVER LOG STREAMER (500-SLOT RING BUFFER) */}
+      {/* SECTION 3: RECENT SERVER LOGS (in memory, since the last restart) */}
       <Card>
         <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <div>
             <CardTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Terminal size={18} style={{ color: 'var(--color-brand)' }} />
-              Live Server Log Streamer
-              <Badge variant="neutral">500-Slot Ring Buffer</Badge>
+              Recent Server Logs
             </CardTitle>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-              Streams server requests, background jobs, database queries, and warnings in real-time.
+            <p data-testid="log-buffer-started" style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+              {logBufferStartedAt
+                ? `Since server start at ${formatDateTime(logBufferStartedAt)}. `
+                : ''}
+              Kept in the server's memory only (last 500 lines), so this list empties when the server restarts. Errors are also saved above.
             </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-            {/* Service Filter */}
             <select
+              aria-label="Filter logs by source"
               value={selectedService}
               onChange={(e) => setSelectedService(e.target.value)}
-              style={{
-                fontSize: 'var(--text-xs)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-surface)',
-              }}
+              style={{ fontSize: 'var(--text-xs)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}
             >
-              <option value="ALL">All Services</option>
-              <option value="PYS">PYS Backend</option>
-              <option value="ESS">ESS Platform</option>
-              <option value="CLIENT">Client Runtime</option>
+              <option value="ALL">All sources</option>
+              <option value="PYS">PYS API</option>
+              <option value="ESS">ESS website</option>
+              <option value="CLIENT">Browser</option>
             </select>
 
-            {/* Level Filter */}
             <select
+              aria-label="Filter logs by level"
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
-              style={{
-                fontSize: 'var(--text-xs)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-surface)',
-              }}
+              style={{ fontSize: 'var(--text-xs)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}
             >
-              <option value="ALL">All Levels</option>
-              <option value="INFO">INFO Only</option>
-              <option value="WARN">WARN Only</option>
-              <option value="ERROR">ERROR Only</option>
-              <option value="FATAL">FATAL Only</option>
+              <option value="ALL">All levels</option>
+              <option value="INFO">INFO</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+              <option value="FATAL">FATAL</option>
             </select>
 
-            {/* Search Input */}
             <input
               type="text"
-              placeholder="Search log stream..."
+              aria-label="Search logs"
+              placeholder="Search logs..."
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              style={{
-                fontSize: 'var(--text-xs)',
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-surface)',
-                width: 140,
-              }}
+              style={{ fontSize: 'var(--text-xs)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', width: 140 }}
             />
 
-            {/* Auto-Refresh Toggle */}
-            <Button
-              size="sm"
-              variant={autoRefresh ? 'primary' : 'secondary'}
-              onClick={() => setAutoRefresh(!autoRefresh)}
-            >
-              {autoRefresh ? 'Streaming (4s)' : 'Paused'}
+            <Button size="sm" variant={autoRefresh ? 'primary' : 'secondary'} onClick={() => setAutoRefresh(!autoRefresh)}>
+              {autoRefresh ? 'Live (every 4s)' : 'Paused'}
             </Button>
           </div>
         </CardHeader>
@@ -619,40 +630,22 @@ export const ServerManagementWorkspace: React.FC = () => {
               lineHeight: 1.6,
             }}
           >
-            {logs.length === 0 ? (
-              <div style={{ color: '#64748b', textAlign: 'center', padding: '24px' }}>
-                No logs matching the current filter.
+            {errors.logs ? (
+              <div style={{ color: '#f87171', textAlign: 'center', padding: '24px' }}>Logs are unavailable: {errors.logs}</div>
+            ) : logs.length === 0 ? (
+              <div style={{ color: '#94a3b8', textAlign: 'center', padding: '24px' }}>
+                {loadedOnce ? 'No logs match the current filter.' : 'Loading…'}
               </div>
             ) : (
               logs.map((log) => {
                 const levelColor =
-                  log.level === 'FATAL' || log.level === 'ERROR'
-                    ? '#f87171'
-                    : log.level === 'WARN'
-                    ? '#fbbf24'
-                    : '#38bdf8';
+                  log.level === 'FATAL' || log.level === 'ERROR' ? '#f87171' : log.level === 'WARN' ? '#fbbf24' : '#38bdf8';
                 return (
-                  <div
-                    key={log.id}
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                      padding: '3px 0',
-                    }}
-                  >
-                    <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span style={{ color: '#a855f7', fontWeight: 700, width: 44 }}>
-                      [{log.service}]
-                    </span>
-                    <span style={{ color: levelColor, fontWeight: 700, width: 46 }}>
-                      {log.level}
-                    </span>
-                    <span style={{ color: '#cbd5e1', flex: 1, wordBreak: 'break-word' }}>
-                      {log.message}
-                    </span>
+                  <div key={log.id} style={{ display: 'flex', gap: 8, borderBottom: '1px solid rgba(255, 255, 255, 0.05)', padding: '3px 0' }}>
+                    <span style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    <span style={{ color: '#a855f7', fontWeight: 700, width: 44 }}>[{log.service}]</span>
+                    <span style={{ color: levelColor, fontWeight: 700, width: 46 }}>{log.level}</span>
+                    <span style={{ color: '#cbd5e1', flex: 1, wordBreak: 'break-word' }}>{log.message}</span>
                   </div>
                 );
               })
@@ -661,19 +654,33 @@ export const ServerManagementWorkspace: React.FC = () => {
         </CardBody>
       </Card>
 
-      {/* SECTION 4: 1-CLICK DATABASE REPLICA & DISASTER RECOVERY */}
+      {/* SECTION 4: RECORD COUNTS & DATABASE SNAPSHOTS */}
       <Card>
-        <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <div>
             <CardTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <HardDrive size={18} style={{ color: 'var(--color-brand)' }} />
-              Database Replica &amp; Disaster Recovery Snapshots
+              Records &amp; Database Snapshots
             </CardTitle>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-              Total Records Indexed: <strong>{metadata?.totalRecords ?? 337} rows</strong> across 22 relational tables. If the database ever gets deleted or corrupted, download these replicas to restore in seconds.
+            <p data-testid="records-summary" style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+              {errors.metadata ? (
+                <>Record counts are unavailable: {errors.metadata}</>
+              ) : metadata ? (
+                <>
+                  Total records: <strong>{metadata.totalRecords.toLocaleString('en-IN')}</strong> across{' '}
+                  <strong>{okRows.length}</strong> tables
+                  {metadata.countedAt ? ` (counted ${formatDateTime(metadata.countedAt)})` : ''}.
+                  {problemRows.length > 0 ? ` ${problemRows.length} table(s) could not be counted.` : ''}
+                </>
+              ) : metaLoading ? (
+                'Counting records…'
+              ) : (
+                'Record counts are unavailable.'
+              )}{' '}
+              Snapshots leave out secrets (signing keys, PIN hashes) and short-lived replay data.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             <Button
               variant="secondary"
               size="sm"
@@ -681,7 +688,7 @@ export const ServerManagementWorkspace: React.FC = () => {
               isLoading={downloadingFormat === 'json'}
               onClick={() => void handleDownloadBackup('json')}
             >
-              Download JSON Replica
+              Download JSON
             </Button>
             <Button
               variant="primary"
@@ -690,84 +697,79 @@ export const ServerManagementWorkspace: React.FC = () => {
               isLoading={downloadingFormat === 'sql'}
               onClick={() => void handleDownloadBackup('sql')}
             >
-              Download SQL Dump (.SQL)
+              Download SQL
             </Button>
           </div>
         </CardHeader>
         <CardBody>
           <div style={{ marginBottom: 'var(--space-4)' }}>
             <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase' }}>
-              Live Table Record Count Manifest:
+              Records per table
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-              {metadata?.tableCounts &&
-                Object.entries(metadata.tableCounts).map(([tbl, count]) => (
-                  <div key={tbl} style={{ padding: '6px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'var(--text-xs)' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{tbl}</span>
-                    <strong style={{ color: count > 0 ? 'var(--color-brand)' : 'var(--text-muted)' }}>{count}</strong>
+            {rows.length === 0 ? (
+              <div data-testid="manifest-empty" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                {errors.metadata ? 'Unavailable — use Refresh to try again.' : metaLoading ? 'Counting…' : 'No tables reported.'}
+              </div>
+            ) : (
+              <div data-testid="table-manifest" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                {rows.map((row) => (
+                  <div
+                    key={row.tableName}
+                    title={row.status === 'error' ? row.error : row.exported ? undefined : 'Counted only; not included in snapshots'}
+                    style={{ padding: '6px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 'var(--text-xs)' }}
+                  >
+                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.tableName}</span>
+                    {row.status === 'ok' ? (
+                      <strong style={{ color: (row.count ?? 0) > 0 ? 'var(--color-brand)' : 'var(--text-muted)' }}>{(row.count ?? 0).toLocaleString('en-IN')}</strong>
+                    ) : row.status === 'missing' ? (
+                      <Badge variant="neutral">not created</Badge>
+                    ) : (
+                      <Badge variant="danger">error</Badge>
+                    )}
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </div>
+
+          {metadata && (metadata.recentBackups?.length ?? 0) > 0 && (
+            <div>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase' }}>
+                Recent snapshots
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                {metadata.recentBackups.slice(0, 5).map((b) => (
+                  <li key={b.id}>
+                    {formatDateTime(b.created_at)} · {String(b.format).toUpperCase()} · {(Number(b.total_records) || 0).toLocaleString('en-IN')} records ·{' '}
+                    {((Number(b.file_size_bytes) || 0) / 1024).toFixed(1)} KB · {b.status}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </CardBody>
       </Card>
 
-      {/* SECTION 5: INTERACTIVE OPERATIONAL ARCHITECTURE FLOW */}
+      {/* SECTION 5: HOW THE SYSTEM FITS TOGETHER */}
       <Card>
         <CardHeader>
           <CardTitle style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Layers size={18} style={{ color: 'var(--color-brand)' }} />
-            Interactive Operational Architecture &amp; System Flow
+            How the system fits together
           </CardTitle>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-            Visual end-to-end pipeline mapping customer storefront requests to technician dispatch and audit databases.
-          </p>
         </CardHeader>
         <CardBody>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 'var(--space-4)' }}>
-            <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-brand)' }}>NODE 1</span>
-                <span>🛒</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
+            {flowSteps.map((step, index) => (
+              <div
+                key={step.title}
+                style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}
+              >
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-brand)' }}>STEP {index + 1}</span>
+                <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>{step.title}</div>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>{step.body}</p>
               </div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>ESS Storefront &amp; Portal</div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                Customers browse AC products, book services with upfront pricing, and track live milestones on Port 5002.
-              </p>
-            </div>
-
-            <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-brand)' }}>NODE 2</span>
-                <span>⚡</span>
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>PYS Backend REST API</div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                Authenticates M2M calls, validates statutory SAC 998719, enforces rate-limits, and schedules tickets on Port 5000.
-              </p>
-            </div>
-
-            <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-brand)' }}>NODE 3</span>
-                <span>🐘</span>
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Supabase PostgreSQL Cloud</div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                Single source of truth with 22 tables, RLS security, and compound B-tree indexes for &lt;20ms query performance.
-              </p>
-            </div>
-
-            <div style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 800, color: 'var(--color-brand)' }}>NODE 4</span>
-                <span>✉️</span>
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)' }}>Resend Transactional Email</div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                Dispatches booking receipts, AMC reminders, and status alerts via unified transactional outbox.
-              </p>
-            </div>
+            ))}
           </div>
         </CardBody>
       </Card>

@@ -1,12 +1,160 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { KeyRound, Smartphone, LogIn, AlertCircle, ShieldCheck, MessageCircle, CheckSquare, Square } from 'lucide-react';
-import { technicianApi } from '@/services/technicianApi';
+import { technicianApi, type TechUser } from '@/services/technicianApi';
 import { getApiErrorMessage } from '@/services/api/client';
+import { checkNewTechPin, storeTokenAfterPinChange } from './pinRules';
 import { COMPANY_BANK_DETAILS } from '@/config/companyPaymentDetails';
 
 export interface TechnicianLoginProps {
   onLoginSuccess: () => void;
   onSwitchToAdmin: () => void;
+}
+
+interface PendingPinChange {
+  technician: TechUser;
+  oldPin: string;
+  rememberMe: boolean;
+}
+
+const pinInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 14px',
+  borderRadius: 'var(--radius-md)',
+  border: '1px solid var(--border-default)',
+  backgroundColor: 'var(--bg-surface-subtle)',
+  color: 'var(--text-primary)',
+  fontSize: 'var(--text-sm)',
+  fontFamily: 'var(--font-mono)',
+  letterSpacing: '0.15em',
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
+/**
+ * Shown after a login with a default or admin-set PIN: the technician must choose their own
+ * 6-digit PIN before the portal opens. Uses the short-lived token from that login.
+ */
+export function SetNewPinStep({
+  pending,
+  onDone,
+  onCancel,
+}: {
+  pending: PendingPinChange;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const problem = checkNewTechPin(newPin, pending.oldPin);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setError('The two PINs do not match.');
+      return;
+    }
+    try {
+      setSaving(true);
+      const result = (await technicianApi.updatePin(pending.oldPin, newPin)) as { updated: boolean; token?: string };
+      storeTokenAfterPinChange(result?.token, pending.technician, pending.rememberMe);
+      onDone();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Could not save your new PIN. Please try again.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSave} aria-label="Set a new PIN" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 800, color: 'var(--text-primary)' }}>Set a new PIN</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Hi {pending.technician.name}. For your safety, choose your own 6-digit PIN before you continue. Avoid easy PINs like 123456 or 000000.
+        </p>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+            fontSize: 'var(--text-xs)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 'var(--space-2)',
+          }}
+        >
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
+        New 6-digit PIN
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete="new-password"
+          maxLength={6}
+          value={newPin}
+          onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          style={pinInputStyle}
+        />
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)' }}>
+        Type the new PIN again
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete="new-password"
+          maxLength={6}
+          value={confirmPin}
+          onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          style={pinInputStyle}
+        />
+      </label>
+
+      <button
+        type="submit"
+        disabled={saving}
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-md)',
+          backgroundColor: 'var(--color-brand)',
+          color: '#ffffff',
+          fontSize: 'var(--text-xs)',
+          fontWeight: 700,
+          border: 'none',
+          cursor: saving ? 'not-allowed' : 'pointer',
+          opacity: saving ? 0.6 : 1,
+        }}
+      >
+        {saving ? 'Saving...' : 'Save new PIN and continue'}
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        style={{ background: 'none', border: 'none', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', textDecoration: 'underline', cursor: 'pointer' }}
+      >
+        Cancel and sign out
+      </button>
+    </form>
+  );
 }
 
 export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianLoginProps) {
@@ -19,6 +167,7 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingPinChange, setPendingPinChange] = useState<PendingPinChange | null>(null);
 
   useEffect(() => {
     // Only auto-focus PIN on initial mount if identifier came from URL query param (?code=)
@@ -40,16 +189,20 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
     }
 
     if (!pin || pin.length < 4) {
-      setError('Please enter your 4-digit security PIN.');
+      setError('Please enter your security PIN (4 to 6 digits).');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      if (rememberMe) {
-        await technicianApi.login(cleanId, pin);
-      } else {
-        await technicianApi.login(cleanId, pin, false);
+      const result = (rememberMe
+        ? await technicianApi.login(cleanId, pin)
+        : await technicianApi.login(cleanId, pin, false)) as { technician: TechUser; pinChangeRequired?: boolean };
+      if (result?.pinChangeRequired) {
+        // The token from this login only allows setting a new PIN.
+        setPendingPinChange({ technician: result.technician, oldPin: pin, rememberMe });
+        setPin('');
+        return;
       }
       onLoginSuccess();
     } catch (err: unknown) {
@@ -155,8 +308,23 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
             gap: 'var(--space-4)',
           }}
         >
+          {pendingPinChange ? (
+            <SetNewPinStep
+              pending={pendingPinChange}
+              onDone={() => {
+                setPendingPinChange(null);
+                onLoginSuccess();
+              }}
+              onCancel={() => {
+                technicianApi.clearSession();
+                setPendingPinChange(null);
+              }}
+            />
+          ) : (
+          <>
           {error && (
             <div
+              role="alert"
               style={{
                 padding: 'var(--space-3)',
                 borderRadius: 'var(--radius-md)',
@@ -334,6 +502,8 @@ export function TechnicianLogin({ onLoginSuccess, onSwitchToAdmin }: TechnicianL
               )}
             </button>
           </form>
+          </>
+          )}
 
           {/* Quick Help / Dispatch Desk Helpline */}
           <div
