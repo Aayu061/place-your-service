@@ -200,6 +200,16 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
   const addressLine = [data.address.line, data.address.landmark, data.address.area, data.address.city, data.address.pincode]
     .filter(Boolean)
     .join(', ');
+  const present = (v: unknown) => v !== null && v !== undefined && v !== '';
+  // Units alone (defaults to 1) is not AC information.
+  const hasAc =
+    [data.ac.type, data.ac.brand, data.ac.tonnage, data.ac.ageYears, data.ac.inverter].some(present);
+  const hasRequest = [
+    data.request.serviceCode,
+    data.request.amcPlanCode,
+    data.request.serviceName,
+    data.request.preferredDate,
+  ].some(present);
 
   return (
     <article aria-labelledby="intake-detail-heading" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column' }}>
@@ -296,12 +306,21 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
             </a>
           ) : '—'}
         </Field>
+        {!hasRequest && data.trackingCode && (
+          <Field label="Tracking code">
+            <span style={{ fontFamily: 'monospace' }}>{data.trackingCode}</span>
+          </Field>
+        )}
       </Section>
 
-      <Section title="Address">
-        <Field label="Address">{addressLine || '—'}</Field>
-      </Section>
+      {/* Sections a request type does not use (e.g. a contact message has no AC) stay hidden. */}
+      {addressLine && (
+        <Section title="Address">
+          <Field label="Address">{addressLine}</Field>
+        </Section>
+      )}
 
+      {hasAc && (
       <Section title="Air conditioner">
         <Field label="Type">{orDash(data.ac.type)}</Field>
         <Field label="Brand">{orDash(data.ac.brand)}</Field>
@@ -310,7 +329,9 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
         <Field label="Age">{data.ac.ageYears !== null && data.ac.ageYears !== undefined ? `${data.ac.ageYears} years` : '—'}</Field>
         <Field label="Units">{orDash(data.ac.units)}</Field>
       </Section>
+      )}
 
+      {hasRequest && (
       <Section title="Requested">
         <Field label={data.request.amcPlanCode ? 'AMC plan' : 'Service'}>
           {data.request.serviceName || findAmcPlan(catalog, data.request.amcPlanCode)?.name || data.request.serviceCode || data.request.amcPlanCode || '—'}
@@ -327,6 +348,7 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
           <span style={{ fontFamily: 'monospace' }}>{orDash(data.trackingCode)}</span>
         </Field>
       </Section>
+      )}
 
       <Section title="Message">
         <p style={{ margin: 0, fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap', color: data.request.message ? 'var(--text-primary)' : 'var(--text-muted)' }}>

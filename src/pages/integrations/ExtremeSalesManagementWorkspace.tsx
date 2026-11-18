@@ -1,7 +1,7 @@
 // src/pages/integrations/ExtremeSalesManagementWorkspace.tsx
 // ═══════════════════════════════════════════════════════════════════════════
 // EXTREME SALES & SERVICES (ESS) CENTRALIZED MANAGEMENT HUB
-// Manage ESS Storefront Bookings, Products, Enquiries & live AMC prices inside PYS
+// Manage approved ESS bookings, storefront products & live AMC prices inside PYS
 // ═══════════════════════════════════════════════════════════════════════════
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -9,7 +9,6 @@ import {
   Store,
   Package,
   Wrench,
-  Mail,
   RefreshCw,
   ExternalLink,
   Plus,
@@ -23,7 +22,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/useToast';
 import { apiClient } from '@/services/api/client';
-import { ServiceRequest } from '@/domain/types';
+import { ServiceRequest, ServiceStatus } from '@/domain/types';
 import { CatalogAmcPlansPanel } from './CatalogAmcPlansPanel';
 
 interface EssProduct {
@@ -41,28 +40,23 @@ interface EssProduct {
   image_url?: string;
 }
 
-interface ContactEnquiry {
-  id: string;
-  enquiry_number?: string;
-  name: string;
-  phone: string;
-  email?: string;
-  service_type?: string;
-  subject?: string;
-  message?: string;
-  status: 'NEW' | 'CONTACTED' | 'RESOLVED' | 'SPAM';
-  created_at: string;
+/** Request statuses where a technician can still be (re)assigned. */
+const ASSIGNABLE_STATUSES = new Set<ServiceStatus>(['REQUESTED', 'PENDING', 'SCHEDULED', 'ASSIGNED', 'REVISIT_REQUIRED', 'ON_HOLD']);
+
+function statusBadgeVariant(status: ServiceStatus): 'success' | 'warning' | 'neutral' {
+  if (status === 'COMPLETED' || status === 'CLOSED') return 'success';
+  if (status === 'CANCELLED') return 'neutral';
+  return 'warning';
 }
 
 export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: string, params?: Record<string, string>) => void }> = ({ onNavigate }) => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'bookings' | 'products' | 'enquiries' | 'amc'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'products' | 'amc'>('bookings');
   const [loading, setLoading] = useState<boolean>(true);
 
   // Data states
   const [bookings, setBookings] = useState<ServiceRequest[]>([]);
   const [products, setProducts] = useState<EssProduct[]>([]);
-  const [enquiries, setEnquiries] = useState<ContactEnquiry[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   // Product Add/Edit Modal
@@ -93,13 +87,6 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
         .catch(() => ({ products: [] as EssProduct[], data: undefined }));
       const prodList = prodRes?.products || prodRes?.data?.products || [];
       setProducts(prodList);
-
-      // 3. Load Contact Enquiries
-      const enqRes = await apiClient
-        .get<{ enquiries?: ContactEnquiry[]; data?: { enquiries?: ContactEnquiry[] } }>('/contact-enquiries')
-        .catch(() => ({ enquiries: [] as ContactEnquiry[], data: undefined }));
-      const enqList = enqRes?.enquiries || enqRes?.data?.enquiries || [];
-      setEnquiries(enqList);
     } catch (err: unknown) {
       // Non-fatal fallback for UI development
       const msg = err instanceof Error ? err.message : String(err);
@@ -112,35 +99,6 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
-  const [convertingId, setConvertingId] = useState<string | null>(null);
-
-  const handleConvertEnquiry = async (enqId: string) => {
-    setConvertingId(enqId);
-    try {
-      const res = await apiClient.post<{
-        success: boolean;
-        message: string;
-        data: { customerCode: string; requestNumber: string };
-      }>(`/contact-enquiries/${enqId}/convert`, {});
-
-      showToast({
-        type: 'success',
-        title: 'Inquiry Converted!',
-        message: res.message || `Created Customer ${res.data.customerCode} and Ticket ${res.data.requestNumber}.`,
-      });
-      void loadData();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showToast({
-        type: 'error',
-        title: 'Conversion Failed',
-        message: msg || 'Could not convert inquiry to ticket.',
-      });
-    } finally {
-      setConvertingId(null);
-    }
-  };
 
   const handleOpenAddProduct = () => {
     setEditingProduct(null);
@@ -221,7 +179,8 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
             <Badge variant="brand">Storefront Hub</Badge>
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-            Central administration for ESS customer bookings, storefront product catalog, and inquiries.
+            ESS bookings that were approved into service requests, the storefront product catalog and AMC prices.
+            New website requests wait in the Approval Inbox first.
           </p>
         </div>
 
@@ -245,7 +204,7 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
             onClick={() => void loadData()}
             isLoading={loading}
           >
-            Sync Now
+            Refresh
           </Button>
         </div>
       </div>
@@ -269,14 +228,6 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
           Product Catalog ({products.length})
         </Button>
         <Button
-          variant={activeTab === 'enquiries' ? 'primary' : 'ghost'}
-          size="sm"
-          leftIcon={<Mail size={14} />}
-          onClick={() => setActiveTab('enquiries')}
-        >
-          Web Enquiries ({enquiries.length})
-        </Button>
-        <Button
           variant={activeTab === 'amc' ? 'primary' : 'ghost'}
           size="sm"
           leftIcon={<ShieldCheck size={14} />}
@@ -291,9 +242,21 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
         <Card>
           <CardHeader style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <CardTitle>Inbound Storefront Bookings</CardTitle>
+              <CardTitle>Storefront Bookings</CardTitle>
               <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-                Service requests submitted by customers through <code>extreme-sales-services.vercel.app/service.html</code>.
+                Service requests that came from the ESS website. New ones appear here after approval in the{' '}
+                {onNavigate ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('approval-inbox')}
+                    style={{ background: 'none', border: 0, padding: 0, color: 'var(--color-brand)', cursor: 'pointer', font: 'inherit', textDecoration: 'underline' }}
+                  >
+                    Approval Inbox
+                  </button>
+                ) : (
+                  'Approval Inbox'
+                )}
+                .
               </p>
             </div>
             <div style={{ width: 240 }}>
@@ -341,17 +304,21 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
                           </Badge>
                         </td>
                         <td style={{ padding: '8px' }}>
-                          <Badge variant={b.status === 'COMPLETED' ? 'success' : 'warning'}>{b.status}</Badge>
+                          <Badge variant={statusBadgeVariant(b.status)}>{b.status}</Badge>
                         </td>
                         <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{b.createdAt.split('T')[0]}</td>
                         <td style={{ padding: '8px' }}>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => onNavigate?.('service-schedule', { requestId: b.id })}
-                          >
-                            Assign Tech
-                          </Button>
+                          {ASSIGNABLE_STATUSES.has(b.status) ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => onNavigate?.('service-schedule', { requestId: b.id })}
+                            >
+                              Assign Tech
+                            </Button>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }} aria-label="No action">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -420,63 +387,6 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
                 </div>
               ))}
             </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* TAB 3: CONTACT ENQUIRIES */}
-      {activeTab === 'enquiries' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Contact Form Enquiries</CardTitle>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-              Inbound leads and messages from <code>contact.html</code> stored directly in Supabase <code>contact_enquiries</code>.
-            </p>
-          </CardHeader>
-          <CardBody>
-            {enquiries.length === 0 ? (
-              <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <Mail size={32} style={{ margin: '0 auto 8px', color: 'var(--color-brand)' }} />
-                <div style={{ fontWeight: 600 }}>No New Web Enquiries</div>
-                <div style={{ fontSize: 'var(--text-xs)' }}>Messages from the contact form will appear here.</div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {enquiries.map((enq) => (
-                  <div key={enq.id} style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                      <div>
-                        <strong style={{ fontSize: 'var(--text-sm)' }}>{enq.name}</strong> ·{' '}
-                        <a href={`tel:${enq.phone}`} style={{ color: 'var(--color-brand)', fontWeight: 600 }}>{enq.phone}</a>
-                        {enq.email && <span style={{ color: 'var(--text-muted)', fontSize: '11px', marginLeft: 8 }}>({enq.email})</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Badge variant="neutral">{enq.enquiry_number || `ENQ-${enq.id.slice(0, 6).toUpperCase()}`}</Badge>
-                        <Badge variant={enq.status === 'NEW' ? 'brand' : 'success'}>{enq.status}</Badge>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: 6 }}>
-                      Subject: {enq.subject || enq.service_type || 'General Service Enquiry'} · {new Date(enq.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
-                    </div>
-                    <p style={{ margin: '0 0 10px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                      {enq.message}
-                    </p>
-                    {enq.status !== 'RESOLVED' && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => void handleConvertEnquiry(enq.id)}
-                          isLoading={convertingId === enq.id}
-                        >
-                          1-Click Convert to Customer &amp; Ticket
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </CardBody>
         </Card>
       )}

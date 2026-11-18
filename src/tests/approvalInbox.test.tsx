@@ -7,6 +7,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 import { ApprovalInbox } from '@/pages/intakes/ApprovalInbox';
 import { CatalogAmcPlansPanel } from '@/pages/integrations/CatalogAmcPlansPanel';
+import { ExtremeSalesManagementWorkspace } from '@/pages/integrations/ExtremeSalesManagementWorkspace';
+import { apiClient } from '@/services/api/client';
 import { Sidebar } from '@/layouts/Sidebar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -208,6 +210,33 @@ describe('Approval Inbox', () => {
     expect(document.body.textContent).toContain('₹2,360');
     expect(document.body.textContent).toContain('Existing customer found');
     expect(document.body.textContent).toContain('R. Older (office)');
+  });
+
+  it('hides Address, Air conditioner and Requested for a contact message, keeps them for a booking', async () => {
+    const contact = makeIntake({
+      id: 'c',
+      kind: 'CONTACT',
+      contact: { name: 'Deepak Contact', phone: '9820000003', email: null },
+      address: { line: null, area: null, landmark: null, city: null, pincode: null },
+      ac: { type: null, brand: null, tonnage: null, inverter: null, ageYears: null, units: 1 },
+      request: { serviceCode: null, serviceName: null, amcPlanCode: null, message: 'Please call me', preferredDate: null, preferredSlot: null },
+      createdAt: minutesAgo(300),
+    });
+    vi.spyOn(intakeService, 'list').mockResolvedValue({ items: [contact, older], total: 2, page: 1, pageSize: 25 });
+    vi.spyOn(intakeService, 'get').mockImplementation(async (id: string) => (id === 'c' ? asDetail(contact) : asDetail(older)));
+    await renderInbox();
+
+    const headings = () => Array.from(document.querySelectorAll('article h3, article h4')).map((h) => h.textContent);
+    expect(selectedOption()?.textContent).toContain('Deepak Contact');
+    expect(headings()).not.toContain('Address');
+    expect(headings()).not.toContain('Air conditioner');
+    expect(headings()).not.toContain('Requested');
+    expect(document.body.textContent).toContain('Please call me');
+    expect(document.body.textContent).toContain('TRK-c');
+
+    await press('j');
+    expect(selectedOption()?.textContent).toContain('Rahul Older');
+    expect(headings()).toEqual(expect.arrayContaining(['Address', 'Air conditioner', 'Requested']));
   });
 
   it('shows the error state with retry when the list fails', async () => {
@@ -458,3 +487,52 @@ describe('ESS hub AMC plan prices', () => {
   });
 });
 
+
+describe('ESS hub storefront bookings', () => {
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    document.body.innerHTML = '';
+  });
+
+  it('has no duplicate Web Enquiries tab or Sync Now, and offers Assign Tech only on open jobs', async () => {
+    vi.restoreAllMocks();
+    const sr = (id: string, status: string) => ({
+      id,
+      requestNumber: `SR-2026-${id}`,
+      requestType: 'BREAKDOWN',
+      description: `Job ${id}`,
+      priority: 'HIGH',
+      status,
+      createdAt: '2026-11-18T10:00:00Z',
+    });
+    const get = vi.spyOn(apiClient, 'get').mockImplementation(async (url: string) => {
+      if (url.startsWith('/service-requests')) {
+        return { data: { requests: [sr('1', 'PENDING'), sr('2', 'CANCELLED'), sr('3', 'COMPLETED')] } } as never;
+      }
+      return { products: [] } as never;
+    });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <ToastProvider>
+          <ExtremeSalesManagementWorkspace onNavigate={vi.fn()} />
+        </ToastProvider>
+      );
+    });
+    await flush();
+    await flush();
+
+    const text = document.body.textContent ?? '';
+    expect(text).not.toContain('Web Enquiries');
+    expect(text).not.toContain('Sync Now');
+    expect(get).not.toHaveBeenCalledWith('/contact-enquiries');
+    const rows = Array.from(document.querySelectorAll('tbody tr'));
+    expect(rows).toHaveLength(3);
+    expect(rows[0].textContent).toContain('Assign Tech');
+    expect(rows[1].textContent).not.toContain('Assign Tech');
+    expect(rows[2].textContent).not.toContain('Assign Tech');
+  });
+});
