@@ -41,7 +41,7 @@ type CustomerEmailEntity =
 const QUIET_REQUEST_STATUSES = new Set(['REQUESTED', 'PENDING']);
 
 const INTAKE_COLUMNS =
-  'id,intake_number,tracking_code,kind,status,contact_name,contact_email,area,city,ac_type,ac_brand,ac_tonnage,preferred_date,preferred_slot,rejection_reason,service_request_id,customer_id,created_at';
+  'id,intake_number,tracking_code,kind,status,contact_name,contact_email,area,city,ac_type,ac_brand,ac_tonnage,preferred_date,preferred_slot,rejection_reason,service_request_id,customer_id,created_at,items:web_intake_items(line_no,item_name,quantity)';
 
 interface IntakeRow {
   id: string;
@@ -61,6 +61,7 @@ interface IntakeRow {
   rejection_reason: string | null;
   service_request_id: string | null;
   customer_id: string | null;
+  items?: Array<{ line_no: number; item_name: string; quantity: number }> | null;
 }
 
 export function customerUpdatesEnabled(): boolean {
@@ -164,8 +165,16 @@ export async function handleIntakeReceived(event: OutboundEvent): Promise<Outbox
       acTonnage: intake.ac_tonnage,
       preferredDate: intake.preferred_date,
       preferredSlot: intake.preferred_slot,
+      items: basketLines(intake),
     }),
   });
+}
+
+/** "Jet wash x2" lines of a basket, in order (empty for single-item requests). */
+export function basketLines(intake: { items?: Array<{ line_no: number; item_name: string; quantity: number }> | null }): string[] {
+  return [...(intake.items ?? [])]
+    .sort((a, b) => a.line_no - b.line_no)
+    .map((i) => (Number(i.quantity) > 1 ? `${i.item_name} x${i.quantity}` : i.item_name));
 }
 
 export async function handleIntakeApproved(event: OutboundEvent): Promise<OutboxOutcome> {

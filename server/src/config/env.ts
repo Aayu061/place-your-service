@@ -47,6 +47,9 @@ const envSchema = z.object({
   // 32-byte key (base64) that encrypts integration signing secrets at rest. Required to create or
   // verify ESS keys; without it the signed /api/v1/ess routes answer 503.
   INTEGRATION_SECRET_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, 'INTEGRATION_SECRET_KEY must be 32 bytes, base64-encoded').optional(),
+  // New ESS website endpoint that refreshes cached pages (POST, signed with the ESS_WEB key).
+  // Unset until the new site is live: refresh events are then skipped.
+  ESS_REVALIDATE_URL: z.string().url('ESS_REVALIDATE_URL must be a valid URL').optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
@@ -89,6 +92,7 @@ function loadEnv(): ServerEnv {
     TECH_JWT_SECRET: process.env.TECH_JWT_SECRET?.trim() || undefined,
     INTEGRATION_SECRET_KEY:
       process.env.INTEGRATION_SECRET_KEY?.trim() || (isTest ? Buffer.alloc(32, 7).toString('base64') : undefined),
+    ESS_REVALIDATE_URL: process.env.ESS_REVALIDATE_URL?.trim() || undefined,
   };
 
   const parsed = envSchema.safeParse(rawEnv);

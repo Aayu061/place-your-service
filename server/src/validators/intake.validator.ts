@@ -7,7 +7,11 @@ import { normalizePhone } from '../utils/customerAuth.js';
  * - staff schemas for /api/v1/intakes (list, approve, reject)
  */
 
-export const INTAKE_KINDS = ['SERVICE_BOOKING', 'AMC_REQUEST', 'PRODUCT_ENQUIRY', 'CONTACT'] as const;
+export const INTAKE_KINDS = [
+  'SERVICE_BOOKING', 'AMC_REQUEST', 'PRODUCT_ENQUIRY', 'CONTACT', 'BASKET', 'SELLER_INTEREST',
+] as const;
+export const INTAKE_ITEM_TYPES = ['SERVICE', 'AMC', 'PRODUCT'] as const;
+export const MAX_BASKET_ITEMS = 30;
 export const INTAKE_STATUSES = [
   'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'DUPLICATE', 'SPAM', 'WITHDRAWN', 'IMPORTED_ARCHIVE',
 ] as const;
@@ -50,9 +54,47 @@ const dateString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD')
   .refine(isRealDate, { message: 'Not a valid date' });
 
+const serviceCodeField = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9][A-Z0-9-]{1,40}$/, 'Unknown service code');
+
+/** One basket line: a catalog service, an AMC plan or a product, with optional AC details. */
+export const intakeItemSchema = z
+  .object({
+    type: z.enum(INTAKE_ITEM_TYPES),
+    serviceCode: z.preprocess(blankToUndefined, serviceCodeField.optional()),
+    amcPlanCode: optionalText(60),
+    productId: z.preprocess(blankToUndefined, z.string().trim().min(1).max(100).optional()),
+    quantity: z.number().int().min(1).max(20).optional(),
+    ac: z
+      .object({
+        type: z.enum(INTAKE_AC_TYPES).optional(),
+        tonnage: z.number().finite().positive().max(50).optional(),
+        brand: optionalText(60),
+      })
+      .strict()
+      .optional(),
+    notes: optionalText(500),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    const need = { SERVICE: 'serviceCode', AMC: 'amcPlanCode', PRODUCT: 'productId' } as const;
+    const field = need[v.type];
+    if (!v[field]) ctx.addIssue({ code: 'custom', path: [field], message: `${field} is required for a ${v.type} line` });
+    for (const other of Object.values(need)) {
+      if (other !== field && v[other]) {
+        ctx.addIssue({ code: 'custom', path: [other], message: `${other} does not belong on a ${v.type} line` });
+      }
+    }
+  });
+export type IntakeItemInput = z.infer<typeof intakeItemSchema>;
+
 export const createIntakeSchema = z
   .object({
     kind: z.enum(INTAKE_KINDS),
+    items: z.array(intakeItemSchema).min(1).max(MAX_BASKET_ITEMS).optional(),
     externalReferenceId: z.preprocess(
       blankToUndefined,
       z
@@ -126,10 +168,21 @@ export const createIntakeSchema = z
   })
   .strict()
   .superRefine((v, ctx) => {
-    if (SERVICE_KINDS.includes(v.kind) && !v.address) {
+    if (v.kind === 'BASKET') {
+      if (!v.items) ctx.addIssue({ code: 'custom', path: ['items'], message: 'A basket needs at least one item' });
+    } else if (v.items) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Items are only allowed on a BASKET request' });
+    }
+    if (needsVisitAddress(v) && !v.address) {
       ctx.addIssue({ code: 'custom', path: ['address'], message: 'Address (line and city) is required for this request' });
     }
   });
+
+/** Requests that lead to a technician visit need an address. */
+export function needsVisitAddress(v: { kind: string; items?: Array<{ type: string }> }): boolean {
+  if (v.kind === 'BASKET') return (v.items ?? []).some((i) => i.type === 'SERVICE' || i.type === 'AMC');
+  return SERVICE_KINDS.includes(v.kind);
+}
 
 export type CreateIntakeInput = z.infer<typeof createIntakeSchema>;
 

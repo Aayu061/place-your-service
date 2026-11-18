@@ -5,9 +5,12 @@ import { nextBusinessNumber } from '../utils/businessNumber.js';
 import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 import { logActivity } from './audit.service.js';
 import { scheduleService } from './schedule.service.js';
+import { catalogService } from './catalog.service.js';
+import { amcPriceFor, PriceSnapshot, productPriceFor, servicePriceFor } from './basketPricing.js';
 import {
   ApproveIntakeInput,
   CreateIntakeInput,
+  IntakeItemInput,
   ListIntakesQuery,
   RejectIntakeInput,
   todayIst,
@@ -35,7 +38,24 @@ const INTAKE_SELECT = [
   'catalog:service_catalog_items!web_intakes_catalog_service_code_fkey(name)',
   'matched:customers!web_intakes_matched_customer_id_fkey(id, name, customer_code, customer_type)',
   'sr:service_requests!web_intakes_service_request_id_fkey(id, request_number)',
+  'items:web_intake_items(id, line_no, item_type, catalog_service_code, amc_plan_code, product_id, item_name, quantity, ac_type, ac_tonnage, ac_brand, notes, price_snapshot, line_status, seller:sellers(seller_code, trade_name, legal_name))',
 ].join(', ');
+
+export interface IntakeItemDto {
+  id: string;
+  lineNo: number;
+  type: 'SERVICE' | 'AMC' | 'PRODUCT';
+  serviceCode: string | null;
+  amcPlanCode: string | null;
+  productId: string | null;
+  name: string;
+  quantity: number;
+  ac: { type: string | null; tonnage: number | null; brand: string | null };
+  notes: string | null;
+  price: PriceSnapshot | null;
+  status: string;
+  seller: { code: string; name: string } | null;
+}
 
 export interface IntakeDto {
   id: string;
@@ -68,6 +88,8 @@ export interface IntakeDto {
   matchedCustomer: { id: string; name: string; customerCode: string; customerType: string } | null;
   review: { reviewedBy: string | null; reviewedAt: string | null; rejectionReason: string | null };
   serviceRequest: { id: string; requestNumber: string } | null;
+  /** Basket lines (empty for single-item requests). */
+  items: IntakeItemDto[];
   createdAt: string;
 }
 
@@ -136,8 +158,45 @@ export function mapIntake(row: any): IntakeDto {
       rejectionReason: row.rejection_reason ?? null,
     },
     serviceRequest: sr ? { id: sr.id, requestNumber: sr.request_number } : null,
+    items: ((row.items ?? []) as any[])
+      .map((i): IntakeItemDto => {
+        const seller = one(i.seller) as any;
+        return {
+          id: i.id,
+          lineNo: Number(i.line_no),
+          type: i.item_type,
+          serviceCode: i.catalog_service_code ?? null,
+          amcPlanCode: i.amc_plan_code ?? null,
+          productId: i.product_id ?? null,
+          name: i.item_name,
+          quantity: Number(i.quantity ?? 1),
+          ac: { type: i.ac_type ?? null, tonnage: num(i.ac_tonnage), brand: i.ac_brand ?? null },
+          notes: i.notes ?? null,
+          price: (i.price_snapshot as PriceSnapshot | null) ?? null,
+          status: i.line_status,
+          seller: seller ? { code: seller.seller_code, name: seller.trade_name || seller.legal_name } : null,
+        };
+      })
+      .sort((a, b) => a.lineNo - b.lineNo),
     createdAt: row.created_at,
   };
+}
+
+/** Row for web_intake_items, minus intake_id (added after the intake row exists). */
+interface BasketLineRow {
+  line_no: number;
+  item_type: IntakeItemInput['type'];
+  catalog_service_code: string | null;
+  amc_plan_code: string | null;
+  product_id: string | null;
+  seller_id: string | null;
+  item_name: string;
+  quantity: number;
+  ac_type: string | null;
+  ac_tonnage: number | null;
+  ac_brand: string | null;
+  notes: string | null;
+  price_snapshot: PriceSnapshot | null;
 }
 
 /** Maps errors raised by approve_web_intake / reject_web_intake to API errors. */
@@ -189,6 +248,8 @@ class IntakeService {
       }
     }
 
+    const lines = input.kind === 'BASKET' && input.items ? await this.resolveBasketLines(input.items) : [];
+
     const honeypotFilled = Boolean(input.meta?.honeypot && input.meta.honeypot.trim() !== '');
     let spamScore = 0;
     if (honeypotFilled) spamScore += 100;
@@ -229,7 +290,7 @@ class IntakeService {
     const { data, error } = await supabase
       .from('web_intakes')
       .insert(row)
-      .select('intake_number, tracking_code, status')
+      .select('id, intake_number, tracking_code, status')
       .single();
 
     if (error) {
@@ -241,13 +302,101 @@ class IntakeService {
       throw new Error(`Failed to store website request: ${error.message}`);
     }
 
+    if (lines.length > 0) {
+      const { error: itemsError } = await supabase
+        .from('web_intake_items')
+        .insert(lines.map((l) => ({ ...l, intake_id: data.id })));
+      if (itemsError) {
+        // Never leave a basket without its lines: remove the half-stored request and fail.
+        await supabase.from('web_intakes').delete().eq('id', data.id);
+        throw new Error(`Failed to store basket items: ${itemsError.message}`);
+      }
+    }
+
     logger.info('Website request received', {
       intakeNumber: data.intake_number,
       kind: input.kind,
+      items: lines.length,
       status: data.status,
       spamScore,
     });
     return { created: true, intakeNumber: data.intake_number, trackingCode: data.tracking_code, status: data.status };
+  }
+
+  /**
+   * Checks every basket line against the live catalog / product list and records the price the
+   * customer was shown. Unknown or withdrawn items fail the whole request (422) with the line path.
+   */
+  private async resolveBasketLines(items: IntakeItemInput[]): Promise<BasketLineRow[]> {
+    const catalog = await catalogService.getPublicCatalog();
+    const productIds = [...new Set(items.filter((i) => i.type === 'PRODUCT').map((i) => i.productId!))];
+    const products = new Map<string, any>();
+    if (productIds.length > 0) {
+      const { data, error } = await getSupabaseClient()
+        .from('ess_products')
+        .select('id, name, price, is_published, seller_id, seller:sellers!ess_products_seller_id_fkey(id, status)')
+        .in('id', productIds);
+      if (error) throw new Error(`Product lookup failed: ${error.message}`);
+      for (const p of data ?? []) products.set((p as any).id, p);
+    }
+
+    const issues: Array<{ field: string; message: string; code: string }> = [];
+    const rows: BasketLineRow[] = [];
+    items.forEach((it, idx) => {
+      const ac = it.ac ? { type: it.ac.type, tonnage: it.ac.tonnage } : undefined;
+      const base = {
+        line_no: idx + 1,
+        item_type: it.type,
+        catalog_service_code: null,
+        amc_plan_code: null,
+        product_id: null,
+        seller_id: null,
+        quantity: it.quantity ?? 1,
+        ac_type: it.ac?.type ?? null,
+        ac_tonnage: it.ac?.tonnage ?? null,
+        ac_brand: it.ac?.brand ?? null,
+        notes: it.notes ?? null,
+      };
+      if (it.type === 'SERVICE') {
+        const svc = catalog.services.find((sv) => sv.code === it.serviceCode);
+        if (!svc) {
+          issues.push({ field: `items.${idx}.serviceCode`, message: 'Unknown service code', code: 'custom' });
+          return;
+        }
+        rows.push({ ...base, catalog_service_code: svc.code, item_name: svc.name, price_snapshot: servicePriceFor(svc, ac) });
+      } else if (it.type === 'AMC') {
+        const wanted = String(it.amcPlanCode).toUpperCase();
+        const plan = catalog.amcPlans.find(
+          (pl) => pl.code?.toUpperCase() === wanted || pl.planCode?.toUpperCase() === wanted,
+        );
+        if (!plan) {
+          issues.push({ field: `items.${idx}.amcPlanCode`, message: 'Unknown AMC plan', code: 'custom' });
+          return;
+        }
+        rows.push({
+          ...base,
+          amc_plan_code: plan.code ?? plan.planCode,
+          item_name: plan.name,
+          price_snapshot: amcPriceFor(plan, ac),
+        });
+      } else {
+        const prod = products.get(it.productId!);
+        const seller = prod ? (one(prod.seller) as any) : null;
+        if (!prod || prod.is_published === false || (seller && seller.status !== 'ACTIVE')) {
+          issues.push({ field: `items.${idx}.productId`, message: 'This AC is no longer available', code: 'custom' });
+          return;
+        }
+        rows.push({
+          ...base,
+          product_id: prod.id,
+          seller_id: prod.seller_id ?? null,
+          item_name: prod.name,
+          price_snapshot: productPriceFor(prod.name, prod.price),
+        });
+      }
+    });
+    if (issues.length > 0) throw new ValidationError('Request validation failed', issues);
+    return rows;
   }
 
   private async findByExternalRef(extRef: string): Promise<Omit<CreateIntakeResult, 'created'> | null> {

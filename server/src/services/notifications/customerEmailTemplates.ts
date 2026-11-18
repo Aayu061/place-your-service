@@ -27,7 +27,12 @@ const KIND_LABELS: Record<string, string> = {
   AMC_REQUEST: 'AMC (maintenance contract) request',
   PRODUCT_ENQUIRY: 'Product enquiry',
   CONTACT: 'Message',
+  BASKET: 'Request',
+  SELLER_INTEREST: 'Interest in selling on ESS',
 };
+
+/** Kinds answered like a message (no booking details, no visit). */
+const MESSAGE_KINDS = new Set(['CONTACT', 'SELLER_INTEREST']);
 
 /** "2026-11-21" -> "Sat, 21 Nov 2026". Anything unparseable is returned as given. */
 export function formatCustomerDate(value: string | null | undefined): string | null {
@@ -133,6 +138,8 @@ export interface IntakeEmailInput {
   acTonnage?: string | number | null;
   preferredDate?: string | null;
   preferredSlot?: string | null;
+  /** Basket lines, already formatted ("Jet wash x2"). */
+  items?: string[];
 }
 
 function acSummary(input: IntakeEmailInput): string | null {
@@ -150,7 +157,7 @@ function preferredWhen(date?: string | null, slot?: string | null): string | nul
 }
 
 export function buildIntakeReceiptEmail(input: IntakeEmailInput): EmailContent {
-  const isContact = input.kind === 'CONTACT';
+  const isContact = MESSAGE_KINDS.has(input.kind);
   const ref = input.trackingCode || input.intakeNumber;
   const subject = isContact
     ? `We received your message | ${BUSINESS_NAME}`
@@ -184,6 +191,7 @@ export function buildIntakeReceiptEmail(input: IntakeEmailInput): EmailContent {
       ['Tracking code', input.trackingCode],
       ['Request number', input.intakeNumber],
       ['Type', KIND_LABELS[input.kind] ?? null],
+      ['Items', input.items && input.items.length ? input.items.join(', ') : null],
       ['AC', acSummary(input)],
       ['Area', [input.area, input.city].filter(Boolean).join(', ') || null],
       ['Preferred time', preferredWhen(input.preferredDate, input.preferredSlot)],
