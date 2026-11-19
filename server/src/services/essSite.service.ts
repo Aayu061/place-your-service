@@ -149,7 +149,7 @@ export interface TrackItemDto {
   type: string;
   name: string;
   quantity: number;
-  status: 'PENDING' | 'CONFIRMED' | 'SELLER_WILL_QUOTE' | 'DONE' | 'NOT_ACCEPTED' | 'CANCELLED';
+  status: 'PENDING' | 'CONFIRMED' | 'SELLER_WILL_QUOTE' | 'QUOTED' | 'DONE' | 'NOT_ACCEPTED' | 'CANCELLED';
   price: PriceSnapshot | null;
 }
 
@@ -181,6 +181,7 @@ const LINE_STATUS_FOR_CUSTOMER: Record<string, TrackItemDto['status']> = {
   PENDING: 'PENDING',
   APPROVED: 'CONFIRMED',
   QUOTE_PENDING: 'SELLER_WILL_QUOTE',
+  QUOTED: 'QUOTED',
   FULFILLED: 'DONE',
   REJECTED: 'NOT_ACCEPTED',
   CANCELLED: 'CANCELLED',
@@ -288,7 +289,7 @@ class EssSiteService {
           .from('web_intakes')
           .select(
             'id, intake_number, tracking_code, kind, status, phone_normalized, area, city, preferred_date, preferred_slot, created_at, service_request_id, ' +
-              'items:web_intake_items(line_no, item_type, item_name, quantity, line_status, price_snapshot), ' +
+              'items:web_intake_items(line_no, item_type, item_name, quantity, line_status, price_snapshot, quote_total), ' +
               'sr:service_requests!web_intakes_service_request_id_fkey(id, request_number, status)'
           )
           .eq('tracking_code', code)
@@ -352,7 +353,11 @@ class EssSiteService {
           name: i.item_name,
           quantity: Number(i.quantity ?? 1),
           status: LINE_STATUS_FOR_CUSTOMER[i.line_status] ?? 'PENDING',
-          price: (i.price_snapshot as PriceSnapshot | null) ?? null,
+          // Once the seller has sent a price, the customer sees that price instead of the listed one.
+          price:
+            i.line_status === 'QUOTED' && i.quote_total != null
+              ? { total: Number(i.quote_total), label: 'Price from the seller' }
+              : ((i.price_snapshot as PriceSnapshot | null) ?? null),
         })),
     };
   }

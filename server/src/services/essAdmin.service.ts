@@ -4,6 +4,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, Validati
 import { logActivity } from './audit.service.js';
 import { catalogService } from './catalog.service.js';
 import { mapSeller } from './essSite.service.js';
+import { outboxService } from './outbox.service.js';
 import type { EssActor, EssRole } from '../middleware/essActor.js';
 import {
   businessIdentitySchema,
@@ -17,6 +18,24 @@ import {
  */
 
 const MAX_CONTENT_BYTES = 64 * 1024;
+
+/** AC enquiry lines a seller works on: waiting for a price, priced, then sold / not taken. */
+const ENQUIRY_LINE_STATUSES = ['QUOTE_PENDING', 'QUOTED', 'FULFILLED', 'CANCELLED'];
+
+export interface EnquiryLine {
+  lineId: string;
+  intakeNumber: string;
+  trackingCode: string;
+  receivedAt: string;
+  productId: string | null;
+  productName: string;
+  quantity: number;
+  notes: string | null;
+  status: string;
+  listedPrice: number | null;
+  quote: { total: number; note: string | null; at: string | null } | null;
+  customer: { name: string; phone: string; email: string | null; area: string | null; city: string | null; pincode: string | null; message: string | null };
+}
 /** Only ESS Admin may change these blocks (legal and business facts). */
 const ADMIN_ONLY_CONTENT = /^(business\.|legal\.)/;
 
@@ -485,6 +504,123 @@ class EssAdminService {
       details: { role: (grant as any).role },
     });
     return this.listUsers();
+  }
+  /* ------------------------------------------------------------ AC enquiries (seller view) */
+
+  /**
+   * The seller whose AC enquiries this person handles. ESS Admin / ESS Staff act for ESS (the
+   * first-party seller); outside sellers get their own logins in Phase 4.
+   */
+  private async actorSellerId(_actor: EssActor): Promise<string> {
+    const { data, error } = await getSupabaseClient().from('sellers').select('id').eq('is_first_party', true).single();
+    if (error || !data) throw new Error(`Failed to load the ESS seller: ${error?.message ?? 'missing'}`);
+    return (data as { id: string }).id;
+  }
+
+  /** Approved AC enquiry lines for this seller's ACs, newest first, with the customer to call. */
+  async listEnquiries(actor: EssActor): Promise<EnquiryLine[]> {
+    const sellerId = await this.actorSellerId(actor);
+    const { data, error } = await getSupabaseClient()
+      .from('web_intake_items')
+      .select(
+        'id, line_no, item_name, product_id, quantity, notes, line_status, price_snapshot, quote_total, quote_note, quoted_at, created_at, ' +
+          'intake:web_intakes!inner(id, intake_number, tracking_code, status, contact_name, contact_phone, contact_email, area, city, pincode, message, created_at)',
+      )
+      .eq('item_type', 'PRODUCT')
+      .eq('seller_id', sellerId)
+      .eq('intake.status', 'APPROVED')
+      .in('line_status', ENQUIRY_LINE_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) dbFail('load AC enquiries', error);
+    return ((data ?? []) as any[])
+      .map((r) => ({ r, intake: Array.isArray(r.intake) ? r.intake[0] : r.intake }))
+      .filter(({ intake }) => intake && intake.status === 'APPROVED')
+      .map(({ r, intake }) => ({
+        lineId: r.id,
+        intakeNumber: intake.intake_number,
+        trackingCode: intake.tracking_code,
+        receivedAt: intake.created_at,
+        productId: r.product_id ?? null,
+        productName: r.item_name,
+        quantity: r.quantity,
+        notes: r.notes ?? null,
+        status: r.line_status,
+        listedPrice: r.price_snapshot?.total ?? null,
+        quote: r.quote_total != null ? { total: Number(r.quote_total), note: r.quote_note ?? null, at: r.quoted_at ?? null } : null,
+        customer: {
+          name: intake.contact_name,
+          phone: intake.contact_phone,
+          email: intake.contact_email ?? null,
+          area: intake.area ?? null,
+          city: intake.city ?? null,
+          pincode: intake.pincode ?? null,
+          message: intake.message ?? null,
+        },
+      }));
+  }
+
+  private async loadOwnEnquiryLine(actor: EssActor, lineId: string): Promise<{ id: string; intake_id: string; line_status: string }> {
+    const sellerId = await this.actorSellerId(actor);
+    const { data, error } = await getSupabaseClient()
+      .from('web_intake_items')
+      .select('id, intake_id, line_status')
+      .eq('id', lineId)
+      .eq('item_type', 'PRODUCT')
+      .eq('seller_id', sellerId)
+      .maybeSingle();
+    if (error) dbFail('load the enquiry', error);
+    if (!data) throw new NotFoundError('Enquiry not found');
+    const line = data as { id: string; intake_id: string; line_status: string };
+    if (line.line_status !== 'QUOTE_PENDING' && line.line_status !== 'QUOTED') {
+      throw new ConflictError('This enquiry is not approved yet or is already closed.');
+    }
+    return line;
+  }
+
+  /** The seller's price for one AC line (per unit, GST included); the customer is emailed. */
+  async quoteEnquiry(actor: EssActor, lineId: string, input: { total: number; note?: string | null }): Promise<{ lineId: string; status: 'QUOTED' }> {
+    const line = await this.loadOwnEnquiryLine(actor, lineId);
+    const now = new Date().toISOString();
+    const { error } = await getSupabaseClient()
+      .from('web_intake_items')
+      .update({ line_status: 'QUOTED', quote_total: input.total, quote_note: input.note ?? null, quoted_at: now, quoted_by: actor.profileId, updated_at: now })
+      .eq('id', line.id);
+    if (error) dbFail('save the price', error);
+    await outboxService.enqueue({
+      eventType: 'WEB_ENQUIRY_QUOTED',
+      aggregateType: 'WEB_INTAKE_ITEM',
+      aggregateId: line.id,
+      payload: { lineId: line.id, intakeId: line.intake_id },
+      idempotencyKey: `enquiry-quote:${line.id}:${input.total}`,
+    });
+    await logActivity({
+      actorProfileId: actor.profileId,
+      action: 'ESS_ENQUIRY_QUOTED',
+      entityType: 'WEB_INTAKE',
+      entityId: line.intake_id,
+      details: { lineId: line.id, total: input.total },
+    });
+    return { lineId: line.id, status: 'QUOTED' };
+  }
+
+  /** Sold → FULFILLED; not taken → CANCELLED. */
+  async closeEnquiry(actor: EssActor, lineId: string, result: 'SOLD' | 'NOT_TAKEN'): Promise<{ lineId: string; status: string }> {
+    const line = await this.loadOwnEnquiryLine(actor, lineId);
+    const status = result === 'SOLD' ? 'FULFILLED' : 'CANCELLED';
+    const { error } = await getSupabaseClient()
+      .from('web_intake_items')
+      .update({ line_status: status, updated_at: new Date().toISOString() })
+      .eq('id', line.id);
+    if (error) dbFail('close the enquiry', error);
+    await logActivity({
+      actorProfileId: actor.profileId,
+      action: 'ESS_ENQUIRY_CLOSED',
+      entityType: 'WEB_INTAKE',
+      entityId: line.intake_id,
+      details: { lineId: line.id, result },
+    });
+    return { lineId: line.id, status };
   }
 }
 

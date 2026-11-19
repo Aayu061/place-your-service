@@ -581,3 +581,99 @@ describe('receipt email and website refresh', () => {
     });
   });
 });
+
+/* ================================================================== AC enquiries (plan 3) */
+describe('AC enquiry with several ACs', () => {
+  const base = { contact: { name: 'Priya', phone: '9820011122' }, consent: { privacy: true } };
+  const enquiryBody = (items: unknown[], over: Record<string, unknown> = {}) => ({
+    kind: 'PRODUCT_ENQUIRY',
+    externalReferenceId: `enq-${++counter}`,
+    contact: { name: 'Priya Shah', phone: '+91 98200 11122' },
+    consent: { privacy: true },
+    items,
+    ...over,
+  });
+
+  it('an enquiry may carry up to 10 AC lines, and only ACs', () => {
+    expect(createIntakeSchema.safeParse({ ...base, kind: 'PRODUCT_ENQUIRY', items: [{ type: 'PRODUCT', productId: 'lg-15', notes: 'Installation needed' }] }).success).toBe(true);
+    expect(createIntakeSchema.safeParse({ ...base, kind: 'PRODUCT_ENQUIRY' }).success).toBe(true);
+    expect(createIntakeSchema.safeParse({ ...base, kind: 'PRODUCT_ENQUIRY', items: [{ type: 'SERVICE', serviceCode: 'SVC-DRY' }] }).success).toBe(false);
+    const eleven = Array.from({ length: 11 }, (_, i) => ({ type: 'PRODUCT', productId: `p-${i}` }));
+    expect(createIntakeSchema.safeParse({ ...base, kind: 'PRODUCT_ENQUIRY', items: eleven }).success).toBe(false);
+  });
+
+  it('stores one line per AC with its seller and listed price', async () => {
+    const res = await signed('post', '/api/v1/ess/intakes', enquiryBody([{ type: 'PRODUCT', productId: 'lg-15', quantity: 2, notes: 'Installation needed' }]), {
+      'Idempotency-Key': `enq-key-${counter}`,
+    });
+    expect(res.status).toBe(201);
+    expect(db.web_intakes[0]).toMatchObject({ kind: 'PRODUCT_ENQUIRY' });
+    expect(db.web_intake_items).toHaveLength(1);
+    expect(db.web_intake_items[0]).toMatchObject({ item_type: 'PRODUCT', product_id: 'lg-15', seller_id: 'seller-ess', quantity: 2, notes: 'Installation needed' });
+    expect(db.web_intake_items[0].price_snapshot.total).toBe(42000);
+  });
+
+  it('refuses an AC that is no longer listed, naming the line', async () => {
+    const res = await signed('post', '/api/v1/ess/intakes', enquiryBody([{ type: 'PRODUCT', productId: 'hidden' }]), { 'Idempotency-Key': `enq-key-x-${counter}` });
+    expect(res.status).toBe(422);
+    expect(res.body.error.details.map((d: any) => d.field)).toContain('items.0.productId');
+    expect(db.web_intakes).toHaveLength(0);
+  });
+
+  it('tracking shows the price the seller sent', async () => {
+    db.web_intakes.push({
+      id: 'intake-q', intake_number: 'WEB-2026-000077', tracking_code: 'ESS-QQQQ-QQQQ', kind: 'PRODUCT_ENQUIRY', status: 'APPROVED',
+      phone_normalized: '9820011122', area: null, city: 'Thane', created_at: '2026-11-20T05:00:00Z', service_request_id: null, sr: null,
+      items: [{ line_no: 1, item_type: 'PRODUCT', item_name: 'LG 1.5T Split', quantity: 1, line_status: 'QUOTED', quote_total: 40500, price_snapshot: { total: 42000, label: 'x' } }],
+    });
+    const res = await signed('post', '/api/v1/ess/track', { code: 'ESS-QQQQ-QQQQ', phone: '9820011122' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.items[0]).toMatchObject({ status: 'QUOTED', price: { total: 40500, label: 'Price from the seller' } });
+  });
+});
+
+describe('seller AC enquiries (ESS admin)', () => {
+  const intake = { id: 'intake-e', intake_number: 'WEB-2026-000088', tracking_code: 'ESS-EEEE-EEEE', contact_name: 'Priya Shah', contact_phone: '9820011122', contact_email: 'priya@example.com', city: 'Thane', area: 'Vashi', pincode: '400703', message: 'Need it soon', status: 'APPROVED', created_at: '2026-11-20T05:00:00Z' };
+  beforeEach(() => {
+    db.outbound_events = [];
+    db.web_intake_items.push(
+      { id: 'line-a', intake_id: 'intake-e', line_no: 1, item_type: 'PRODUCT', product_id: 'lg-15', seller_id: 'seller-ess', item_name: 'LG 1.5T Split', quantity: 1, notes: 'Installation needed', line_status: 'QUOTE_PENDING', price_snapshot: { total: 42000, label: 'x' }, intake },
+      { id: 'line-b', intake_id: 'intake-e', line_no: 2, item_type: 'PRODUCT', product_id: 'other', seller_id: 's2', item_name: 'Other seller AC', quantity: 1, line_status: 'QUOTE_PENDING', price_snapshot: null, intake },
+      { id: 'line-c', intake_id: 'intake-x', line_no: 1, item_type: 'PRODUCT', product_id: 'lg-15', seller_id: 'seller-ess', item_name: 'LG 1.5T Split', quantity: 1, line_status: 'PENDING', price_snapshot: null, intake: { ...intake, id: 'intake-x', status: 'PENDING_REVIEW' } },
+    );
+  });
+  const get = (token: string) => signed('get', '/api/v1/ess/admin/enquiries', undefined, asActor(token));
+
+  it('shows only approved enquiry lines for ACs this seller sells, with the customer to call', async () => {
+    const res = await get('staff-token');
+    expect(res.status).toBe(200);
+    expect(res.body.data.enquiries.map((e: any) => e.lineId)).toEqual(['line-a']);
+    expect(res.body.data.enquiries[0]).toMatchObject({
+      intakeNumber: 'WEB-2026-000088', productName: 'LG 1.5T Split', quantity: 1, notes: 'Installation needed', status: 'QUOTE_PENDING',
+      listedPrice: 42000, customer: { name: 'Priya Shah', phone: '9820011122', email: 'priya@example.com', area: 'Vashi', city: 'Thane', pincode: '400703' },
+    });
+    expect((await get('nobody-token')).status).toBe(403);
+  });
+
+  it('sending a price marks the line "Price sent" and queues the customer email', async () => {
+    const res = await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: 40500, note: 'Includes installation' }, asActor('staff-token'));
+    expect(res.status).toBe(200);
+    expect(db.web_intake_items[0]).toMatchObject({ line_status: 'QUOTED', quote_total: 40500, quote_note: 'Includes installation', quoted_by: 'ess-staff-user' });
+    expect(db.web_intake_items[0].quoted_at).toBeTruthy();
+    expect(db.outbound_events).toEqual([expect.objectContaining({ event_type: 'WEB_ENQUIRY_QUOTED', aggregate_id: 'line-a' })]);
+  });
+
+  it('cannot price another seller\'s line or one that is not approved yet', async () => {
+    expect((await signed('post', '/api/v1/ess/admin/enquiries/line-b/quote', { total: 1000 }, asActor('staff-token'))).status).toBe(404);
+    expect((await signed('post', '/api/v1/ess/admin/enquiries/line-c/quote', { total: 1000 }, asActor('staff-token'))).status).toBe(409);
+    expect((await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: -5 }, asActor('staff-token'))).status).toBe(422);
+  });
+
+  it('closes a line as sold or not taken', async () => {
+    expect((await signed('post', '/api/v1/ess/admin/enquiries/line-a/close', { result: 'SOLD' }, asActor('staff-token'))).status).toBe(200);
+    expect(db.web_intake_items[0].line_status).toBe('FULFILLED');
+    db.web_intake_items[0].line_status = 'QUOTED';
+    await signed('post', '/api/v1/ess/admin/enquiries/line-a/close', { result: 'NOT_TAKEN' }, asActor('staff-token'));
+    expect(db.web_intake_items[0].line_status).toBe('CANCELLED');
+  });
+});

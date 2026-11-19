@@ -12,6 +12,8 @@ export const INTAKE_KINDS = [
 ] as const;
 export const INTAKE_ITEM_TYPES = ['SERVICE', 'AMC', 'PRODUCT'] as const;
 export const MAX_BASKET_ITEMS = 30;
+/** An AC enquiry asks about up to 10 ACs (plan 3). */
+export const MAX_ENQUIRY_ITEMS = 10;
 export const INTAKE_STATUSES = [
   'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'DUPLICATE', 'SPAM', 'WITHDRAWN', 'IMPORTED_ARCHIVE',
 ] as const;
@@ -170,8 +172,16 @@ export const createIntakeSchema = z
   .superRefine((v, ctx) => {
     if (v.kind === 'BASKET') {
       if (!v.items) ctx.addIssue({ code: 'custom', path: ['items'], message: 'A basket needs at least one item' });
+    } else if (v.kind === 'PRODUCT_ENQUIRY' && v.items) {
+      // AC enquiry basket: several ACs, nothing else.
+      if (v.items.length > MAX_ENQUIRY_ITEMS) {
+        ctx.addIssue({ code: 'custom', path: ['items'], message: `An enquiry can have up to ${MAX_ENQUIRY_ITEMS} ACs` });
+      }
+      v.items.forEach((it, i) => {
+        if (it.type !== 'PRODUCT') ctx.addIssue({ code: 'custom', path: ['items', i, 'type'], message: 'Only ACs can be enquired about' });
+      });
     } else if (v.items) {
-      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Items are only allowed on a BASKET request' });
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Items are only allowed on a basket or an AC enquiry' });
     }
     if (needsVisitAddress(v) && !v.address) {
       ctx.addIssue({ code: 'custom', path: ['address'], message: 'Address (line and city) is required for this request' });

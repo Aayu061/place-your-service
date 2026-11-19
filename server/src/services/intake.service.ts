@@ -248,7 +248,8 @@ class IntakeService {
       }
     }
 
-    const lines = input.kind === 'BASKET' && input.items ? await this.resolveBasketLines(input.items) : [];
+    const withLines = input.kind === 'BASKET' || input.kind === 'PRODUCT_ENQUIRY';
+    const lines = withLines && input.items ? await this.resolveBasketLines(input.items) : [];
 
     const honeypotFilled = Boolean(input.meta?.honeypot && input.meta.honeypot.trim() !== '');
     let spamScore = 0;

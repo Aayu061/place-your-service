@@ -34,7 +34,8 @@ export type EmailEntityType =
   | 'INTAKE_CONFIRMATION'
   | 'INTAKE_REJECTION'
   | 'SERVICE_STATUS_UPDATE'
-  | 'PORTAL_OTP';
+  | 'PORTAL_OTP'
+  | 'ENQUIRY_QUOTE';
 
 export type EmailDeliveryStatus =
   | 'PENDING'

@@ -18,6 +18,7 @@ import {
   handleIntakeReceived,
   handleIntakeApproved,
   handleIntakeRejected,
+  handleEnquiryQuoted,
   handleServiceStatusChanged,
   isEventTooOld,
   visitDateIdempotencyKey,
@@ -180,13 +181,14 @@ describe('customer status mapping', () => {
 });
 
 describe('customer notifier', () => {
-  it('registers all five event types', () => {
+  it('registers all six event types', () => {
     outboxService.unregisterAll();
     registerCustomerNotifier();
     expect(outboxService.registeredTypes().sort()).toEqual(
       [
         'SERVICE_REQUEST_STATUS_CHANGED',
         'SERVICE_SCHEDULE_STATUS_CHANGED',
+        'WEB_ENQUIRY_QUOTED',
         'WEB_INTAKE_APPROVED',
         'WEB_INTAKE_RECEIVED',
         'WEB_INTAKE_REJECTED',
@@ -229,6 +231,22 @@ describe('customer notifier', () => {
     expect(arg.text).toContain('SR-2026-000045');
     expect(arg.text).toContain('TRK7Q2');
     expect(arg.text).toContain('Morning');
+  });
+
+  it('emails the seller price for one AC enquiry line, once per price, escaping names', async () => {
+    tables.web_intake_items = {
+      data: { id: 'line-a', item_name: 'LG 1.5T <i>Split</i>', quantity: 2, quote_total: 40500, quote_note: 'Includes installation', web_intakes: { ...intake, kind: 'PRODUCT_ENQUIRY' } },
+      error: null,
+    };
+    const outcome = await handleEnquiryQuoted(event('WEB_ENQUIRY_QUOTED', { lineId: 'line-a', intakeId: 'intake-1' }));
+    expect(outcome).toBe('DONE');
+    const arg = send.mock.calls[0][0];
+    expect(arg).toMatchObject({ entityType: 'ENQUIRY_QUOTE', entityId: 'line-a', idempotencyKey: 'enquiry-quote:line-a:40500', recipientEmail: 'ravi@example.com' });
+    expect(arg.subject).toContain('Price for your AC enquiry');
+    expect(arg.text).toContain('₹40,500');
+    expect(arg.text).toContain('Includes installation');
+    expect(arg.text).toContain('TRK7Q2');
+    expect(arg.html).not.toContain('<i>Split</i>');
   });
 
   it('sends a polite rejection with the reason', async () => {

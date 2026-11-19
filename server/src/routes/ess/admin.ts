@@ -9,6 +9,9 @@ import {
   catalogDisplayPatchSchema,
   contentDraftSchema,
   contentKeyParamSchema,
+  enquiryCloseSchema,
+  enquiryLineParamSchema,
+  enquiryQuoteSchema,
   grantIdParamSchema,
   leadsQuerySchema,
   prefixParamSchema,
@@ -113,6 +116,21 @@ essAdminRouter.delete(
 );
 
 /* users & roles */
+/* AC enquiries: the seller's view (ESS Staff and ESS Admin act for ESS, the first-party seller). */
+essAdminRouter.get('/enquiries', ...staff, wrap(async (req, res) => sendSuccess(res, { enquiries: await essAdminService.listEnquiries(req.essActor!) })));
+essAdminRouter.post(
+  '/enquiries/:lineId/quote',
+  ...staff,
+  validate({ params: enquiryLineParamSchema, body: enquiryQuoteSchema }),
+  wrap(async (req, res) => sendSuccess(res, await essAdminService.quoteEnquiry(req.essActor!, String(req.params.lineId), req.body))),
+);
+essAdminRouter.post(
+  '/enquiries/:lineId/close',
+  ...staff,
+  validate({ params: enquiryLineParamSchema, body: enquiryCloseSchema }),
+  wrap(async (req, res) => sendSuccess(res, await essAdminService.closeEnquiry(req.essActor!, String(req.params.lineId), req.body.result))),
+);
+
 essAdminRouter.get('/users', ...admin, wrap(async (_req, res) => sendSuccess(res, { users: await essAdminService.listUsers() })));
 essAdminRouter.post(
   '/users',

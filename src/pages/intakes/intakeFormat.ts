@@ -19,7 +19,7 @@ export const NEW_CUSTOMER = 'new';
 export const KIND_LABELS: Record<IntakeKind, string> = {
   SERVICE_BOOKING: 'Service booking',
   AMC_REQUEST: 'AMC request',
-  PRODUCT_ENQUIRY: 'Product enquiry',
+  PRODUCT_ENQUIRY: 'AC enquiry',
   CONTACT: 'Contact message',
   BASKET: 'Basket (several items)',
   SELLER_INTEREST: 'Dealer wants to sell on ESS',

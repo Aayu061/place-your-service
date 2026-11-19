@@ -141,6 +141,13 @@ export const serviceAreaSchema = z
   })
   .strict();
 
+/** Seller's price for one AC enquiry line (per unit, GST included). */
+export const enquiryQuoteSchema = z
+  .object({ total: money.refine((n) => n > 0, 'Enter the price'), note: nullableText(1000) })
+  .strict();
+export const enquiryCloseSchema = z.object({ result: z.enum(['SOLD', 'NOT_TAKEN']) }).strict();
+export const enquiryLineParamSchema = z.object({ lineId: z.string().trim().min(1).max(100) });
+
 export const roleGrantSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(254),

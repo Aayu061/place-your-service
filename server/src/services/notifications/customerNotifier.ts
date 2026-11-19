@@ -4,6 +4,7 @@ import { outboxService, OutboundEvent, OutboxOutcome, PermanentOutboxError } fro
 import { emailOutboxService, EmailEntityType } from '../email/emailOutbox.service.js';
 import { customerStatusFor, shouldEmailForStatus } from '../../domain/customerStatus.js';
 import {
+  buildEnquiryQuoteEmail,
   buildIntakeConfirmationEmail,
   buildIntakeReceiptEmail,
   buildIntakeRejectionEmail,
@@ -27,6 +28,7 @@ export const CUSTOMER_EVENT_TYPES = [
   'WEB_INTAKE_REJECTED',
   'SERVICE_REQUEST_STATUS_CHANGED',
   'SERVICE_SCHEDULE_STATUS_CHANGED',
+  'WEB_ENQUIRY_QUOTED',
 ] as const;
 
 export const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +37,8 @@ type CustomerEmailEntity =
   | 'INTAKE_RECEIPT'
   | 'INTAKE_CONFIRMATION'
   | 'INTAKE_REJECTION'
-  | 'SERVICE_STATUS_UPDATE';
+  | 'SERVICE_STATUS_UPDATE'
+  | 'ENQUIRY_QUOTE';
 
 /** Request statuses whose own email is the approval confirmation, never a status email. */
 const QUIET_REQUEST_STATUSES = new Set(['REQUESTED', 'PENDING']);
@@ -210,6 +213,47 @@ export async function handleIntakeApproved(event: OutboundEvent): Promise<Outbox
       trackingCode: intake.tracking_code,
       preferredDate: intake.preferred_date,
       preferredSlot: intake.preferred_slot,
+    }),
+  });
+}
+
+/** The seller sent a price for one AC line of an enquiry: email the customer once per price. */
+export async function handleEnquiryQuoted(event: OutboundEvent): Promise<OutboxOutcome> {
+  if (!passesGate(event)) return 'SKIPPED';
+  const lineId = payloadId(event, 'lineId');
+  const { data, error } = await getSupabaseClient()
+    .from('web_intake_items')
+    .select('id,item_name,quantity,quote_total,quote_note,web_intakes(id,tracking_code,contact_name,contact_email)')
+    .eq('id', lineId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load enquiry line: ${error.message}`);
+  const line = data as {
+    id: string;
+    item_name: string;
+    quantity: number;
+    quote_total: number | string | null;
+    quote_note: string | null;
+    web_intakes: { tracking_code: string | null; contact_name: string | null; contact_email: string | null } | Array<{ tracking_code: string | null; contact_name: string | null; contact_email: string | null }> | null;
+  } | null;
+  const intake = Array.isArray(line?.web_intakes) ? line?.web_intakes[0] : line?.web_intakes;
+  const email = usableEmail(intake?.contact_email);
+  if (!line || !intake || !email || line.quote_total == null) return 'SKIPPED';
+  const total = Number(line.quote_total);
+
+  return sendCustomerEmail({
+    entityType: 'ENQUIRY_QUOTE',
+    entityId: line.id,
+    templateKey: 'enquiry_quote',
+    recipientEmail: email,
+    recipientName: intake.contact_name,
+    idempotencyKey: `enquiry-quote:${line.id}:${total}`,
+    content: buildEnquiryQuoteEmail({
+      contactName: intake.contact_name,
+      productName: line.item_name,
+      quantity: line.quantity,
+      total,
+      note: line.quote_note,
+      trackingCode: intake.tracking_code,
     }),
   });
 }
@@ -466,6 +510,7 @@ export function registerCustomerNotifier(): void {
   outboxService.register('WEB_INTAKE_RECEIVED', handleIntakeReceived);
   outboxService.register('WEB_INTAKE_APPROVED', handleIntakeApproved);
   outboxService.register('WEB_INTAKE_REJECTED', handleIntakeRejected);
+  outboxService.register('WEB_ENQUIRY_QUOTED', handleEnquiryQuoted);
   outboxService.register('SERVICE_REQUEST_STATUS_CHANGED', handleServiceStatusChanged);
   outboxService.register('SERVICE_SCHEDULE_STATUS_CHANGED', handleServiceStatusChanged);
 }

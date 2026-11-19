@@ -241,6 +241,40 @@ export interface IntakeRejectionInput {
   reason?: string | null;
 }
 
+export interface EnquiryQuoteEmailInput {
+  contactName: string | null;
+  productName: string;
+  quantity: number;
+  /** Seller's price per AC, GST included. */
+  total: number;
+  note: string | null;
+  trackingCode: string | null;
+}
+
+const inr = (n: number) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: Number.isInteger(n) ? 0 : 2 }).format(n);
+
+/** The seller's price for one AC in the customer's enquiry. */
+export function buildEnquiryQuoteEmail(input: EnquiryQuoteEmailInput): EmailContent {
+  return render({
+    subject: `Price for your AC enquiry${input.trackingCode ? ` (${input.trackingCode})` : ''} | ${BUSINESS_NAME}`,
+    heading: 'Here is the price you asked for',
+    badgeText: 'PRICE SENT',
+    badgeBg: '#e0f2fe',
+    badgeColor: '#0369a1',
+    name: input.contactName,
+    intro: ['The seller has sent a price for an AC in your enquiry.'],
+    rows: [
+      ['AC', input.productName],
+      ['Quantity', String(input.quantity)],
+      ['Price per AC (incl. GST)', inr(input.total)],
+      ['Note from the seller', input.note],
+      ['Tracking code', input.trackingCode],
+    ],
+    outro: ['We will call you to talk it through. Reply to this email or call us if you have questions.', contactLine()],
+  });
+}
+
 export function buildIntakeRejectionEmail(input: IntakeRejectionInput): EmailContent {
   const ref = input.trackingCode || input.intakeNumber;
   const reason = input.reason?.trim();
