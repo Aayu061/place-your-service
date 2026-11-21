@@ -12,6 +12,7 @@ import {
 } from '../types/index.js';
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { redactQuery } from '../utils/safeUrl.js';
 import { scheduleService } from './schedule.service.js';
 import { normalizeTechnology } from '../utils/technology.js';
 import { logActivity } from './audit.service.js';
@@ -1046,7 +1047,7 @@ export class ServiceReportService {
     const { data: rows, count, error } = await dbQuery;
 
     if (error) {
-      logger.error('Failed to list service reports', { error, query });
+      logger.error('Failed to list service reports', { error, query: redactQuery(query) });
       throw new BadRequestError('Failed to fetch service reports.');
     }
 

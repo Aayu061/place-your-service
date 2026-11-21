@@ -12,6 +12,7 @@ import {
 import { NotFoundError, BadRequestError, ConflictError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
 import { logger } from '../utils/logger.js';
+import { redactQuery } from '../utils/safeUrl.js';
 import { hashPin } from '../utils/techAuth.js';
 import { sanitizePostgrestFilterTerm } from '../utils/postgrestFilter.js';
 
@@ -191,7 +192,7 @@ export class TechnicianService {
     const { data, error, count } = await dbQuery;
 
     if (error) {
-      logger.error('Failed to list technicians', { error: error.message, query });
+      logger.error('Failed to list technicians', { error: error.message, query: redactQuery(query) });
       throw new BadRequestError(`Failed to fetch technicians: ${error.message}`);
     }
 

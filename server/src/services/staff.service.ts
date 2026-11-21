@@ -172,7 +172,7 @@ export class StaffService {
       ipAddress,
     });
 
-    logger.info('Staff account created successfully', { staffId: staffData.id, email: payload.email });
+    logger.info('Staff account created successfully', { staffId: staffData.id });
 
     return {
       id: staffData.id,

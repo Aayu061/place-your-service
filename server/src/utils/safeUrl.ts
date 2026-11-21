@@ -49,7 +49,7 @@ export function redactUrl(originalUrl: string): string {
       const rawValue = pair.slice(eq + 1);
       const decodedName = decodeURIComponent(name); // throws on bad encoding -> whole query redacted
       const decodedValue = decodeURIComponent(rawValue);
-      if (!SAFE_NAME.test(decodedName)) {
+      if (!SAFE_NAME.test(decodedName) || LONG_DIGIT_RUN.test(decodedName)) {
         parts.push(REDACTED);
         continue;
       }
@@ -70,4 +70,19 @@ export function redactUrl(originalUrl: string): string {
     const i = typeof originalUrl === 'string' ? originalUrl.indexOf('?') : -1;
     return i === -1 ? '' : `${originalUrl.slice(0, i)}?${REDACTED}`;
   }
+}
+
+/** Query-object version of redactUrl for logs: safe-list keys keep short safe values; all else is hidden. */
+export function redactQuery(query: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!query || typeof query !== 'object') return out;
+  for (const [name, value] of Object.entries(query as Record<string, unknown>)) {
+    const keep =
+      SAFE_VALUE_NAMES.has(name) &&
+      (typeof value === 'number' ||
+        typeof value === 'boolean' ||
+        (typeof value === 'string' && SAFE_VALUE.test(value) && !LONG_DIGIT_RUN.test(value)));
+    out[name] = value === undefined || value === '' ? value : keep ? value : REDACTED;
+  }
+  return out;
 }

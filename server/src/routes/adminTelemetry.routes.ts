@@ -9,6 +9,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { telemetryLogService } from '../services/telemetryLog.service.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
+import { redactUrl } from '../utils/safeUrl.js';
 import { logger } from '../utils/logger.js';
 
 export const adminTelemetryRouter = Router();
@@ -124,7 +125,7 @@ adminTelemetryRouter.post('/crash-report', async (req: Request, res: Response, n
       message,
       stack,
       context,
-      url,
+      url: typeof url === 'string' ? redactUrl(url) : url,
       method,
       statusCode,
     });

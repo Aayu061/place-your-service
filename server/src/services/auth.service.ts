@@ -66,7 +66,7 @@ export class AuthService {
     });
 
     if (error || !data.session || !data.user) {
-      logger.warn('Failed login attempt', { email: payload.email, error: error?.message });
+      logger.warn('Failed login attempt', { error: error?.message });
       throw new UnauthorizedError('Invalid email or password. Please check your credentials.');
     }
 

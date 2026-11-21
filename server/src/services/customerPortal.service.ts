@@ -52,7 +52,7 @@ export class CustomerPortalService {
       .limit(1);
 
     if (searchErr) {
-      logger.error('Failed to query customer by phone', { error: searchErr.message, phone: cleanPhone });
+      logger.error('Failed to query customer by phone', { error: searchErr.message });
       throw new Error('Database lookup failed');
     }
 

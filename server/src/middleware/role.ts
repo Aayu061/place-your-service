@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserRole } from '../types/index.js';
 import { ForbiddenError, UnauthorizedError } from '../utils/errors.js';
+import { redactUrl } from '../utils/safeUrl.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -19,7 +20,7 @@ export function requireRole(...allowedRoles: UserRole[]) {
         userId: req.user.userId,
         currentRole: req.user.role,
         requiredRoles: allowedRoles,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
       });
       return next(
         new ForbiddenError(
