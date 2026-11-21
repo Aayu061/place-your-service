@@ -3,6 +3,7 @@ import { AppError } from '../utils/errors.js';
 import { sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeData } from '../utils/piiSanitizer.js';
+import { redactUrl } from '../utils/safeUrl.js';
 import { env } from '../config/env.js';
 import { telemetryLogService } from '../services/telemetryLog.service.js';
 
@@ -21,10 +22,12 @@ export function errorHandlerMiddleware(
   const details = isAppError ? (err as AppError).details : undefined;
   const sanitizedDetails = details ? sanitizeData(details) : undefined;
 
+  const safeUrl = redactUrl(req.originalUrl);
+
   // Log error
   logger.error(`Error processing request: ${err.message}`, {
     requestId: req.id,
-    path: req.originalUrl,
+    path: safeUrl,
     method: req.method,
     statusCode,
     code,
@@ -38,7 +41,7 @@ export function errorHandlerMiddleware(
       errorName: err.name || 'InternalServerError',
       message: err.message || 'Unhandled 500 server error',
       stack: err.stack,
-      url: req.originalUrl,
+      url: safeUrl,
       method: req.method,
       statusCode,
       context: {
@@ -54,7 +57,7 @@ export function errorHandlerMiddleware(
       service: 'PYS',
       level: 'WARN',
       category: 'HTTP_REQUEST_ERROR',
-      message: `[${req.method} ${req.originalUrl}] ${statusCode} ${code}: ${message}`,
+      message: `[${req.method} ${safeUrl}] ${statusCode} ${code}: ${message}`,
       details: sanitizedDetails,
     });
   }

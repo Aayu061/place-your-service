@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
+import { redactUrl } from '../utils/safeUrl.js';
 import { isSecretBoxConfigured } from '../utils/secretBox.js';
 import {
   MAX_CLOCK_SKEW_SECONDS,
@@ -40,7 +41,7 @@ export function requireIntegrationClient(scope?: string) {
     const signature = header(req, SIGNATURE_HEADERS.signature);
 
     const reject = (reason: string) => {
-      logger.warn('Integration request rejected', { reason, keyId: keyId || undefined, path: req.originalUrl, ip: req.ip });
+      logger.warn('Integration request rejected', { reason, keyId: keyId || undefined, path: redactUrl(req.originalUrl), ip: req.ip });
       sendError(res, 401, 'INVALID_SIGNATURE', 'Request signature is missing or invalid');
     };
 
