@@ -20,6 +20,7 @@ const FILES = [
   '20261119000000_schedule_reschedule_events.sql',
   '20261119010000_ess_storefront_foundations.sql',
   '20261120000000_ac_enquiries.sql',
+  '20261121000000_ess_catalog_display_atomic.sql',
 ];
 
 const url = process.env.LIVE_DATABASE_URL || '';
