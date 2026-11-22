@@ -6,6 +6,7 @@ import {
   Moon,
   LogOut,
   ShieldCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { UserRole } from '@/domain/types';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -308,63 +309,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {group.items.map((item) => {
                   if (item.adminOnly && currentRole !== 'ADMIN') return null;
                   const Icon = item.icon;
-                  const isActive = activeItem === item.id;
+                  const isActive = !item.href && activeItem === item.id;
                   const badgeCount = item.id === 'approval-inbox' && pendingIntakes ? pendingIntakes : 0;
                   const badgeText = badgeCount > 99 ? '99+' : String(badgeCount);
 
-                  const navButton = (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        onItemSelect(item.id);
-                        if (isMobileOpen) onCloseMobile();
-                      }}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: isCollapsed ? 'center' : 'flex-start',
-                        gap: 'var(--space-3)',
-                        padding: isCollapsed ? '9px 0' : '8px 12px',
-                        borderRadius: 'var(--radius-md)',
-                        background: isActive
-                          ? 'var(--bg-sidebar-active, #DCE9DE)'
-                          : 'transparent',
-                        borderLeft: isActive
-                          ? '3px solid var(--border-focus, #3F765D)'
-                          : '3px solid transparent',
-                        color: isActive ? 'var(--text-sidebar-active, #293B32)' : 'var(--text-sidebar, #64756A)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: isActive ? 600 : 500,
-                        width: '100%',
-                        textAlign: 'left',
-                        transition: 'all 0.15s ease',
-                        borderTop: 'none',
-                        borderRight: 'none',
-                        borderBottom: 'none',
-                        cursor: 'pointer',
-                        position: 'relative',
-                        boxSizing: 'border-box',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(35, 83, 71, 0.4))';
-                          e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
-                          if (!isCollapsed) {
-                            e.currentTarget.style.transform = 'translateX(2px)';
-                          }
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.color = 'var(--text-sidebar, #64756A)';
-                          if (!isCollapsed) {
-                            e.currentTarget.style.transform = 'translateX(0)';
-                          }
-                        }
-                      }}
-                    >
+                  const itemStyle: React.CSSProperties = {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    gap: 'var(--space-3)',
+                    padding: isCollapsed ? '9px 0' : '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isActive
+                      ? 'var(--bg-sidebar-active, #DCE9DE)'
+                      : 'transparent',
+                    borderLeft: isActive
+                      ? '3px solid var(--border-focus, #3F765D)'
+                      : '3px solid transparent',
+                    color: isActive ? 'var(--text-sidebar-active, #293B32)' : 'var(--text-sidebar, #64756A)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: isActive ? 600 : 500,
+                    width: '100%',
+                    textAlign: 'left',
+                    textDecoration: 'none',
+                    transition: 'all 0.15s ease',
+                    borderTop: 'none',
+                    borderRight: 'none',
+                    borderBottom: 'none',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    boxSizing: 'border-box',
+                  };
+
+                  const onItemEnter = (e: React.MouseEvent<HTMLElement>) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-sidebar-hover, rgba(35, 83, 71, 0.4))';
+                      e.currentTarget.style.color = 'var(--text-sidebar-active, #293B32)';
+                      if (!isCollapsed) {
+                        e.currentTarget.style.transform = 'translateX(2px)';
+                      }
+                    }
+                  };
+                  const onItemLeave = (e: React.MouseEvent<HTMLElement>) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = 'var(--text-sidebar, #64756A)';
+                      if (!isCollapsed) {
+                        e.currentTarget.style.transform = 'translateX(0)';
+                      }
+                    }
+                  };
+
+                  const itemContent = (
+                    <>
                       <Icon
                         size={18}
                         style={{
@@ -385,6 +382,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         >
                           {item.label}
                         </span>
+                      )}
+                      {item.href && (
+                        <>
+                          {!isCollapsed && (
+                            <ExternalLink
+                              size={13}
+                              aria-hidden="true"
+                              style={{ marginLeft: 'auto', flexShrink: 0, opacity: 0.7 }}
+                            />
+                          )}
+                          <span
+                            style={{
+                              position: 'absolute',
+                              width: 1,
+                              height: 1,
+                              overflow: 'hidden',
+                              clip: 'rect(0 0 0 0)',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {isCollapsed ? `${item.label} ` : ' '}(opens in a new tab)
+                          </span>
+                        </>
                       )}
                       {badgeCount > 0 && (
                         <span
@@ -411,6 +431,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {badgeText}
                         </span>
                       )}
+                    </>
+                  );
+
+                  // External shortcut (e.g. ESS website admin): a real link that opens a new tab.
+                  // It never selects a PYS page, so it is never "active" and never closes the menu.
+                  const navButton = item.href ? (
+                    <a
+                      key={item.id}
+                      data-testid={item.id}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={itemStyle}
+                      onMouseEnter={onItemEnter}
+                      onMouseLeave={onItemLeave}
+                    >
+                      {itemContent}
+                    </a>
+                  ) : (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        onItemSelect(item.id);
+                        if (isMobileOpen) onCloseMobile();
+                      }}
+                      style={itemStyle}
+                      onMouseEnter={onItemEnter}
+                      onMouseLeave={onItemLeave}
+                    >
+                      {itemContent}
                     </button>
                   );
 

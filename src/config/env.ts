@@ -15,6 +15,8 @@ export interface AppConfig {
   api: {
     baseUrl: string;
   };
+  /** Plain public address of the ESS website admin. Never carries tokens or sessions. */
+  essAdminUrl: string;
 }
 
 // Authoritative Supabase project credentials (public anon client for Vercel deployment)
@@ -37,6 +39,9 @@ const defaultApiBaseUrl = import.meta.env.PROD
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl;
 
+const DEFAULT_ESS_ADMIN_URL = 'https://extreme-sales-services.vercel.app/admin';
+const essAdminUrl = import.meta.env.VITE_ESS_ADMIN_URL || DEFAULT_ESS_ADMIN_URL;
+
 // Detect if real Supabase credentials have been provided (vs placeholders)
 const isConfigured = Boolean(
   supabaseUrl &&
@@ -57,5 +62,6 @@ export const config: AppConfig = {
   api: {
     baseUrl: apiBaseUrl,
   },
+  essAdminUrl,
 };
 

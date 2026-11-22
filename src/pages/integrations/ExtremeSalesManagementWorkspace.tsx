@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/useToast';
 import { apiClient } from '@/services/api/client';
 import { ServiceRequest, ServiceStatus } from '@/domain/types';
 import { CatalogAmcPlansPanel } from './CatalogAmcPlansPanel';
+import { config } from '@/config/env';
 
 interface EssProduct {
   id: string;
@@ -39,6 +40,15 @@ interface EssProduct {
   condition?: string;
   image_url?: string;
 }
+
+const VISUALLY_HIDDEN: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+};
 
 /** Request statuses where a technician can still be (re)assigned. */
 const ASSIGNABLE_STATUSES = new Set<ServiceStatus>(['REQUESTED', 'PENDING', 'SCHEDULED', 'ASSIGNED', 'REVISIT_REQUIRED', 'ON_HOLD']);
@@ -184,7 +194,19 @@ export const ExtremeSalesManagementWorkspace: React.FC<{ onNavigate?: (item: str
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <a
+            data-testid="ess-admin-link-header"
+            href={config.essAdminUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+          >
+            <ExternalLink size={14} aria-hidden="true" />
+            <span>Open ESS website admin</span>
+            <span style={VISUALLY_HIDDEN}>(opens in a new tab)</span>
+          </a>
           <Button
             variant="secondary"
             size="sm"
