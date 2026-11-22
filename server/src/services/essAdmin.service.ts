@@ -342,21 +342,28 @@ class EssAdminService {
     items: Array<{ type: 'SERVICE' | 'AMC'; code: string; isPublic?: boolean; displayOrder?: number }>,
     actor: EssActor
   ) {
-    const supabase = getSupabaseClient();
-    for (const it of items) {
-      const row: Record<string, unknown> = {};
-      if (it.isPublic !== undefined) row.is_public = it.isPublic;
-      if (it.displayOrder !== undefined) row.display_order = it.displayOrder;
-      if (Object.keys(row).length === 0) continue;
-      const q =
-        it.type === 'SERVICE'
-          ? supabase.from('service_catalog_items').update(row).eq('code', it.code)
-          : supabase.from('amc_plans').update(row).or(`public_code.eq.${it.code},plan_code.eq.${it.code}`);
-      const { data, error } = await q.select('id');
-      if (error) dbFail('update what the website shows', error);
-      if (!data || data.length === 0) throw new NotFoundError(`${it.type === 'SERVICE' ? 'Service' : 'AMC plan'} ${it.code} not found`);
+    // Items with nothing to change are skipped, as before.
+    const changes = items
+      .filter((it) => it.isPublic !== undefined || it.displayOrder !== undefined)
+      .map((it) => ({
+        type: it.type,
+        code: it.code,
+        ...(it.isPublic !== undefined ? { isPublic: it.isPublic } : {}),
+        ...(it.displayOrder !== undefined ? { displayOrder: it.displayOrder } : {}),
+      }));
+    try {
+      if (changes.length > 0) {
+        // One database transaction: an unknown code or any error undoes the whole save.
+        const { error } = await getSupabaseClient().rpc('ess_update_catalog_display', { p_items: changes });
+        if (error) {
+          if ((error as { code?: string }).code === 'P0002') throw new NotFoundError(error.message);
+          dbFail('update what the website shows', error);
+        }
+      }
+    } finally {
+      // Success or not, the next public catalogue read re-checks the version (keeps the last good copy).
+      catalogService.markStale();
     }
-    catalogService.clearCache();
     await logActivity({
       actorProfileId: actor.profileId,
       action: 'ESS_CATALOG_DISPLAY_UPDATED',

@@ -230,6 +230,14 @@ export class CatalogService {
     this.cache = null;
   }
 
+  /**
+   * Make the next public read re-check catalog_meta.version instead of trusting the 60 s window.
+   * The copy is kept: same version → same copy; database down → it is still served as the last good copy.
+   */
+  markStale(): void {
+    if (this.cache) this.cache.at = 0;
+  }
+
   private async currentVersion(): Promise<number | null> {
     const { data, error } = await getSupabaseClient().from('catalog_meta').select('version').maybeSingle();
     if (error || !data) return null;

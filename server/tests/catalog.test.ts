@@ -190,6 +190,52 @@ describe('service catalog', () => {
     expect(extra.status).toBe(422);
   });
 
+  describe('public catalogue cache after a save attempt (markStale)', () => {
+    const reads = (table: string) => calls.filter((c) => c[0] === 'from' && c[1] === table).length;
+
+    it('re-checks the version on the next read; same version keeps the same copy', async () => {
+      const first = await catalogService.getPublicCatalog();
+      await catalogService.getPublicCatalog(); // inside the 60 s window: no database read
+      expect(reads('catalog_meta')).toBe(1);
+
+      catalogService.markStale();
+      const again = await catalogService.getPublicCatalog();
+      expect(reads('catalog_meta')).toBe(2); // version checked again
+      expect(reads('service_catalog_items')).toBe(1); // nothing changed, so not reloaded
+      expect(again).toBe(first);
+    });
+
+    it('loads the new catalogue when the version changed', async () => {
+      await catalogService.getPublicCatalog();
+      tableData.catalog_meta = { data: { version: 8 }, error: null };
+      tableData.service_catalog_items = { data: [pcb], error: null };
+
+      catalogService.markStale();
+      const fresh = await catalogService.getPublicCatalog();
+      expect(fresh.version).toBe(8);
+      expect(fresh.services.map((s) => s.code)).toEqual(['SVC-PCB']);
+    });
+
+    it('serves the last good copy when the database cannot be reached', async () => {
+      const first = await catalogService.getPublicCatalog();
+      const down = { data: null, error: { message: 'connection refused' } };
+      tableData.catalog_meta = down;
+      tableData.service_catalog_items = down;
+      tableData.amc_plans = down;
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      catalogService.markStale();
+      expect(await catalogService.getPublicCatalog()).toBe(first);
+      expect(errors).toHaveBeenCalled();
+      errors.mockRestore();
+    });
+
+    it('does nothing when there is no copy yet', async () => {
+      catalogService.markStale();
+      expect((await catalogService.getPublicCatalog()).version).toBe(7);
+    });
+  });
+
   it('rejects a price matrix row whose tonnage range is reversed', async () => {
     const res = await request(app)
       .put('/api/v1/catalog/items/SVC-GAS/prices')

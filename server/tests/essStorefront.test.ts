@@ -26,6 +26,7 @@ type Row = Record<string, any>;
 let db: Record<string, Row[]>;
 let rpcCalls: Array<[string, any]>;
 let rpcResults: Record<string, (args: any) => any>;
+let updatedTables: string[];
 let seq = 0;
 
 function query(table: string) {
@@ -76,7 +77,7 @@ function query(table: string) {
     select: (_c?: string, o?: { head?: boolean }) => ((head = Boolean(o?.head)), b),
     insert: (p: any) => ((op = 'insert'), (payload = p), b),
     upsert: (p: any) => ((op = 'upsert'), (payload = p), b),
-    update: (p: any) => ((op = 'update'), (payload = p), b),
+    update: (p: any) => ((op = 'update'), (payload = p), updatedTables.push(table), b),
     delete: () => ((op = 'delete'), b),
     eq: (c: string, v: any) => {
       if (c.includes('.')) return b; // embedded filters (e.g. integration_clients.client_code) ignored
@@ -152,10 +153,31 @@ function installDb() {
     amc_plans: [],
   };
   rpcCalls = [];
+  updatedTables = [];
   rpcResults = {
     generate_business_numbers: () => ({ data: ['WEB-2026-000009'], error: null }),
     record_tracking_failure: () => ({ data: null, error: null }),
     publish_site_content: (a) => ({ data: { key: a.p_key, version: 4 }, error: null }),
+    // Stand-in for public.ess_update_catalog_display: same matching rules, all or nothing.
+    ess_update_catalog_display: ({ p_items }) => {
+      const before = structuredClone({ services: db.service_catalog_items, plans: db.amc_plans });
+      for (const it of p_items) {
+        const rows =
+          it.type === 'SERVICE'
+            ? db.service_catalog_items.filter((r) => r.code === it.code)
+            : db.amc_plans.filter((r) => r.public_code === it.code || r.plan_code === it.code);
+        if (rows.length === 0) {
+          db.service_catalog_items = before.services;
+          db.amc_plans = before.plans;
+          return { data: null, error: { code: 'P0002', message: `${it.type === 'SERVICE' ? 'Service' : 'AMC plan'} ${it.code} not found` } };
+        }
+        for (const r of rows) {
+          if (it.isPublic !== undefined) r.is_public = it.isPublic;
+          if (it.displayOrder !== undefined) r.display_order = it.displayOrder;
+        }
+      }
+      return { data: null, error: null };
+    },
   };
   const tokens: Record<string, string> = { 'admin-token': 'admin-user', 'staff-token': 'ess-staff-user', 'nobody-token': 'nobody-user' };
   vi.mocked(getSupabaseClient).mockReturnValue({
@@ -512,6 +534,96 @@ describe('ESS admin area', () => {
     const display = await signed('patch', '/api/v1/ess/admin/catalog-display', { items: [{ type: 'SERVICE', code: 'SVC-DRY', isPublic: false }] }, asActor('admin-token'));
     expect(display.status).toBe(200);
     expect(db.service_catalog_items[0].is_public).toBe(false);
+  });
+
+  describe('what the website shows is saved all or nothing', () => {
+    const PATH = '/api/v1/ess/admin/catalog-display';
+    const saveCalls = () => rpcCalls.filter(([n]) => n === 'ess_update_catalog_display');
+    const displayLogs = () => db.activity_logs.filter((l) => l.action === 'ESS_CATALOG_DISPLAY_UPDATED');
+    beforeEach(() => {
+      db.amc_plans = [
+        { id: 'plan-1', public_code: 'SAMC-1', plan_code: 'SEMI-COMP-SPLIT', name: 'Semi AMC', is_public: true, is_active: true, display_order: 10 },
+        { id: 'plan-2', public_code: null, plan_code: 'ORD-4', name: 'Ordinary', is_public: false, is_active: true, display_order: 20 },
+      ];
+    });
+
+    it('saves in one database step, logs it, re-checks the catalogue and returns the list', async () => {
+      const stale = vi.spyOn(catalogService, 'markStale');
+      const items = [
+        { type: 'SERVICE', code: 'SVC-DRY', isPublic: false, displayOrder: 5 },
+        { type: 'AMC', code: 'SAMC-1', displayOrder: 2 },
+        { type: 'AMC', code: 'ORD-4', isPublic: true },
+        { type: 'SERVICE', code: 'SVC-DRY' }, // nothing to change: skipped
+      ];
+      const res = await signed('patch', PATH, { items }, asActor('admin-token'));
+      expect(res.status).toBe(200);
+      expect(saveCalls()).toEqual([
+        ['ess_update_catalog_display', { p_items: items.slice(0, 3) }],
+      ]);
+      expect(updatedTables).not.toContain('service_catalog_items'); // no row-by-row writes any more
+      expect(updatedTables).not.toContain('amc_plans');
+      expect(stale).toHaveBeenCalledTimes(1);
+      expect(displayLogs()).toHaveLength(1);
+      expect(displayLogs()[0]).toMatchObject({ actor_profile_id: 'admin-user', entity_type: 'CATALOG', details: { items } });
+      expect(res.body.data.services.map((s: any) => [s.code, s.isPublic, s.displayOrder])).toEqual([['SVC-DRY', false, 5]]);
+      expect(res.body.data.amcPlans.map((p: any) => [p.code, p.isPublic, p.displayOrder])).toEqual([
+        ['SAMC-1', true, 2],
+        ['ORD-4', true, 20],
+      ]);
+    });
+
+    it('an unknown code changes nothing: 404 with the same message, no activity log, catalogue still re-checked', async () => {
+      const stale = vi.spyOn(catalogService, 'markStale');
+      const res = await signed(
+        'patch', PATH,
+        { items: [{ type: 'SERVICE', code: 'SVC-DRY', isPublic: false }, { type: 'AMC', code: 'GONE-1', isPublic: false }] },
+        asActor('admin-token')
+      );
+      expect(res.status).toBe(404);
+      expect(res.body.error.message).toBe('AMC plan GONE-1 not found');
+      expect(saveCalls()).toHaveLength(1);
+      expect(db.service_catalog_items[0].is_public).toBe(true); // the valid row was not saved either
+      expect(displayLogs()).toHaveLength(0);
+      expect(stale).toHaveBeenCalledTimes(1);
+
+      const svc404 = await signed('patch', PATH, { items: [{ type: 'SERVICE', code: 'SVC-GONE', displayOrder: 1 }] }, asActor('admin-token'));
+      expect(svc404.status).toBe(404);
+      expect(svc404.body.error.message).toBe('Service SVC-GONE not found');
+    });
+
+    it('a database failure keeps today\'s answers and the catalogue is still re-checked', async () => {
+      const stale = vi.spyOn(catalogService, 'markStale');
+      const body = { items: [{ type: 'SERVICE', code: 'SVC-DRY', isPublic: false }] };
+
+      rpcResults.ess_update_catalog_display = () => ({ data: null, error: { code: '23514', message: 'check violation' } });
+      const bad = await signed('patch', PATH, body, asActor('admin-token'));
+      expect(bad.status).toBe(400);
+      expect(bad.body.error.message).toBe('Could not update what the website shows: some values are not valid');
+
+      rpcResults.ess_update_catalog_display = () => ({ data: null, error: { code: 'XX000', message: 'connection lost' } });
+      const down = await signed('patch', PATH, body, asActor('admin-token'));
+      expect(down.status).toBe(500);
+      expect(down.body.error.message).toBe('Failed to update what the website shows: connection lost');
+
+      expect(stale).toHaveBeenCalledTimes(2);
+      expect(displayLogs()).toHaveLength(0);
+    });
+
+    it('skips the database call when no item has anything to change', async () => {
+      const stale = vi.spyOn(catalogService, 'markStale');
+      const res = await signed('patch', PATH, { items: [{ type: 'AMC', code: 'SAMC-1' }] }, asActor('admin-token'));
+      expect(res.status).toBe(200);
+      expect(saveCalls()).toHaveLength(0);
+      expect(stale).toHaveBeenCalledTimes(1);
+      expect(displayLogs()).toHaveLength(1); // as before: the request itself is recorded
+    });
+
+    it('ESS Staff are still refused and nothing is called', async () => {
+      const res = await signed('patch', PATH, { items: [{ type: 'SERVICE', code: 'SVC-DRY', isPublic: false }] }, asActor('staff-token'));
+      expect(res.status).toBe(403);
+      expect(saveCalls()).toHaveLength(0);
+      expect(db.service_catalog_items[0].is_public).toBe(true);
+    });
   });
 
   it('admins give roles (new accounts get a one-time password) and cannot remove their own admin role', async () => {
