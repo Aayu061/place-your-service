@@ -172,3 +172,44 @@ describe('ESS website admin link', () => {
     expect(a!.getAttribute('rel')).toBe('noopener noreferrer');
   });
 });
+
+describe('ESS website admin link is never a PYS page', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(intakeService, 'stats').mockResolvedValue({
+      pending: 0,
+      approvedToday: 0,
+      rejectedToday: 0,
+      spam: 0,
+      oldestPendingAt: null,
+    });
+  });
+  afterEach(() => {
+    act(() => root?.unmount());
+    container?.remove();
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('?workspace=ess-admin-link falls back to the Dashboard', async () => {
+    const { AppShell } = await import('@/layouts/AppShell');
+    window.history.replaceState(null, '', '/?workspace=ess-admin-link');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthContext.Provider value={makeAuth('ADMIN')}>
+              <AppShell role="ADMIN">
+                {({ activeItem }) => <span data-testid="active-item">{activeItem}</span>}
+              </AppShell>
+            </AuthContext.Provider>
+          </ToastProvider>
+        </ThemeProvider>
+      );
+    });
+    await flush();
+    expect(document.querySelector('[data-testid="active-item"]')?.textContent).toBe('dashboard');
+  });
+});
