@@ -15,6 +15,10 @@
 -- while waiting for catalog_meta). To avoid that, the function first locks all its target rows in a
 -- fixed order (services by id, then AMC plans by id) and only then catalog_meta - the same
 -- "rows first, catalog_meta last" order a single-row edit in the PYS catalogue editor uses.
+-- The pre-locks are FOR NO KEY UPDATE (the same lock the UPDATEs take, as only non-key columns
+-- change): saves still queue behind each other, but new bookings inserting into service_requests
+-- (catalog_service_code FK) or amc_contracts (plan_id FK) are not blocked (their KEY SHARE locks
+-- do not conflict with NO KEY UPDATE).
 --
 -- Adds one function only: no table, column, data or trigger changes.
 
@@ -42,14 +46,14 @@ BEGIN
      FROM public.service_catalog_items s
     WHERE s.code IN (SELECT e->>'code' FROM jsonb_array_elements(p_items) e WHERE e->>'type' = 'SERVICE')
     ORDER BY s.id
-      FOR UPDATE;
+      FOR NO KEY UPDATE;
   PERFORM 1
      FROM public.amc_plans a
     WHERE a.public_code IN (SELECT e->>'code' FROM jsonb_array_elements(p_items) e WHERE e->>'type' = 'AMC')
        OR a.plan_code   IN (SELECT e->>'code' FROM jsonb_array_elements(p_items) e WHERE e->>'type' = 'AMC')
     ORDER BY a.id
-      FOR UPDATE;
-  PERFORM 1 FROM public.catalog_meta m WHERE m.id FOR UPDATE;
+      FOR NO KEY UPDATE;
+  PERFORM 1 FROM public.catalog_meta m WHERE m.id FOR NO KEY UPDATE;
 
   FOR v_item IN SELECT e.value FROM jsonb_array_elements(p_items) WITH ORDINALITY AS e(value, n) ORDER BY e.n
   LOOP
