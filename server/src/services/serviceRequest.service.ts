@@ -250,7 +250,12 @@ export class ServiceRequestService {
       .single();
 
     if (error || !inserted) {
-      logger.error('Failed to create service request', { error: error?.message, payload });
+      logger.error('Failed to create service request', {
+        error: error?.message,
+        customerId: payload.customerId,
+        siteId: payload.siteId,
+        sourceChannel: payload.sourceChannel,
+      });
       throw new BadRequestError(`Failed to create service request: ${error?.message || 'Unknown database error'}`);
     }
 

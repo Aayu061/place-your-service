@@ -371,7 +371,7 @@ export class TechnicianService {
       .single();
 
     if (error) {
-      logger.error('Failed to create technician in DB', { error: error.message, payload });
+      logger.error('Failed to create technician in DB', { error: error.message, technicianCode });
       throw new BadRequestError(`Failed to create technician: ${error.message}`);
     }
 
