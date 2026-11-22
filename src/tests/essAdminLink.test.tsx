@@ -14,6 +14,7 @@ import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { apiClient } from '@/services/api/client';
 import { intakeService } from '@/services/intakeService';
 import { config } from '@/config/env';
+import type { UserRole } from '@/domain/types';
 
 const ESS_ADMIN_URL = 'https://extreme-sales-services.vercel.app/admin';
 
@@ -22,7 +23,8 @@ let root: Root;
 
 const flush = () => act(async () => { await Promise.resolve(); });
 
-type Role = 'ADMIN' | 'STAFF' | 'TECHNICIAN';
+// The PYS dashboard only has ADMIN and STAFF (technicians use their own portal).
+type Role = UserRole;
 
 const makeAuth = (role: Role): AuthContextType => ({
   user: { id: 'u1', email: 'u@pys.internal', fullName: 'Test User', role, isActive: true },
@@ -111,11 +113,6 @@ describe('ESS website admin link', () => {
     await renderSidebar('STAFF');
     expect(essLink()).toBeNull();
     expect(document.body.textContent).not.toContain('ESS website admin');
-  });
-
-  it('technician does not see it', async () => {
-    await renderSidebar('TECHNICIAN');
-    expect(essLink()).toBeNull();
   });
 
   it('clicking it does not select a PYS page or close the menu', async () => {
