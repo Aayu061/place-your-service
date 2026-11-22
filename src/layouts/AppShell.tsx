@@ -18,7 +18,7 @@ interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = ({ role, children }) => {
   const currentRole: UserRole = role || 'ADMIN';
   const canVisit = useCallback((item: string) => NAV_STRUCTURE.some((group) => group.items.some((entry) =>
-    entry.id === item && (!entry.adminOnly || currentRole === 'ADMIN') && (!group.adminOnly || currentRole === 'ADMIN')
+    entry.id === item && !entry.href && (!entry.adminOnly || currentRole === 'ADMIN') && (!group.adminOnly || currentRole === 'ADMIN')
   )), [currentRole]);
   const readWorkspaceFromUrl = useCallback(() => {
     const candidate = new URLSearchParams(window.location.search).get('workspace') || 'dashboard';
