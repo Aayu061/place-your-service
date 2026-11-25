@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
 import { essAdminService } from '../../services/essAdmin.service.js';
 import { intakeService } from '../../services/intake.service.js';
+import { productPhotoStorage } from '../../services/mediaStorage.service.js';
 import {
   catalogDisplayPatchSchema,
   contentDraftSchema,
@@ -16,6 +17,7 @@ import {
   leadsQuerySchema,
   prefixParamSchema,
   productIdParamSchema,
+  productPhotoUploadSchema,
   productInputSchema,
   productPatchSchema,
   roleGrantSchema,
@@ -62,6 +64,14 @@ essAdminRouter.post(
   ...staff,
   validate({ body: productInputSchema }),
   wrap(async (req, res) => sendSuccess(res, await essAdminService.createProduct(req.body, req.essActor!), 201))
+);
+/* product photos (S10): list uploaded photos; a one-time link the browser uploads one photo to */
+essAdminRouter.get('/product-photos', ...staff, wrap(async (_req, res) => sendSuccess(res, { photos: await productPhotoStorage.list() })));
+essAdminRouter.post(
+  '/product-photos/upload-link',
+  ...staff,
+  validate({ body: productPhotoUploadSchema }),
+  wrap(async (req, res) => sendSuccess(res, await productPhotoStorage.createUploadLink(req.body), 201))
 );
 essAdminRouter.patch(
   '/products/:id',

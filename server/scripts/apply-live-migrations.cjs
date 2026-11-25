@@ -23,6 +23,7 @@ const FILES = [
   '20261121000000_ess_catalog_display_atomic.sql',
   '20261125000000_tracking_lockout_window.sql',
   '20261125010000_get_user_role_self_only.sql',
+  '20261125020000_ess_product_photos_bucket.sql',
 ];
 
 const url = process.env.LIVE_DATABASE_URL || '';

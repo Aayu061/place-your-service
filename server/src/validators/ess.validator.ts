@@ -33,6 +33,12 @@ export const productIdParamSchema = z.object({
   id: z.string().trim().min(1).max(100),
 });
 
+/** S10: ask for a one-time upload link for a product photo (the bucket enforces the same limits). */
+export const productPhotoUploadSchema = z.object({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  sizeBytes: z.number().int().min(1).max(5 * 1024 * 1024),
+});
+
 export const trackSchema = z
   .object({
     code: z.string().trim().min(6).max(20),
