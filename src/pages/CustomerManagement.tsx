@@ -51,7 +51,6 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal, ModalCloseButton } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
-import { WebsiteAccessCard } from '@/components/customers/WebsiteAccessCard';
 import { Textarea } from '@/components/ui/Textarea';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/ui/useToast';
@@ -2667,12 +2666,6 @@ export const CustomerManagement: React.FC<{ onNavigate?: (item: string) => void 
             {/* TAB 1: OVERVIEW */}
             {drawerTab === 'overview' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-                <WebsiteAccessCard
-                  customerId={selectedCustomer.id}
-                  customerType={selectedCustomer.customerType}
-                  isActive={selectedCustomer.isActive}
-                  email={selectedCustomer.email}
-                />
                 {/* Contact Details Section */}
                 <div>
                   <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
