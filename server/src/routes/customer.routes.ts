@@ -3,6 +3,9 @@ import { customerController } from '../controllers/customer.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
 import { validate } from '../middleware/validate.js';
+import { z } from 'zod';
+import { customerAccountService } from '../services/customerAccount.service.js';
+import { sendSuccess } from '../utils/apiResponse.js';
 import {
   listCustomersSchema,
   createCustomerSchema,
@@ -75,6 +78,31 @@ customerRouter.post(
   '/:customerId/sites',
   validate(createSiteSchema),
   siteController.createSite.bind(siteController)
+);
+
+// 9. Website account (S11): whether this customer may sign in on the ESS website with an email code.
+customerRouter.get('/:id/portal-access', validate(customerIdParamSchema), async (req, res, next) => {
+  try {
+    return sendSuccess(res, await customerAccountService.getAccess(String(req.params.id)));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+customerRouter.put(
+  '/:id/portal-access',
+  validate({ ...customerIdParamSchema, body: z.object({ enabled: z.boolean() }) }),
+  async (req, res, next) => {
+    try {
+      const out = await customerAccountService.setAccess(String(req.params.id), req.body.enabled === true, String(req.user?.profileId ?? ''));
+      return sendSuccess(res, out);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'ONLY_PERMANENT') {
+        return res.status(422).json({ success: false, error: { code: 'ONLY_PERMANENT', message: 'Website access is only for active permanent customers.' } });
+      }
+      return next(err);
+    }
+  }
 );
 
 export default customerRouter;

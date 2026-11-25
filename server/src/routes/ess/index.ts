@@ -14,6 +14,7 @@ import {
   trackSchema,
 } from '../../validators/ess.validator.js';
 import { essAdminRouter } from './admin.js';
+import { essPortalRouter } from './portal.js';
 
 /**
  * Signed server-to-server API for the ESS website (/api/v1/ess).
@@ -126,3 +127,4 @@ essApiRouter.post(
 );
 
 essApiRouter.use('/admin', essAdminRouter);
+essApiRouter.use('/portal', essPortalRouter);
