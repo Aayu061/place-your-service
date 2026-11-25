@@ -1,11 +1,11 @@
 name: CI
 
-# Runs the real PYS test suites on every push to main and every pull request.
+# Runs the real PYS test suites on every push (any branch) and every pull request.
 # No secrets are used: the tests run against mocks, never the live or staging database.
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
   workflow_dispatch:
