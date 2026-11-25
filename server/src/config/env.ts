@@ -50,6 +50,8 @@ const envSchema = z.object({
   // New ESS website endpoint that refreshes cached pages (POST, signed with the ESS_WEB key).
   // Unset until the new site is live: refresh events are then skipped.
   ESS_REVALIDATE_URL: z.string().url('ESS_REVALIDATE_URL must be a valid URL').optional(),
+  // Non-production safety switch: comma list of addresses / @domains that may receive real email (see emailTransport).
+  EMAIL_ALLOWED_RECIPIENTS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;
@@ -93,6 +95,7 @@ function loadEnv(): ServerEnv {
     INTEGRATION_SECRET_KEY:
       process.env.INTEGRATION_SECRET_KEY?.trim() || (isTest ? Buffer.alloc(32, 7).toString('base64') : undefined),
     ESS_REVALIDATE_URL: process.env.ESS_REVALIDATE_URL?.trim() || undefined,
+    EMAIL_ALLOWED_RECIPIENTS: process.env.EMAIL_ALLOWED_RECIPIENTS?.trim() || undefined,
   };
 
   const parsed = envSchema.safeParse(rawEnv);
@@ -104,7 +107,22 @@ function loadEnv(): ServerEnv {
     throw new Error(`[CRITICAL] Server environment validation failure: ${errorDetails}`);
   }
 
+  assertEmailSafety(parsed.data);
   return parsed.data;
+}
+
+/**
+ * A non-production server that holds real email credentials must name who may receive mail
+ * (EMAIL_ALLOWED_RECIPIENTS), so a test or staging server can never email real customers.
+ */
+export function assertEmailSafety(e: Pick<ServerEnv, 'NODE_ENV' | 'GMAIL_USER' | 'GMAIL_APP_PASSWORD' | 'RESEND_API_KEY' | 'EMAIL_ALLOWED_RECIPIENTS'>): void {
+  if (e.NODE_ENV !== 'development') return; // production sends normally; tests never send
+  const hasCredentials = Boolean((e.GMAIL_USER && e.GMAIL_APP_PASSWORD) || e.RESEND_API_KEY);
+  if (hasCredentials && !e.EMAIL_ALLOWED_RECIPIENTS) {
+    throw new Error(
+      '[CRITICAL] Email credentials are set outside production without EMAIL_ALLOWED_RECIPIENTS. Set it to the test inbox (or remove the credentials) so no real customer can be emailed.'
+    );
+  }
 }
 
 export const env = loadEnv();

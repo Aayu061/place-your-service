@@ -59,6 +59,43 @@ export function isSandboxSender(fromEmail?: string | null): boolean {
 
 export const DEFAULT_FROM_NAME = 'Extreme Sales & Services';
 
+/**
+ * EMAIL_ALLOWED_RECIPIENTS (non-production safety switch): comma list of addresses ("a@b.com") and/or domains ("@b.com").
+ * When set, only matching recipients are ever sent to, on BOTH transports; "+tags" are ignored when matching
+ * ("me+e2e-1@b.com" matches "me@b.com"). Empty/unset = no restriction (production).
+ */
+export function parseAllowedRecipients(raw: string | undefined | null): string[] {
+  return String(raw ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** "me+tag@b.com" -> "me@b.com"; null when it is not an address. */
+function baseAddress(raw: string): string | null {
+  const addr = extractEmailAddress(raw);
+  const at = addr.lastIndexOf('@');
+  if (at < 1 || at === addr.length - 1) return null;
+  return `${addr.slice(0, at).split('+')[0]}@${addr.slice(at + 1)}`;
+}
+
+export function isRecipientAllowed(recipient: string, allowList: string[]): boolean {
+  if (allowList.length === 0) return true;
+  const base = baseAddress(recipient);
+  if (!base) return false;
+  const domain = base.slice(base.lastIndexOf('@') + 1);
+  return allowList.some((entry) => (entry.startsWith('@') ? domain === entry.slice(1) : base === baseAddress(entry)));
+}
+
+/** Throws (never retried) when the allow-list is set and the recipient is not on it. */
+export function assertRecipientAllowed(recipient: string): void {
+  const allow = parseAllowedRecipients(env.EMAIL_ALLOWED_RECIPIENTS);
+  if (!isRecipientAllowed(recipient, allow)) {
+    logger.warn('Email blocked by EMAIL_ALLOWED_RECIPIENTS', { outcome: 'blocked_by_allowlist' });
+    throw new EmailDeliveryError('Recipient is not on EMAIL_ALLOWED_RECIPIENTS (blocked_by_allowlist).', false, 'BLOCKED_BY_ALLOWLIST');
+  }
+}
+
 /** Which provider sends email: explicit EMAIL_TRANSPORT, else Gmail when its credentials exist, else Resend. */
 export function getActiveEmailTransport(): 'gmail' | 'resend' {
   if (env.EMAIL_TRANSPORT) return env.EMAIL_TRANSPORT;
@@ -188,6 +225,7 @@ class GmailTransportService {
       return { transport: 'dev-log', providerMessageId: devId, effectiveRecipient: payload.to, sandboxRedirected: false };
     }
 
+    assertRecipientAllowed(payload.to);
     try {
       const info = await transporter.sendMail({
         from: config.fromEmail,
@@ -275,6 +313,7 @@ class ResendTransportService {
       };
     }
 
+    assertRecipientAllowed(effectiveRecipient);
     const tags = (payload.tags || []).map((tag) => ({
       name: sanitizeTagValue(tag.name),
       value: sanitizeTagValue(tag.value),
