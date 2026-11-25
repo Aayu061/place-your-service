@@ -41,3 +41,26 @@ jobs:
           FRONTEND_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "${FRONTEND_URL}" || echo "FAILED")
           echo "Vercel Frontend HTTP Status: $FRONTEND_STATUS"
 
+
+      # S04 uptime alert: the pings above only log. This step FAILS the job when a site is still down after
+      # retries (Render's free plan can take ~60 s to wake), so GitHub emails the repository owner.
+      - name: Uptime check (fails the job if a site is down)
+        run: |
+          API_URL="${{ secrets.RENDER_API_URL || vars.RENDER_API_URL || 'https://place-your-service-api.onrender.com' }}"
+          ESS_URL="${{ vars.ESS_SITE_URL || 'https://extreme-sales-services.vercel.app' }}"
+          check() {
+            name="$1"; url="$2"
+            for attempt in 1 2 3; do
+              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$url" || echo "000")
+              if [ "$status" = "200" ]; then echo "UP   $name ($status)"; return 0; fi
+              echo "try $attempt: $name answered $status"
+              [ "$attempt" -lt 3 ] && sleep 30
+            done
+            echo "::error title=$name is down::$url answered $status after 3 tries"
+            return 1
+          }
+          failed=0
+          check "PYS API (ready)" "${API_URL}/api/v1/health/ready" || failed=1
+          check "ESS website home" "${ESS_URL}/" || failed=1
+          check "ESS website health" "${ESS_URL}/api/health" || failed=1
+          exit $failed
