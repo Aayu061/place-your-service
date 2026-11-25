@@ -24,6 +24,7 @@ const FILES = [
   '20261125000000_tracking_lockout_window.sql',
   '20261125010000_get_user_role_self_only.sql',
   '20261125020000_ess_product_photos_bucket.sql',
+  '20261125030000_customer_portal_auth.sql',
 ];
 
 const url = process.env.LIVE_DATABASE_URL || '';
