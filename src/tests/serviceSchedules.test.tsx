@@ -9,11 +9,15 @@ import { ServiceScheduleManagement } from '@/pages/ServiceScheduleManagement';
 import { AuthContext, AuthContextType } from '@/context/authContextDef';
 import { ToastProvider } from '@/components/ui/Toast';
 import { scheduleApi } from '@/services/scheduleApi';
+import { serviceReportApi } from '@/services/serviceReportApi';
 import { ServiceSchedule, TechnicianRecommendationItem, UnscheduledWorkItem } from '@/domain/types';
 
 describe('Phase 9 Frontend Service Scheduling & Technician Assignment Suite', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    // The detail drawer also loads the linked visit report. Without this stub it makes a real
+    // network call that can finish after the test ends ("window is not defined" on slower CI).
+    vi.spyOn(serviceReportApi, 'getReportByScheduleId').mockResolvedValue({ report: null } as never);
   });
 
   const mockAdminUser = {
