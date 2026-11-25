@@ -249,6 +249,8 @@ export interface EnquiryQuoteEmailInput {
   total: number;
   note: string | null;
   trackingCode: string | null;
+  /** S08: the seller changed a price already sent; this email replaces the earlier one. */
+  updated?: boolean;
 }
 
 const inr = (n: number) =>
@@ -257,13 +259,17 @@ const inr = (n: number) =>
 /** The seller's price for one AC in the customer's enquiry. */
 export function buildEnquiryQuoteEmail(input: EnquiryQuoteEmailInput): EmailContent {
   return render({
-    subject: `Price for your AC enquiry${input.trackingCode ? ` (${input.trackingCode})` : ''} | ${BUSINESS_NAME}`,
-    heading: 'Here is the price you asked for',
-    badgeText: 'PRICE SENT',
+    subject: `${input.updated ? 'Updated price' : 'Price'} for your AC enquiry${input.trackingCode ? ` (${input.trackingCode})` : ''} | ${BUSINESS_NAME}`,
+    heading: input.updated ? 'The price has been updated' : 'Here is the price you asked for',
+    badgeText: input.updated ? 'PRICE UPDATED' : 'PRICE SENT',
     badgeBg: '#e0f2fe',
     badgeColor: '#0369a1',
     name: input.contactName,
-    intro: ['The seller has sent a price for an AC in your enquiry.'],
+    intro: [
+      input.updated
+        ? 'The seller has changed the price for an AC in your enquiry. This price replaces the one we sent before.'
+        : 'The seller has sent a price for an AC in your enquiry.',
+    ],
     rows: [
       ['AC', input.productName],
       ['Quantity', String(input.quantity)],

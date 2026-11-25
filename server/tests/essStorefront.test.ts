@@ -781,6 +781,32 @@ describe('seller AC enquiries (ESS admin)', () => {
     expect((await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: -5 }, asActor('staff-token'))).status).toBe(422);
   });
 
+  it('S08: re-pricing a quoted line queues an "updated price" email each time, even back to an earlier price', async () => {
+    const quote = (total: number, note?: string) => signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total, ...(note ? { note } : {}) }, asActor('staff-token'));
+    expect((await quote(40500)).body.data).toMatchObject({ status: 'QUOTED', updated: false, emailed: true });
+    await new Promise((r) => setTimeout(r, 5)); // distinct quoted_at versions
+    expect((await quote(39000)).body.data).toMatchObject({ updated: true, emailed: true });
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await quote(40500)).body.data).toMatchObject({ updated: true, emailed: true });
+    const events = db.outbound_events.filter((e: any) => e.event_type === 'WEB_ENQUIRY_QUOTED');
+    expect(events).toHaveLength(3);
+    expect(events.map((e: any) => e.payload.updated)).toEqual([false, true, true]);
+    expect(new Set(events.map((e: any) => e.idempotency_key)).size).toBe(3);
+    expect(db.web_intake_items[0].quote_total).toBe(40500);
+  });
+
+  it('S08: saving the same price and note again changes nothing and sends no email', async () => {
+    await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: 40500, note: 'Includes installation' }, asActor('staff-token'));
+    const again = await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: 40500, note: 'Includes installation' }, asActor('staff-token'));
+    expect(again.body.data).toMatchObject({ updated: true, emailed: false });
+    expect(db.outbound_events.filter((e: any) => e.event_type === 'WEB_ENQUIRY_QUOTED')).toHaveLength(1);
+  });
+
+  it('S08: a closed line cannot be re-priced', async () => {
+    db.web_intake_items[0].line_status = 'FULFILLED';
+    expect((await signed('post', '/api/v1/ess/admin/enquiries/line-a/quote', { total: 39000 }, asActor('staff-token'))).status).toBe(409);
+  });
+
   it('closes a line as sold or not taken', async () => {
     expect((await signed('post', '/api/v1/ess/admin/enquiries/line-a/close', { result: 'SOLD' }, asActor('staff-token'))).status).toBe(200);
     expect(db.web_intake_items[0].line_status).toBe('FULFILLED');

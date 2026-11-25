@@ -567,48 +567,64 @@ class EssAdminService {
       }));
   }
 
-  private async loadOwnEnquiryLine(actor: EssActor, lineId: string): Promise<{ id: string; intake_id: string; line_status: string }> {
+  private async loadOwnEnquiryLine(
+    actor: EssActor,
+    lineId: string,
+  ): Promise<{ id: string; intake_id: string; line_status: string; quote_total: number | string | null; quote_note: string | null }> {
     const sellerId = await this.actorSellerId(actor);
     const { data, error } = await getSupabaseClient()
       .from('web_intake_items')
-      .select('id, intake_id, line_status')
+      .select('id, intake_id, line_status, quote_total, quote_note')
       .eq('id', lineId)
       .eq('item_type', 'PRODUCT')
       .eq('seller_id', sellerId)
       .maybeSingle();
     if (error) dbFail('load the enquiry', error);
     if (!data) throw new NotFoundError('Enquiry not found');
-    const line = data as { id: string; intake_id: string; line_status: string };
+    const line = data as { id: string; intake_id: string; line_status: string; quote_total: number | string | null; quote_note: string | null };
     if (line.line_status !== 'QUOTE_PENDING' && line.line_status !== 'QUOTED') {
       throw new ConflictError('This enquiry is not approved yet or is already closed.');
     }
     return line;
   }
 
-  /** The seller's price for one AC line (per unit, GST included); the customer is emailed. */
-  async quoteEnquiry(actor: EssActor, lineId: string, input: { total: number; note?: string | null }): Promise<{ lineId: string; status: 'QUOTED' }> {
+  /**
+   * The seller's price for one AC line (per unit, GST included); the customer is emailed.
+   * S08: a line already QUOTED can be re-priced; the customer then gets an "updated price" email
+   * (owner decision D-07 b). Saving the same price and note again changes nothing and sends nothing.
+   */
+  async quoteEnquiry(
+    actor: EssActor,
+    lineId: string,
+    input: { total: number; note?: string | null },
+  ): Promise<{ lineId: string; status: 'QUOTED'; updated: boolean; emailed: boolean }> {
     const line = await this.loadOwnEnquiryLine(actor, lineId);
+    const updated = line.line_status === 'QUOTED';
+    const note = input.note ?? null;
+    if (updated && Number(line.quote_total) === input.total && (line.quote_note ?? null) === note) {
+      return { lineId: line.id, status: 'QUOTED', updated: true, emailed: false };
+    }
     const now = new Date().toISOString();
     const { error } = await getSupabaseClient()
       .from('web_intake_items')
-      .update({ line_status: 'QUOTED', quote_total: input.total, quote_note: input.note ?? null, quoted_at: now, quoted_by: actor.profileId, updated_at: now })
+      .update({ line_status: 'QUOTED', quote_total: input.total, quote_note: note, quoted_at: now, quoted_by: actor.profileId, updated_at: now })
       .eq('id', line.id);
     if (error) dbFail('save the price', error);
     await outboxService.enqueue({
       eventType: 'WEB_ENQUIRY_QUOTED',
       aggregateType: 'WEB_INTAKE_ITEM',
       aggregateId: line.id,
-      payload: { lineId: line.id, intakeId: line.intake_id },
-      idempotencyKey: `enquiry-quote:${line.id}:${input.total}`,
+      payload: { lineId: line.id, intakeId: line.intake_id, updated, version: now },
+      idempotencyKey: `enquiry-quote:${line.id}:${now}`,
     });
     await logActivity({
       actorProfileId: actor.profileId,
-      action: 'ESS_ENQUIRY_QUOTED',
+      action: updated ? 'ESS_ENQUIRY_REQUOTED' : 'ESS_ENQUIRY_QUOTED',
       entityType: 'WEB_INTAKE',
       entityId: line.intake_id,
-      details: { lineId: line.id, total: input.total },
+      details: updated ? { lineId: line.id, total: input.total, previousTotal: Number(line.quote_total) } : { lineId: line.id, total: input.total },
     });
-    return { lineId: line.id, status: 'QUOTED' };
+    return { lineId: line.id, status: 'QUOTED', updated, emailed: true };
   }
 
   /** Sold → FULFILLED; not taken → CANCELLED. */

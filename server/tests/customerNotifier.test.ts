@@ -249,6 +249,19 @@ describe('customer notifier', () => {
     expect(arg.html).not.toContain('<i>Split</i>');
   });
 
+  it('S08: an updated price says so, and each price version has its own email key', async () => {
+    tables.web_intake_items = {
+      data: { id: 'line-a', item_name: 'LG 1.5T Split', quantity: 1, quote_total: 39000, quote_note: null, web_intakes: { ...intake, kind: 'PRODUCT_ENQUIRY' } },
+      error: null,
+    };
+    await handleEnquiryQuoted(event('WEB_ENQUIRY_QUOTED', { lineId: 'line-a', intakeId: 'intake-1', updated: true, version: '2026-11-25T10:00:00.000Z' }));
+    const arg = send.mock.calls[0][0];
+    expect(arg.idempotencyKey).toBe('enquiry-quote:line-a:2026-11-25T10:00:00.000Z');
+    expect(arg.subject).toContain('Updated price for your AC enquiry');
+    expect(arg.text).toContain('replaces the one we sent before');
+    expect(arg.text).toContain('₹39,000');
+  });
+
   it('sends a polite rejection with the reason', async () => {
     tables.web_intakes = { data: { ...intake, rejection_reason: 'Outside our service area' }, error: null };
     await handleIntakeRejected(event('WEB_INTAKE_REJECTED', { intakeId: 'intake-1' }));

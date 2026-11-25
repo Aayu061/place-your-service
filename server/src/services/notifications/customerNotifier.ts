@@ -239,6 +239,9 @@ export async function handleEnquiryQuoted(event: OutboundEvent): Promise<OutboxO
   const email = usableEmail(intake?.contact_email);
   if (!line || !intake || !email || line.quote_total == null) return 'SKIPPED';
   const total = Number(line.quote_total);
+  const updated = event.payload?.updated === true;
+  // One email per price version (S08): re-pricing A -> B -> A must email the customer each time.
+  const version = typeof event.payload?.version === 'string' ? event.payload.version : String(total);
 
   return sendCustomerEmail({
     entityType: 'ENQUIRY_QUOTE',
@@ -246,8 +249,9 @@ export async function handleEnquiryQuoted(event: OutboundEvent): Promise<OutboxO
     templateKey: 'enquiry_quote',
     recipientEmail: email,
     recipientName: intake.contact_name,
-    idempotencyKey: `enquiry-quote:${line.id}:${total}`,
+    idempotencyKey: `enquiry-quote:${line.id}:${version}`,
     content: buildEnquiryQuoteEmail({
+      updated,
       contactName: intake.contact_name,
       productName: line.item_name,
       quantity: line.quantity,
