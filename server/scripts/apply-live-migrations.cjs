@@ -21,6 +21,8 @@ const FILES = [
   '20261119010000_ess_storefront_foundations.sql',
   '20261120000000_ac_enquiries.sql',
   '20261121000000_ess_catalog_display_atomic.sql',
+  '20261125000000_tracking_lockout_window.sql',
+  '20261125010000_get_user_role_self_only.sql',
 ];
 
 const url = process.env.LIVE_DATABASE_URL || '';
