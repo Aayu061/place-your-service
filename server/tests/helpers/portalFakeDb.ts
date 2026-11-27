@@ -2,7 +2,8 @@
  * A small in-memory stand-in for the Supabase client, enough for the S11 customer-account code paths
  * (customerAccount.service, customerPortal.getCustomerOverview, the email outbox and the activity log).
  *
- * Filters: eq / is / gt / gte / lt / in / ilike; order / limit / single / maybeSingle; head counts.
+ * Filters: eq / is / gt / gte / lt / lte / in / ilike; order / limit / single / maybeSingle; head counts.
+ * S11b: storage.from(bucket).createSignedUrl (records every link in `signed`) and the one-open-renewal unique index.
  * Embedded selects are ignored (rows come back flat). The customers -> customer_portal_accounts inner join used by
  * the sign-in lookup is emulated. RPCs and the customers.email trigger MIRROR the SQL in
  * supabase/migrations/20261127000000_customer_portal_hardening.sql - keep them in step.
@@ -11,7 +12,13 @@ export type Row = Record<string, any>;
 
 export interface FakeDb {
   db: Record<string, Row[]>;
-  client: { from: (table: string) => any; rpc: (fn: string, args: Row) => Promise<{ data: unknown; error: null | { message: string } }> };
+  client: {
+    from: (table: string) => any;
+    rpc: (fn: string, args: Row) => Promise<{ data: unknown; error: null | { message: string } }>;
+    storage: { from: (bucket: string) => { createSignedUrl: (path: string, seconds: number) => Promise<{ data: { signedUrl: string } | null; error: null | { message: string } }> } };
+  };
+  /** S11b: every storage link signed (bucket, path, seconds). A path containing 'fail' fails to sign. */
+  signed: Array<{ bucket: string; path: string; seconds: number }>;
 }
 
 const HOUR = 3_600_000;
@@ -25,7 +32,14 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
     customer_login_otps: () => ({ attempts: 0, consumed_at: null, created_at: nowIso() }),
     customer_portal_sessions: () => ({ revoked_at: null, created_at: nowIso(), last_seen_at: nowIso() }),
     email_deliveries: () => ({ created_at: nowIso(), updated_at: nowIso() }),
+    web_intakes: () => ({ status: 'PENDING_REVIEW', created_at: nowIso(), tracking_code: `ESS-TEST-${idSeq}`, intake_number: `WEB-${idSeq}` }),
   };
+
+  /** Mirrors unique index uq_web_intakes_open_amc_renewal (20261128000000): one open renewal per contract. */
+  function uniqueClash(table: string, row: Row): boolean {
+    if (table !== 'web_intakes' || row.kind !== 'AMC_RENEWAL' || row.status !== 'PENDING_REVIEW') return false;
+    return (db.web_intakes ?? []).some((r) => r.kind === 'AMC_RENEWAL' && r.status === 'PENDING_REVIEW' && r.amc_contract_id === row.amc_contract_id);
+  }
 
   /** Mirrors trigger trg_customer_portal_email_change (F4). */
   function afterCustomerUpdate(before: Row, after: Row) {
@@ -67,6 +81,7 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
       gt(col: string, v: string) { filters.push((r) => r[col] > v); return self; },
       gte(col: string, v: string) { filters.push((r) => r[col] >= v); return self; },
       lt(col: string, v: string) { filters.push((r) => r[col] < v); return self; },
+      lte(col: string, v: string) { filters.push((r) => r[col] <= v); return self; },
       in(col: string, vs: unknown[]) { filters.push((r) => vs.includes(r[col])); return self; },
       ilike(col: string, v: string) { filters.push((r) => String(r[col] ?? '').toLowerCase() === v.toLowerCase()); return self; },
       order(col: string, o?: { ascending?: boolean }) { orders.push({ col, asc: o?.ascending !== false }); return self; },
@@ -87,7 +102,13 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
       const rows = (db[table] ??= []);
       if (op === 'insert') {
         const list = Array.isArray(payload) ? payload : [payload!];
-        const inserted = list.map((p) => ({ id: `id-${++idSeq}`, ...(DEFAULTS[table]?.() ?? {}), ...p }));
+        const inserted = list.map((p) => {
+          const id = `id-${++idSeq}`;
+          return { id, ...(DEFAULTS[table]?.() ?? {}), ...p };
+        });
+        if (inserted.some((r) => uniqueClash(table, r))) {
+          return { data: null, error: { message: 'duplicate key value violates unique constraint', code: '23505' } };
+        }
         rows.push(...inserted);
         const data = wantRows ? (single ? inserted[0] : inserted) : null;
         return { data, error: null };
@@ -177,9 +198,24 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
     },
   };
 
+  const signed: FakeDb['signed'] = [];
+  const storage = {
+    from(bucket: string) {
+      return {
+        async createSignedUrl(path: string, seconds: number) {
+          signed.push({ bucket, path, seconds });
+          if (path.includes('fail')) return { data: null, error: { message: 'fake: signing failed' } };
+          return { data: { signedUrl: `https://storage.test/${bucket}/${path}?token=t&expires=${seconds}` }, error: null };
+        },
+      };
+    },
+  };
+
   return {
     db,
+    signed,
     client: {
+      storage,
       from,
       async rpc(fn: string, args: Row) {
         const impl = rpcs[fn];
