@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { customerStatusFor } from '../domain/customerStatus.js';
 import { customerPortalService } from './customerPortal.service.js';
 import { emailOutboxService } from './email/emailOutbox.service.js';
+import { logActivity } from './audit.service.js';
 
 /**
  * S11: customer accounts on the ESS website (migration 20261125030000).
@@ -17,11 +18,27 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_MAX_PER_15_MIN = 3;
 export const SESSION_MAX_DAYS = 30;
 export const SESSION_IDLE_DAYS = 7;
+/** F2: an account's sign-in locks for ACCOUNT_LOCK_HOURS after this many wrong codes within ACCOUNT_LOCK_WINDOW_HOURS. */
+export const ACCOUNT_MAX_WRONG_CODES = 10;
+export const ACCOUNT_LOCK_WINDOW_HOURS = 24;
+export const ACCOUNT_LOCK_HOURS = 24;
+/** F3: per visitor (ESS sends a hash of the visitor's network address), per hour. */
+export const VISITOR_MAX_CODE_REQUESTS_PER_HOUR = 10;
+export const VISITOR_MAX_WRONG_CODES_PER_HOUR = 20;
+const VISITOR_WINDOW_MINUTES = 60;
 
 export class CodeRejectedError extends Error {
   constructor() {
     super('That code is not right or has expired. Ask for a new code.');
     this.name = 'CodeRejectedError';
+  }
+}
+
+/** F3: this visitor made too many tries this hour. Says nothing about any account. */
+export class RateLimitedError extends Error {
+  constructor() {
+    super('Too many tries. Please wait an hour and try again.');
+    this.name = 'RateLimitedError';
   }
 }
 
@@ -33,6 +50,70 @@ function codeHash(customerId: string, code: string): string {
   if (!secret) throw new Error('INTEGRATION_SECRET_KEY is required for customer sign-in codes');
   const key = createHmac('sha256', secret).update('customer-portal-otp-v1').digest();
   return createHmac('sha256', key).update(`${customerId}:${code}`).digest('hex');
+}
+
+/**
+ * F3: the visitor key. ESS sends `clientIpHash` (64 lowercase hex, the same value it sends to /track); anything else
+ * is ignored. Only a further hash is stored, never the value ESS sent.
+ */
+export function visitorKey(kind: 'code' | 'signin', clientIpHash: unknown): string | null {
+  if (typeof clientIpHash !== 'string' || !/^[0-9a-f]{64}$/.test(clientIpHash)) return null;
+  return sha256(`portal:${kind}:ip:${clientIpHash}`);
+}
+
+async function recordVisitorHit(key: string): Promise<number> {
+  const { data, error } = await getSupabaseClient().rpc('record_portal_visitor_hit', {
+    p_key_hash: key,
+    p_window_minutes: VISITOR_WINDOW_MINUTES,
+  });
+  if (error) throw new Error(`Failed to record the visitor limit: ${error.message}`);
+  return Number(data ?? 0);
+}
+
+async function visitorOverLimit(key: string, max: number): Promise<boolean> {
+  const { data, error } = await getSupabaseClient()
+    .from('customer_portal_visitor_limits')
+    .select('hits, window_started_at')
+    .eq('key_hash', key)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check the visitor limit: ${error.message}`);
+  const r = data as { hits: number; window_started_at: string } | null;
+  if (!r) return false;
+  const fresh = new Date(r.window_started_at).getTime() > Date.now() - VISITOR_WINDOW_MINUTES * 60_000;
+  return fresh && r.hits >= max;
+}
+
+/** F2: true while the account's sign-in is locked after too many wrong codes. */
+async function isSignInLocked(customerId: string): Promise<boolean> {
+  const { data, error } = await getSupabaseClient()
+    .from('customer_portal_accounts')
+    .select('signin_locked_until')
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check the sign-in lock: ${error.message}`);
+  const until = (data as { signin_locked_until?: string | null } | null)?.signin_locked_until;
+  return Boolean(until && new Date(until).getTime() > Date.now());
+}
+
+/** F2: count a wrong code against the account; writes an activity-log entry when this one sets the lock. */
+async function recordWrongCode(customerId: string): Promise<void> {
+  const { data: lockedNow, error } = await getSupabaseClient().rpc('portal_record_wrong_code', {
+    p_customer_id: customerId,
+    p_max_wrong: ACCOUNT_MAX_WRONG_CODES,
+    p_window_hours: ACCOUNT_LOCK_WINDOW_HOURS,
+    p_lock_hours: ACCOUNT_LOCK_HOURS,
+  });
+  if (error) throw new Error(`Failed to record the wrong code: ${error.message}`);
+  if (lockedNow === true) {
+    logger.warn('Customer website sign-in locked after too many wrong codes', { outcome: 'portal_signin_locked' });
+    await logActivity({
+      actorProfileId: null,
+      action: 'CUSTOMER_PORTAL_SIGNIN_LOCKED',
+      entityType: 'customer',
+      entityId: customerId,
+      details: { wrongCodes: ACCOUNT_MAX_WRONG_CODES, windowHours: ACCOUNT_LOCK_WINDOW_HOURS, lockedHours: ACCOUNT_LOCK_HOURS },
+    });
+  }
 }
 
 export function normalizeEmail(raw: unknown): string | null {
@@ -88,11 +169,16 @@ function escapeHtml(v: string): string {
 
 export const customerAccountService = {
   /** Always resolves the same way (the caller answers 202), whether or not the email has an account. */
-  async requestCode(rawEmail: unknown): Promise<void> {
+  async requestCode(rawEmail: unknown, clientIpHash?: unknown): Promise<void> {
+    // F3 first, before the email is looked at, so this answer cannot depend on the account.
+    const vKey = visitorKey('code', clientIpHash);
+    if (vKey && (await recordVisitorHit(vKey)) > VISITOR_MAX_CODE_REQUESTS_PER_HOUR) throw new RateLimitedError();
+
     const email = normalizeEmail(rawEmail);
     if (!email) return;
     const customer = await signInCustomer(email);
     if (!customer) return;
+    if (await isSignInLocked(customer.id)) return; // F2: no new codes while locked (quietly)
 
     const supabase = getSupabaseClient();
     const since = new Date(Date.now() - 15 * 60_000).toISOString();
@@ -131,8 +217,23 @@ export const customerAccountService = {
     }
   },
 
-  /** Returns a new session token, or throws CodeRejectedError (same message for every failure). */
-  async verifyCode(rawEmail: unknown, rawCode: unknown): Promise<{ token: string; expiresAt: string }> {
+  /**
+   * Returns a new session token, or throws CodeRejectedError (same answer for every failure, including a locked
+   * account) or RateLimitedError (this visitor made too many wrong tries this hour, F3).
+   */
+  async verifyCode(rawEmail: unknown, rawCode: unknown, clientIpHash?: unknown): Promise<{ token: string; expiresAt: string }> {
+    const vKey = visitorKey('signin', clientIpHash);
+    if (vKey && (await visitorOverLimit(vKey, VISITOR_MAX_WRONG_CODES_PER_HOUR))) throw new RateLimitedError();
+    try {
+      return await this.checkCodeAndStartSession(rawEmail, rawCode);
+    } catch (err) {
+      if (err instanceof CodeRejectedError && vKey) await recordVisitorHit(vKey);
+      throw err;
+    }
+  },
+
+  /** One atomic try of the newest live code; on a match, a new session. */
+  async checkCodeAndStartSession(rawEmail: unknown, rawCode: unknown): Promise<{ token: string; expiresAt: string }> {
     const email = normalizeEmail(rawEmail);
     const code = typeof rawCode === 'string' ? rawCode.trim() : '';
     if (!email || !/^\d{6}$/.test(code)) throw new CodeRejectedError();
@@ -140,29 +241,27 @@ export const customerAccountService = {
     if (!customer) throw new CodeRejectedError();
 
     const supabase = getSupabaseClient();
-    const { data: rows, error } = await supabase
-      .from('customer_login_otps')
-      .select('id, code_hash, attempts, expires_at')
-      .eq('customer_id', customer.id)
-      .is('consumed_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
+    // Atomically takes one try of the newest live code. Nothing comes back while the account is locked (F2), when
+    // there is no live code, or when the code has used up its tries, so parallel guesses cannot beat the limits.
+    const { data: claimed, error } = await supabase.rpc('portal_claim_code_attempt', {
+      p_customer_id: customer.id,
+      p_max_attempts: OTP_MAX_ATTEMPTS,
+    });
     if (error) throw new Error(`Failed to check the code: ${error.message}`);
-    const otp = (rows ?? [])[0] as { id: string; code_hash: string; attempts: number } | undefined;
-    if (!otp || otp.attempts >= OTP_MAX_ATTEMPTS) throw new CodeRejectedError();
+    const otp = (Array.isArray(claimed) ? claimed[0] : claimed) as { otp_id: string; code_hash: string } | null | undefined;
+    if (!otp?.otp_id) throw new CodeRejectedError();
 
     const expected = Buffer.from(otp.code_hash, 'hex');
     const given = Buffer.from(codeHash(customer.id, code), 'hex');
     if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
-      await supabase.from('customer_login_otps').update({ attempts: otp.attempts + 1 }).eq('id', otp.id);
+      await recordWrongCode(customer.id);
       throw new CodeRejectedError();
     }
     // Single use: only the first request that flips consumed_at wins.
     const { data: used, error: uErr } = await supabase
       .from('customer_login_otps')
       .update({ consumed_at: new Date().toISOString() })
-      .eq('id', otp.id)
+      .eq('id', otp.otp_id)
       .is('consumed_at', null)
       .select('id');
     if (uErr) throw new Error(`Failed to use the code: ${uErr.message}`);
@@ -264,13 +363,13 @@ export const customerAccountService = {
     };
   },
 
-  /** PYS staff: switch website access on or off for one customer. */
+  /** PYS staff: switch website access on or off for one customer. Switching on also lifts a sign-in lock (F2). */
   async setAccess(customerId: string, enabled: boolean, actorId: string): Promise<{ enabled: boolean }> {
     const supabase = getSupabaseClient();
     if (enabled) {
       const { error } = await supabase
         .from('customer_portal_accounts')
-        .upsert({ customer_id: customerId, enabled: true, enabled_by: actorId || null, enabled_at: new Date().toISOString(), disabled_at: null }, { onConflict: 'customer_id' });
+        .upsert({ customer_id: customerId, enabled: true, enabled_by: actorId || null, enabled_at: new Date().toISOString(), disabled_at: null, signin_locked_until: null }, { onConflict: 'customer_id' });
       if (error) throw new Error(error.message.includes('only for active permanent') ? 'ONLY_PERMANENT' : `Failed to switch access on: ${error.message}`);
     } else {
       const { error } = await supabase

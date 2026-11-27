@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireIntegrationClient } from '../../middleware/integrationAuth.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
-import { CodeRejectedError, customerAccountService } from '../../services/customerAccount.service.js';
+import { CodeRejectedError, RateLimitedError, customerAccountService } from '../../services/customerAccount.service.js';
 
 /**
  * S11 customer accounts (/api/v1/ess/portal). Every route needs the ESS server's signed request (scope portal:access).
@@ -38,12 +38,24 @@ essPortalRouter.use((_req, res, next) => {
 /** Lets ESS decide between the sign-in form and its "coming soon" page (the switch above answers 503 when off). */
 essPortalRouter.get('/status', signed, (_req, res) => sendSuccess(res, { enabled: true }));
 
-/** Always 202: the same answer whether or not the email can sign in (a code is emailed only when it can). */
+/** F3: per visitor, so it says nothing about any account. */
+const rateLimited = (res: Response, err: RateLimitedError) =>
+  res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: err.message } });
+
+/**
+ * Always 202: the same answer whether or not the email can sign in (a code is emailed only when it can).
+ * Optional `clientIpHash` (64 lowercase hex, as for /track) enables the per-visitor limit; 429 RATE_LIMITED over it.
+ */
 essPortalRouter.post(
   '/code',
   signed,
   wrap(async (req, res) => {
-    await customerAccountService.requestCode(req.body?.email);
+    try {
+      await customerAccountService.requestCode(req.body?.email, req.body?.clientIpHash);
+    } catch (err) {
+      if (err instanceof RateLimitedError) return rateLimited(res, err);
+      throw err;
+    }
     return res.status(202).json({ success: true, data: { sent: true } });
   })
 );
@@ -53,9 +65,10 @@ essPortalRouter.post(
   signed,
   wrap(async (req, res) => {
     try {
-      return sendSuccess(res, await customerAccountService.verifyCode(req.body?.email, req.body?.code));
+      return sendSuccess(res, await customerAccountService.verifyCode(req.body?.email, req.body?.code, req.body?.clientIpHash));
     } catch (err) {
       if (err instanceof CodeRejectedError) return res.status(401).json({ success: false, error: { code: 'CODE_REJECTED', message: err.message } });
+      if (err instanceof RateLimitedError) return rateLimited(res, err);
       throw err;
     }
   })

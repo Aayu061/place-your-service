@@ -135,3 +135,68 @@ describe('customer accounts: sign-in codes and sessions (S11)', () => {
     expect(JSON.stringify(db)).not.toContain(code);
   });
 });
+
+describe('customer accounts: 24-hour lock after 10 wrong codes (S11 F2)', () => {
+  const wrongFor = (code: string) => (code === '000000' ? '111111' : '000000');
+  /** Moves every existing code back in time (past the 15-minute "3 codes" limit, still inside 24 h). */
+  const age = (minutes: number) => {
+    for (const o of db.customer_login_otps) o.created_at = new Date(new Date(o.created_at).getTime() - minutes * 60_000).toISOString();
+  };
+  const locks = () => (db.activity_logs ?? []).filter((l) => l.action === 'CUSTOMER_PORTAL_SIGNIN_LOCKED');
+
+  it('counts wrong codes across codes; the 10th locks sign-in for 24 h with the same CODE_REJECTED answer', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const c1 = codeFromLastEmail();
+    for (let i = 0; i < 5; i++) await expect(customerAccountService.verifyCode('asha@example.com', wrongFor(c1))).rejects.toBeInstanceOf(CodeRejectedError);
+    age(20);
+    await customerAccountService.requestCode('asha@example.com');
+    const c2 = codeFromLastEmail();
+    for (let i = 0; i < 4; i++) await expect(customerAccountService.verifyCode('asha@example.com', wrongFor(c2))).rejects.toBeInstanceOf(CodeRejectedError);
+    expect(db.customer_portal_accounts[0].signin_locked_until ?? null).toBeNull(); // 9 wrong: not yet
+    expect(locks()).toHaveLength(0);
+
+    await expect(customerAccountService.verifyCode('asha@example.com', wrongFor(c2))).rejects.toBeInstanceOf(CodeRejectedError); // 10th
+    const until = new Date(db.customer_portal_accounts[0].signin_locked_until).getTime();
+    expect(until - Date.now()).toBeGreaterThan(23.9 * 3_600_000);
+    expect(until - Date.now()).toBeLessThanOrEqual(24 * 3_600_000);
+    expect(locks()).toHaveLength(1);
+    expect(locks()[0]).toMatchObject({ entity_type: 'customer', entity_id: 'c-perm', actor_profile_id: null });
+
+    // While locked: a fresh code is not emailed, and even a right code is refused with the same error.
+    age(20);
+    const before = sent.length;
+    await customerAccountService.requestCode('asha@example.com');
+    expect(sent).toHaveLength(before);
+    db.customer_login_otps.push({ ...db.customer_login_otps.at(-1)!, id: 'live', attempts: 0, consumed_at: null, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600_000).toISOString() });
+    const err = await customerAccountService.verifyCode('asha@example.com', c2).catch((e) => e);
+    expect(err).toBeInstanceOf(CodeRejectedError);
+    expect(err.message).toBe(new CodeRejectedError().message);
+    expect(db.customer_portal_sessions).toHaveLength(0);
+    expect(locks()).toHaveLength(1); // logged once, not on every refused try
+  });
+
+  it('wrong codes older than 24 h do not count, and the lock ends after 24 h', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const c1 = codeFromLastEmail();
+    for (let i = 0; i < 5; i++) await expect(customerAccountService.verifyCode('asha@example.com', wrongFor(c1))).rejects.toBeInstanceOf(CodeRejectedError);
+    age(25 * 60); // a day ago
+    await customerAccountService.requestCode('asha@example.com');
+    const c2 = codeFromLastEmail();
+    for (let i = 0; i < 4; i++) await expect(customerAccountService.verifyCode('asha@example.com', wrongFor(c2))).rejects.toBeInstanceOf(CodeRejectedError);
+    expect(db.customer_portal_accounts[0].signin_locked_until ?? null).toBeNull();
+    const { token } = await customerAccountService.verifyCode('asha@example.com', c2);
+    expect(await customerAccountService.resolveSession(token)).toBe('c-perm');
+
+    // An expired lock no longer blocks.
+    db.customer_portal_accounts[0].signin_locked_until = new Date(Date.now() - 1000).toISOString();
+    age(20);
+    await customerAccountService.requestCode('asha@example.com');
+    await expect(customerAccountService.verifyCode('asha@example.com', codeFromLastEmail())).resolves.toHaveProperty('token');
+  });
+
+  it('staff switching access on again lifts the lock', async () => {
+    db.customer_portal_accounts[0].signin_locked_until = new Date(Date.now() + 3_600_000).toISOString();
+    await customerAccountService.setAccess('c-perm', true, 'staff-1');
+    expect(db.customer_portal_accounts[0].signin_locked_until).toBeNull();
+  });
+});
