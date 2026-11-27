@@ -1,6 +1,7 @@
--- ROLLBACK for S11 customer website accounts: undoes BOTH
+-- ROLLBACK for S11 customer website accounts: undoes ALL THREE
 --   supabase/migrations/20261125030000_customer_portal_auth.sql
 --   supabase/migrations/20261127000000_customer_portal_hardening.sql
+--   supabase/migrations/20261128000000_customer_portal_v2.sql (S11b; same steps as 20261128_customer_portal_v2_rollback.sql)
 --
 -- WHEN TO USE: only as the last step of a FULL rollback of customer accounts (release-readiness plan section 9), after
 -- the PYS and ESS code has been reverted / the previous deployments promoted. For anything less, do NOT run this:
@@ -19,6 +20,16 @@
 -- Take a backup first. Run it with the same care as a live migration (owner approval).
 
 BEGIN;
+
+-- S11b (20261128000000) first: renewal / change requests customers sent are kept as CONTACT messages.
+DROP INDEX IF EXISTS public.uq_web_intakes_open_amc_renewal;
+DROP INDEX IF EXISTS public.idx_web_intakes_customer_kind_created;
+ALTER TABLE public.web_intakes DROP CONSTRAINT IF EXISTS web_intakes_amc_contract_check;
+ALTER TABLE public.web_intakes DROP CONSTRAINT IF EXISTS web_intakes_kind_check;
+UPDATE public.web_intakes SET kind = 'CONTACT' WHERE kind IN ('AMC_RENEWAL', 'PROFILE_CHANGE');
+ALTER TABLE public.web_intakes ADD CONSTRAINT web_intakes_kind_check
+  CHECK (kind IN ('SERVICE_BOOKING', 'AMC_REQUEST', 'PRODUCT_ENQUIRY', 'CONTACT', 'BASKET', 'SELLER_INTEREST'));
+ALTER TABLE public.web_intakes DROP COLUMN IF EXISTS amc_contract_id;
 
 -- Triggers on the existing customers table first (they call the functions below).
 DROP TRIGGER IF EXISTS trg_customer_portal_email_change ON public.customers;   -- 20261127000000 (F4)
@@ -46,6 +57,6 @@ UPDATE public.integration_clients
  WHERE client_code = 'ESS_WEB' AND 'portal:access' = ANY (scopes);
 
 -- Migration bookkeeping only (so server/scripts/apply-live-migrations.cjs would apply them again later).
-DELETE FROM supabase_migrations.schema_migrations WHERE version IN ('20261125030000', '20261127000000');
+DELETE FROM supabase_migrations.schema_migrations WHERE version IN ('20261125030000', '20261127000000', '20261128000000');
 
 COMMIT;

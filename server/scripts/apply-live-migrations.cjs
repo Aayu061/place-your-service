@@ -26,6 +26,7 @@ const FILES = [
   '20261125020000_ess_product_photos_bucket.sql',
   '20261125030000_customer_portal_auth.sql',
   '20261127000000_customer_portal_hardening.sql',
+  '20261128000000_customer_portal_v2.sql',
 ];
 
 const url = process.env.LIVE_DATABASE_URL || '';
