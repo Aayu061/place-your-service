@@ -186,14 +186,32 @@ async function completedAmcVisits(contractIds: string[]): Promise<Map<string, nu
     return null;
   }
   for (const s of (data ?? []) as any[]) {
-    if (!s.amc_id || s.rescheduled_from_id || !['COMPLETED', 'RESOLVED'].includes(s.status)) continue;
+    if (!s.amc_id) continue;
     const reports = Array.isArray(s.service_reports) ? s.service_reports : s.service_reports ? [s.service_reports] : [];
-    const pending = reports.some(
-      (r: any) => (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') && r.resolution_status !== 'RESOLVED'
-    );
-    if (!pending) out.set(s.amc_id, (out.get(s.amc_id) ?? 0) + 1);
+    if (isCountedAmcVisit(s, reports)) out.set(s.amc_id, (out.get(s.amc_id) ?? 0) + 1);
   }
   return out;
+}
+
+/**
+ * G1 rule for one AMC schedule (the dashboard rule in amc.service): COMPLETED/RESOLVED, not a follow-up
+ * (rescheduled_from_id), and no unresolved "pending parts / repairs" report.
+ */
+export function isCountedAmcVisit(
+  s: { status: string; rescheduled_from_id?: string | null },
+  reports: Array<{ primary_outcome?: string | null; resolution_status?: string | null }>
+): boolean {
+  if (s.rescheduled_from_id || !['COMPLETED', 'RESOLVED'].includes(s.status)) return false;
+  return !reports.some(
+    (r) => (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') && r.resolution_status !== 'RESOLVED'
+  );
+}
+
+/** G1: counted schedules -> visits used / left (one visit covers every AC on the contract; capped at the total). */
+export function visitsFromCounted(raw: number, acCount: number, totalVisits: number | null): { visitsUsed: number; visitsLeft: number | null } {
+  const perVisit = acCount > 0 ? Math.floor(raw / acCount) : raw;
+  const visitsUsed = totalVisits === null ? perVisit : Math.min(totalVisits, perVisit);
+  return { visitsUsed, visitsLeft: totalVisits === null ? null : Math.max(totalVisits - visitsUsed, 0) };
 }
 
 /**
@@ -203,11 +221,8 @@ async function completedAmcVisits(contractIds: string[]): Promise<Map<string, nu
 function amcVisits(c: any, completed: Map<string, number> | null): { visitsUsed: number | null; visitsLeft: number | null } {
   if (!completed) return { visitsUsed: null, visitsLeft: null };
   const acCount = Array.isArray(c.amc_assets) ? c.amc_assets.length : 0;
-  const raw = completed.get(c.id) ?? 0;
-  const perVisit = acCount > 0 ? Math.floor(raw / acCount) : raw;
   const total = typeof c.total_visits === 'number' ? c.total_visits : null;
-  const visitsUsed = total === null ? perVisit : Math.min(total, perVisit);
-  return { visitsUsed, visitsLeft: total === null ? null : Math.max(total - visitsUsed, 0) };
+  return visitsFromCounted(completed.get(c.id) ?? 0, acCount, total);
 }
 
 export const customerAccountService = {
@@ -355,6 +370,16 @@ export const customerAccountService = {
       .update({ revoked_at: new Date().toISOString() })
       .eq('token_hash', sha256(rawToken))
       .is('revoked_at', null);
+  },
+
+  /** S11b: "Sign out of all devices" - ends every live session of this customer (the current one too). */
+  async signOutAll(customerId: string): Promise<void> {
+    const { error } = await getSupabaseClient()
+      .from('customer_portal_sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('customer_id', customerId)
+      .is('revoked_at', null);
+    if (error) throw new Error(`Failed to end the sessions: ${error.message}`);
   },
 
   /** What a signed-in customer sees: their own details, ACs, AMC and service history. Nothing internal. */

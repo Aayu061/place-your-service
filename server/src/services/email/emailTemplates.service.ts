@@ -123,6 +123,11 @@ export interface PaymentInvoiceEmailInput {
   }>;
 }
 
+/** The UPI pay link for an invoice balance (also used by the customer website invoice page, S11b). */
+export function buildUpiPayLink(paymentNumber: string, balance: number): string {
+  return `upi://pay?pa=7977805245-1@okbizaxis&pn=Extreme%20Sales%20and%20Services&am=${balance.toFixed(2)}&cu=INR&tn=Invoice%20${encodeURIComponent(paymentNumber)}`;
+}
+
 export function buildPaymentInvoiceTemplate(input: PaymentInvoiceEmailInput) {
   const {
     paymentNumber,
@@ -140,7 +145,7 @@ export function buildPaymentInvoiceTemplate(input: PaymentInvoiceEmailInput) {
   } = input;
   const isSettled = balance <= 0 || status === 'COMPLETED';
   const docTitle = input.isReceiptOnly || isSettled ? 'Payment Receipt & Settled Tax Invoice' : 'Tax Invoice & Payment Receipt';
-  const upiPayLink = `upi://pay?pa=7977805245-1@okbizaxis&pn=Extreme%20Sales%20and%20Services&am=${balance.toFixed(2)}&cu=INR&tn=Invoice%20${encodeURIComponent(paymentNumber)}`;
+  const upiPayLink = buildUpiPayLink(paymentNumber, balance);
   const subject = `${isSettled ? 'Payment Receipt (Paid)' : 'Tax Invoice'} — ${paymentNumber} | Extreme Sales & Services`;
 
   const txLines = transactions.map(
