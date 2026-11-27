@@ -167,6 +167,49 @@ function escapeHtml(v: string): string {
   return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
+/**
+ * G1: completed AMC visits per contract, counted the same way as the PYS dashboard (amc.service): a schedule counts
+ * when it is COMPLETED/RESOLVED, is not a follow-up (rescheduled_from_id), and has no unresolved "pending parts /
+ * repairs" report. Only contracts of the signed-in customer are passed in. null when the lookup fails.
+ */
+async function completedAmcVisits(contractIds: string[]): Promise<Map<string, number> | null> {
+  const out = new Map<string, number>();
+  if (contractIds.length === 0) return out;
+  const { data, error } = await getSupabaseClient()
+    .from('service_schedules')
+    .select(
+      'amc_id, status, rescheduled_from_id, service_reports:service_reports!service_reports_service_schedule_id_fkey (primary_outcome, resolution_status)'
+    )
+    .in('amc_id', contractIds);
+  if (error) {
+    logger.warn('Customer website: AMC visits lookup failed', { outcome: 'portal_amc_visits_failed' });
+    return null;
+  }
+  for (const s of (data ?? []) as any[]) {
+    if (!s.amc_id || s.rescheduled_from_id || !['COMPLETED', 'RESOLVED'].includes(s.status)) continue;
+    const reports = Array.isArray(s.service_reports) ? s.service_reports : s.service_reports ? [s.service_reports] : [];
+    const pending = reports.some(
+      (r: any) => (r.primary_outcome === 'PENDING_PARTS' || r.primary_outcome === 'PENDING_REPAIRS') && r.resolution_status !== 'RESOLVED'
+    );
+    if (!pending) out.set(s.amc_id, (out.get(s.amc_id) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * G1: visits used / left for one contract. One visit covers every AC on the contract, so completed schedules are
+ * divided by the number of ACs (as on the dashboard) and capped at the total.
+ */
+function amcVisits(c: any, completed: Map<string, number> | null): { visitsUsed: number | null; visitsLeft: number | null } {
+  if (!completed) return { visitsUsed: null, visitsLeft: null };
+  const acCount = Array.isArray(c.amc_assets) ? c.amc_assets.length : 0;
+  const raw = completed.get(c.id) ?? 0;
+  const perVisit = acCount > 0 ? Math.floor(raw / acCount) : raw;
+  const total = typeof c.total_visits === 'number' ? c.total_visits : null;
+  const visitsUsed = total === null ? perVisit : Math.min(total, perVisit);
+  return { visitsUsed, visitsLeft: total === null ? null : Math.max(total - visitsUsed, 0) };
+}
+
 export const customerAccountService = {
   /** Always resolves the same way (the caller answers 202), whether or not the email has an account. */
   async requestCode(rawEmail: unknown, clientIpHash?: unknown): Promise<void> {
@@ -329,6 +372,7 @@ export const customerAccountService = {
         });
       }
     }
+    const completedByContract = await completedAmcVisits((o.amcContracts as any[]).map((c) => c.id).filter(Boolean));
     return {
       customer: { name: o.customer.name, companyName: o.customer.companyName ?? null, email: o.customer.email, phone: o.customer.phone, city: o.customer.city ?? null },
       acs: (o.assets as any[]).map((a) => ({
@@ -348,6 +392,7 @@ export const customerAccountService = {
         endDate: c.end_date,
         totalVisits: c.total_visits ?? null,
         acCount: Array.isArray(c.amc_assets) ? c.amc_assets.length : 0,
+        ...amcVisits(c, completedByContract),
       })),
       requests: (o.serviceRequests as any[]).map((r) => {
         const visit = latestVisit.get(r.id);

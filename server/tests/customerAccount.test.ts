@@ -200,3 +200,40 @@ describe('customer accounts: 24-hour lock after 10 wrong codes (S11 F2)', () => 
     expect(db.customer_portal_accounts[0].signin_locked_until).toBeNull();
   });
 });
+
+describe('customer accounts: AMC visits used / left in the overview (S11 G1)', () => {
+  const sched = (id: string, amc: string, status: string, extra: Row = {}) => ({
+    id, amc_id: amc, status, scheduled_date: '2026-10-01', service_request_id: null, rescheduled_from_id: null, ...extra,
+  });
+
+  it('counts completed visits like the dashboard: per covered AC, no follow-ups, no unresolved pending reports, capped', async () => {
+    db.customer_sites = [];
+    db.service_requests = [];
+    db.payments = [];
+    db.amc_contracts = [
+      { id: 'amc-1', customer_id: 'c-perm', contract_number: 'AMC-1', status: 'ACTIVE', total_visits: 4, end_date: '2027-03-31', amc_assets: [{ id: 'x1' }, { id: 'x2' }] },
+      { id: 'amc-2', customer_id: 'c-perm', contract_number: 'AMC-2', status: 'ACTIVE', total_visits: 1, end_date: '2027-02-28', amc_assets: [] },
+      { id: 'amc-3', customer_id: 'c-perm', contract_number: 'AMC-3', status: 'ACTIVE', total_visits: null, end_date: '2027-01-31', amc_assets: [] },
+      { id: 'amc-other', customer_id: 'c-off', contract_number: 'AMC-X', status: 'ACTIVE', total_visits: 4, end_date: '2027-01-31', amc_assets: [] },
+    ];
+    db.service_schedules = [
+      sched('s1', 'amc-1', 'COMPLETED'),
+      sched('s2', 'amc-1', 'COMPLETED'),
+      sched('s3', 'amc-1', 'RESOLVED'),
+      sched('s4', 'amc-1', 'COMPLETED', { service_reports: [{ primary_outcome: 'PENDING_PARTS', resolution_status: 'OPEN' }] }),
+      sched('s5', 'amc-1', 'COMPLETED', { rescheduled_from_id: 's1' }),
+      sched('s6', 'amc-1', 'SCHEDULED'),
+      sched('s7', 'amc-2', 'COMPLETED'),
+      sched('s8', 'amc-2', 'COMPLETED'),
+      sched('s9', 'amc-3', 'COMPLETED'),
+      sched('s10', 'amc-3', 'CANCELLED'),
+      sched('s11', 'amc-other', 'COMPLETED'),
+    ];
+    const o = await customerAccountService.overview('c-perm');
+    const by = Object.fromEntries(o.amc.map((c) => [c.contractNumber, c]));
+    expect(Object.keys(by).sort()).toEqual(['AMC-1', 'AMC-2', 'AMC-3']);
+    expect(by['AMC-1']).toMatchObject({ totalVisits: 4, acCount: 2, visitsUsed: 1, visitsLeft: 3 }); // 3 valid / 2 ACs
+    expect(by['AMC-2']).toMatchObject({ totalVisits: 1, visitsUsed: 1, visitsLeft: 0 }); // capped, never negative
+    expect(by['AMC-3']).toMatchObject({ totalVisits: null, visitsUsed: 1, visitsLeft: null });
+  });
+});
