@@ -36,6 +36,7 @@ describe('customer accounts kill switch (PORTAL_ENABLED)', () => {
     ['post', '/portal/sign-in'],
     ['post', '/portal/sign-out'],
     ['get', '/portal/me'],
+    ['get', '/portal/status'],
   ] as const)('when off, %s %s answers 503 PORTAL_OFF, not cacheable', async (method, path) => {
     delete process.env.PORTAL_ENABLED;
     const res = await request(makeApp())[method](path).send({ email: 'a@example.com', code: '123456' });

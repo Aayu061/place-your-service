@@ -35,6 +35,9 @@ essPortalRouter.use((_req, res, next) => {
   next();
 });
 
+/** Lets ESS decide between the sign-in form and its "coming soon" page (the switch above answers 503 when off). */
+essPortalRouter.get('/status', signed, (_req, res) => sendSuccess(res, { enabled: true }));
+
 /** Always 202: the same answer whether or not the email can sign in (a code is emailed only when it can). */
 essPortalRouter.post(
   '/code',
