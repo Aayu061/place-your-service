@@ -17,8 +17,21 @@ const wrap =
 
 const signed = requireIntegrationClient('portal:access');
 
+/**
+ * Global kill switch. Customer accounts answer only when PORTAL_ENABLED=true (read per request, so tests and a
+ * Render env change take effect without code changes). Default OFF: deploying the code alone exposes nothing.
+ */
+export function isPortalEnabled(): boolean {
+  return process.env.PORTAL_ENABLED?.trim().toLowerCase() === 'true';
+}
+
 essPortalRouter.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store');
+  if (!isPortalEnabled()) {
+    return res
+      .status(503)
+      .json({ success: false, error: { code: 'PORTAL_OFF', message: 'Customer accounts are not available right now.' } });
+  }
   next();
 });
 
