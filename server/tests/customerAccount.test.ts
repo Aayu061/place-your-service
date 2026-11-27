@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import * as supabaseLib from '../src/lib/supabase.js';
 import { resendTransport } from '../src/services/email/emailTransport.service.js';
 import { customerAccountService, CodeRejectedError, normalizeEmail, OTP_EMAIL_SUBJECT } from '../src/services/customerAccount.service.js';
@@ -235,5 +237,42 @@ describe('customer accounts: AMC visits used / left in the overview (S11 G1)', (
     expect(by['AMC-1']).toMatchObject({ totalVisits: 4, acCount: 2, visitsUsed: 1, visitsLeft: 3 }); // 3 valid / 2 ACs
     expect(by['AMC-2']).toMatchObject({ totalVisits: 1, visitsUsed: 1, visitsLeft: 0 }); // capped, never negative
     expect(by['AMC-3']).toMatchObject({ totalVisits: null, visitsUsed: 1, visitsLeft: null });
+  });
+});
+
+describe('customer accounts: an email change ends sessions and voids unused codes (S11 F4)', () => {
+  const changeEmail = (email: string) => fake.client.from('customers').update({ email }).eq('id', 'c-perm');
+
+  it('a real change revokes every session and a code sent to the old address stops working', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const { token } = await customerAccountService.verifyCode('asha@example.com', codeFromLastEmail());
+    db.customer_login_otps.forEach((o) => (o.created_at = new Date(Date.now() - 20 * 60_000).toISOString()));
+    await customerAccountService.requestCode('asha@example.com');
+    const pending = codeFromLastEmail();
+
+    await changeEmail('asha.new@example.com');
+    expect(await customerAccountService.resolveSession(token)).toBeNull();
+    expect(db.customer_portal_sessions.every((s) => s.revoked_at)).toBe(true);
+    await expect(customerAccountService.verifyCode('asha.new@example.com', pending)).rejects.toBeInstanceOf(CodeRejectedError);
+    await expect(customerAccountService.verifyCode('asha@example.com', pending)).rejects.toBeInstanceOf(CodeRejectedError);
+
+    // The new address works normally.
+    await customerAccountService.requestCode('asha.new@example.com');
+    await expect(customerAccountService.verifyCode('asha.new@example.com', codeFromLastEmail())).resolves.toHaveProperty('token');
+  });
+
+  it('a change of letter case only keeps the session', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const { token } = await customerAccountService.verifyCode('asha@example.com', codeFromLastEmail());
+    await changeEmail('ASHA@example.COM');
+    expect(await customerAccountService.resolveSession(token)).toBe('c-perm');
+  });
+
+  it('the migration installs the matching trigger on customers.email (case-insensitive)', () => {
+    const sql = readFileSync(join(__dirname, '..', '..', 'supabase', 'migrations', '20261127000000_customer_portal_hardening.sql'), 'utf8');
+    expect(sql).toMatch(/CREATE TRIGGER trg_customer_portal_email_change AFTER UPDATE OF email ON public\.customers/);
+    expect(sql).toMatch(/lower\(COALESCE\(NEW\.email, ''\)\) IS DISTINCT FROM lower\(COALESCE\(OLD\.email, ''\)\)/);
+    expect(sql).toMatch(/UPDATE public\.customer_portal_sessions\s+SET revoked_at = now\(\)/);
+    expect(sql).toMatch(/UPDATE public\.customer_login_otps\s+SET expires_at = now\(\)/);
   });
 });
