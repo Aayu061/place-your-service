@@ -2,6 +2,12 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireIntegrationClient } from '../../middleware/integrationAuth.js';
 import { sendSuccess } from '../../utils/apiResponse.js';
 import { CodeRejectedError, RateLimitedError, customerAccountService } from '../../services/customerAccount.service.js';
+import {
+  NotRenewableError,
+  PortalInputError,
+  PortalRateLimitedError,
+  customerPortalDataService,
+} from '../../services/customerPortalData.service.js';
 
 /**
  * S11 customer accounts (/api/v1/ess/portal). Every route needs the ESS server's signed request (scope portal:access).
@@ -90,5 +96,85 @@ essPortalRouter.get(
     const customerId = await customerAccountService.resolveSession(req.get('X-PYS-Customer-Session'));
     if (!customerId) return res.status(401).json({ success: false, error: { code: 'SESSION_ENDED', message: 'Please sign in again.' } });
     return sendSuccess(res, await customerAccountService.overview(customerId));
+  })
+);
+
+/* ------------------------------------------------------------------------------------------------------------------
+ * S11b customer portal v2 (contract: PYS-ESS-docs/S11b-API-CONTRACT.md). Every route: signed ESS call + a live
+ * customer session; the customer id comes only from the session. Anything that is not the customer's own (or does
+ * not exist, or has a malformed id / number) gets the same 404 answer.
+ * ---------------------------------------------------------------------------------------------------------------- */
+
+const SESSION_ENDED = { success: false, error: { code: 'SESSION_ENDED', message: 'Please sign in again.' } };
+const NOT_FOUND = { success: false, error: { code: 'NOT_FOUND', message: 'We could not find that.' } };
+
+/** Resolves the session or answers 401; then runs the handler with the session's customer id. */
+const withCustomer = (fn: (customerId: string, req: Request, res: Response) => Promise<unknown>) =>
+  wrap(async (req, res) => {
+    const customerId = await customerAccountService.resolveSession(req.get('X-PYS-Customer-Session'));
+    if (!customerId) return res.status(401).json(SESSION_ENDED);
+    try {
+      return await fn(customerId, req, res);
+    } catch (err) {
+      if (err instanceof PortalInputError) return res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: err.message } });
+      if (err instanceof PortalRateLimitedError) return res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: err.message } });
+      if (err instanceof NotRenewableError) return res.status(409).json({ success: false, error: { code: 'NOT_RENEWABLE', message: err.message } });
+      throw err;
+    }
+  });
+
+const answer = (res: Response, data: unknown) => (data === null ? res.status(404).json(NOT_FOUND) : sendSuccess(res, data));
+const param = (req: Request, name: string): string => String(req.params[name] ?? '');
+
+essPortalRouter.get('/overview', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.overview(id))));
+essPortalRouter.get('/acs', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listAcs(id))));
+essPortalRouter.get('/acs/:id', signed, withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getAc(id, param(req, 'id')))));
+essPortalRouter.get('/amc', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listContracts(id))));
+essPortalRouter.get('/amc/:id', signed, withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getContract(id, param(req, 'id')))));
+essPortalRouter.post(
+  '/amc/:id/renew',
+  signed,
+  withCustomer(async (id, req, res) => {
+    const out = await customerPortalDataService.requestRenewal(id, param(req, 'id'), req.body?.note);
+    if (!out) return res.status(404).json(NOT_FOUND);
+    return sendSuccess(res, { requested: true, reference: out.reference }, out.created ? 201 : 200);
+  })
+);
+essPortalRouter.get(
+  '/requests',
+  signed,
+  withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.listRequests(id, req.query.filter)))
+);
+essPortalRouter.get(
+  '/requests/:number',
+  signed,
+  withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getRequest(id, param(req, 'number'))))
+);
+essPortalRouter.get(
+  '/reports/:number',
+  signed,
+  withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getReport(id, param(req, 'number'))))
+);
+essPortalRouter.get('/billing', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listBills(id))));
+essPortalRouter.get(
+  '/billing/:number',
+  signed,
+  withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getBill(id, param(req, 'number'))))
+);
+essPortalRouter.post(
+  '/profile/change-request',
+  signed,
+  withCustomer(async (id, req, res) => {
+    const out = await customerPortalDataService.requestProfileChange(id, req.body?.message);
+    if (!out) return res.status(404).json(NOT_FOUND);
+    return sendSuccess(res, { requested: true, reference: out.reference }, 201);
+  })
+);
+essPortalRouter.post(
+  '/sign-out-all',
+  signed,
+  withCustomer(async (id, _req, res) => {
+    await customerAccountService.signOutAll(id);
+    return sendSuccess(res, { signedOut: true });
   })
 );
