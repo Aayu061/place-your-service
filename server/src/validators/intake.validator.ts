@@ -10,6 +10,10 @@ import { normalizePhone } from '../utils/customerAuth.js';
 export const INTAKE_KINDS = [
   'SERVICE_BOOKING', 'AMC_REQUEST', 'PRODUCT_ENQUIRY', 'CONTACT', 'BASKET', 'SELLER_INTEREST',
 ] as const;
+/** S11b: kinds only PYS creates for a signed-in customer (never accepted from the public intake form). */
+export const PORTAL_INTAKE_KINDS = ['AMC_RENEWAL', 'PROFILE_CHANGE'] as const;
+/** Every kind the staff approval inbox can list / filter by. */
+export const STAFF_INTAKE_KINDS = [...INTAKE_KINDS, ...PORTAL_INTAKE_KINDS] as const;
 export const INTAKE_ITEM_TYPES = ['SERVICE', 'AMC', 'PRODUCT'] as const;
 export const MAX_BASKET_ITEMS = 30;
 /** An AC enquiry asks about up to 10 ACs (plan 3). */
@@ -204,7 +208,7 @@ const intFromQuery = (def: number, min: number, max: number) =>
 
 export const listIntakesQuerySchema = z.object({
   status: z.preprocess(blankToUndefined, z.enum(INTAKE_STATUSES).optional()),
-  kind: z.preprocess(blankToUndefined, z.enum(INTAKE_KINDS).optional()),
+  kind: z.preprocess(blankToUndefined, z.enum(STAFF_INTAKE_KINDS).optional()),
   search: z.preprocess(blankToUndefined, z.string().trim().max(100).optional()),
   page: intFromQuery(1, 1, 10_000),
   pageSize: intFromQuery(25, 1, 100),

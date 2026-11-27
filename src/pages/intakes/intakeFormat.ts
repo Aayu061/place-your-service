@@ -23,6 +23,8 @@ export const KIND_LABELS: Record<IntakeKind, string> = {
   CONTACT: 'Contact message',
   BASKET: 'Basket (several items)',
   SELLER_INTEREST: 'Dealer wants to sell on ESS',
+  AMC_RENEWAL: 'AMC renewal (customer account)',
+  PROFILE_CHANGE: 'Change of details (customer account)',
 };
 
 export const ITEM_TYPE_LABELS: Record<IntakeItemType, string> = {

@@ -29,10 +29,12 @@ const KIND_LABELS: Record<string, string> = {
   CONTACT: 'Message',
   BASKET: 'Request',
   SELLER_INTEREST: 'Interest in selling on ESS',
+  AMC_RENEWAL: 'AMC renewal request',
+  PROFILE_CHANGE: 'Request to change your details',
 };
 
 /** Kinds answered like a message (no booking details, no visit). */
-const MESSAGE_KINDS = new Set(['CONTACT', 'SELLER_INTEREST']);
+const MESSAGE_KINDS = new Set(['CONTACT', 'SELLER_INTEREST', 'AMC_RENEWAL', 'PROFILE_CHANGE']);
 
 /** "2026-11-21" -> "Sat, 21 Nov 2026". Anything unparseable is returned as given. */
 export function formatCustomerDate(value: string | null | undefined): string | null {

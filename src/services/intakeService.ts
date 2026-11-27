@@ -18,7 +18,10 @@ export type IntakeKind =
   | 'PRODUCT_ENQUIRY'
   | 'CONTACT'
   | 'BASKET'
-  | 'SELLER_INTEREST';
+  | 'SELLER_INTEREST'
+  /** S11b: sent by a signed-in customer on the ESS website (approve = close the review). */
+  | 'AMC_RENEWAL'
+  | 'PROFILE_CHANGE';
 
 export type IntakeItemType = 'SERVICE' | 'AMC' | 'PRODUCT';
 export type IntakeLineStatus = 'PENDING' | 'APPROVED' | 'QUOTE_PENDING' | 'FULFILLED' | 'REJECTED' | 'CANCELLED';
