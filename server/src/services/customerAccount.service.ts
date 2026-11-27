@@ -58,11 +58,28 @@ async function signInCustomer(email: string): Promise<{ id: string; name: string
   return rows.length === 1 ? { id: rows[0].id, name: rows[0].name } : null;
 }
 
-function otpEmail(name: string, code: string) {
-  const subject = `Your sign-in code: ${code}`;
-  const text = `Hello ${name},\n\nYour Extreme Sales & Services sign-in code is ${code}. It works for ${OTP_TTL_MINUTES} minutes.\n\nIf you did not ask for it, you can ignore this email.`;
+export const OTP_EMAIL_SUBJECT = 'Your Extreme Sales & Services sign-in code';
+
+/**
+ * F1: the code is only in the body that is sent, never in the subject (subjects show in inbox lists and are stored
+ * in email_deliveries) and never in the copy the outbox keeps (`stored`).
+ */
+export function otpEmail(name: string, code: string) {
+  const subject = OTP_EMAIL_SUBJECT;
+  const text = `Hello ${name},
+
+Your Extreme Sales & Services sign-in code is ${code}. It works for ${OTP_TTL_MINUTES} minutes.
+
+If you did not ask for it, you can ignore this email.`;
   const html = `<p>Hello ${escapeHtml(name)},</p><p>Your Extreme Sales &amp; Services sign-in code is</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>It works for ${OTP_TTL_MINUTES} minutes. If you did not ask for it, you can ignore this email.</p>`;
-  return { subject, text, html };
+  const removed = 'This copy does not include your sign-in code (codes are never kept). Please ask for a new code on the website.';
+  const stored = {
+    text: `Hello ${name},
+
+[sign-in code removed] ${removed}`,
+    html: `<p>Hello ${escapeHtml(name)},</p><p>[sign-in code removed] ${removed}</p>`,
+  };
+  return { subject, text, html, stored };
 }
 
 function escapeHtml(v: string): string {
@@ -106,6 +123,7 @@ export const customerAccountService = {
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        storedCopy: mail.stored,
         tags: [{ name: 'kind', value: 'portal_otp' }],
       });
     } catch (err) {

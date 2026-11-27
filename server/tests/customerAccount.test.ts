@@ -1,78 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'node:crypto';
 import * as supabaseLib from '../src/lib/supabase.js';
-import { emailOutboxService } from '../src/services/email/emailOutbox.service.js';
-import { customerAccountService, CodeRejectedError, normalizeEmail } from '../src/services/customerAccount.service.js';
+import { resendTransport } from '../src/services/email/emailTransport.service.js';
+import { customerAccountService, CodeRejectedError, normalizeEmail, OTP_EMAIL_SUBJECT } from '../src/services/customerAccount.service.js';
+import { createFakeDb, type FakeDb, type Row } from './helpers/portalFakeDb.js';
 
-/**
- * A tiny in-memory stand-in for the Supabase query builder: enough for customerAccount.service.
- * Rows live in `db`; filters eq / is / gt / gte / ilike are applied; inner-join filtering on
- * customers -> customer_portal_accounts is emulated for the sign-in lookup.
- */
-type Row = Record<string, any>;
+let fake: FakeDb;
 let db: Record<string, Row[]>;
-let idSeq = 0;
-
-function builder(table: string) {
-  const filters: Array<(r: Row) => boolean> = [];
-  let op: 'select' | 'insert' | 'update' | 'upsert' = 'select';
-  let payload: Row | null = null;
-  let head = false;
-  let wantRows = false;
-  let single = false;
-  let limitN = Infinity;
-  let order: { col: string; asc: boolean } | null = null;
-  const self: any = {
-    select(_cols?: string, opts?: { count?: string; head?: boolean }) {
-      if (op === 'select') head = Boolean(opts?.head);
-      else wantRows = true;
-      return self;
-    },
-    insert(row: Row) { op = 'insert'; payload = row; return self; },
-    update(row: Row) { op = 'update'; payload = row; return self; },
-    upsert(row: Row) { op = 'upsert'; payload = row; return self; },
-    eq(col: string, v: unknown) {
-      if (col.startsWith('customer_portal_accounts.')) {
-        const c = col.split('.')[1];
-        filters.push((r) => (db.customer_portal_accounts ?? []).some((a) => a.customer_id === r.id && a[c] === v));
-      } else filters.push((r) => r[col] === v);
-      return self;
-    },
-    is(col: string, v: unknown) { filters.push((r) => (r[col] ?? null) === v); return self; },
-    gt(col: string, v: string) { filters.push((r) => r[col] > v); return self; },
-    gte(col: string, v: string) { filters.push((r) => r[col] >= v); return self; },
-    ilike(col: string, v: string) { filters.push((r) => String(r[col] ?? '').toLowerCase() === v.toLowerCase()); return self; },
-    order(col: string, o: { ascending: boolean }) { order = { col, asc: o.ascending }; return self; },
-    limit(n: number) { limitN = n; return self; },
-    maybeSingle() { single = true; return self; },
-    then(resolve: (v: unknown) => void) {
-      const rows = (db[table] ??= []);
-      if (op === 'insert') {
-        rows.push({ id: `id-${++idSeq}`, attempts: 0, consumed_at: null, revoked_at: null, created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), ...payload });
-        return resolve({ data: null, error: null });
-      }
-      if (op === 'upsert') {
-        const i = rows.findIndex((r) => r.customer_id === payload!.customer_id);
-        if (i >= 0) rows[i] = { ...rows[i], ...payload }; else rows.push({ ...payload });
-        return resolve({ data: null, error: null });
-      }
-      const matched = rows.filter((r) => filters.every((f) => f(r)));
-      if (op === 'update') {
-        matched.forEach((r) => Object.assign(r, payload));
-        return resolve({ data: wantRows ? matched.map((r) => ({ id: r.id })) : null, error: null });
-      }
-      let out = [...matched];
-      if (order) out.sort((a, b) => (a[order!.col] > b[order!.col] ? 1 : -1) * (order!.asc ? 1 : -1));
-      out = out.slice(0, limitN);
-      if (head) return resolve({ count: matched.length, data: null, error: null });
-      return resolve({ data: single ? (out[0] ?? null) : out, error: null });
-    },
-  };
-  return self;
-}
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
-let sent: Array<{ to: string; text: string }>;
+let sent: Array<{ to: string; subject: string; text: string; html: string }>;
 
 function codeFromLastEmail(): string {
   return sent.at(-1)!.text.match(/code is (\d{6})/)![1];
@@ -80,9 +17,8 @@ function codeFromLastEmail(): string {
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  idSeq = 0;
   sent = [];
-  db = {
+  fake = createFakeDb({
     customers: [
       { id: 'c-perm', name: 'Asha', email: 'Asha@Example.com', customer_type: 'PERMANENT', is_active: true },
       { id: 'c-off', name: 'Ravi', email: 'ravi@example.com', customer_type: 'PERMANENT', is_active: true },
@@ -94,11 +30,14 @@ beforeEach(() => {
     ],
     customer_login_otps: [],
     customer_portal_sessions: [],
-  };
-  vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue({ from: (t: string) => builder(t) } as never);
-  vi.spyOn(emailOutboxService, 'enqueueAndSend').mockImplementation(async (input: any) => {
-    sent.push({ to: input.recipientEmail, text: input.text });
-    return {} as never;
+    email_deliveries: [],
+  });
+  db = fake.db;
+  vi.spyOn(supabaseLib, 'getSupabaseClient').mockReturnValue(fake.client as never);
+  // The real outbox runs (it stores a row in email_deliveries); only the transport is replaced.
+  vi.spyOn(resendTransport, 'send').mockImplementation(async (p: any) => {
+    sent.push({ to: p.to, subject: p.subject, text: p.text, html: p.html });
+    return { transport: 'dev-log', providerMessageId: `m-${sent.length}`, effectiveRecipient: p.to, sandboxRedirected: false } as never;
   });
 });
 
@@ -176,5 +115,23 @@ describe('customer accounts: sign-in codes and sessions (S11)', () => {
     await customerAccountService.signOut(token);
     expect(await customerAccountService.resolveSession(token)).toBeNull();
     expect(await customerAccountService.resolveSession('not-a-token')).toBeNull();
+  });
+
+  it('F1: the code is never stored - not in the subject, not in the kept email copy; delivery is still tracked', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const code = codeFromLastEmail();
+    expect(sent[0].subject).toBe(OTP_EMAIL_SUBJECT);
+    expect(sent[0].subject).not.toContain(code);
+    expect(sent[0].html).toContain(code); // the customer still gets it
+
+    expect(db.email_deliveries).toHaveLength(1);
+    const row = db.email_deliveries[0];
+    expect(row.subject).toBe(OTP_EMAIL_SUBJECT);
+    expect(row.text_body).toContain('[sign-in code removed]');
+    expect(row.html_body).toContain('[sign-in code removed]');
+    expect(row.status).toBe('SENT');
+    expect(row.retryable).toBe(false); // never resent automatically from the redacted copy
+    expect(row.max_attempts).toBe(1);
+    expect(JSON.stringify(db)).not.toContain(code);
   });
 });

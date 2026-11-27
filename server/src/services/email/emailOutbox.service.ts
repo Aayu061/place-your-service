@@ -85,6 +85,12 @@ export interface EnqueueEmailInput {
   tags?: EmailTagInput[];
   idempotencyKey?: string | null;
   actorId?: string | null;
+  /**
+   * Secret-bearing emails (S11 sign-in codes): the row in email_deliveries keeps THIS copy instead of the real
+   * html/text, so the secret is never stored. Such a row is never retried automatically (a retry would resend the
+   * redacted copy), but its delivery status is still tracked.
+   */
+  storedCopy?: { html: string; text: string };
 }
 
 function isMissingRelationError(error: { code?: string; message?: string } | null): boolean {
@@ -124,14 +130,14 @@ export class EmailOutboxService {
       recipient_name: input.recipientName || null,
       reply_to: input.replyTo || config.replyTo,
       subject: input.subject,
-      html_body: input.html,
-      text_body: input.text,
+      html_body: input.storedCopy ? input.storedCopy.html : input.html,
+      text_body: input.storedCopy ? input.storedCopy.text : input.text,
       tags,
       idempotency_key: input.idempotencyKey || null,
       status: 'SENDING' as const,
-      retryable: true,
+      retryable: !input.storedCopy,
       attempt_count: 1,
-      max_attempts: 5,
+      max_attempts: input.storedCopy ? 1 : 5,
       requested_by: input.actorId || null,
     };
 
@@ -225,7 +231,7 @@ export class EmailOutboxService {
 
     const succeeded = Boolean(transportResult);
     const retryable =
-      sendError instanceof EmailDeliveryError ? sendError.retryable : true;
+      !input.storedCopy && (sendError instanceof EmailDeliveryError ? sendError.retryable : true);
 
     const { data: completed, error: completeErr } = await supabase.rpc('complete_email_delivery', {
       p_delivery_id: row.id,
