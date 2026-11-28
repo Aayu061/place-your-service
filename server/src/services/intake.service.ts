@@ -90,8 +90,14 @@ export interface IntakeDto {
   serviceRequest: { id: string; requestNumber: string } | null;
   /** Basket lines (empty for single-item requests). */
   items: IntakeItemDto[];
+  /** AMC_RENEWAL only: the contract the customer asked to renew (number etc. filled in on the detail read). */
+  amcContract: { id: string; contractNumber: string | null; status: string | null; endDate: string | null } | null;
   createdAt: string;
 }
+
+/** Requests a signed-in customer sent from their website account: always for that customer, never a service visit. */
+export const CUSTOMER_ACCOUNT_KINDS = ['AMC_RENEWAL', 'PROFILE_CHANGE'] as const;
+export const isCustomerAccountKind = (kind: unknown): boolean => (CUSTOMER_ACCOUNT_KINDS as readonly unknown[]).includes(kind);
 
 export interface IntakeCandidate {
   id: string;
@@ -178,6 +184,7 @@ export function mapIntake(row: any): IntakeDto {
         };
       })
       .sort((a, b) => a.lineNo - b.lineNo),
+    amcContract: row.amc_contract_id ? { id: row.amc_contract_id, contractNumber: null, status: null, endDate: null } : null,
     createdAt: row.created_at,
   };
 }
@@ -496,7 +503,19 @@ class IntakeService {
         customerType: c.customer_type,
       }));
     }
-    return { ...mapIntake(row), candidates };
+    const dto = mapIntake(row);
+    // A renewal request shows which contract it is about. Read separately (not embedded in the list query) so the
+    // inbox keeps working even where the column's relation is not known yet.
+    if (dto.amcContract) {
+      const { data: c, error } = await getSupabaseClient()
+        .from('amc_contracts')
+        .select('id, contract_number, status, end_date')
+        .eq('id', dto.amcContract.id)
+        .maybeSingle();
+      if (error) logger.warn('Intake: renewal contract lookup failed', { intakeId: id });
+      else if (c) dto.amcContract = { id: c.id, contractNumber: c.contract_number ?? null, status: c.status ?? null, endDate: c.end_date ?? null };
+    }
+    return { ...dto, candidates };
   }
 
   async approve(
@@ -510,6 +529,21 @@ class IntakeService {
     schedule: { id: string; scheduleNumber: string } | null;
     warning?: string;
   }> {
+    // A request from a signed-in customer's account belongs to that customer: approving it cannot move it to
+    // someone else, and it never books a visit (staff renew the contract / change the details themselves).
+    const { data: current, error: readErr } = await getSupabaseClient()
+      .from('web_intakes')
+      .select('id, kind, customer_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (readErr) throw new Error(`Failed to read website request: ${readErr.message}`);
+    // A missing request falls through: approve_web_intake answers "not found" (404) itself.
+    if (current && isCustomerAccountKind(current.kind)) {
+      if (input.customerId && current.customer_id && input.customerId !== current.customer_id) {
+        throw new ValidationError('This request came from a customer\'s website account and stays with that customer.');
+      }
+      input = { ...input, customerId: current.customer_id ?? input.customerId, schedule: undefined };
+    }
     const { data, error } = await getSupabaseClient().rpc('approve_web_intake', {
       p_intake_id: id,
       p_actor: actorProfileId ?? null,

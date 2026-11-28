@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, UserCheck, UserPlus, ExternalLink, Phone, Mail }
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { isCustomerAccountKind } from '@/services/intakeService';
 import type { IntakeCandidate, IntakeDetailDto, IntakeDto, IntakeItemDto, PublicCatalog } from '@/services/intakeService';
 import {
   ITEM_TYPE_LABELS,
@@ -231,6 +232,53 @@ const CustomerChoice: React.FC<{
   );
 };
 
+/**
+ * A request from a signed-in customer's website account: the customer is fixed (no picking, no new customer), and
+ * approving only closes the review, so the card says what staff do first.
+ */
+const CustomerAccountCard: React.FC<{ intake: IntakeDto }> = ({ intake }) => {
+  const c = intake.matchedCustomer;
+  const contract = intake.amcContract;
+  const steps =
+    intake.kind === 'AMC_RENEWAL'
+      ? ['Call the customer to confirm the plan and the price.', 'Renew the contract in AMC.', 'Then approve this request to close it.']
+      : ['Check the change with the customer if needed.', 'Edit the customer\'s details in Customers.', 'Then approve this request to close it.'];
+  return (
+    <div
+      role="note"
+      aria-label="Request from the customer's website account"
+      style={{
+        padding: 'var(--space-3)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--color-success)',
+        background: 'var(--bg-surface-subtle)',
+        margin: 'var(--space-3) 0',
+        fontSize: 'var(--text-sm)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 6 }}>
+        <UserCheck size={16} aria-hidden="true" />
+        From the customer&apos;s website account
+      </div>
+      <div>
+        Customer: <strong>{c ? `${c.name} (${c.customerCode})` : 'linked customer'}</strong>
+      </div>
+      {contract && (
+        <div>
+          Contract: <strong style={{ fontFamily: 'monospace' }}>{contract.contractNumber ?? 'see the message'}</strong>
+          {contract.status ? ` · ${contract.status.replace(/_/g, ' ').toLowerCase()}` : ''}
+          {contract.endDate ? ` · ends ${contract.endDate}` : ''}
+        </div>
+      )}
+      <ol style={{ margin: '6px 0 0', paddingLeft: 18, color: 'var(--text-secondary)' }}>
+        {steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+    </div>
+  );
+};
+
 export const IntakeDetail: React.FC<IntakeDetailProps> = ({
   intake,
   detail,
@@ -293,7 +341,9 @@ export const IntakeDetail: React.FC<IntakeDetailProps> = ({
         </div>
       </header>
 
-      {isPending && (
+      {isCustomerAccountKind(data.kind) && <CustomerAccountCard intake={data} />}
+
+      {isPending && !isCustomerAccountKind(data.kind) && (
         <CustomerChoice
           intake={data}
           candidates={candidates}

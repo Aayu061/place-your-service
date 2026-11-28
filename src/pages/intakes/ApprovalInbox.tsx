@@ -19,6 +19,7 @@ import {
   type IntakeStatus,
   type PublicCatalog,
   type RejectIntakePayload,
+  isCustomerAccountKind,
 } from '@/services/intakeService';
 import { IntakeList } from './IntakeList';
 import { IntakeDetail } from './IntakeDetail';
@@ -232,6 +233,9 @@ export const ApprovalInbox: React.FC<ApprovalInboxProps> = ({ onNavigate }) => {
 
   const customerLabel = useMemo(() => {
     if (!selectedFull) return '';
+    if (isCustomerAccountKind(selectedFull.kind) && customerChoice === NEW_CUSTOMER) {
+      return "The customer of this website account";
+    }
     if (customerChoice === NEW_CUSTOMER) {
       return `New temporary customer — ${selectedFull.contact.name} (${selectedFull.contact.phone})`;
     }

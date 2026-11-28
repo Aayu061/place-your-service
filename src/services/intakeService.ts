@@ -23,6 +23,9 @@ export type IntakeKind =
   | 'AMC_RENEWAL'
   | 'PROFILE_CHANGE';
 
+/** Sent from a signed-in customer's website account: always that customer's, never a service visit. */
+export const isCustomerAccountKind = (kind: IntakeKind): boolean => kind === 'AMC_RENEWAL' || kind === 'PROFILE_CHANGE';
+
 export type IntakeItemType = 'SERVICE' | 'AMC' | 'PRODUCT';
 export type IntakeLineStatus = 'PENDING' | 'APPROVED' | 'QUOTE_PENDING' | 'FULFILLED' | 'REJECTED' | 'CANCELLED';
 
@@ -106,6 +109,8 @@ export interface IntakeDto {
   serviceRequest: { id: string; requestNumber: string } | null;
   /** Basket lines (empty or missing for single-item requests). */
   items?: IntakeItemDto[];
+  /** AMC_RENEWAL only: the contract to renew (number, status and end date come with the detail read). */
+  amcContract?: { id: string; contractNumber: string | null; status: string | null; endDate: string | null } | null;
   createdAt: string;
 }
 

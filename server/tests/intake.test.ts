@@ -327,6 +327,34 @@ describe('website request intake (M5)', () => {
       expect(JSON.stringify(log.details)).not.toContain('9820099887');
     });
 
+    it('a customer-account request stays with its customer and never books a visit', async () => {
+      const owner = '22222222-3333-4444-8555-666666666666';
+      const other = '11111111-2222-4333-8444-555555555555';
+      db.web_intakes.push(pendingIntakeRow({ kind: 'AMC_RENEWAL', customer_id: owner, matched_customer_id: owner }));
+      rpcResults.approve_web_intake = { data: { intakeId: INTAKE_ID, status: 'APPROVED', serviceRequestId: null }, error: null };
+      const moved = await staff(request(app).post(`/api/v1/intakes/${INTAKE_ID}/approve`).send({ customerId: other }));
+      expect(moved.status).toBe(422);
+      expect(rpcCalls.some(([n]) => n === 'approve_web_intake')).toBe(false);
+
+      const spy = vi.spyOn(scheduleService, 'createSchedule');
+      const ok = await staff(
+        request(app).post(`/api/v1/intakes/${INTAKE_ID}/approve`).send({ schedule: { date: '2026-12-01', slot: 'MORNING' } })
+      );
+      expect(ok.status).toBe(200);
+      expect(rpcCalls.find(([n]) => n === 'approve_web_intake')?.[1]).toMatchObject({ p_customer_id: owner });
+      expect(spy).not.toHaveBeenCalled();
+      expect(ok.body.data.schedule).toBeNull();
+    });
+
+    it('the detail of a renewal request shows its contract', async () => {
+      const contractId = '33333333-4444-4555-8666-777777777777';
+      db.web_intakes.push(pendingIntakeRow({ kind: 'AMC_RENEWAL', amc_contract_id: contractId }));
+      db.amc_contracts = [{ id: contractId, contract_number: 'AMC-2026-0007', status: 'EXPIRING_SOON', end_date: '2026-12-15' }];
+      const res = await staff(request(app).get(`/api/v1/intakes/${INTAKE_ID}`));
+      expect(res.status).toBe(200);
+      expect(res.body.data.amcContract).toEqual({ id: contractId, contractNumber: 'AMC-2026-0007', status: 'EXPIRING_SOON', endDate: '2026-12-15' });
+    });
+
     it('uses defaults when approving with an empty body', async () => {
       db.web_intakes.push(pendingIntakeRow({ kind: 'CONTACT' }));
       rpcResults.approve_web_intake = { data: { intakeId: INTAKE_ID, status: 'APPROVED', serviceRequestId: null }, error: null };

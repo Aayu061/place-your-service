@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Input } from '@/components/ui/Input';
 import type { ServicePriority, ServiceType } from '@/domain/types';
 import {
+  isCustomerAccountKind,
   listActiveTechnicians,
   type ApproveIntakePayload,
   type IntakeDto,
@@ -65,9 +66,9 @@ export const ApproveIntakeDialog: React.FC<ApproveIntakeDialogProps> = ({
 
   // Focus the first real field rather than the header close button.
   useEffect(() => {
-    const t = setTimeout(() => requestTypeRef.current?.focus(), 0);
+    const t = setTimeout(() => (isCustomerAccountKind(intake.kind) ? notesRef.current : requestTypeRef.current)?.focus(), 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [intake.kind]);
 
   // Technicians are only needed when scheduling; load lazily, fail quietly.
   useEffect(() => {
@@ -85,8 +86,19 @@ export const ApproveIntakeDialog: React.FC<ApproveIntakeDialogProps> = ({
     };
   }, [withSchedule, technicians.length]);
 
+  const accountRequest = isCustomerAccountKind(intake.kind);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (accountRequest) {
+      // Closes the review only: no service request, no visit, always the account's own customer (PYS enforces it).
+      const payload: ApproveIntakePayload = {};
+      if (customerId) payload.customerId = customerId;
+      if (notes.trim()) payload.notes = notes.trim();
+      onSubmit(payload);
+      return;
+    }
     const payload: ApproveIntakePayload = { requestType, priority };
     if (customerId) payload.customerId = customerId;
     if (notes.trim()) payload.notes = notes.trim();
@@ -115,6 +127,46 @@ export const ApproveIntakeDialog: React.FC<ApproveIntakeDialogProps> = ({
 
     onSubmit(payload);
   };
+
+  if (accountRequest) {
+    return (
+      <Modal
+        isOpen
+        onClose={onClose}
+        title={intake.kind === 'AMC_RENEWAL' ? 'Close AMC renewal request' : 'Close change-of-details request'}
+        description={`${intake.intakeNumber} · ${intake.contact.name}`}
+        maxWidth="520px"
+      >
+        <form noValidate onSubmit={handleSubmit} aria-label="Close request form" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+            Customer: <strong>{customerLabel}</strong>
+          </div>
+          <p style={{ margin: 0, fontSize: 'var(--text-sm)' }}>
+            {intake.kind === 'AMC_RENEWAL'
+              ? 'Approving only closes this request. Renew the contract in AMC first; no service request or visit is created.'
+              : "Approving only closes this request. Edit the customer's details in Customers first; nothing is changed automatically."}
+          </p>
+          <Textarea
+            ref={notesRef}
+            id="approve-notes"
+            label="What was done (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={2000}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 'var(--space-2)' }}>
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" isLoading={isSubmitting}>
+              {intake.kind === 'AMC_RENEWAL' ? 'Mark renewal as done' : 'Mark change as done'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    );
+  }
 
   return (
     <Modal

@@ -359,6 +359,39 @@ describe('Approval Inbox', () => {
     expect(document.body.textContent).toContain('Customer created as temporary');
   });
 
+  it('a renewal from a customer account: fixed customer, the contract, a checklist, and approve only closes it', async () => {
+    const renewal = makeIntake({
+      id: 'r',
+      kind: 'AMC_RENEWAL',
+      contact: { name: 'Asha Account', phone: '9820000009', email: 'asha@example.com' },
+      request: { serviceCode: null, serviceName: null, amcPlanCode: 'PLAN-A', message: 'Renew AMC-2026-0007', preferredDate: null, preferredSlot: null },
+      matchedCustomer: { id: 'cust-7', name: 'Asha Account', customerCode: 'CUST-0007', customerType: 'PERMANENT' },
+      amcContract: { id: 'amc-7', contractNumber: 'AMC-2026-0007', status: 'EXPIRING_SOON', endDate: '2026-12-15' },
+      createdAt: minutesAgo(500),
+    });
+    vi.spyOn(intakeService, 'list').mockResolvedValue({ items: [renewal], total: 1, page: 1, pageSize: 25 });
+    vi.spyOn(intakeService, 'get').mockResolvedValue(asDetail(renewal, [{ id: 'cust-8', name: 'Someone Else', customerCode: 'CUST-0008', phone: '9820000009', customerType: 'TEMPORARY' }]));
+    const approve = vi.spyOn(intakeService, 'approve').mockResolvedValue({ intake: { ...renewal, status: 'APPROVED' }, serviceRequest: null, schedule: null });
+    await renderInbox();
+
+    const text = document.body.textContent ?? '';
+    expect(text).toContain("From the customer's website account");
+    expect(text).toContain('AMC-2026-0007');
+    expect(text).toContain('Renew the contract in AMC.');
+    // No picking another customer or creating a new one.
+    expect(document.querySelector('input[name="intake-customer"]')).toBeNull();
+    expect(text).not.toContain('Someone Else');
+
+    await click(buttonByText('Approve'));
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain('Asha Account (CUST-0007)');
+    expect(document.getElementById('approve-request-type')).toBeNull();
+    expect(dialog!.querySelector('input[type="checkbox"]')).toBeNull();
+    await change(document.getElementById('approve-notes') as HTMLTextAreaElement, 'Renewed for 2027');
+    await click(buttonByText('Mark renewal as done'));
+    expect(approve).toHaveBeenCalledWith('r', { customerId: 'cust-7', notes: 'Renewed for 2027' });
+  });
+
   it('reject requires a reason, while spam/duplicate do not', async () => {
     const reject = vi.spyOn(intakeService, 'reject').mockResolvedValue({ intake: { ...older, status: 'SPAM' } });
     await renderInbox();
