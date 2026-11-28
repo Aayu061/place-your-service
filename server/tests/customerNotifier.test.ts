@@ -233,6 +233,18 @@ describe('customer notifier', () => {
     expect(arg.text).toContain('Morning');
   });
 
+  it.each([
+    ['AMC_RENEWAL', 'Your AMC renewal request is done'],
+    ['PROFILE_CHANGE', 'Your details have been updated'],
+  ])('closing a %s from the customer account says it was handled, not that a visit is coming', async (kind, subject) => {
+    tables.web_intakes = { data: { ...intake, kind, preferred_date: null, preferred_slot: null }, error: null };
+    await expect(handleIntakeApproved(event('WEB_INTAKE_APPROVED', { intakeId: 'intake-1' }))).resolves.toBe('DONE');
+    const arg = send.mock.calls[0][0];
+    expect(arg.subject).toContain(subject);
+    expect(arg.text).toContain('TRK7Q2');
+    expect(arg.text).not.toMatch(/service ticket|visit date/i);
+  });
+
   it('emails the seller price for one AC enquiry line, once per price, escaping names', async () => {
     tables.web_intake_items = {
       data: { id: 'line-a', item_name: 'LG 1.5T <i>Split</i>', quantity: 2, quote_total: 40500, quote_note: 'Includes installation', web_intakes: { ...intake, kind: 'PRODUCT_ENQUIRY' } },

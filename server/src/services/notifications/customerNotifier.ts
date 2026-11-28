@@ -213,6 +213,7 @@ export async function handleIntakeApproved(event: OutboundEvent): Promise<Outbox
       trackingCode: intake.tracking_code,
       preferredDate: intake.preferred_date,
       preferredSlot: intake.preferred_slot,
+      kind: intake.kind,
     }),
   });
 }

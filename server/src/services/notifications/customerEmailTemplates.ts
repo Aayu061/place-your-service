@@ -212,9 +212,41 @@ export interface IntakeConfirmationInput {
   trackingCode: string | null;
   preferredDate?: string | null;
   preferredSlot?: string | null;
+  /** The intake kind: requests from a customer's website account get their own "done" wording (no ticket, no visit). */
+  kind?: string | null;
+}
+
+/**
+ * Staff closed a request the customer sent from their website account (AMC renewal / change of details). Approving
+ * these creates no service ticket and no visit, so the email says the request was handled instead.
+ */
+export function buildAccountRequestDoneEmail(input: { contactName: string | null; trackingCode: string | null; kind: 'AMC_RENEWAL' | 'PROFILE_CHANGE' }): EmailContent {
+  const renewal = input.kind === 'AMC_RENEWAL';
+  const ref = input.trackingCode;
+  return render({
+    subject: `${renewal ? 'Your AMC renewal request is done' : 'Your details have been updated'}${ref ? ` (${ref})` : ''} | ${BUSINESS_NAME}`,
+    heading: renewal ? 'Your AMC renewal request is done' : 'Your change request is done',
+    badgeText: 'DONE',
+    badgeBg: '#dcfce7',
+    badgeColor: '#15803d',
+    name: input.contactName,
+    intro: [
+      renewal
+        ? 'Thank you. Our team has handled your request to renew your AMC. You can see the contract on your account on our website.'
+        : 'Thank you. Our team has handled your request to change your details. You can see them on your account on our website.',
+    ],
+    rows: [['Reference', ref]],
+    outro: [
+      renewal ? 'If anything about the renewal is not as you expected, please call us.' : 'If anything is still not right, please call us.',
+      contactLine(),
+    ],
+  });
 }
 
 export function buildIntakeConfirmationEmail(input: IntakeConfirmationInput): EmailContent {
+  if (input.kind === 'AMC_RENEWAL' || input.kind === 'PROFILE_CHANGE') {
+    return buildAccountRequestDoneEmail({ contactName: input.contactName, trackingCode: input.trackingCode, kind: input.kind });
+  }
   const ref = input.requestNumber || input.trackingCode;
   return render({
     subject: `Your request is confirmed${ref ? ` (${ref})` : ''} | ${BUSINESS_NAME}`,
