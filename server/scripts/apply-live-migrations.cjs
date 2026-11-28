@@ -24,6 +24,8 @@ const FILES = [
   '20261125000000_tracking_lockout_window.sql',
   '20261125010000_get_user_role_self_only.sql',
   '20261125020000_ess_product_photos_bucket.sql',
+  // 20261126000000_keep_api_awake.sql is deliberately not here: it was applied to live by hand in the SQL editor
+  // (26 Nov 2026), it schedules pg_cron jobs rather than changing the schema, and its own header gives the undo.
   '20261125030000_customer_portal_auth.sql',
   '20261127000000_customer_portal_hardening.sql',
   '20261128000000_customer_portal_v2.sql',
