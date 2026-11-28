@@ -123,7 +123,7 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
       const matched = rows.filter((r) => filters.every((f) => f(r)));
       if (op === 'delete') {
         db[table] = rows.filter((r) => !matched.includes(r));
-        return { data: null, error: null };
+        return { data: wantRows ? matched : null, error: null };
       }
       if (op === 'update') {
         for (const r of matched) {

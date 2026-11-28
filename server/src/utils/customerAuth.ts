@@ -16,8 +16,12 @@ export interface CustomerTokenPayload {
   exp: number;
 }
 
+// Legacy phone-login tokens (/api/v1/portal, paused). No built-in fallback: a secret written in the code would let
+// anyone who has read it forge customer tokens if the router were ever switched back on without the key set.
 function getCustomerTokenSecret(): string {
-  return env.SUPABASE_SERVICE_ROLE_KEY || 'pys-customer-secret-key-2026';
+  const secret = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to sign or check legacy customer tokens');
+  return secret;
 }
 
 /**

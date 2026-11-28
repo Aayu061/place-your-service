@@ -252,6 +252,24 @@ describe('customer accounts: 24-hour lock after 10 wrong codes (S11 F2)', () => 
     ]);
   });
 
+  it('housekeeping removes codes older than 7 days and sessions that ended over 30 days ago, nothing newer', async () => {
+    const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+    const ahead = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+    db.customer_login_otps.push(
+      { id: 'o-old', customer_id: 'c-perm', code_hash: 'x', created_at: ago(8), expires_at: ago(8) },
+      { id: 'o-new', customer_id: 'c-perm', code_hash: 'y', created_at: ago(1), expires_at: ago(1) },
+    );
+    db.customer_portal_sessions.push(
+      { id: 's-expired-old', customer_id: 'c-perm', token_hash: 'a', expires_at: ago(31), revoked_at: null },
+      { id: 's-revoked-old', customer_id: 'c-perm', token_hash: 'b', expires_at: ahead(5), revoked_at: ago(40) },
+      { id: 's-revoked-new', customer_id: 'c-perm', token_hash: 'c', expires_at: ahead(5), revoked_at: ago(2) },
+      { id: 's-live', customer_id: 'c-perm', token_hash: 'd', expires_at: ahead(20), revoked_at: null },
+    );
+    expect(await customerAccountService.purgeOldSignInData()).toEqual({ codes: 1, sessions: 2 });
+    expect(db.customer_login_otps.map((o) => o.id)).toEqual(['o-new']);
+    expect(db.customer_portal_sessions.map((s) => s.id)).toEqual(['s-revoked-new', 's-live']);
+  });
+
   it('access cannot be switched on for a customer without a usable email', async () => {
     db.customers.push({ id: 'c-noemail', name: 'No Mail', email: null, customer_type: 'PERMANENT', is_active: true });
     db.customers.push({ id: 'c-bad', name: 'Bad Mail', email: 'not-an-email', customer_type: 'PERMANENT', is_active: true });

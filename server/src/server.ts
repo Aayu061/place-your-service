@@ -7,6 +7,7 @@ import { emailOutboxService } from './services/email/emailOutbox.service.js';
 import { operationsService } from './services/operations.service.js';
 import { telemetryLogService } from './services/telemetryLog.service.js';
 import { outboxService } from './services/outbox.service.js';
+import { customerAccountService } from './services/customerAccount.service.js';
 import { registerCustomerNotifier } from './services/notifications/customerNotifier.js';
 import { registerEssRevalidate } from './services/notifications/essRevalidate.js';
 
@@ -49,7 +50,10 @@ function startServer(): void {
         error: error instanceof Error ? error.message : 'Unknown worker error',
       }));
       housekeepingTick = (housekeepingTick + 1) % 20;
-      if (housekeepingTick === 0) void outboxService.housekeeping();
+      if (housekeepingTick === 0) {
+        void outboxService.housekeeping();
+        void customerAccountService.purgeOldSignInData().catch(() => logger.warn('Website sign-in housekeeping failed'));
+      }
     }, 30 * 1000);
     outboundEventWorker.unref();
     void operationsService.generateNotifications().catch((error) => logger.error('Initial notification generation failed', {

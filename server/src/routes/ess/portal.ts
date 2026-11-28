@@ -33,6 +33,14 @@ export function isPortalEnabled(): boolean {
 
 essPortalRouter.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store');
+  next();
+});
+
+// Every route, including /status, needs the ESS server's signed request. It runs before the kill switch so an
+// unsigned caller cannot even learn whether customer accounts are on (it gets the same refusal either way).
+essPortalRouter.use(signed);
+
+essPortalRouter.use((_req, res, next) => {
   if (!isPortalEnabled()) {
     return res
       .status(503)
@@ -42,7 +50,7 @@ essPortalRouter.use((_req, res, next) => {
 });
 
 /** Lets ESS decide between the sign-in form and its "coming soon" page (the switch above answers 503 when off). */
-essPortalRouter.get('/status', signed, (_req, res) => sendSuccess(res, { enabled: true }));
+essPortalRouter.get('/status', (_req, res) => sendSuccess(res, { enabled: true }));
 
 /** F3: per visitor, so it says nothing about any account. */
 const rateLimited = (res: Response, err: RateLimitedError) =>
@@ -55,7 +63,6 @@ const rateLimited = (res: Response, err: RateLimitedError) =>
  */
 essPortalRouter.post(
   '/code',
-  signed,
   wrap(async (req, res) => {
     try {
       await customerAccountService.startCodeRequest(req.body?.email, req.body?.clientIpHash);
@@ -69,7 +76,6 @@ essPortalRouter.post(
 
 essPortalRouter.post(
   '/sign-in',
-  signed,
   wrap(async (req, res) => {
     try {
       return sendSuccess(res, await customerAccountService.verifyCode(req.body?.email, req.body?.code, req.body?.clientIpHash));
@@ -83,7 +89,6 @@ essPortalRouter.post(
 
 essPortalRouter.post(
   '/sign-out',
-  signed,
   wrap(async (req, res) => {
     await customerAccountService.signOut(req.get('X-PYS-Customer-Session'));
     return sendSuccess(res, { signedOut: true });
@@ -92,7 +97,6 @@ essPortalRouter.post(
 
 essPortalRouter.get(
   '/me',
-  signed,
   wrap(async (req, res) => {
     const customerId = await customerAccountService.resolveSession(req.get('X-PYS-Customer-Session'));
     if (!customerId) return res.status(401).json({ success: false, error: { code: 'SESSION_ENDED', message: 'Please sign in again.' } });
@@ -127,14 +131,13 @@ const withCustomer = (fn: (customerId: string, req: Request, res: Response) => P
 const answer = (res: Response, data: unknown) => (data === null ? res.status(404).json(NOT_FOUND) : sendSuccess(res, data));
 const param = (req: Request, name: string): string => String(req.params[name] ?? '');
 
-essPortalRouter.get('/overview', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.overview(id))));
-essPortalRouter.get('/acs', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listAcs(id))));
-essPortalRouter.get('/acs/:id', signed, withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getAc(id, param(req, 'id')))));
-essPortalRouter.get('/amc', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listContracts(id))));
-essPortalRouter.get('/amc/:id', signed, withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getContract(id, param(req, 'id')))));
+essPortalRouter.get('/overview', withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.overview(id))));
+essPortalRouter.get('/acs', withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listAcs(id))));
+essPortalRouter.get('/acs/:id', withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getAc(id, param(req, 'id')))));
+essPortalRouter.get('/amc', withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listContracts(id))));
+essPortalRouter.get('/amc/:id', withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getContract(id, param(req, 'id')))));
 essPortalRouter.post(
   '/amc/:id/renew',
-  signed,
   withCustomer(async (id, req, res) => {
     const out = await customerPortalDataService.requestRenewal(id, param(req, 'id'), req.body?.note);
     if (!out) return res.status(404).json(NOT_FOUND);
@@ -143,28 +146,23 @@ essPortalRouter.post(
 );
 essPortalRouter.get(
   '/requests',
-  signed,
   withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.listRequests(id, req.query.filter)))
 );
 essPortalRouter.get(
   '/requests/:number',
-  signed,
   withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getRequest(id, param(req, 'number'))))
 );
 essPortalRouter.get(
   '/reports/:number',
-  signed,
   withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getReport(id, param(req, 'number'))))
 );
-essPortalRouter.get('/billing', signed, withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listBills(id))));
+essPortalRouter.get('/billing', withCustomer(async (id, _req, res) => answer(res, await customerPortalDataService.listBills(id))));
 essPortalRouter.get(
   '/billing/:number',
-  signed,
   withCustomer(async (id, req, res) => answer(res, await customerPortalDataService.getBill(id, param(req, 'number'))))
 );
 essPortalRouter.post(
   '/profile/change-request',
-  signed,
   withCustomer(async (id, req, res) => {
     const out = await customerPortalDataService.requestProfileChange(id, req.body?.message);
     if (!out) return res.status(404).json(NOT_FOUND);
@@ -173,7 +171,6 @@ essPortalRouter.post(
 );
 essPortalRouter.post(
   '/sign-out-all',
-  signed,
   withCustomer(async (id, _req, res) => {
     await customerAccountService.signOutAll(id);
     return sendSuccess(res, { signedOut: true });

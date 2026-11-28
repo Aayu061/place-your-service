@@ -1009,16 +1009,26 @@ export const customerPortalDataService = {
     const [customer] = await rows(db().from('customers').select('id, name, email, phone, alternate_phone').eq('id', customerId).maybeSingle(), 'customer');
     if (!customer) return null;
     const since = new Date(Date.now() - 86_400_000).toISOString();
-    const { count, error } = await db()
-      .from('web_intakes')
-      .select('id', { count: 'exact', head: true })
-      .eq('kind', 'PROFILE_CHANGE')
-      .eq('customer_id', customerId)
-      .gte('created_at', since);
-    if (error) throw new Error(`Failed to check recent change requests: ${error.message}`);
-    if ((count ?? 0) >= PROFILE_CHANGES_PER_DAY) throw new PortalRateLimitedError();
+    const recent = async () => {
+      const { count, error } = await db()
+        .from('web_intakes')
+        .select('id', { count: 'exact', head: true })
+        .eq('kind', 'PROFILE_CHANGE')
+        .eq('customer_id', customerId)
+        .gte('created_at', since);
+      if (error) throw new Error(`Failed to check recent change requests: ${error.message}`);
+      return count ?? 0;
+    };
+    // Cheap early refusal, then insert-and-recount: two requests at the same moment can never both get past the
+    // limit (at worst both are refused, and the customer tries again).
+    if ((await recent()) >= PROFILE_CHANGES_PER_DAY) throw new PortalRateLimitedError();
     const inserted = await insertPortalIntake(customer, 'PROFILE_CHANGE', `Change of details requested on the customer website:\n${message}`, {});
     if (!inserted) throw new Error('Failed to store the change request');
+    if ((await recent()) > PROFILE_CHANGES_PER_DAY) {
+      const { error: dErr } = await db().from('web_intakes').delete().eq('id', inserted.id).eq('status', 'PENDING_REVIEW');
+      if (dErr) throw new Error(`Failed to undo an extra change request: ${dErr.message}`);
+      throw new PortalRateLimitedError();
+    }
     return { reference: inserted.tracking_code };
   },
 };
@@ -1034,7 +1044,7 @@ function pick<T extends object, K extends keyof T>(o: T, keys: K[]): Pick<T, K> 
  * Linked to the customer (customer_id + matched_customer_id); approving it only closes the review (no visit).
  * Returns null on a unique clash (an open renewal for the same contract already exists).
  */
-async function insertPortalIntake(customer: Row, kind: 'AMC_RENEWAL' | 'PROFILE_CHANGE', message: string, extra: Row): Promise<{ tracking_code: string } | null> {
+async function insertPortalIntake(customer: Row, kind: 'AMC_RENEWAL' | 'PROFILE_CHANGE', message: string, extra: Row): Promise<{ id: string; tracking_code: string } | null> {
   const rawPhone = str(customer.phone) ?? str(customer.alternate_phone);
   const phone = rawPhone && rawPhone.length >= 6 && rawPhone.length <= 20 ? rawPhone : '000000';
   const email = str(customer.email);
@@ -1063,5 +1073,5 @@ async function insertPortalIntake(customer: Row, kind: 'AMC_RENEWAL' | 'PROFILE_
     throw new Error(`Failed to store the request: ${error.message}`);
   }
   logger.info('Customer website request stored', { kind, outcome: 'portal_intake_created' });
-  return data as { tracking_code: string };
+  return data as { id: string; tracking_code: string };
 }

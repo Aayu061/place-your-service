@@ -5,7 +5,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import * as supabaseLib from '../src/lib/supabase.js';
 import { addDaysIstIso, getIstTodayIso } from '../src/utils/date.js';
 import { buildUpiPayLink } from '../src/services/email/emailTemplates.service.js';
-import { financialYearStart, photoPath } from '../src/services/customerPortalData.service.js';
+import { customerPortalDataService, financialYearStart, photoPath, PortalRateLimitedError } from '../src/services/customerPortalData.service.js';
 import { createFakeDb, type FakeDb, type Row } from './helpers/portalFakeDb.js';
 
 // The signed-request check is covered in integrationLink tests; here every request counts as a signed ESS call.
@@ -714,6 +714,21 @@ describe('S11b portal v2: requests to staff and sign-out-all', () => {
     // Older than a day no longer counts.
     for (const r of db.web_intakes) if (r.customer_id === A.ids.customer) r.created_at = new Date(Date.now() - 25 * 3_600_000).toISOString();
     expect((await post(app, '/portal/profile/change-request', t, { message: 'Again tomorrow' })).status).toBe(201);
+  });
+
+  it('POST /profile/change-request: requests sent at the same moment never get past 5 a day', async () => {
+    const app = makeApp();
+    const t = session(A.ids.customer);
+    for (let i = 0; i < 4; i++) expect((await post(app, '/portal/profile/change-request', t, { message: `Earlier ${i} change` })).status).toBe(201);
+    // Straight to the service so the six calls really interleave (each one's count runs before any insert).
+    const burst = await Promise.allSettled(
+      Array.from({ length: 6 }, (_, i) => customerPortalDataService.requestProfileChange(A.ids.customer, `Burst ${i} change`))
+    );
+    const ok = burst.filter((r) => r.status === 'fulfilled').length;
+    expect(burst.every((r) => r.status === 'fulfilled' || r.reason instanceof PortalRateLimitedError)).toBe(true);
+    const stored = db.web_intakes.filter((r) => r.kind === 'PROFILE_CHANGE' && r.customer_id === A.ids.customer);
+    expect(stored.length).toBeLessThanOrEqual(5);
+    expect(stored.length).toBe(4 + ok);
   });
 
   it('POST /profile/change-request: the message must be 5 to 1000 characters of text', async () => {

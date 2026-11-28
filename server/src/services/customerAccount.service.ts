@@ -19,6 +19,10 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_MAX_PER_15_MIN = 3;
 export const SESSION_MAX_DAYS = 30;
 export const SESSION_IDLE_DAYS = 7;
+/** Sign-in codes are kept this long (hashed), then removed. Must be more than the 24h wrong-code window. */
+export const CODE_RETENTION_DAYS = 7;
+/** Ended sessions (expired or signed out) are kept this long, then removed. */
+export const SESSION_RETENTION_DAYS = 30;
 /**
  * F2: an account's sign-in locks for ACCOUNT_LOCK_HOURS after this many wrong codes within ACCOUNT_LOCK_WINDOW_HOURS.
  * Trade-off (deliberate): someone who knows a customer's email can lock that customer out for a day by guessing from
@@ -530,6 +534,26 @@ export const customerAccountService = {
       details: { enabled },
     });
     return { enabled };
+  },
+
+  /**
+   * Removes sign-in data that is no longer needed: codes older than CODE_RETENTION_DAYS (the 24h wrong-code count
+   * needs a day of them) and sessions that ended (expired or signed out) more than SESSION_RETENTION_DAYS ago.
+   * Runs with the integration housekeeping. Returns how many rows went, or null for a table that failed.
+   */
+  async purgeOldSignInData(now = new Date()): Promise<{ codes: number | null; sessions: number | null }> {
+    const supabase = getSupabaseClient();
+    const codeCutoff = new Date(now.getTime() - CODE_RETENTION_DAYS * 86_400_000).toISOString();
+    const sessionCutoff = new Date(now.getTime() - SESSION_RETENTION_DAYS * 86_400_000).toISOString();
+    const codes = await supabase.from('customer_login_otps').delete().lt('created_at', codeCutoff).select('id');
+    if (codes.error) logger.warn('Old sign-in codes could not be removed', { outcome: 'portal_purge_codes_failed' });
+    const expired = await supabase.from('customer_portal_sessions').delete().lt('expires_at', sessionCutoff).select('id');
+    const revoked = await supabase.from('customer_portal_sessions').delete().lt('revoked_at', sessionCutoff).select('id');
+    if (expired.error || revoked.error) logger.warn('Old website sessions could not be removed', { outcome: 'portal_purge_sessions_failed' });
+    return {
+      codes: codes.error ? null : (codes.data ?? []).length,
+      sessions: expired.error || revoked.error ? null : (expired.data ?? []).length + (revoked.data ?? []).length,
+    };
   },
 
   async getAccess(customerId: string): Promise<{ enabled: boolean; lastLoginAt: string | null }> {
