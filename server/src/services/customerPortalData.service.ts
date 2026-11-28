@@ -150,7 +150,10 @@ const BUSINESS_FALLBACK = {
   email: 'extremess0121@gmail.com',
 };
 
-/** The published ESS block business.identity (what the website footer shows); the invoice email's details if unpublished. */
+/**
+ * The published ESS block business.identity (what the website footer shows). Any field it leaves out comes from the
+ * invoice email's details (the same as in emailTemplates), so a tax invoice never shows without the GSTIN.
+ */
 async function businessIdentity() {
   try {
     const content = await essSiteService.getContent(['business.identity']);
@@ -158,10 +161,10 @@ async function businessIdentity() {
     if (b && typeof b === 'object') {
       return {
         legalName: str(b.legalName) ?? BUSINESS_FALLBACK.legalName,
-        gstin: str(b.gstin),
-        address: str(b.address),
-        phone: str(b.phone),
-        email: str(b.email),
+        gstin: str(b.gstin) ?? BUSINESS_FALLBACK.gstin,
+        address: str(b.address) ?? BUSINESS_FALLBACK.address,
+        phone: str(b.phone) ?? BUSINESS_FALLBACK.phone,
+        email: str(b.email) ?? BUSINESS_FALLBACK.email,
       };
     }
   } catch {

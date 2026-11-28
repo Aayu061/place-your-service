@@ -105,7 +105,7 @@ essPortalRouter.get(
 );
 
 /* ------------------------------------------------------------------------------------------------------------------
- * S11b customer portal v2 (contract: PYS-ESS-docs/S11b-API-CONTRACT.md). Every route: signed ESS call + a live
+ * S11b customer portal v2 (contract: DOCS/architecture/S11b-PORTAL-API-CONTRACT.md). Every route: signed ESS call + a live
  * customer session; the customer id comes only from the session. Anything that is not the customer's own (or does
  * not exist, or has a malformed id / number) gets the same 404 answer.
  * ---------------------------------------------------------------------------------------------------------------- */

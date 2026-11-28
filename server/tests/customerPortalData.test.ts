@@ -691,6 +691,19 @@ describe('S11b portal v2: pages', () => {
     const res = await get(app, '/portal/billing/PAY-2026-A00001', session(A.ids.customer));
     expect(res.body.data.business).toMatchObject({ legalName: 'Extreme Sales And Services', gstin: '27ANTPP9778J1ZO', email: 'extremess0121@gmail.com' });
   });
+
+  it('a published block that leaves out the GSTIN (or other details) still gets them on the invoice', async () => {
+    const app = makeApp();
+    db.site_content_blocks[0].published_body = { legalName: 'Extreme Sales And Services', address: 'Chembur, Mumbai' };
+    const res = await get(app, '/portal/billing/PAY-2026-A00001', session(A.ids.customer));
+    expect(res.body.data.business).toEqual({
+      legalName: 'Extreme Sales And Services',
+      gstin: '27ANTPP9778J1ZO',
+      address: 'Chembur, Mumbai',
+      phone: '+91 7977805245',
+      email: 'extremess0121@gmail.com',
+    });
+  });
 });
 
 describe('S11b portal v2: requests to staff and sign-out-all', () => {
@@ -773,5 +786,67 @@ describe('S11b portal v2: helpers', () => {
     expect(financialYearStart('2026-11-27')).toBe('2026-04-01');
     expect(financialYearStart('2027-03-31')).toBe('2026-04-01');
     expect(financialYearStart('2027-04-01')).toBe('2027-04-01');
+  });
+});
+
+/*
+ * Contract check shared with the ESS website. PYS's real answers (from the seeded customer A) are reduced to their
+ * field paths and compared with tests/fixtures/portal-response-shapes.json. The ESS repo keeps a copy of that file
+ * (web/tests/fixtures/portal-response-shapes.json) and checks that its hand-written test data uses no field PYS does
+ * not send. After a deliberate change to an answer: run this file with PORTAL_SHAPES_UPDATE=1, then copy the file to
+ * ESS. See DOCS/architecture/S11b-PORTAL-API-CONTRACT.md.
+ */
+describe('portal answers match the shared shape file (contract check with ESS)', () => {
+  type Shapes = Record<string, { paths: string[]; nullOrEmpty: string[] }>;
+  const SHAPES_FILE = new URL('./fixtures/portal-response-shapes.json', import.meta.url);
+
+  function shapeOf(value: unknown): { paths: string[]; nullOrEmpty: string[] } {
+    const paths = new Set<string>();
+    const nullOrEmpty = new Set<string>();
+    const walk = (v: unknown, at: string) => {
+      if (Array.isArray(v)) {
+        if (v.length === 0) nullOrEmpty.add(`${at}[]`);
+        for (const el of v) walk(el, `${at}[]`);
+      } else if (v && typeof v === 'object') {
+        for (const [k, child] of Object.entries(v)) {
+          paths.add(`${at}.${k}`);
+          walk(child, `${at}.${k}`);
+        }
+      } else if (v === null) nullOrEmpty.add(at);
+    };
+    walk(value, '$');
+    // A path seen with a value somewhere is not "only ever null or empty".
+    for (const p of paths) if (nullOrEmpty.has(p) && [...paths].some((q) => q.startsWith(`${p}.`) || q.startsWith(`${p}[]`))) nullOrEmpty.delete(p);
+    return { paths: [...paths].sort(), nullOrEmpty: [...nullOrEmpty].sort() };
+  }
+
+  it('every S11b answer has the recorded fields', async () => {
+    const app = makeApp();
+    const t = session(A.ids.customer);
+    const routes: Record<string, string> = {
+      overview: '/portal/overview',
+      acs: '/portal/acs',
+      acDetail: `/portal/acs/${A.ids.ac1}`,
+      amcList: '/portal/amc',
+      amcDetail: `/portal/amc/${A.ids.amc}`,
+      requests: '/portal/requests',
+      requestDetail: '/portal/requests/SR-A-0002',
+      report: '/portal/reports/RPT-A-0001',
+      billing: '/portal/billing',
+      bill: '/portal/billing/PAY-2026-A00001',
+    };
+    const actual: Shapes = {};
+    for (const [name, url] of Object.entries(routes)) {
+      const res = await get(app, url, t);
+      expect(res.status, url).toBe(200);
+      actual[name] = shapeOf(res.body.data);
+    }
+    const { readFileSync, writeFileSync, mkdirSync } = await import('node:fs');
+    if (process.env.PORTAL_SHAPES_UPDATE === '1') {
+      mkdirSync(new URL('./fixtures/', import.meta.url), { recursive: true });
+      writeFileSync(SHAPES_FILE, `${JSON.stringify(actual, null, 2)}\n`);
+    }
+    const recorded = JSON.parse(readFileSync(SHAPES_FILE, 'utf8')) as Shapes;
+    expect(actual).toEqual(recorded);
   });
 });
