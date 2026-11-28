@@ -185,4 +185,14 @@ tax invoice always carries the GSTIN.
 ## Staff side (PYS dashboard)
 - Website access is switched on per active PERMANENT customer with a usable email (422 `NO_EMAIL` otherwise); every
   switch is in the activity log.
-- `AMC_RENEWAL` / `PROFILE_CHANGE` requests arrive in the approval inbox. Approving only closes the review.
+- `AMC_RENEWAL` / `PROFILE_CHANGE` requests arrive in the approval inbox. Approving only closes the review, and the
+  customer gets a "your request is done" email (not the service-ticket confirmation).
+
+## Bookings from a signed-in customer (`POST /intakes`)
+The website sends the customer's session in `X-PYS-Customer-Session` with any request a signed-in customer sends
+(book a service, complaint, AMC plan, contact). While accounts are on, PYS resolves it and sets the request's
+`matched_customer_id` and `customer_id` to that customer, instead of matching by phone; the inbox shows "Signed in on
+the website". An ended, unknown or missing session (or accounts off) simply means "not signed in": the request is
+stored as usual, never refused. Nothing in the body names a customer. The website fills in the form from
+`GET /portal/overview` (name, mobile, email) and, with `?ac=<id>` from an AC page, `GET /portal/acs/:id` (that AC's
+service address), only into empty fields.
