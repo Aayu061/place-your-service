@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 
 import { getSupabaseClient } from '../lib/supabase.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { hasUnescapableWildcard, likeLiteral } from '../utils/postgrestFilter.js';
 import { customerStatusFor } from '../domain/customerStatus.js';
 import { customerPortalService } from './customerPortal.service.js';
 import { emailOutboxService } from './email/emailOutbox.service.js';
@@ -122,21 +123,29 @@ export function normalizeEmail(raw: unknown): string | null {
   return /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/.test(e) ? e : null;
 }
 
-/** The customer behind an email who may sign in: active, PERMANENT, website access switched on. */
-async function signInCustomer(email: string): Promise<{ id: string; name: string } | null> {
+/**
+ * The customer behind an email who may sign in: active, PERMANENT, website access switched on.
+ * The match is exact (case-insensitive): ilike runs on an escaped pattern, `*` is refused, and every row is checked
+ * again in code so a wildcard can never pick another customer's account. The stored email is returned so the code
+ * is sent there and never to the spelling that was typed.
+ */
+async function signInCustomer(email: string): Promise<{ id: string; name: string; email: string } | null> {
+  if (hasUnescapableWildcard(email)) return null;
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('customers')
-    .select('id, name, customer_type, is_active, customer_portal_accounts!inner(enabled)')
-    .ilike('email', email)
+    .select('id, name, email, customer_type, is_active, customer_portal_accounts!inner(enabled)')
+    .ilike('email', likeLiteral(email))
     .eq('customer_type', 'PERMANENT')
     .eq('is_active', true)
     .eq('customer_portal_accounts.enabled', true)
     .limit(2);
   if (error) throw new Error(`Failed to look up the account: ${error.message}`);
-  const rows = (data ?? []) as Array<{ id: string; name: string; email?: string }>;
+  const rows = ((data ?? []) as Array<{ id: string; name: string; email?: string | null }>).filter(
+    (r) => typeof r.email === 'string' && r.email.trim().toLowerCase() === email
+  );
   // Two permanent customers sharing one email cannot be told apart: no sign-in for that email.
-  return rows.length === 1 ? { id: rows[0].id, name: rows[0].name } : null;
+  return rows.length === 1 ? { id: rows[0].id, name: rows[0].name, email: rows[0].email!.trim() } : null;
 }
 
 export const OTP_EMAIL_SUBJECT = 'Your Extreme Sales & Services sign-in code';
@@ -262,7 +271,7 @@ export const customerAccountService = {
         entityType: 'PORTAL_OTP',
         entityId: customer.id,
         templateKey: 'portal_otp',
-        recipientEmail: email,
+        recipientEmail: customer.email,
         recipientName: customer.name,
         subject: mail.subject,
         html: mail.html,

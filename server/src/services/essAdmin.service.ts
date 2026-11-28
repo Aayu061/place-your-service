@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { getSupabaseClient } from '../lib/supabase.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
 import { logActivity } from './audit.service.js';
+import { hasUnescapableWildcard, likeLiteral } from '../utils/postgrestFilter.js';
 import { catalogService } from './catalog.service.js';
 import { mapSeller } from './essSite.service.js';
 import { outboxService } from './outbox.service.js';
@@ -443,8 +444,20 @@ class EssAdminService {
     const supabase = getSupabaseClient();
     let temporaryPassword: string | null = null;
 
-    let { data: profile, error: pErr } = await supabase.from('profiles').select('id, email, full_name').ilike('email', input.email).maybeSingle();
+    // Exact match only: an unescaped `_` or `%` in the email would match (and grant a role to) someone else.
+    const wanted = input.email.trim().toLowerCase();
+    if (hasUnescapableWildcard(wanted)) throw new ValidationError('The email address cannot contain "*".');
+    const { data: matches, error: pErr } = await supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .ilike('email', likeLiteral(wanted))
+      .limit(2);
     if (pErr) throw new Error(`Failed to look up the account: ${pErr.message}`);
+    const exact = ((matches ?? []) as Array<{ id: string; email: string | null; full_name: string | null }>).filter(
+      (p) => (p.email ?? '').trim().toLowerCase() === wanted
+    );
+    if (exact.length > 1) throw new ConflictError('More than one account has this email. Ask PYS Admin to fix it.');
+    let profile: { id: string; email: string | null; full_name: string | null } | null = exact[0] ?? null;
 
     if (!profile) {
       temporaryPassword = `${randomBytes(9).toString('base64url')}-${randomBytes(2).toString('hex')}`;

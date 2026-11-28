@@ -64,6 +64,31 @@ describe('customer accounts: sign-in codes and sessions (S11)', () => {
     expect(db.customer_login_otps[0].code_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it('an email with wildcard characters never matches another customer (no code, no sign-in)', async () => {
+    db.customers.push({ id: 'c-bob', name: 'Bob', email: 'bob1@outlook.com', customer_type: 'PERMANENT', is_active: true });
+    db.customer_portal_accounts.push({ customer_id: 'c-bob', enabled: true });
+    for (const e of ['bob_@outlook.com', 'bob%@outlook.com', 'b%@outlook.com', 'bob*@outlook.com', '%@outlook.com', 'asha@example.co_', 'ASHA@EXAMPLE.CO%']) {
+      await customerAccountService.requestCode(e);
+    }
+    expect(sent).toHaveLength(0);
+    expect(db.customer_login_otps).toHaveLength(0);
+  });
+
+  it('the code goes to the stored email address (the outbox lowercases it), whatever case was typed', async () => {
+    await customerAccountService.requestCode('  ASHA@example.COM ');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toBe('asha@example.com');
+    expect(db.email_deliveries[0].recipient_email).toBe(String(db.customers[0].email).toLowerCase());
+  });
+
+  it('a stored email that only matches by wildcard is not used, even if the database returned it', async () => {
+    // Belt and braces: the in-code check refuses a row whose email is not the typed one.
+    db.customers.push({ id: 'c-x', name: 'X', email: 'x1@example.com', customer_type: 'PERMANENT', is_active: true });
+    db.customer_portal_accounts.push({ customer_id: 'c-x', enabled: true });
+    await customerAccountService.requestCode('x\\1@example.com');
+    expect(sent).toHaveLength(0);
+  });
+
   it('at most 3 codes per 15 minutes', async () => {
     for (let i = 0; i < 5; i++) await customerAccountService.requestCode('asha@example.com');
     expect(sent).toHaveLength(3);

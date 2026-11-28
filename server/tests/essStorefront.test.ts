@@ -88,7 +88,21 @@ function query(table: string) {
     gte: (c: string, v: any) => (filters.push((r) => r[c] >= v), b),
     is: (c: string, v: any) => (filters.push((r) => (r[c] ?? null) === v), b),
     in: (c: string, vs: any[]) => (filters.push((r) => vs.includes(r[c])), b),
-    ilike: (c: string, v: string) => (filters.push((r) => String(r[c] ?? '').toLowerCase() === v.toLowerCase()), b),
+    // PostgREST-like: `%`/`*` any run, `_` one character, backslash escapes (so unescaped input is caught).
+    ilike: (c: string, v: string) => {
+      const lit = (ch: string) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let src = '';
+      for (let i = 0; i < v.length; i++) {
+        const ch = v[i];
+        if (ch === '\\' && i + 1 < v.length) src += lit(v[++i]);
+        else if (ch === '%' || ch === '*') src += '.*';
+        else if (ch === '_') src += '.';
+        else src += lit(ch);
+      }
+      const re = new RegExp(`^${src}$`, 'is');
+      filters.push((r) => re.test(String(r[c] ?? '')));
+      return b;
+    },
     or: () => b,
     order: () => b,
     limit: () => b,
@@ -634,6 +648,14 @@ describe('ESS admin area', () => {
 
     const again = await signed('post', '/api/v1/ess/admin/users', { email: 'shop@ess.test', role: 'ESS_STAFF' }, asActor('admin-token'));
     expect(again.status).toBe(409);
+
+    // An email with `_` or `%` must not match (and give a role to) someone else's account.
+    for (const email of ['sho_@ess.test', 'ow_er@ess.test']) {
+      const wild = await signed('post', '/api/v1/ess/admin/users', { email, role: 'ESS_ADMIN' }, asActor('admin-token'));
+      expect(wild.status).toBe(201);
+      expect(db.app_role_grants.at(-1)!.profile_id).toBe(`new-${email}`);
+    }
+    expect(db.app_role_grants.some((g) => g.profile_id === 'ess-staff-user' && g.role === 'ESS_ADMIN')).toBe(false);
 
     db.app_role_grants.push({ id: '1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d', profile_id: 'ess-staff-user', role: 'ESS_ADMIN', revoked_at: null });
     const self = await signed('delete', '/api/v1/ess/admin/users/1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d', undefined, asActor('staff-token'));

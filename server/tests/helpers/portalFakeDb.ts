@@ -83,7 +83,8 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
       lt(col: string, v: string) { filters.push((r) => r[col] < v); return self; },
       lte(col: string, v: string) { filters.push((r) => r[col] <= v); return self; },
       in(col: string, vs: unknown[]) { filters.push((r) => vs.includes(r[col])); return self; },
-      ilike(col: string, v: string) { filters.push((r) => String(r[col] ?? '').toLowerCase() === v.toLowerCase()); return self; },
+      // Like PostgREST: `*` and `%` match any run, `_` any one character, a backslash escapes the next character.
+      ilike(col: string, v: string) { const re = likeRegex(v); filters.push((r) => re.test(String(r[col] ?? ''))); return self; },
       order(col: string, o?: { ascending?: boolean }) { orders.push({ col, asc: o?.ascending !== false }); return self; },
       limit(n: number) { limitN = n; return self; },
       maybeSingle() { single = 'maybe'; return self; },
@@ -224,4 +225,18 @@ export function createFakeDb(initial: Record<string, Row[]>): FakeDb {
       },
     },
   };
+}
+
+/** A PostgREST ilike pattern as a case-insensitive regex (wildcards honoured, so tests catch unescaped input). */
+function likeRegex(pattern: string): RegExp {
+  const lit = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let out = '';
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\' && i + 1 < pattern.length) out += lit(pattern[++i]);
+    else if (c === '%' || c === '*') out += '.*';
+    else if (c === '_') out += '.';
+    else out += lit(c);
+  }
+  return new RegExp(`^${out}$`, 'is');
 }
