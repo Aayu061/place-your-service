@@ -49,15 +49,16 @@ const rateLimited = (res: Response, err: RateLimitedError) =>
   res.status(429).json({ success: false, error: { code: 'RATE_LIMITED', message: err.message } });
 
 /**
- * Always 202: the same answer whether or not the email can sign in (a code is emailed only when it can).
- * Optional `clientIpHash` (64 lowercase hex, as for /track) enables the per-visitor limit; 429 RATE_LIMITED over it.
+ * Always 202, in the same time, whether or not the email can sign in: the account lookup and the email happen after
+ * the answer. `clientIpHash` (64 lowercase hex, as for /track) is the per-visitor limit key; requests without a valid
+ * one share a single strict bucket. 429 RATE_LIMITED over the limit.
  */
 essPortalRouter.post(
   '/code',
   signed,
   wrap(async (req, res) => {
     try {
-      await customerAccountService.requestCode(req.body?.email, req.body?.clientIpHash);
+      await customerAccountService.startCodeRequest(req.body?.email, req.body?.clientIpHash);
     } catch (err) {
       if (err instanceof RateLimitedError) return rateLimited(res, err);
       throw err;

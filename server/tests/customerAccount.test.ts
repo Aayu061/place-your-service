@@ -89,6 +89,18 @@ describe('customer accounts: sign-in codes and sessions (S11)', () => {
     expect(sent).toHaveLength(0);
   });
 
+  it('a code whose email failed is removed, so a mail outage does not use up the 3-per-15-minutes limit', async () => {
+    const send = vi.mocked(resendTransport.send);
+    const working = send.getMockImplementation()!;
+    send.mockRejectedValue(new Error('smtp down'));
+    for (let i = 0; i < 3; i++) await customerAccountService.requestCode('asha@example.com');
+    expect(db.customer_login_otps).toHaveLength(0);
+    send.mockImplementation(working);
+    await customerAccountService.requestCode('asha@example.com');
+    expect(sent).toHaveLength(1);
+    expect(db.customer_login_otps).toHaveLength(1);
+  });
+
   it('at most 3 codes per 15 minutes', async () => {
     for (let i = 0; i < 5; i++) await customerAccountService.requestCode('asha@example.com');
     expect(sent).toHaveLength(3);

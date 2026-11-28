@@ -4,6 +4,7 @@ import request from 'supertest';
 import * as supabaseLib from '../src/lib/supabase.js';
 import { resendTransport } from '../src/services/email/emailTransport.service.js';
 import { customerPortalService } from '../src/services/customerPortal.service.js';
+import { customerAccountService } from '../src/services/customerAccount.service.js';
 import { createFakeDb, type FakeDb, type Row } from './helpers/portalFakeDb.js';
 
 // The signed-request check is covered in integrationLink tests; here every request counts as a signed ESS call.
@@ -76,13 +77,21 @@ beforeEach(() => {
     return { transport: 'dev-log', providerMessageId: `m-${sent.length}`, effectiveRecipient: p.to, sandboxRedirected: false } as never;
   });
 });
-afterEach(() => {
+afterEach(async () => {
+  await customerAccountService.settleCodeDeliveries();
   if (originalPortal === undefined) delete process.env.PORTAL_ENABLED;
   else process.env.PORTAL_ENABLED = originalPortal;
 });
 
+/** POST /code, then wait for the code email (it is sent after the answer). */
+async function postCode(app: express.Express, body: Record<string, unknown>) {
+  const res = await request(app).post('/portal/code').send(body);
+  await customerAccountService.settleCodeDeliveries();
+  return res;
+}
+
 async function signIn(app: express.Express, email: string): Promise<string> {
-  expect((await request(app).post('/portal/code').send({ email })).status).toBe(202);
+  expect((await postCode(app, { email, clientIpHash: visitor(0xabc) })).status).toBe(202);
   const res = await request(app).post('/portal/sign-in').send({ email, code: codeFor(email) });
   expect(res.status).toBe(200);
   return res.body.data.token;
@@ -161,14 +170,39 @@ describe('customer accounts: per-visitor limits (S11 F3)', () => {
     expect(db.customer_portal_visitor_limits.every((r) => /^[0-9a-f]{64}$/.test(r.key_hash))).toBe(true);
   });
 
-  it('POST /code: a missing or malformed clientIpHash is ignored (no limit applied, nothing stored)', async () => {
+  it('POST /code: a missing or malformed clientIpHash does not switch the limit off; all such requests share one bucket', async () => {
     const app = makeApp();
-    for (const clientIpHash of [undefined, 'not-hex', visitor(1).toUpperCase(), visitor(1).slice(1), 42]) {
-      for (let i = 0; i < 11; i++) {
-        expect((await request(app).post('/portal/code').send({ email: 'nobody@example.com', clientIpHash })).status).toBe(202);
-      }
+    const odd = [undefined, 'not-hex', visitor(1).toUpperCase(), visitor(1).slice(1), 42];
+    for (let i = 0; i < 10; i++) {
+      expect((await postCode(app, { email: 'nobody@example.com', clientIpHash: odd[i % odd.length] })).status).toBe(202);
     }
-    expect(db.customer_portal_visitor_limits ?? []).toHaveLength(0);
+    for (const clientIpHash of odd) {
+      const res = await postCode(app, { email: 'nobody@example.com', clientIpHash });
+      expect(res.status).toBe(429);
+      expect(res.body).toEqual(RATE_LIMITED);
+    }
+    // One shared row, stored as a hash; a visitor with a real key is not affected.
+    expect(db.customer_portal_visitor_limits).toHaveLength(1);
+    expect(db.customer_portal_visitor_limits[0].key_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect((await postCode(app, { email: 'nobody@example.com', clientIpHash: visitor(9) })).status).toBe(202);
+  });
+
+  it('POST /code answers before the account lookup and email (same timing for every email)', async () => {
+    const app = makeApp();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const send = vi.mocked(resendTransport.send);
+    const real = send.getMockImplementation()!;
+    send.mockImplementation(async (p: any) => {
+      await gate;
+      return real(p);
+    });
+    const res = await request(app).post('/portal/code').send({ email: 'asha@example.com', clientIpHash: visitor(10) });
+    expect(res.status).toBe(202);
+    expect(sent).toHaveLength(0); // answered while the email was still waiting
+    release();
+    await customerAccountService.settleCodeDeliveries();
+    expect(sent).toHaveLength(1);
   });
 
   it('POST /code: the window resets after an hour', async () => {
@@ -186,7 +220,7 @@ describe('customer accounts: per-visitor limits (S11 F3)', () => {
       expect(res.status).toBe(401);
       expect(res.body.error.code).toBe('CODE_REJECTED');
     }
-    await request(app).post('/portal/code').send({ email: 'asha@example.com' });
+    await postCode(app, { email: 'asha@example.com', clientIpHash: visitor(4) });
     const right = { email: 'asha@example.com', code: codeFor('asha@example.com') };
     const res = await request(app).post('/portal/sign-in').send({ ...right, clientIpHash: visitor(4) });
     expect(res.status).toBe(429);
@@ -201,7 +235,7 @@ describe('customer accounts: per-visitor limits (S11 F3)', () => {
     const app = makeApp();
     await signIn(app, 'asha@example.com');
     for (let i = 0; i < 25; i++) {
-      await request(app).post('/portal/code').send({ email: 'asha@example.com' });
+      await postCode(app, { email: 'asha@example.com', clientIpHash: visitor(1000 + i) });
       db.customer_login_otps.forEach((o) => (o.created_at = new Date(Date.now() - 20 * 60_000).toISOString()));
       const res = await request(app)
         .post('/portal/sign-in')

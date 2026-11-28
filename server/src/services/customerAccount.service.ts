@@ -19,7 +19,13 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_MAX_PER_15_MIN = 3;
 export const SESSION_MAX_DAYS = 30;
 export const SESSION_IDLE_DAYS = 7;
-/** F2: an account's sign-in locks for ACCOUNT_LOCK_HOURS after this many wrong codes within ACCOUNT_LOCK_WINDOW_HOURS. */
+/**
+ * F2: an account's sign-in locks for ACCOUNT_LOCK_HOURS after this many wrong codes within ACCOUNT_LOCK_WINDOW_HOURS.
+ * Trade-off (deliberate): someone who knows a customer's email can lock that customer out for a day by guessing from
+ * many networks. The lock is kept because without it, guesses spread over many networks could reach a 1-in-a-million
+ * code over time. Wrong codes only count while a live code exists, every lock is in the activity log, and staff can
+ * clear it by switching website access off and on.
+ */
 export const ACCOUNT_MAX_WRONG_CODES = 10;
 export const ACCOUNT_LOCK_WINDOW_HOURS = 24;
 export const ACCOUNT_LOCK_HOURS = 24;
@@ -57,10 +63,15 @@ function codeHash(customerId: string, code: string): string {
  * F3: the visitor key. ESS sends `clientIpHash` (64 lowercase hex, the same value it sends to /track); anything else
  * is ignored. Only a further hash is stored, never the value ESS sent.
  */
-export function visitorKey(kind: 'code' | 'signin', clientIpHash: unknown): string | null {
-  if (typeof clientIpHash !== 'string' || !/^[0-9a-f]{64}$/.test(clientIpHash)) return null;
+export function visitorKey(kind: 'code' | 'signin', clientIpHash: unknown): string {
+  // A missing or malformed value does not switch the limit off: all such requests share one strict bucket, so
+  // leaving the field out can never be a way round the per-visitor limit.
+  if (typeof clientIpHash !== 'string' || !/^[0-9a-f]{64}$/.test(clientIpHash)) return sha256(`portal:${kind}:ip:unknown`);
   return sha256(`portal:${kind}:ip:${clientIpHash}`);
 }
+
+/** Code emails still being sent after /code answered (see deliverCode). Tests wait on these. */
+const pendingDeliveries = new Set<Promise<void>>();
 
 async function recordVisitorHit(key: string): Promise<number> {
   const { data, error } = await getSupabaseClient().rpc('record_portal_visitor_hit', {
@@ -235,12 +246,41 @@ function amcVisits(c: any, completed: Map<string, number> | null): { visitsUsed:
 }
 
 export const customerAccountService = {
-  /** Always resolves the same way (the caller answers 202), whether or not the email has an account. */
+  /** Looks up the account and emails a code, waiting for all of it. Used by tests and scripts; /code uses startCodeRequest. */
   async requestCode(rawEmail: unknown, clientIpHash?: unknown): Promise<void> {
-    // F3 first, before the email is looked at, so this answer cannot depend on the account.
-    const vKey = visitorKey('code', clientIpHash);
-    if (vKey && (await recordVisitorHit(vKey)) > VISITOR_MAX_CODE_REQUESTS_PER_HOUR) throw new RateLimitedError();
+    await this.limitCodeRequests(clientIpHash);
+    await this.deliverCode(rawEmail);
+  },
 
+  /** F3, before the email is looked at, so this answer cannot depend on the account. Throws RateLimitedError. */
+  async limitCodeRequests(clientIpHash: unknown): Promise<void> {
+    if ((await recordVisitorHit(visitorKey('code', clientIpHash))) > VISITOR_MAX_CODE_REQUESTS_PER_HOUR) throw new RateLimitedError();
+  },
+
+  /**
+   * What /code does: the visitor limit is checked while the caller waits; the account lookup and the email happen
+   * after the caller has its answer. So the answer takes the same time whether or not the email has an account.
+   */
+  async startCodeRequest(rawEmail: unknown, clientIpHash?: unknown): Promise<void> {
+    await this.limitCodeRequests(clientIpHash);
+    const job: Promise<void> = this.deliverCode(rawEmail)
+      .catch((err) => {
+        logger.error('Customer website sign-in code could not be prepared', {
+          outcome: 'portal_otp_failed',
+          error: err instanceof Error ? err.name : 'error',
+        });
+      })
+      .finally(() => pendingDeliveries.delete(job));
+    pendingDeliveries.add(job);
+  },
+
+  /** Resolves when every code started by startCodeRequest has been handled (for tests). */
+  async settleCodeDeliveries(): Promise<void> {
+    while (pendingDeliveries.size > 0) await Promise.all([...pendingDeliveries]);
+  },
+
+  /** Emails a code when the email can sign in; quietly does nothing otherwise. */
+  async deliverCode(rawEmail: unknown): Promise<void> {
     const email = normalizeEmail(rawEmail);
     if (!email) return;
     const customer = await signInCustomer(email);
@@ -258,12 +298,17 @@ export const customerAccountService = {
     if ((count ?? 0) >= OTP_MAX_PER_15_MIN) return; // quietly limited
 
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    const { error } = await supabase.from('customer_login_otps').insert({
-      customer_id: customer.id,
-      code_hash: codeHash(customer.id, code),
-      expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60_000).toISOString(),
-    });
+    const { data: stored, error } = await supabase
+      .from('customer_login_otps')
+      .insert({
+        customer_id: customer.id,
+        code_hash: codeHash(customer.id, code),
+        expires_at: new Date(Date.now() + OTP_TTL_MINUTES * 60_000).toISOString(),
+      })
+      .select('id')
+      .single();
     if (error) throw new Error(`Failed to store the code: ${error.message}`);
+    const otpId = (stored as { id?: string } | null)?.id ?? null;
 
     const mail = otpEmail(customer.name, code);
     try {
@@ -280,7 +325,13 @@ export const customerAccountService = {
         tags: [{ name: 'kind', value: 'portal_otp' }],
       });
     } catch (err) {
-      logger.warn('Sign-in code email failed', { outcome: 'portal_otp_email_failed', error: err instanceof Error ? err.name : 'error' });
+      // A code that never reached the customer must not count against the 3-per-15-minutes limit, or a mail
+      // outage would also lock them out once it is fixed. Error level: someone should look at the mail settings.
+      logger.error('Sign-in code email failed', { outcome: 'portal_otp_email_failed', error: err instanceof Error ? err.name : 'error' });
+      if (otpId) {
+        const { error: dErr } = await supabase.from('customer_login_otps').delete().eq('id', otpId);
+        if (dErr) logger.warn('Could not remove an unsent sign-in code', { outcome: 'portal_otp_cleanup_failed' });
+      }
     }
   },
 
@@ -290,11 +341,11 @@ export const customerAccountService = {
    */
   async verifyCode(rawEmail: unknown, rawCode: unknown, clientIpHash?: unknown): Promise<{ token: string; expiresAt: string }> {
     const vKey = visitorKey('signin', clientIpHash);
-    if (vKey && (await visitorOverLimit(vKey, VISITOR_MAX_WRONG_CODES_PER_HOUR))) throw new RateLimitedError();
+    if (await visitorOverLimit(vKey, VISITOR_MAX_WRONG_CODES_PER_HOUR)) throw new RateLimitedError();
     try {
       return await this.checkCodeAndStartSession(rawEmail, rawCode);
     } catch (err) {
-      if (err instanceof CodeRejectedError && vKey) await recordVisitorHit(vKey);
+      if (err instanceof CodeRejectedError) await recordVisitorHit(vKey);
       throw err;
     }
   },
