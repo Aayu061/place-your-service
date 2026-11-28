@@ -238,6 +238,27 @@ describe('customer accounts: 24-hour lock after 10 wrong codes (S11 F2)', () => 
     await customerAccountService.setAccess('c-perm', true, 'staff-1');
     expect(db.customer_portal_accounts[0].signin_locked_until).toBeNull();
   });
+
+  it('every switch on or off is in the activity log with the staff member; switching off signs the customer out', async () => {
+    await customerAccountService.requestCode('asha@example.com');
+    const { token } = await customerAccountService.verifyCode('asha@example.com', codeFromLastEmail());
+    await customerAccountService.setAccess('c-perm', false, 'staff-1');
+    expect(await customerAccountService.resolveSession(token)).toBeNull();
+    await customerAccountService.setAccess('c-perm', true, 'staff-2');
+    const logs = (db.activity_logs ?? []).filter((l) => String(l.action).startsWith('CUSTOMER_PORTAL_ACCESS'));
+    expect(logs.map((l) => [l.action, l.actor_profile_id, l.entity_id])).toEqual([
+      ['CUSTOMER_PORTAL_ACCESS_OFF', 'staff-1', 'c-perm'],
+      ['CUSTOMER_PORTAL_ACCESS_ON', 'staff-2', 'c-perm'],
+    ]);
+  });
+
+  it('access cannot be switched on for a customer without a usable email', async () => {
+    db.customers.push({ id: 'c-noemail', name: 'No Mail', email: null, customer_type: 'PERMANENT', is_active: true });
+    db.customers.push({ id: 'c-bad', name: 'Bad Mail', email: 'not-an-email', customer_type: 'PERMANENT', is_active: true });
+    await expect(customerAccountService.setAccess('c-noemail', true, 'staff-1')).rejects.toThrow('NO_EMAIL');
+    await expect(customerAccountService.setAccess('c-bad', true, 'staff-1')).rejects.toThrow('NO_EMAIL');
+    expect(db.customer_portal_accounts.some((a) => a.customer_id === 'c-noemail' || a.customer_id === 'c-bad')).toBe(false);
+  });
 });
 
 describe('customer accounts: AMC visits used / left in the overview (S11 G1)', () => {

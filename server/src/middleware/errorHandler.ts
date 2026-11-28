@@ -62,6 +62,14 @@ export function errorHandlerMiddleware(
     });
   }
 
+  // The ESS website is an outside system: unexpected errors reach it as a plain message, never as internal text
+  // (database messages, table names). The full message is in the log above with the request id.
+  const cleanPath = req.originalUrl.split('?')[0];
+  if (statusCode >= 500 && !isAppError && (cleanPath === '/api/v1/ess' || cleanPath.startsWith('/api/v1/ess/'))) {
+    sendError(res, statusCode, code, `Something went wrong on our side. Reference: ${req.id ?? 'unknown'}`);
+    return;
+  }
+
   sendError(res, statusCode, code, message, sanitizedDetails);
 }
 

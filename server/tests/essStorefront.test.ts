@@ -617,7 +617,9 @@ describe('ESS admin area', () => {
       rpcResults.ess_update_catalog_display = () => ({ data: null, error: { code: 'XX000', message: 'connection lost' } });
       const down = await signed('patch', PATH, body, asActor('admin-token'));
       expect(down.status).toBe(500);
-      expect(down.body.error.message).toBe('Failed to update what the website shows: connection lost');
+      // Unexpected errors reach the website as a plain message with a reference, never the database text.
+      expect(down.body.error.message).toMatch(/^Something went wrong on our side\. Reference: /);
+      expect(JSON.stringify(down.body)).not.toContain('connection lost');
 
       expect(stale).toHaveBeenCalledTimes(2);
       expect(displayLogs()).toHaveLength(0);

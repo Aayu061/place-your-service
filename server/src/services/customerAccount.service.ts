@@ -497,6 +497,13 @@ export const customerAccountService = {
   async setAccess(customerId: string, enabled: boolean, actorId: string): Promise<{ enabled: boolean }> {
     const supabase = getSupabaseClient();
     if (enabled) {
+      // Codes are emailed, so an account without a usable email could never sign in (the dashboard hides the switch
+      // for them; this keeps the rule when the API is called directly).
+      const { data: cust, error: cErr } = await supabase.from('customers').select('email').eq('id', customerId).maybeSingle();
+      if (cErr) throw new Error(`Failed to read the customer: ${cErr.message}`);
+      if (!cust) throw new Error('ONLY_PERMANENT');
+      const email = normalizeEmail((cust as { email?: unknown }).email);
+      if (!email || hasUnescapableWildcard(email)) throw new Error('NO_EMAIL');
       const { error } = await supabase
         .from('customer_portal_accounts')
         .upsert({ customer_id: customerId, enabled: true, enabled_by: actorId || null, enabled_at: new Date().toISOString(), disabled_at: null, signin_locked_until: null }, { onConflict: 'customer_id' });
@@ -507,8 +514,21 @@ export const customerAccountService = {
         .update({ enabled: false, disabled_at: new Date().toISOString() })
         .eq('customer_id', customerId);
       if (error) throw new Error(`Failed to switch access off: ${error.message}`);
-      await supabase.from('customer_portal_sessions').update({ revoked_at: new Date().toISOString() }).eq('customer_id', customerId).is('revoked_at', null);
+      const { error: rErr } = await supabase
+        .from('customer_portal_sessions')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('customer_id', customerId)
+        .is('revoked_at', null);
+      // Access is already off (every session lookup re-checks it), but say so rather than report a clean switch-off.
+      if (rErr) throw new Error(`Website access is off, but signing out the customer's devices failed: ${rErr.message}`);
     }
+    await logActivity({
+      actorProfileId: actorId || null,
+      action: enabled ? 'CUSTOMER_PORTAL_ACCESS_ON' : 'CUSTOMER_PORTAL_ACCESS_OFF',
+      entityType: 'customer',
+      entityId: customerId,
+      details: { enabled },
+    });
     return { enabled };
   },
 

@@ -100,6 +100,9 @@ customerRouter.put(
       if (err instanceof Error && err.message === 'ONLY_PERMANENT') {
         return res.status(422).json({ success: false, error: { code: 'ONLY_PERMANENT', message: 'Website access is only for active permanent customers.' } });
       }
+      if (err instanceof Error && err.message === 'NO_EMAIL') {
+        return res.status(422).json({ success: false, error: { code: 'NO_EMAIL', message: 'Add a valid email address to this customer first. Sign-in codes are sent by email.' } });
+      }
       return next(err);
     }
   }

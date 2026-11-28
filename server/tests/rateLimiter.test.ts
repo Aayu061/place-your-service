@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
-import { app } from '../src/app.js';
+import { app, isEssPath, ESS_RATE_LIMIT_FACTOR } from '../src/app.js';
 import * as supabaseLib from '../src/lib/supabase.js';
 
 describe('API Rate Limiter & Health Check Exemption', () => {
@@ -54,5 +54,20 @@ describe('API Rate Limiter & Health Check Exemption', () => {
     }
 
     expect(got429).toBe(true);
+  });
+
+  it('ESS website calls are not counted in the global per-address limit (they have their own, higher one)', async () => {
+    // The previous test used up the global limit for this address; an ESS path still reaches its own checks.
+    expect((await request(app).get('/api/v1/non-health-endpoint')).status).toBe(429);
+    const res = await request(app).get('/api/v1/ess/portal/status');
+    expect(res.status).not.toBe(429);
+  });
+
+  it('isEssPath matches /api/v1/ess and below only', () => {
+    expect(isEssPath('/api/v1/ess')).toBe(true);
+    expect(isEssPath('/api/v1/ess/portal/code')).toBe(true);
+    expect(isEssPath('/api/v1/essential')).toBe(false);
+    expect(isEssPath('/api/v1/customers')).toBe(false);
+    expect(ESS_RATE_LIMIT_FACTOR).toBeGreaterThan(1);
   });
 });

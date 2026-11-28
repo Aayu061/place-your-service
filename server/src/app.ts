@@ -10,6 +10,14 @@ import { errorHandlerMiddleware, notFoundHandler } from './middleware/errorHandl
 import apiV1Router from './routes/index.js';
 import webhookRouter from './routes/webhook.routes.js';
 
+/** The ESS website's per-address limit is this many times the global one (see 6b in createApp). */
+export const ESS_RATE_LIMIT_FACTOR = 10;
+
+/** True for /api/v1/ess and anything under it (path without the query). */
+export function isEssPath(cleanPath: string): boolean {
+  return cleanPath === '/api/v1/ess' || cleanPath.startsWith('/api/v1/ess/');
+}
+
 export function createApp(): Express {
   const app = express();
 
@@ -91,7 +99,9 @@ export function createApp(): Express {
     skip: (req) => {
       // Health check and readiness endpoints must never be blocked by API rate limiting
       const cleanPath = req.originalUrl.split('?')[0].replace(/\/+$/, '');
-      return cleanPath === '/api/v1/health' || cleanPath === '/api/v1/health/ready' || cleanPath === '/health';
+      if (cleanPath === '/api/v1/health' || cleanPath === '/api/v1/health/ready' || cleanPath === '/health') return true;
+      // The ESS website calls from a few shared server addresses for every visitor; it has its own limit below.
+      return isEssPath(cleanPath);
     },
     message: {
       success: false,
@@ -102,6 +112,21 @@ export function createApp(): Express {
     },
   });
   app.use('/api/', limiter);
+
+  // 6b. ESS website (signed server-to-server calls). Every website visitor arrives from the website's few server
+  // addresses, so the per-address limit is ESS_RATE_LIMIT_FACTOR times the global one. Signatures, nonces and the
+  // per-visitor / per-account limits of each route still apply. A forged request is still bounded by this limit.
+  const essLimiter = rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    max: env.RATE_LIMIT_MAX * ESS_RATE_LIMIT_FACTOR,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests from this IP. Please try again later.' },
+    },
+  });
+  app.use('/api/v1/ess', essLimiter);
 
   // 7. Root service status handlers for platform HTTP/HEAD probes (e.g., Render startup checks)
   app.head('/', (_req, res) => {
