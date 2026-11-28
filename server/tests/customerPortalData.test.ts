@@ -238,7 +238,7 @@ function expectClean(body: unknown, K: 'A' | 'B') {
   if (K === 'A') for (const m of B_MARKERS) expect(s, `B marker ${m}`).not.toContain(m);
 }
 
-const NOT_FOUND = { success: false, error: { code: 'NOT_FOUND', message: 'We could not find that.' } };
+const NOT_FOUND = { success: false, error: { code: 'NOT_FOUND', message: 'We could not find that.', details: { portal: true } } };
 
 const ROUTES_WITH_IDS: Array<{ name: string; method: 'get' | 'post'; url: (v: string) => string; own: string; other: string; missing: string; body?: Row }> = [
   { name: 'GET /acs/:id', method: 'get', url: (v) => `/portal/acs/${v}`, own: A.ids.ac1, other: B.ids.ac1, missing: MISSING_UUID },
@@ -502,10 +502,10 @@ describe('S11b portal v2: pages', () => {
     const t = session(A.ids.customer);
     const first = await post(app, `/portal/amc/${A.ids.amc}/renew`, t, { note: 'Please call after 6pm' });
     expect(first.status).toBe(201);
-    expect(first.body.data).toEqual({ requested: true, reference: expect.stringMatching(/^ESS-/) });
+    expect(first.body.data).toEqual({ requested: true, reference: expect.stringMatching(/^ESS-/), alreadyRequested: false });
     const again = await post(app, `/portal/amc/${A.ids.amc}/renew`, t, {});
     expect(again.status).toBe(200);
-    expect(again.body.data).toEqual(first.body.data);
+    expect(again.body.data).toEqual({ ...first.body.data, alreadyRequested: true });
     expect(db.web_intakes).toHaveLength(1);
     const row = db.web_intakes[0];
     expect(row).toMatchObject({ kind: 'AMC_RENEWAL', status: 'PENDING_REVIEW', customer_id: A.ids.customer, matched_customer_id: A.ids.customer, amc_contract_id: A.ids.amc, contact_name: 'Asha Mehta', contact_phone: '9820000001', contact_email: 'a@example.com', amc_plan_code: 'PLAN-A' });

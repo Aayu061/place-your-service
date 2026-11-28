@@ -111,7 +111,9 @@ essPortalRouter.get(
  * ---------------------------------------------------------------------------------------------------------------- */
 
 const SESSION_ENDED = { success: false, error: { code: 'SESSION_ENDED', message: 'Please sign in again.' } };
-const NOT_FOUND = { success: false, error: { code: 'NOT_FOUND', message: 'We could not find that.' } };
+// details.portal tells ESS this 404 came from a portal route (the id is not this customer's, or their account data
+// is missing), unlike the 404 of a PYS that does not have the route at all (ESS shows "coming soon" for that one).
+const NOT_FOUND = { success: false, error: { code: 'NOT_FOUND', message: 'We could not find that.', details: { portal: true } } };
 
 /** Resolves the session or answers 401; then runs the handler with the session's customer id. */
 const withCustomer = (fn: (customerId: string, req: Request, res: Response) => Promise<unknown>) =>
@@ -141,7 +143,8 @@ essPortalRouter.post(
   withCustomer(async (id, req, res) => {
     const out = await customerPortalDataService.requestRenewal(id, param(req, 'id'), req.body?.note);
     if (!out) return res.status(404).json(NOT_FOUND);
-    return sendSuccess(res, { requested: true, reference: out.reference }, out.created ? 201 : 200);
+    // alreadyRequested: an open request for this contract existed; its reference is returned (nothing new stored).
+    return sendSuccess(res, { requested: true, reference: out.reference, alreadyRequested: !out.created }, out.created ? 201 : 200);
   })
 );
 essPortalRouter.get(
