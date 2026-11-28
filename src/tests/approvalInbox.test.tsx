@@ -359,6 +359,21 @@ describe('Approval Inbox', () => {
     expect(document.body.textContent).toContain('Customer created as temporary');
   });
 
+  it('a booking from a signed-in website customer says so instead of "Matched by phone"', async () => {
+    const signedIn = makeIntake({
+      id: 's',
+      contact: { name: 'Asha Account', phone: '9820000009', email: null },
+      matchedCustomer: { id: 'cust-7', name: 'Asha Account', customerCode: 'CUST-0007', customerType: 'PERMANENT' },
+      fromCustomerAccount: true,
+      createdAt: minutesAgo(600),
+    });
+    vi.spyOn(intakeService, 'list').mockResolvedValue({ items: [signedIn], total: 1, page: 1, pageSize: 25 });
+    vi.spyOn(intakeService, 'get').mockResolvedValue(asDetail(signedIn));
+    await renderInbox();
+    expect(document.body.textContent).toContain('Signed in on the website · PERMANENT');
+    expect(document.body.textContent).not.toContain('Matched by phone');
+  });
+
   it('a renewal from a customer account: fixed customer, the contract, a checklist, and approve only closes it', async () => {
     const renewal = makeIntake({
       id: 'r',

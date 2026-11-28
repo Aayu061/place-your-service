@@ -6,6 +6,7 @@ import { sealSecret } from '../src/utils/secretBox.js';
 import { signRequest } from '../src/utils/integrationSignature.js';
 import { integrationService } from '../src/services/integration.service.js';
 import { scheduleService } from '../src/services/schedule.service.js';
+import { customerAccountService } from '../src/services/customerAccount.service.js';
 import { todayIst } from '../src/validators/intake.validator.js';
 
 vi.mock('../src/lib/supabase.js', () => ({
@@ -134,13 +135,14 @@ function installDb() {
 }
 
 let idemCounter = 0;
-const postIntake = (body: unknown, idemKey = `intake-key-${++idemCounter}-abcdef`) => {
+const postIntake = (body: unknown, idemKey = `intake-key-${++idemCounter}-abcdef`, extra: Record<string, string> = {}) => {
   const raw = JSON.stringify(body);
   return request(app)
     .post('/api/v1/ess/intakes')
     .set(signRequest({ keyId: KEY_ID, secret: SECRET, method: 'POST', pathWithQuery: '/api/v1/ess/intakes', body: raw }))
     .set('Idempotency-Key', idemKey)
     .set('Content-Type', 'application/json')
+    .set(extra)
     .send(raw);
 };
 
@@ -202,6 +204,31 @@ describe('website request intake (M5)', () => {
         spam_score: 0,
       });
       expect(rpcCalls).toContainEqual(['generate_business_numbers', { p_kind: 'WEB_INTAKE', p_count: 1 }]);
+    });
+
+    it('a booking from a signed-in website customer is linked to them (from the session, only while accounts are on)', async () => {
+      const original = process.env.PORTAL_ENABLED;
+      const resolve = vi.spyOn(customerAccountService, 'resolveSession').mockImplementation(async (t) => (t === 'a'.repeat(43) ? 'cust-acct' : null));
+      try {
+        process.env.PORTAL_ENABLED = 'true';
+        await postIntake(booking({ externalReferenceId: 'acct-1' }), undefined, { 'X-PYS-Customer-Session': 'a'.repeat(43) });
+        expect(db.web_intakes.at(-1)).toMatchObject({ matched_customer_id: 'cust-acct', customer_id: 'cust-acct' });
+
+        // An ended or unknown session just means "not signed in": stored as a normal booking, no refusal.
+        const res = await postIntake(booking({ externalReferenceId: 'acct-2' }), undefined, { 'X-PYS-Customer-Session': 'b'.repeat(43) });
+        expect(res.status).toBe(201);
+        expect(db.web_intakes.at(-1)!.customer_id).toBeUndefined();
+
+        // Accounts switched off: the session is not even looked at.
+        process.env.PORTAL_ENABLED = 'false';
+        resolve.mockClear();
+        await postIntake(booking({ externalReferenceId: 'acct-3' }), undefined, { 'X-PYS-Customer-Session': 'a'.repeat(43) });
+        expect(resolve).not.toHaveBeenCalled();
+        expect(db.web_intakes.at(-1)!.customer_id).toBeUndefined();
+      } finally {
+        if (original === undefined) delete process.env.PORTAL_ENABLED;
+        else process.env.PORTAL_ENABLED = original;
+      }
     });
 
     it('returns the existing intake for a repeated externalReferenceId (200, same numbers)', async () => {

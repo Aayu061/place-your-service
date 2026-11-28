@@ -170,7 +170,7 @@ const CustomerChoice: React.FC<{
     options.push({
       id: intake.matchedCustomer.id,
       label: `${intake.matchedCustomer.name} (${intake.matchedCustomer.customerCode})`,
-      sub: `Matched by phone · ${intake.matchedCustomer.customerType}`,
+      sub: `${intake.fromCustomerAccount ? 'Signed in on the website' : 'Matched by phone'} · ${intake.matchedCustomer.customerType}`,
     });
     seen.add(intake.matchedCustomer.id);
   }

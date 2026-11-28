@@ -14,7 +14,24 @@ import {
   trackSchema,
 } from '../../validators/ess.validator.js';
 import { essAdminRouter } from './admin.js';
-import { essPortalRouter } from './portal.js';
+import { essPortalRouter, isPortalEnabled } from './portal.js';
+import { customerAccountService } from '../../services/customerAccount.service.js';
+import { logger } from '../../utils/logger.js';
+
+/**
+ * A request sent by a signed-in website customer carries their session in X-PYS-Customer-Session. PYS resolves it
+ * itself; an ended, unknown or missing session (or accounts switched off) just means "not signed in", never a refusal.
+ */
+async function accountCustomerFor(req: Request): Promise<string | null> {
+  const token = req.get('X-PYS-Customer-Session');
+  if (!token || !isPortalEnabled()) return null;
+  try {
+    return await customerAccountService.resolveSession(token);
+  } catch {
+    logger.warn('Website request: session lookup failed; stored without the account link', { outcome: 'intake_session_lookup_failed' });
+    return null;
+  }
+}
 
 /**
  * Signed server-to-server API for the ESS website (/api/v1/ess).
@@ -59,7 +76,7 @@ essApiRouter.post(
   requireIdempotencyKey(),
   validate({ body: createIntakeSchema }),
   wrap(async (req, res) => {
-    const { created, ...result } = await intakeService.createFromEss(req.body);
+    const { created, ...result } = await intakeService.createFromEss(req.body, { accountCustomerId: await accountCustomerFor(req) });
     res.set('Cache-Control', 'no-store');
     return sendSuccess(res, result, created ? 201 : 200);
   })

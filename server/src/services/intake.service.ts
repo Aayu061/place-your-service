@@ -90,6 +90,8 @@ export interface IntakeDto {
   serviceRequest: { id: string; requestNumber: string } | null;
   /** Basket lines (empty for single-item requests). */
   items: IntakeItemDto[];
+  /** Sent by a customer signed in to their website account (linked before review; approval normally sets customer_id). */
+  fromCustomerAccount: boolean;
   /** AMC_RENEWAL only: the contract the customer asked to renew (number etc. filled in on the detail read). */
   amcContract: { id: string; contractNumber: string | null; status: string | null; endDate: string | null } | null;
   createdAt: string;
@@ -184,6 +186,7 @@ export function mapIntake(row: any): IntakeDto {
         };
       })
       .sort((a, b) => a.lineNo - b.lineNo),
+    fromCustomerAccount: row.status === 'PENDING_REVIEW' && Boolean(row.customer_id) && row.customer_id === row.matched_customer_id,
     amcContract: row.amc_contract_id ? { id: row.amc_contract_id, contractNumber: null, status: null, endDate: null } : null,
     createdAt: row.created_at,
   };
@@ -231,7 +234,12 @@ function startOfTodayIstIso(): string {
 
 class IntakeService {
   /** Store a website request from ESS. Same externalReferenceId → returns the existing intake. */
-  async createFromEss(input: CreateIntakeInput): Promise<CreateIntakeResult> {
+  /**
+   * `accountCustomerId`: the customer of a live website-account session that sent this request (resolved by PYS from
+   * X-PYS-Customer-Session, never taken from the body). The request is then matched to that customer instead of by
+   * phone, and the inbox shows it came from a signed-in customer.
+   */
+  async createFromEss(input: CreateIntakeInput, opts: { accountCustomerId?: string | null } = {}): Promise<CreateIntakeResult> {
     const supabase = getSupabaseClient();
     const extRef = input.externalReferenceId ?? null;
 
@@ -293,6 +301,8 @@ class IntakeService {
       privacy_notice_version: input.consent.noticeVersion ?? null,
       spam_score: spamScore,
       client_ip_hash: input.meta?.clientIpHash ?? null,
+      // Signed-in customer: linked to their record (the phone-match trigger only runs when this is empty).
+      ...(opts.accountCustomerId ? { matched_customer_id: opts.accountCustomerId, customer_id: opts.accountCustomerId } : {}),
     };
 
     const { data, error } = await supabase

@@ -109,6 +109,8 @@ export interface IntakeDto {
   serviceRequest: { id: string; requestNumber: string } | null;
   /** Basket lines (empty or missing for single-item requests). */
   items?: IntakeItemDto[];
+  /** Sent by a customer signed in to their website account: matched from their session, not by phone. */
+  fromCustomerAccount?: boolean;
   /** AMC_RENEWAL only: the contract to renew (number, status and end date come with the detail read). */
   amcContract?: { id: string; contractNumber: string | null; status: string | null; endDate: string | null } | null;
   createdAt: string;
