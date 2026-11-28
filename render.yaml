@@ -45,3 +45,9 @@ services:
         sync: false
       - key: INTEGRATION_SECRET_KEY
         sync: false
+      # Customer website accounts (S11/S11b). Off unless set to exactly "true" in the Render dashboard.
+      # sync: false so this file never switches it on or off by itself.
+      - key: PORTAL_ENABLED
+        sync: false
+      - key: ESS_REVALIDATE_URL
+        sync: false
